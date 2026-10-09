@@ -293,8 +293,14 @@ Resources:
             log "WARNING: no pyproject.toml at $PRL_REPO_REF; creating .venv with JupyterLab only"
             as_user uv venv --allow-existing --python "$PRL_PYTHON" .venv
           elif python3 -c 'import sys, tomllib; sys.exit("notebooks" not in tomllib.load(open("pyproject.toml", "rb")).get("dependency-groups", {}))'; then
-            log "uv sync --group notebooks"
-            sync_env --group notebooks
+            # The default "cpu" group would install CPU-only PyTorch; GPU instances use the CUDA build.
+            if python3 -c 'import sys, tomllib; sys.exit("gpu" not in tomllib.load(open("pyproject.toml", "rb")).get("dependency-groups", {}))'; then
+              log "uv sync --group notebooks --group gpu --no-group cpu"
+              sync_env --group notebooks --group gpu --no-group cpu
+            else
+              log "uv sync --group notebooks"
+              sync_env --group notebooks
+            fi
           else
             log "WARNING: pyproject.toml has no 'notebooks' dependency group at $PRL_REPO_REF; running plain uv sync"
             sync_env

@@ -50,6 +50,12 @@ JupyterLab through AWS Systems Manager port forwarding. It stops itself after ab
 minutes of idle time, and one command tears everything down. Facilitators can create and
 destroy instances for a whole cohort.
 
+**What it costs.** The table is generated from the public AWS Price List by
+`infra/aws/price_table.py`; rerun it before relying on the numbers. You pay while an instance
+runs (and a little for its disk while it is stopped).
+
+{{< include /_includes/aws-prices.md >}}
+
 See [`infra/aws/README.md`](https://github.com/project-delphi/practical-rl/blob/main/infra/aws/README.md)
 for prerequisites (an AWS account, the AWS CLI v2, the Session Manager plugin, and GPU
 quota), costs with their source and date, and step-by-step commands. SageMaker AI Studio is

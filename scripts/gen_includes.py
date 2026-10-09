@@ -397,6 +397,44 @@ def sidebar_yml(v: dict[str, Any]) -> str:
     return NOTICE_YML + yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
 
 
+def aws_prices_md() -> str:
+    """Cost table for the AWS path, from infra/aws/prices.json (written by price_table.py)."""
+    path = ROOT / "infra" / "aws" / "prices.json"
+    if not path.exists():
+        return NOTICE + "*No AWS price table yet: run `python infra/aws/price_table.py`.*\n"
+    import json
+
+    d = json.loads(path.read_text())
+    ec2 = d["ec2"]
+    rows = [
+        f"| EC2 `{i['instance_type']}` ({i['vcpu']} vCPU, {i['gpu_memory']} GPU) | "
+        f"${i['usd_per_hour']:g} per hour |"
+        for i in ec2["instances"]
+    ]
+    rows.append(f"| EBS gp3 disk | ${ec2['ebs_gp3']['usd_per_gb_month']:g} per GB-month |")
+    sm = d.get("sagemaker", {})
+    labels = {
+        "studio_jupyterlab": "SageMaker Studio JupyterLab",
+        "notebook_instance": "SageMaker notebook instance",
+    }
+    for item in sm.get("items", []):
+        label = labels.get(item.get("option"), item.get("option", "SageMaker"))
+        rows.append(f"| {label} `{item['instance_type']}` | ${item['usd_per_hour']:g} per hour |")
+    sources = [f"[EC2 offer {ec2['version']}]({ec2['source_url']})"]
+    if sm.get("source_url"):
+        sources.append(f"[SageMaker offer {sm.get('version', '')}]({sm['source_url']})")
+    return (
+        NOTICE
+        + "| Resource | On-demand price |\n|---|---|\n"
+        + "\n".join(rows)
+        + f"\n: AWS list prices in {d['region']}, checked {d['checked']} by "
+        f"`{d['generator']}`. {d['note']} {{.aws-prices}}\n\n"
+        + "Sources: "
+        + ", ".join(sources)
+        + ".\n"
+    )
+
+
 def placeholder_page(mid: str, v: dict[str, Any]) -> str:
     m = v["modules"][mid]
     return (
@@ -428,6 +466,7 @@ def outputs(v: dict[str, Any]) -> dict[Path, str]:
     out[INC / "notebooks.md"] = notebooks_md(v)
     out[INC / "path.md"] = path_md(v)
     out[INC / "sidebar.yml"] = sidebar_yml(v)
+    out[INC / "aws-prices.md"] = aws_prices_md()
     return out
 
 

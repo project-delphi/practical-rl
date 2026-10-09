@@ -54,6 +54,18 @@ jobs:
       - name: GPU runtime freeze
         run: uv run --no-project --with pyyaml python scripts/colab_constraints.py compat --runtime gpu
 
+  infra:
+    name: Lint infra/aws (cfn-lint, shellcheck)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: bash infra/aws/lint.sh
+
   notebooks:
     name: List notebooks
     runs-on: ubuntu-latest

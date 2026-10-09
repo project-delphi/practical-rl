@@ -82,7 +82,9 @@ SAGEMAKER_FILTERS = {
     "Currency": "USD",
 }
 
-README_BEGIN = "<!-- BEGIN generated prices (python infra/aws/price_table.py; do not edit by hand) -->"
+README_BEGIN = (
+    "<!-- BEGIN generated prices (python infra/aws/price_table.py; do not edit by hand) -->"
+)
 README_END = "<!-- END generated prices -->"
 
 
@@ -148,7 +150,9 @@ def stream_offer_csv(url: str, label: str, meta: dict[str, str]):
     with urllib.request.urlopen(url, timeout=120) as resp:
         length = resp.headers.get("Content-Length")
         raw = _CountingReader(resp, int(length) if length else None, label)
-        text = io.TextIOWrapper(io.BufferedReader(raw, buffer_size=1 << 20), encoding="utf-8", newline="")
+        text = io.TextIOWrapper(
+            io.BufferedReader(raw, buffer_size=1 << 20), encoding="utf-8", newline=""
+        )
         reader = csv.reader(text)
         header: list[str] | None = None
         for row in reader:
@@ -188,7 +192,9 @@ def ec2_prices(region: str) -> dict:
     for row in stream_offer_csv(url, "AmazonEC2", meta):
         if row.get("Instance Type") in INSTANCE_TYPES and matches(row, EC2_FILTERS, region):
             found.setdefault(row["Instance Type"], []).append(row)
-        elif row.get("Volume API Name") == EBS_VOLUME_API_NAME and matches(row, EBS_FILTERS, region):
+        elif row.get("Volume API Name") == EBS_VOLUME_API_NAME and matches(
+            row, EBS_FILTERS, region
+        ):
             found.setdefault("ebs", []).append(row)
     instances = []
     for itype in INSTANCE_TYPES:
@@ -255,7 +261,11 @@ def sagemaker_prices(region: str) -> dict:
         "source_url": url,
         "publication_date": meta.get("Publication Date", ""),
         "version": meta.get("Version", ""),
-        "filters": {**SAGEMAKER_FILTERS, "Region Code": region, "usageType suffixes": SAGEMAKER_USAGE},
+        "filters": {
+            **SAGEMAKER_FILTERS,
+            "Region Code": region,
+            "usageType suffixes": SAGEMAKER_USAGE,
+        },
         "items": items,
     }
 
