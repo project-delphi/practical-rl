@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Practical RL workshop: one-time monthly cost budget for the whole AWS account, with
+  email alerts at 80% of actual spend and 100% of forecasted spend. A budget only sends
+  alerts; it does not stop or delete anything. Deploy it with: prl-aws budget <email> <usd>.
+
+Parameters:
+  MonthlyLimitUSD:
+    Type: Number
+    MinValue: 1
+    Description: Monthly cost limit in US dollars for the whole account.
+  NotificationEmail:
+    Type: String
+    AllowedPattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+    Description: Email address that receives the alerts.
+  BudgetName:
+    Type: String
+    Default: practical-rl-monthly
+    AllowedPattern: ^[A-Za-z0-9_.-]{1,100}$
+    Description: Name of the budget.
+
+Resources:
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Ref BudgetName
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref MonthlyLimitUSD
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref NotificationEmail
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref NotificationEmail
+      ResourceTags:
+        - Key: Project
+          Value: practical-rl
+
+Outputs:
+  BudgetName:
+    Description: The budget (see Billing and Cost Management, Budgets).
+    Value: !Ref MonthlyBudget

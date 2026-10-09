@@ -1,0 +1,113 @@
+{
+  "checked": "2026-10-09",
+  "region": "us-east-1",
+  "currency": "USD",
+  "generator": "infra/aws/price_table.py",
+  "note": "On-demand list prices from the public AWS Price List bulk files. They exclude tax, data transfer, and any discounts or credits.",
+  "ec2": {
+    "offer_code": "AmazonEC2",
+    "source_url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/20261008184850/us-east-1/index.csv",
+    "publication_date": "2026-10-08T18:48:50Z",
+    "version": "20261008184850",
+    "filters": {
+      "TermType": "OnDemand",
+      "Product Family": "Compute Instance",
+      "Location Type": "AWS Region",
+      "Operating System": "Linux",
+      "Tenancy": "Shared",
+      "Pre Installed S/W": "NA",
+      "CapacityStatus": "Used",
+      "License Model": "No License required",
+      "operation": "RunInstances",
+      "Unit": "Hrs",
+      "Currency": "USD",
+      "Region Code": "us-east-1"
+    },
+    "instances": [
+      {
+        "instance_type": "g4dn.xlarge",
+        "gpu_count": "1",
+        "gpu_memory": "16 GB",
+        "vcpu": "4",
+        "memory": "16 GiB",
+        "usd_per_hour": 0.526,
+        "price_description": "$0.526 per On Demand Linux g4dn.xlarge Instance Hour",
+        "effective_date": "2026-10-01",
+        "sku": "7TVXMFHQR6U7W5CV"
+      },
+      {
+        "instance_type": "g5.xlarge",
+        "gpu_count": "1",
+        "gpu_memory": "24 GB",
+        "vcpu": "4",
+        "memory": "16 GiB",
+        "usd_per_hour": 1.006,
+        "price_description": "$1.006 per On Demand Linux g5.xlarge Instance Hour",
+        "effective_date": "2026-10-01",
+        "sku": "79BRGEEZC6TARVWJ"
+      },
+      {
+        "instance_type": "g6.xlarge",
+        "gpu_count": "1",
+        "gpu_memory": "24 GB",
+        "vcpu": "4",
+        "memory": "16 GiB",
+        "usd_per_hour": 0.8048,
+        "price_description": "$0.8048 per On Demand Linux g6.xlarge Instance Hour",
+        "effective_date": "2026-10-01",
+        "sku": "TPKUC6XYSUQ3VFK2"
+      }
+    ],
+    "ebs_gp3": {
+      "usd_per_gb_month": 0.08,
+      "price_description": "$0.08 per GB-month of General Purpose (gp3) provisioned storage - US East (N. Virginia)",
+      "effective_date": "2026-10-01",
+      "sku": "JG3KUJMBRGHV3N8G"
+    }
+  },
+  "sagemaker": {
+    "offer_code": "AmazonSageMaker",
+    "source_url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonSageMaker/20261007160901/us-east-1/index.csv",
+    "publication_date": "2026-10-07T16:09:01Z",
+    "version": "20261007160901",
+    "filters": {
+      "TermType": "OnDemand",
+      "Location Type": "AWS Region",
+      "Unit": "Hrs",
+      "Currency": "USD",
+      "Region Code": "us-east-1",
+      "usageType suffixes": {
+        "studio_jupyterlab": "Studio:JupyterLab-ml.g4dn.xlarge",
+        "notebook_instance": "Notebk:ml.g4dn.xlarge"
+      }
+    },
+    "items": [
+      {
+        "option": "studio_jupyterlab",
+        "instance_type": "ml.g4dn.xlarge",
+        "component": "studio-jupyterlab",
+        "usage_type": "USE1-Studio:JupyterLab-ml.g4dn.xlarge",
+        "gpu": "NVIDIA T4 GPU",
+        "vcpu": "4",
+        "memory": "16 GiB",
+        "usd_per_hour": 0.7364,
+        "price_description": "$0.7364 per JupyterLab ml.g4dn.xlarge hour in US East (N. Virginia)",
+        "effective_date": "2026-10-01",
+        "sku": "EHRD2CGPCAVBXXTZ"
+      },
+      {
+        "option": "notebook_instance",
+        "instance_type": "ml.g4dn.xlarge",
+        "component": "Notebook",
+        "usage_type": "USE1-Notebk:ml.g4dn.xlarge",
+        "gpu": "NVIDIA T4 GPU",
+        "vcpu": "4",
+        "memory": "16 GiB",
+        "usd_per_hour": 0.736,
+        "price_description": "$0.736 per Notebook ml.g4dn.xlarge hour in US East (N. Virginia)",
+        "effective_date": "2026-10-01",
+        "sku": "TMCX4JJZFDH9HRCH"
+      }
+    ]
+  }
+}
