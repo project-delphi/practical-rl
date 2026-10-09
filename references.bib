@@ -1,0 +1,955 @@
+% references.bib: Practical Reinforcement Learning
+% Draft written in Phase 0, 2026-10-09.
+%
+% Rule: an entry is here only if its primary source (or official proceedings, DOI or arXiv record)
+% was opened. The `annote` field records what was opened, which version was read, and the exact
+% location we cite. CSL styles do not print `annote`.
+%
+% Caveats are marked "CAVEAT:" and are also listed in OPEN_QUESTIONS.md. PDF text was extracted
+% programmatically, so Greek symbols and other glyphs were sometimes lost. Before any equation is
+% quoted on a page, re-check it against the typeset PDF.
+
+% ---------------------------------------------------------------------------
+% Textbooks and lecture notes
+% ---------------------------------------------------------------------------
+
+@book{sutton2018rl,
+  author    = {Sutton, Richard S. and Barto, Andrew G.},
+  title     = {Reinforcement Learning: An Introduction},
+  edition   = {2nd},
+  publisher = {MIT Press},
+  address   = {Cambridge, MA},
+  year      = {2018},
+  isbn      = {978-0-262-03924-6},
+  url       = {http://incompleteideas.net/book/the-book-2nd.html},
+  annote    = {Verified 2026-10-09. Opened the official page and the full PDF (RLbook2020.pdf); TOC and body checked.
+               Cite: UCB s2.7 Eq. 2.10; contextual bandits s2.9; Bellman eq. for v_pi Eq. 3.14 (s3.5); optimality Eqs. 3.19-3.20 (s3.6);
+               DP s4.1-4.4 (policy evaluation update Eq. 4.5); off-policy IS s5.5; per-decision IS s5.9 and s7.4;
+               TD(0) s6.1; Sarsa s6.4; Q-learning s6.5; Cliff Walking = Example 6.6; double learning s6.7; n-step Ch. 7;
+               semi-gradient s9.3-9.4, s10.1-10.2, s11.1; Baird's counterexample = s11.2, Figure 11.1 (NOT a numbered Example;
+               Example 11.1 is Tsitsiklis and Van Roy's); deadly triad s11.3; PG theorem s13.2 Eq. 13.5; REINFORCE s13.3 (Eq. 13.8);
+               with baseline s13.4 (Eqs. 13.10-13.11); actor-critic s13.5.
+               CAVEAT: the https URL fails (self-signed certificate), so use http. The MIT Press page returned 403, so the series name is unconfirmed.}
+}
+
+@book{lattimore2020bandit,
+  author    = {Lattimore, Tor and Szepesv{\'a}ri, Csaba},
+  title     = {Bandit Algorithms},
+  publisher = {Cambridge University Press},
+  year      = {2020},
+  isbn      = {9781108486828},
+  doi       = {10.1017/9781108571401},
+  url       = {https://tor-lattimore.com/downloads/book/book.pdf},
+  annote    = {Verified 2026-10-09. Opened the free PDF and the DOI record. Cite by chapter or theorem, because PDF page numbers differ from print.
+               Concentration Ch. 5 (s5.3; Thm 5.3 subgaussian tail; Cor 5.5 sample mean; Hoeffding's lemma is Exercise 5.11);
+               ETC Ch. 6; UCB Ch. 7 (s7.1); contextual Ch. 18; stochastic linear bandits Ch. 19 (LinUCB s19.2, Eqs. 19.7, 19.13; Thm 19.2);
+               least-squares confidence Ch. 20 (Thms 20.4, 20.5); Thompson sampling Ch. 36 (s36.1, s36.3).}
+}
+
+@misc{agarwal2022rltheory,
+  author = {Agarwal, Alekh and Jiang, Nan and Kakade, Sham M. and Sun, Wen},
+  title  = {Reinforcement Learning: Theory and Algorithms},
+  year   = {2022},
+  note   = {Working draft, version 3, January 31, 2022},
+  url    = {https://rltheorybook.github.io/rltheorybook_AJKS_V3.pdf},
+  annote = {Verified 2026-10-09. Opened the V3 PDF and the current draft (rltheorybook_ABJKS.pdf, 27 June 2026, which adds K. Brantley as an author).
+            Cite: simulation lemma = Lemma 2.2 (an identity: Q^pi - Q^pi_hat = gamma (I - gamma P_hat^pi)^-1 (P - P_hat) V^pi; the horizon factor follows);
+            contraction = Lemma 1.10 (s1.3.1). Lemma 1.10 is the contraction of the OPTIMALITY operator on Q. Module 1's T^pi contraction is a one-line argument
+            and needs no citation. Bellman optimality = Thm 1.8. Numbering is the same in both versions (academic-director review re-checked V3, 2022-01-31).
+            CAVEAT: the current draft is updated often, so cite V3. The greedy-policy loss lemma (2 gamma eps/(1-gamma)) is not yet located; cite only after opening it.}
+}
+
+@book{puterman1994mdp,
+  author    = {Puterman, Martin L.},
+  title     = {Markov Decision Processes: Discrete Stochastic Dynamic Programming},
+  series    = {Wiley Series in Probability and Statistics},
+  publisher = {Wiley},
+  year      = {1994},
+  doi       = {10.1002/9780470316887},
+  annote    = {Verified 2026-10-09 via the DOI record. Background reference only. CAVEAT: the Wiley page returned 403; the print ISBN is not verified.}
+}
+
+@book{szepesvari2010algorithms,
+  author    = {Szepesv{\'a}ri, Csaba},
+  title     = {Algorithms for Reinforcement Learning},
+  series    = {Synthesis Lectures on Artificial Intelligence and Machine Learning},
+  publisher = {Morgan \& Claypool},
+  year      = {2010},
+  doi       = {10.2200/S00268ED1V01Y201005AIM009},
+  url       = {https://sites.ualberta.ca/~szepesva/papers/RLAlgsInMDPs.pdf},
+  annote    = {Verified 2026-10-09 via the DOI record (now resolves to Springer, 10.1007/978-3-031-01551-9) and the author PDF.
+               The title is "Algorithms FOR Reinforcement Learning"; the author's web page header saying "of" is wrong.}
+}
+
+@book{bellman1957dp,
+  author    = {Bellman, Richard},
+  title     = {Dynamic Programming},
+  publisher = {Princeton University Press},
+  address   = {Princeton, NJ},
+  year      = {1957},
+  annote    = {Verified 2026-10-09 via Library of Congress cataloging of the 2003 Dover reprint ("Originally published: Princeton University Press, 1957").
+               Princeton reissue 2010: ISBN 9780691146683, DOI 10.1515/9781400835386. Background reference only.}
+}
+
+% ---------------------------------------------------------------------------
+% Bandits and exploration (Day 2)
+% ---------------------------------------------------------------------------
+
+@article{hoeffding1963,
+  author  = {Hoeffding, Wassily},
+  title   = {Probability Inequalities for Sums of Bounded Random Variables},
+  journal = {Journal of the American Statistical Association},
+  volume  = {58},
+  number  = {301},
+  pages   = {13--30},
+  year    = {1963},
+  doi     = {10.1080/01621459.1963.10500830},
+  annote  = {Verified 2026-10-09 via the DOI record. Stated, not proved, in Module 4.}
+}
+
+@article{auer2002ucb,
+  author  = {Auer, Peter and Cesa-Bianchi, Nicol{\`o} and Fischer, Paul},
+  title   = {Finite-time Analysis of the Multiarmed Bandit Problem},
+  journal = {Machine Learning},
+  volume  = {47},
+  number  = {2--3},
+  pages   = {235--256},
+  year    = {2002},
+  doi     = {10.1023/A:1013689704352},
+  annote  = {Verified 2026-10-09 via the DOI record and the author PDF. Cite: UCB1 is defined in s2, Figure 1; regret bound in Thm 1 (rewards in [0,1]).}
+}
+
+@article{thompson1933,
+  author  = {Thompson, W. R.},
+  title   = {On the Likelihood that One Unknown Probability Exceeds Another in View of the Evidence of Two Samples},
+  journal = {Biometrika},
+  volume  = {25},
+  number  = {3--4},
+  pages   = {285--294},
+  year    = {1933},
+  doi     = {10.1093/biomet/25.3-4.285},
+  annote  = {Verified 2026-10-09 via the DOI record.}
+}
+
+@article{russo2018tutorial,
+  author  = {Russo, Daniel J. and Van Roy, Benjamin and Kazerouni, Abbas and Osband, Ian and Wen, Zheng},
+  title   = {A Tutorial on {T}hompson Sampling},
+  journal = {Foundations and Trends in Machine Learning},
+  volume  = {11},
+  number  = {1},
+  pages   = {1--96},
+  year    = {2018},
+  doi     = {10.1561/2200000070},
+  annote  = {Verified 2026-10-09 via the DOI record and arXiv 1707.02038 (author order confirmed).}
+}
+
+@inproceedings{li2010linucb,
+  author    = {Li, Lihong and Chu, Wei and Langford, John and Schapire, Robert E.},
+  title     = {A Contextual-Bandit Approach to Personalized News Article Recommendation},
+  booktitle = {Proceedings of the 19th International Conference on World Wide Web (WWW '10)},
+  pages     = {661--670},
+  publisher = {ACM},
+  year      = {2010},
+  doi       = {10.1145/1772690.1772758},
+  annote    = {Verified 2026-10-09 via the DOI record and arXiv 1003.0146. Cite: Algorithm 1 = LinUCB with disjoint linear models (s3);
+               Algorithm 2 = hybrid (s3.2); offline replay evaluation s4, Algorithm 3, Thm 1 (unbiased under a uniformly random logging policy).}
+}
+
+@inproceedings{agrawal2013linearts,
+  author    = {Agrawal, Shipra and Goyal, Navin},
+  title     = {Thompson Sampling for Contextual Bandits with Linear Payoffs},
+  booktitle = {Proceedings of the 30th International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {28},
+  number    = {3},
+  pages     = {127--135},
+  year      = {2013},
+  url       = {https://proceedings.mlr.press/v28/agrawal13.html},
+  annote    = {Verified 2026-10-09 via the PMLR page and arXiv 1209.3352.}
+}
+
+@article{strehl2008mbie,
+  author  = {Strehl, Alexander L. and Littman, Michael L.},
+  title   = {An Analysis of Model-Based Interval Estimation for {M}arkov Decision Processes},
+  journal = {Journal of Computer and System Sciences},
+  volume  = {74},
+  number  = {8},
+  pages   = {1309--1331},
+  year    = {2008},
+  doi     = {10.1016/j.jcss.2007.08.009},
+  annote  = {Verified 2026-10-09 via the DOI record and the publisher PDF (ics.uci.edu course copy). Cite: MBIE-EB s3.2, Eq. 8, p. 1316:
+             Q(s,a) = R^(s,a) + gamma sum_s' T^(s'|s,a) max_a' Q(s',a') + beta/sqrt(n(s,a)) (fraction bar and radical confirmed from the PDF drawing operators,
+             academic-director review). Theory value of beta in Lemma 7, p. 1320. RiverSwim: s6 "Experiments", Fig. 1, p. 1327 (6 states; left reward 5).
+             The paper says its two MDPs are "taken from [19]" = Strehl & Littman, ICTAI 2004, pp. 128-135, which is not opened, so we don't cite it.
+             CAVEAT: Fig. 1's transition probabilities are in an image and were not read. The right-end reward is "ten thousand" in extracted text; confirm visually.
+             Our RiverSwim states its own probabilities on the page.}
+}
+
+@inproceedings{osband2013psrl,
+  author    = {Osband, Ian and Russo, Daniel and Van Roy, Benjamin},
+  title     = {(More) Efficient Reinforcement Learning via Posterior Sampling},
+  booktitle = {Advances in Neural Information Processing Systems 26},
+  pages     = {3003--3011},
+  year      = {2013},
+  url       = {https://proceedings.neurips.cc/paper/2013/hash/6a5889bb0190d0211a991f47bb19a777-Abstract.html},
+  annote    = {Verified 2026-10-09 via the proceedings page and arXiv 1306.0940. Uses RiverSwim (s6, Fig. 1, Table 1); cites Strehl and Littman 2008 for it. Module 6 stretch (PSRL).}
+}
+
+@article{kearns2002e3,
+  author  = {Kearns, Michael and Singh, Satinder},
+  title   = {Near-Optimal Reinforcement Learning in Polynomial Time},
+  journal = {Machine Learning},
+  volume  = {49},
+  number  = {2--3},
+  pages   = {209--232},
+  year    = {2002},
+  doi     = {10.1023/A:1017984413808},
+  annote  = {Verified 2026-10-09 via the DOI record. Contains a "Simulation Lemma" (Lemma 4 in the authors' 1998 preprint).
+             CAVEAT: lemma numbering in the journal version is unverified (paywall). Module 2 cites agarwal2022rltheory Lemma 2.2 for the statement.}
+}
+
+@inproceedings{bellemare2016pseudocount,
+  author    = {Bellemare, Marc G. and Srinivasan, Sriram and Ostrovski, Georg and Schaul, Tom and Saxton, David and Munos, R{\'e}mi},
+  title     = {Unifying Count-Based Exploration and Intrinsic Motivation},
+  booktitle = {Advances in Neural Information Processing Systems 29},
+  pages     = {1471--1479},
+  year      = {2016},
+  url       = {https://proceedings.neurips.cc/paper/2016/hash/afda332245e2af431fb7b672a68b659d-Abstract.html},
+  annote    = {Verified 2026-10-09 via the proceedings page and arXiv 1606.01868. Module 6 pointer (beyond tabular counts).}
+}
+
+@inproceedings{burda2019rnd,
+  author    = {Burda, Yuri and Edwards, Harrison and Storkey, Amos and Klimov, Oleg},
+  title     = {Exploration by Random Network Distillation},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2019},
+  url       = {https://openreview.net/forum?id=H1lJJnR5Ym},
+  annote    = {Verified 2026-10-09 via the ICLR 2019 listing on iclr.cc and arXiv 1810.12894. CAVEAT: the OpenReview page itself could not be opened (bot check).}
+}
+
+@inproceedings{pathak2017curiosity,
+  author    = {Pathak, Deepak and Agrawal, Pulkit and Efros, Alexei A. and Darrell, Trevor},
+  title     = {Curiosity-driven Exploration by Self-supervised Prediction},
+  booktitle = {Proceedings of the 34th International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {70},
+  pages     = {2778--2787},
+  year      = {2017},
+  url       = {https://proceedings.mlr.press/v70/pathak17a.html},
+  annote    = {Verified 2026-10-09 via the PMLR page. Module 6 pointer.}
+}
+
+% ---------------------------------------------------------------------------
+% Value-based methods, function approximation (Days 1 and 3)
+% ---------------------------------------------------------------------------
+
+@article{watkins1992q,
+  author  = {Watkins, Christopher J. C. H. and Dayan, Peter},
+  title   = {Q-learning},
+  journal = {Machine Learning},
+  volume  = {8},
+  number  = {3--4},
+  pages   = {279--292},
+  year    = {1992},
+  doi     = {10.1007/BF00992698},
+  annote  = {Verified 2026-10-09 via the DOI record.}
+}
+
+@techreport{rummery1994sarsa,
+  author      = {Rummery, Gavin and Niranjan, Mahesan},
+  title       = {On-line {Q}-learning Using Connectionist Systems},
+  institution = {Cambridge University Engineering Department},
+  number      = {CUED/F-INFENG/TR 166},
+  month       = sep,
+  year        = {1994},
+  url         = {https://mi.eng.cam.ac.uk/reports/abstracts/rummery_tr166.html},
+  annote      = {Verified 2026-10-09 via the official abstract page.
+                 CAVEAT: do NOT claim this report coined the name "SARSA" (unverified; a secondary source says the authors called it Modified Connectionist Q-Learning).}
+}
+
+@incollection{baird1995residual,
+  author    = {Baird, Leemon},
+  title     = {Residual Algorithms: Reinforcement Learning with Function Approximation},
+  booktitle = {Machine Learning Proceedings 1995 (Proceedings of the 12th International Conference on Machine Learning)},
+  pages     = {30--37},
+  publisher = {Morgan Kaufmann},
+  year      = {1995},
+  doi       = {10.1016/B978-1-55860-377-6.50013-X},
+  annote    = {Verified 2026-10-09 via the DOI record. Original source of the counterexample. Module 7 follows the presentation in sutton2018rl s11.2.}
+}
+
+@article{tsitsiklis1997td,
+  author  = {Tsitsiklis, John N. and Van Roy, Benjamin},
+  title   = {An Analysis of Temporal-Difference Learning with Function Approximation},
+  journal = {IEEE Transactions on Automatic Control},
+  volume  = {42},
+  number  = {5},
+  pages   = {674--690},
+  year    = {1997},
+  doi     = {10.1109/9.580874},
+  annote  = {Verified 2026-10-09 via the DOI record. Module 7: on-policy linear TD converges (stated, not proved).}
+}
+
+@misc{mnih2013playing,
+  author        = {Mnih, Volodymyr and Kavukcuoglu, Koray and Silver, David and Graves, Alex and Antonoglou, Ioannis and Wierstra, Daan and Riedmiller, Martin},
+  title         = {Playing {A}tari with Deep Reinforcement Learning},
+  howpublished  = {NIPS Deep Learning Workshop 2013},
+  year          = {2013},
+  eprint        = {1312.5602},
+  archivePrefix = {arXiv},
+  annote        = {Verified 2026-10-09 via the arXiv API and PDF. A workshop paper, not main conference. Cite: s4 experience replay, Algorithm 1; s5 reward clipping.}
+}
+
+@article{mnih2015dqn,
+  author  = {Mnih, Volodymyr and Kavukcuoglu, Koray and Silver, David and Rusu, Andrei A. and Veness, Joel and Bellemare, Marc G. and Graves, Alex and Riedmiller, Martin and Fidjeland, Andreas K. and Ostrovski, Georg and Petersen, Stig and Beattie, Charles and Sadik, Amir and Antonoglou, Ioannis and King, Helen and Kumaran, Dharshan and Wierstra, Daan and Legg, Shane and Hassabis, Demis},
+  title   = {Human-level Control through Deep Reinforcement Learning},
+  journal = {Nature},
+  volume  = {518},
+  number  = {7540},
+  pages   = {529--533},
+  year    = {2015},
+  doi     = {10.1038/nature14236},
+  annote  = {Verified 2026-10-09 via the DOI record and the paper (error-clipping quote re-checked in the academic-director review). Cite: Methods,
+             "Training algorithm for deep Q-networks": experience replay, target network cloned every C updates, TD error clipped to [-1, 1] in the update;
+             Algorithm 1. CAVEAT: the paper never says "Huber". Pages say: clipping delta in the gradient of (1/2)delta^2 gives exactly the gradient of the
+             Huber loss with threshold 1. The gradients are equal, not the loss values. Clipping the LOSS is not equivalent.}
+}
+
+@inproceedings{thrun1993issues,
+  author    = {Thrun, Sebastian and Schwartz, A.},
+  title     = {Issues in Using Function Approximation for Reinforcement Learning},
+  booktitle = {Proceedings of the 4th Connectionist Models Summer School},
+  editor    = {Mozer, M. and Smolensky, P. and Touretzky, D. and Elman, J. and Weigend, A.},
+  publisher = {Erlbaum},
+  year      = {1993},
+  url       = {https://publications.ri.cmu.edu/storage/publications/pub_files/pub1/thrun_sebastian_1993_1/thrun_sebastian_1993_1.pdf},
+  annote    = {Verified 2026-10-09 via the CMU Robotics Institute record and PDF. Early account of overestimation from max over noisy estimates.
+               CAVEAT: page numbers and the second author's full first name are unverified, so both are omitted.}
+}
+
+@inproceedings{vanhasselt2010double,
+  author    = {van Hasselt, Hado},
+  title     = {Double {Q}-learning},
+  booktitle = {Advances in Neural Information Processing Systems 23},
+  pages     = {2613--2621},
+  year      = {2010},
+  annote    = {Verified 2026-10-09 via the NeurIPS proceedings metadata (author listed as "Hado V. Hasselt"; normalized here).}
+}
+
+@inproceedings{vanhasselt2016ddqn,
+  author    = {van Hasselt, Hado and Guez, Arthur and Silver, David},
+  title     = {Deep Reinforcement Learning with Double {Q}-Learning},
+  booktitle = {Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume    = {30},
+  number    = {1},
+  year      = {2016},
+  doi       = {10.1609/aaai.v30i1.10295},
+  annote    = {Verified 2026-10-09 via the DOI record and arXiv 1509.06461 (re-checked in the academic-director review). Cite: Theorem 1, a TIGHT LOWER BOUND
+               max_a Q_t >= V* + sqrt(C/(m-1)), valid when all true action values are equal and the estimation errors are zero-mean with mean square C
+               (section "Overoptimism due to estimation errors"; proof in the appendix). It is not a statement about expected bias in general.
+               Module 8 derives E[max] >= max E by Jensen, then states Thm 1 with its conditions. Q is measured against MC returns of the greedy policy (as in their Fig. 3).}
+}
+
+% ---------------------------------------------------------------------------
+% Evaluation methodology (Module 9)
+% ---------------------------------------------------------------------------
+
+@inproceedings{henderson2018matters,
+  author    = {Henderson, Peter and Islam, Riashat and Bachman, Philip and Pineau, Joelle and Precup, Doina and Meger, David},
+  title     = {Deep Reinforcement Learning That Matters},
+  booktitle = {Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume    = {32},
+  number    = {1},
+  year      = {2018},
+  doi       = {10.1609/aaai.v32i1.11694},
+  annote    = {Verified 2026-10-09 via the DOI record.}
+}
+
+@inproceedings{agarwal2021precipice,
+  author    = {Agarwal, Rishabh and Schwarzer, Max and Castro, Pablo Samuel and Courville, Aaron and Bellemare, Marc G.},
+  title     = {Deep Reinforcement Learning at the Edge of the Statistical Precipice},
+  booktitle = {Advances in Neural Information Processing Systems 34},
+  pages     = {29304--29320},
+  year      = {2021},
+  url       = {https://proceedings.neurips.cc/paper/2021/hash/f514cec81cb148559cf475e7426eed5e-Abstract.html},
+  annote    = {Verified 2026-10-09 via the official NeurIPS .bib and arXiv 2108.13264 v4. Cite: s4.1 stratified bootstrap CIs; s4.2 performance profiles;
+               s4.3 IQM and optimality gap. CAVEAT: section numbers are from arXiv v4, not the camera-ready.
+               Its library, rliable, was archived on 2025-10-15, so prl.evaluate reimplements IQM and the stratified bootstrap.}
+}
+
+@article{patterson2024empirical,
+  author  = {Patterson, Andrew and Neumann, Samuel and White, Martha and White, Adam},
+  title   = {Empirical Design in Reinforcement Learning},
+  journal = {Journal of Machine Learning Research},
+  volume  = {25},
+  number  = {318},
+  pages   = {1--63},
+  year    = {2024},
+  url     = {https://jmlr.org/papers/v25/23-0183.html},
+  annote  = {Verified 2026-10-09 via the JMLR page and arXiv 2304.01315. Module 9 further reading.}
+}
+
+% ---------------------------------------------------------------------------
+% Policy optimization (Day 4)
+% ---------------------------------------------------------------------------
+
+@article{williams1992simple,
+  author  = {Williams, Ronald J.},
+  title   = {Simple Statistical Gradient-Following Algorithms for Connectionist Reinforcement Learning},
+  journal = {Machine Learning},
+  volume  = {8},
+  number  = {3--4},
+  pages   = {229--256},
+  year    = {1992},
+  doi     = {10.1007/BF00992696},
+  annote  = {Verified 2026-10-09 via Crossref. REINFORCE.}
+}
+
+@inproceedings{sutton1999pg,
+  author    = {Sutton, Richard S. and McAllester, David and Singh, Satinder and Mansour, Yishay},
+  title     = {Policy Gradient Methods for Reinforcement Learning with Function Approximation},
+  booktitle = {Advances in Neural Information Processing Systems 12},
+  editor    = {Solla, S. and Leen, T. and M{\"u}ller, K.},
+  publisher = {MIT Press},
+  year      = {1999},
+  url       = {https://proceedings.neurips.cc/paper_files/paper/1999/hash/464d828b85b0bed98e80ade0a5c43b0f-Abstract.html},
+  annote    = {Verified 2026-10-09 via the proceedings page and PDF. Cite: Theorem 1 (Policy Gradient), s1, Eq. 2.
+               CAVEAT: pages 1057-1063 come only from secondary sources, so they are omitted.}
+}
+
+@inproceedings{konda1999actor,
+  author    = {Konda, Vijay and Tsitsiklis, John},
+  title     = {Actor-Critic Algorithms},
+  booktitle = {Advances in Neural Information Processing Systems 12},
+  editor    = {Solla, S. and Leen, T. and M{\"u}ller, K.},
+  publisher = {MIT Press},
+  year      = {1999},
+  annote    = {Verified 2026-10-09 via the official NeurIPS BibTeX. Bibliographic only. Pages are omitted (secondary sources only).}
+}
+
+@inproceedings{kakade2002approximately,
+  author    = {Kakade, Sham M. and Langford, John},
+  title     = {Approximately Optimal Approximate Reinforcement Learning},
+  booktitle = {Proceedings of the 19th International Conference on Machine Learning (ICML)},
+  pages     = {267--274},
+  year      = {2002},
+  annote    = {Verified 2026-10-09 via the mlanthology record. Performance-difference lemma, s6.
+               CAVEAT: "Lemma 6.1" is inferred from the authors' LaTeX source (hunch.net), not read off the published PDF. Cite as "s6", not by lemma number.}
+}
+
+@inproceedings{schulman2015trpo,
+  author    = {Schulman, John and Levine, Sergey and Abbeel, Pieter and Jordan, Michael and Moritz, Philipp},
+  title     = {Trust Region Policy Optimization},
+  booktitle = {Proceedings of the 32nd International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {37},
+  pages     = {1889--1897},
+  year      = {2015},
+  url       = {https://proceedings.mlr.press/v37/schulman15.html},
+  annote    = {Verified 2026-10-09 via the PMLR page (official BibTeX author order) and arXiv 1502.05477 v5.
+               Cite: Thm 1 / Eq. 8 (s3); KL-constrained problem Eqs. 11-12 (s4); sample-based Eq. 14 (s5).
+               CAVEAT: the arXiv v5 footer wrongly says "31st ICML"; PMLR lists the 32nd.}
+}
+
+@inproceedings{schulman2016gae,
+  author        = {Schulman, John and Moritz, Philipp and Levine, Sergey and Jordan, Michael I. and Abbeel, Pieter},
+  title         = {High-Dimensional Continuous Control Using Generalized Advantage Estimation},
+  booktitle     = {International Conference on Learning Representations (ICLR)},
+  year          = {2016},
+  eprint        = {1506.02438},
+  archivePrefix = {arXiv},
+  annote        = {Verified 2026-10-09. Read arXiv v6; the page header says "Published as a conference paper at ICLR 2016"; ICLR 2016 accepted-papers page checked.
+                   Cite: s3; GAE estimator Eq. 16; lambda = 0 Eq. 17; lambda = 1 Eq. 18; the TD residual delta_t^V is defined inline (unnumbered);
+                   bias-variance statements in s3.}
+}
+
+@misc{schulman2017ppo,
+  author        = {Schulman, John and Wolski, Filip and Dhariwal, Prafulla and Radford, Alec and Klimov, Oleg},
+  title         = {Proximal Policy Optimization Algorithms},
+  year          = {2017},
+  eprint        = {1707.06347},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG},
+  annote        = {Verified 2026-10-09. Read arXiv v2 (28 Aug 2017); arXiv only, no journal-ref. Cite: L^CLIP Eq. 7 (s3); KL-penalty Eq. 8 (s4);
+                   combined objective Eq. 9 (s5); truncated GAE Eqs. 11-12; Algorithm 1.
+                   CAVEAT: Eqs. 10-11 print the exponent T-t+1; it should be T-t-1. Quote as printed and note the correction.}
+}
+
+@inproceedings{huang2022ppo37,
+  author    = {Huang, Shengyi and Dossa, Rousslan Fernand Julien and Raffin, Antonin and Kanervisto, Anssi and Wang, Weixun},
+  title     = {The 37 Implementation Details of Proximal Policy Optimization},
+  booktitle = {ICLR Blog Track},
+  year      = {2022},
+  url       = {https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/},
+  annote    = {Verified 2026-10-09 by opening the post. Core details numbered 1-13: vectorized architecture (1), orthogonal init (2), Adam epsilon (3),
+               learning-rate annealing (4), GAE (5), mini-batch updates (6), advantage normalization (7), clipped surrogate (8), value-loss clipping (9),
+               overall loss and entropy bonus (10), global gradient clipping (11), debug variables approxkl and clipfrac (12), shared vs separate networks (13).
+               Entry composed from the page; it shows no BibTeX.}
+}
+
+@inproceedings{engstrom2020implementation,
+  author    = {Engstrom, Logan and Ilyas, Andrew and Santurkar, Shibani and Tsipras, Dimitris and Janoos, Firdaus and Rudolph, Larry and Madry, Aleksander},
+  title     = {Implementation Matters in Deep {RL}: A Case Study on {PPO} and {TRPO}},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2020},
+  url       = {https://openreview.net/forum?id=r1etN1rtPB},
+  annote    = {Verified 2026-10-09 via the PDF header ("Published as a conference paper at ICLR 2020") and the iclr.cc poster page; arXiv 2005.12729 v1 read.
+               Cite: abstract claim (a), that code-level optimizations explain most of PPO's gain over TRPO; s3; Table 2.
+               CAVEAT: arXiv titles it "...Deep Policy Gradients..."; the ICLR listing says "...Deep RL...". OpenReview itself blocked (captcha).}
+}
+
+@inproceedings{haarnoja2018sac,
+  author    = {Haarnoja, Tuomas and Zhou, Aurick and Abbeel, Pieter and Levine, Sergey},
+  title     = {Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor},
+  booktitle = {Proceedings of the 35th International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {80},
+  pages     = {1861--1870},
+  year      = {2018},
+  url       = {https://proceedings.mlr.press/v80/haarnoja18b.html},
+  annote    = {Verified 2026-10-09 via the PMLR page and arXiv 1801.01290 v2. Cite: maximum-entropy objective Eq. 1 (s3.2). Fixed temperature in this paper.}
+}
+
+@misc{haarnoja2018sacapps,
+  author        = {Haarnoja, Tuomas and Zhou, Aurick and Hartikainen, Kristian and Tucker, George and Ha, Sehoon and Tan, Jie and Kumar, Vikash and Zhu, Henry and Gupta, Abhishek and Abbeel, Pieter and Levine, Sergey},
+  title         = {Soft Actor-Critic Algorithms and Applications},
+  year          = {2018},
+  eprint        = {1812.05905},
+  archivePrefix = {arXiv},
+  annote        = {Verified 2026-10-09 via the arXiv API and v2 PDF; arXiv only. Cite: automatic temperature tuning s5, Eq. 18 (constraint Eq. 11).
+                   CAVEAT: the target-entropy bar glyph was lost in extraction.}
+}
+
+% ---------------------------------------------------------------------------
+% Preferences, RLHF, DPO, GRPO (Module 12)
+% ---------------------------------------------------------------------------
+
+@article{bradley1952rank,
+  author  = {Bradley, Ralph Allan and Terry, Milton E.},
+  title   = {Rank Analysis of Incomplete Block Designs: {I}. The Method of Paired Comparisons},
+  journal = {Biometrika},
+  volume  = {39},
+  number  = {3/4},
+  pages   = {324--345},
+  year    = {1952},
+  doi     = {10.2307/2334029},
+  annote  = {Verified 2026-10-09 via Crossref (start page 324). CAVEAT: end page 345 is from secondary sources only.}
+}
+
+@inproceedings{christiano2017deep,
+  author    = {Christiano, Paul F. and Leike, Jan and Brown, Tom and Martic, Miljan and Legg, Shane and Amodei, Dario},
+  title     = {Deep Reinforcement Learning from Human Preferences},
+  booktitle = {Advances in Neural Information Processing Systems 30},
+  publisher = {Curran Associates, Inc.},
+  year      = {2017},
+  annote    = {Verified 2026-10-09 via the NIPS 2017 camera-ready and arXiv 1706.03741 v4. Cite: s2.2.3, Eq. 1 (Bradley-Terry over trajectory segments);
+               the cross-entropy loss is unnumbered.}
+}
+
+@misc{ziegler2019finetuning,
+  author        = {Ziegler, Daniel M. and Stiennon, Nisan and Wu, Jeffrey and Brown, Tom B. and Radford, Alec and Amodei, Dario and Christiano, Paul and Irving, Geoffrey},
+  title         = {Fine-Tuning Language Models from Human Preferences},
+  year          = {2019},
+  eprint        = {1909.08593},
+  archivePrefix = {arXiv},
+  annote        = {Verified 2026-10-09 via arXiv v2; arXiv only. Cite: s2, Eq. 2, KL-penalized reward R(x,y) = r(x,y) - beta log(pi/rho); adaptive beta s2.2.}
+}
+
+@inproceedings{stiennon2020learning,
+  author    = {Stiennon, Nisan and Ouyang, Long and Wu, Jeffrey and Ziegler, Daniel and Lowe, Ryan and Voss, Chelsea and Radford, Alec and Amodei, Dario and Christiano, Paul F.},
+  title     = {Learning to Summarize with Human Feedback},
+  booktitle = {Advances in Neural Information Processing Systems 33},
+  pages     = {3008--3021},
+  year      = {2020},
+  annote    = {Verified 2026-10-09 via the camera-ready and arXiv 2009.01325 v3. Cite: KL-penalized reward in s3.4 (unnumbered);
+               reward-model over-optimization s4.3, Figure 5 ("Optimizing against the reward model initially improves summaries, but eventually overfits").}
+}
+
+@inproceedings{ouyang2022training,
+  author    = {Ouyang, Long and Wu, Jeffrey and Jiang, Xu and Almeida, Diogo and Wainwright, Carroll and Mishkin, Pamela and Zhang, Chong and Agarwal, Sandhini and Slama, Katarina and Ray, Alex and Schulman, John and Hilton, Jacob and Kelton, Fraser and Miller, Luke and Simens, Maddie and Askell, Amanda and Welinder, Peter and Christiano, Paul F. and Leike, Jan and Lowe, Ryan},
+  title     = {Training Language Models to Follow Instructions with Human Feedback},
+  booktitle = {Advances in Neural Information Processing Systems 35},
+  pages     = {27730--27744},
+  year      = {2022},
+  doi       = {10.52202/068431-2011},
+  annote    = {Verified 2026-10-09 via the official NeurIPS BibTeX and arXiv 2203.02155 v1. Cite the RL objective as "arXiv v1, s3.5, Eq. 2".
+               CAVEAT: the camera-ready has its Models section at s3.4 and does not display the objective. The pretraining term's symbols are only partly legible in extraction.}
+}
+
+@inproceedings{rafailov2023dpo,
+  author    = {Rafailov, Rafael and Sharma, Archit and Mitchell, Eric and Manning, Christopher D. and Ermon, Stefano and Finn, Chelsea},
+  title     = {Direct Preference Optimization: Your Language Model is Secretly a Reward Model},
+  booktitle = {Advances in Neural Information Processing Systems 36},
+  pages     = {53728--53741},
+  year      = {2023},
+  doi       = {10.52202/075280-2338},
+  annote    = {Verified 2026-10-09 via the camera-ready and arXiv 2305.18290 v3 (same numbering). Cite: Bradley-Terry Eq. 1; RM loss Eq. 2;
+               KL-constrained objective Eq. 3 (s3); optimal policy Eq. 4 (s4); reparameterized reward Eq. 5; BT in policy form Eq. 6; DPO loss Eq. 7;
+               gradient unnumbered in s4 (derived App. A.4); derivation of the optimum App. A.1.}
+}
+
+@misc{shao2024deepseekmath,
+  author        = {Shao, Zhihong and Wang, Peiyi and Zhu, Qihao and Xu, Runxin and Song, Junxiao and Bi, Xiao and Zhang, Haowei and Zhang, Mingchuan and Li, Y. K. and Wu, Y. and Guo, Daya},
+  title         = {{DeepSeekMath}: Pushing the Limits of Mathematical Reasoning in Open Language Models},
+  year          = {2024},
+  eprint        = {2402.03300},
+  archivePrefix = {arXiv},
+  annote        = {Verified 2026-10-09 via the arXiv API and v3 PDF; arXiv only. Cite: GRPO s4.1 (s4.1.1 From PPO to GRPO); J_GRPO Eq. 3;
+                   KL estimator Eq. 4 (pi_ref/pi - log(pi_ref/pi) - 1); outcome-supervision advantage (r_i - mean(r))/std(r) in s4.1.2, unnumbered; Algorithm 1.
+                   CAVEAT: symbols reconstructed from text extraction; re-check against the typeset PDF.}
+}
+
+@inproceedings{gao2023scaling,
+  author    = {Gao, Leo and Schulman, John and Hilton, Jacob},
+  title     = {Scaling Laws for Reward Model Overoptimization},
+  booktitle = {Proceedings of the 40th International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {202},
+  pages     = {10835--10866},
+  year      = {2023},
+  url       = {https://proceedings.mlr.press/v202/gao23h.html},
+  annote    = {Verified 2026-10-09 via the PMLR PDF and arXiv 2210.10760 v1. Cite: KL_bon = log n - (n-1)/n in s2 (unnumbered; attributed to Stiennon et al. 2020 App. G.3);
+               functional forms R_bon(d), R_RL(d) with d = sqrt(KL) in s1 (unnumbered).}
+}
+
+@inproceedings{azar2024ipo,
+  author    = {Gheshlaghi Azar, Mohammad and Guo, Zhaohan Daniel and Piot, Bilal and Munos, Remi and Rowland, Mark and Valko, Michal and Calandriello, Daniele},
+  title     = {A General Theoretical Paradigm to Understand Learning from Human Preferences},
+  booktitle = {Proceedings of the 27th International Conference on Artificial Intelligence and Statistics},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {238},
+  pages     = {4447--4455},
+  year      = {2024},
+  annote    = {Verified 2026-10-09 via the PMLR PDF and arXiv 2310.12036 v2. Cite: s4.2 "Weak Regularisation and Overfitting":
+               "the strength of the KL-regularisation becomes weaker and weaker the more deterministic the preferences"; sampled IPO loss Eq. 17 (s5.2).
+               Module 12 Gotcha (deterministic labels push pi(y_l) -> 0). CAVEAT: the exact limiting statement about pi(y_l) must be re-read in s4.2 before quoting.}
+}
+
+% ---------------------------------------------------------------------------
+% Off-policy evaluation (Module 13)
+% ---------------------------------------------------------------------------
+
+@inproceedings{precup2000eligibility,
+  author    = {Precup, Doina and Sutton, Richard S. and Singh, Satinder},
+  title     = {Eligibility Traces for Off-Policy Policy Evaluation},
+  booktitle = {Proceedings of the 17th International Conference on Machine Learning (ICML)},
+  pages     = {759--766},
+  year      = {2000},
+  url       = {https://web.eecs.umich.edu/~baveja/Papers/OffPolicy.pdf},
+  annote    = {Verified 2026-10-09 via the author PDF. Cite: per-decision importance sampling s4 (the paper has no numbered equations);
+               Theorem 1 (consistent and unbiased). CAVEAT: the UMass ScholarWorks handle returned 403.}
+}
+
+@inproceedings{dudik2011doubly,
+  author    = {Dud{\'i}k, Miroslav and Langford, John and Li, Lihong},
+  title     = {Doubly Robust Policy Evaluation and Learning},
+  booktitle = {Proceedings of the 28th International Conference on Machine Learning (ICML)},
+  pages     = {1097--1104},
+  year      = {2011},
+  annote    = {Verified 2026-10-09 via arXiv 1103.4601 v2 (comment: "Published at ICML 2011"; PDF footer). Cite: DR estimator Eq. 1 (s2.2);
+               bias Thm 1 (s3); variance Thm 2 (s4). The "unbiased if either estimator is correct" statement is in the Introduction and the remark
+               after Thm 1, not a theorem. CAVEAT: equation reconstructed from text extraction.}
+}
+
+@inproceedings{jiang2016doubly,
+  author    = {Jiang, Nan and Li, Lihong},
+  title     = {Doubly Robust Off-policy Value Evaluation for Reinforcement Learning},
+  booktitle = {Proceedings of the 33rd International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {48},
+  pages     = {652--661},
+  year      = {2016},
+  url       = {https://proceedings.mlr.press/v48/jiang16.html},
+  annote    = {Verified 2026-10-09 via the PMLR page and arXiv 1511.03722 v3. Cite: recursive DR Eq. 10 (s4.1); Cramer-Rao lower bound Thm 2 (s5, discrete tree MDPs).}
+}
+
+@inproceedings{thomas2016data,
+  author    = {Thomas, Philip and Brunskill, Emma},
+  title     = {Data-Efficient Off-Policy Policy Evaluation for Reinforcement Learning},
+  booktitle = {Proceedings of the 33rd International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {48},
+  pages     = {2139--2148},
+  year      = {2016},
+  url       = {https://proceedings.mlr.press/v48/thomasa16.html},
+  annote    = {Verified 2026-10-09 via the PMLR PDF and arXiv 1604.00923 v1. Cite PMLR numbering: DR Eq. 1; WDR s5; MAGIC s8.
+               CAVEAT: numbering differs in arXiv v1 (DR Eq. 2; MAGIC pseudocode in App. G.3).}
+}
+
+@inproceedings{le2019batch,
+  author    = {Le, Hoang and Voloshin, Cameron and Yue, Yisong},
+  title     = {Batch Policy Learning under Constraints},
+  booktitle = {Proceedings of the 36th International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {97},
+  pages     = {3703--3712},
+  year      = {2019},
+  url       = {https://proceedings.mlr.press/v97/le19a.html},
+  annote    = {Verified 2026-10-09 via the PMLR page and arXiv 1903.08738 v1. Cite: Fitted Q Evaluation = Algorithm 3 (s3.2).}
+}
+
+@inproceedings{voloshin2021empirical,
+  author    = {Voloshin, Cameron and Le, Hoang and Jiang, Nan and Yue, Yisong},
+  title     = {Empirical Study of Off-Policy Policy Evaluation for Reinforcement Learning},
+  booktitle = {Proceedings of the Neural Information Processing Systems Track on Datasets and Benchmarks},
+  volume    = {1},
+  year      = {2021},
+  annote    = {Verified 2026-10-09 via the NeurIPS Datasets and Benchmarks 2021 listing and arXiv 1911.06854 v3. Cite: s3.2 "A recipe for method selection" (Fig. 2); s3.1.}
+}
+
+@inproceedings{swaminathan2015self,
+  author    = {Swaminathan, Adith and Joachims, Thorsten},
+  title     = {The Self-Normalized Estimator for Counterfactual Learning},
+  booktitle = {Advances in Neural Information Processing Systems 28},
+  year      = {2015},
+  annote    = {Verified 2026-10-09 via the NeurIPS proceedings. Cite: IPS Eq. 2 (s3); self-normalized estimator Eq. 7 (s5). CAVEAT: equation reconstructed from text extraction.}
+}
+
+@inproceedings{liu2018breaking,
+  author    = {Liu, Qiang and Li, Lihong and Tang, Ziyang and Zhou, Dengyong},
+  title     = {Breaking the Curse of Horizon: Infinite-Horizon Off-Policy Estimation},
+  booktitle = {Advances in Neural Information Processing Systems 31},
+  year      = {2018},
+  annote    = {Verified 2026-10-09 via arXiv 1810.12429 v1 (comment: NIPS 2018 spotlight). Cite: s2 "The Curse of Horizon" (importance weights are a product of T ratios
+               whose variance can grow exponentially with T); explicit form in Proposition 8, App. B.}
+}
+
+% ---------------------------------------------------------------------------
+% Offline RL (Module 14)
+% ---------------------------------------------------------------------------
+
+@inproceedings{fujimoto2019off,
+  author    = {Fujimoto, Scott and Meger, David and Precup, Doina},
+  title     = {Off-Policy Deep Reinforcement Learning without Exploration},
+  booktitle = {Proceedings of the 36th International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {97},
+  pages     = {2052--2062},
+  year      = {2019},
+  url       = {https://proceedings.mlr.press/v97/fujimoto19a.html},
+  annote    = {Verified 2026-10-09 via the PMLR page and arXiv 1812.02900 v3. Cite: extrapolation error, s3 (epsilon_MDP Eq. 7).}
+}
+
+@inproceedings{kumar2020cql,
+  author    = {Kumar, Aviral and Zhou, Aurick and Tucker, George and Levine, Sergey},
+  title     = {Conservative {Q}-Learning for Offline Reinforcement Learning},
+  booktitle = {Advances in Neural Information Processing Systems 33},
+  pages     = {1179--1191},
+  year      = {2020},
+  annote    = {Verified 2026-10-09 via the camera-ready and arXiv 2006.04779 v3. Cite: CQL(R) Eq. 3 and CQL(H) Eq. 4 (s3.2, logsumexp penalty);
+               discrete-action (Atari, on QR-DQN) variant s6 and App. F; Algorithm 1.}
+}
+
+@inproceedings{kostrikov2022iql,
+  author    = {Kostrikov, Ilya and Nair, Ashvin and Levine, Sergey},
+  title     = {Offline Reinforcement Learning with Implicit {Q}-Learning},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2022},
+  url       = {https://openreview.net/forum?id=68n2s9ZJWF8},
+  annote    = {Verified 2026-10-09 via the ICLR text ("Published as a conference paper at ICLR 2022"), the iclr.cc poster page, and arXiv 2110.06169 v1.
+               Cite: expectile loss L_2^tau(u) = |tau - 1(u<0)| u^2 in s4.1 (unnumbered); L_V Eq. 5; L_Q Eq. 6; advantage-weighted extraction Eq. 7 (s4.3).
+               CAVEAT: OpenReview blocked (captcha).}
+}
+
+@misc{levine2020offline,
+  author        = {Levine, Sergey and Kumar, Aviral and Tucker, George and Fu, Justin},
+  title         = {Offline Reinforcement Learning: Tutorial, Review, and Perspectives on Open Problems},
+  year          = {2020},
+  eprint        = {2005.01643},
+  archivePrefix = {arXiv},
+  annote        = {Verified 2026-10-09 via the arXiv API and v3 PDF. Cite: distributional shift s2.4 and s4.2.}
+}
+
+@misc{fu2020d4rl,
+  author        = {Fu, Justin and Kumar, Aviral and Nachum, Ofir and Tucker, George and Levine, Sergey},
+  title         = {{D4RL}: Datasets for Deep Data-Driven Reinforcement Learning},
+  year          = {2020},
+  eprint        = {2004.07219},
+  archivePrefix = {arXiv},
+  annote        = {Verified 2026-10-09 via the arXiv API (v4, Feb 2021); arXiv only. Further reading for dataset quality and coverage.}
+}
+
+@inproceedings{gulcehre2020rlunplugged,
+  author    = {Gulcehre, Caglar and Wang, Ziyu and Novikov, Alexander and Paine, Thomas and G{\'o}mez, Sergio and Zolna, Konrad and Agarwal, Rishabh and Merel, Josh S. and Mankowitz, Daniel J. and Paduraru, Cosmin and Dulac-Arnold, Gabriel and Li, Jerry and Norouzi, Mohammad and Hoffman, Matthew and Heess, Nicolas and de Freitas, Nando},
+  title     = {{RL} Unplugged: A Suite of Benchmarks for Offline Reinforcement Learning},
+  booktitle = {Advances in Neural Information Processing Systems 33},
+  pages     = {7248--7259},
+  year      = {2020},
+  annote    = {Verified 2026-10-09 via the official NeurIPS BibTeX (16 authors; arXiv 2006.13888 lists 18, adding Nachum and Tucker). Further reading only.}
+}
+
+@inproceedings{kumar2022prefer,
+  author        = {Kumar, Aviral and Hong, Joey and Singh, Anikait and Levine, Sergey},
+  title         = {When Should We Prefer Offline Reinforcement Learning Over Behavioral Cloning?},
+  booktitle     = {International Conference on Learning Representations (ICLR)},
+  year          = {2022},
+  eprint        = {2204.05618},
+  archivePrefix = {arXiv},
+  annote        = {Verified 2026-10-09 (academic-director review) via arXiv 2204.05618 v1 (2022-04-12). Cite: s4.2 "Comparison Under Expert Data",
+                   Theorem 4.3 (with C* = 1 "we cannot improve over BC"); Practical Observation 4.1; s5 gridworld ("BC performs best under C*=1").
+                   Caveats in the same paper: Practical Observations 4.2-4.3 (offline RL can win under initial-state shift, few critical states,
+                   or noisy-expert data on long horizons). Supports Module 14 Objective 2 and the Gotcha "BC is weak".
+                   CAVEAT: the venue is as reported in the review; confirm on the ICLR/OpenReview page in Phase 3.}
+}
+
+@misc{jones2021debugging,
+  author       = {Jones, Andy L.},
+  title        = {Debugging {RL}, Without the Agonizing Pain},
+  howpublished = {Blog post},
+  year         = {2021},
+  url          = {https://andyljones.com/posts/rl-debugging.html},
+  annote       = {Verified 2026-10-09 (academic-director review); the page is dated 2021/01/01. Cite: "Practical Advice -> Use probe environments",
+                  5 probes: (1) constant +1 reward; (2) observation-dependent reward; (3) two-step discounting; (4) action-dependent reward;
+                  (5) action- and observation-dependent reward. Module 9 uses probes 1-2 (core) and 3 (stretch).
+                  "Overfit a single transition" is not one of Jones's probes, so we don't attribute it to him.}
+}
+
+@inproceedings{fujimoto2021minimalist,
+  author    = {Fujimoto, Scott and Gu, Shixiang Shane},
+  title     = {A Minimalist Approach to Offline Reinforcement Learning},
+  booktitle = {Advances in Neural Information Processing Systems 34},
+  pages     = {20132--20145},
+  year      = {2021},
+  annote    = {Verified 2026-10-09 via the NeurIPS proceedings and arXiv 2106.06860 v2. Cite: TD3+BC objective Eq. 3 (s5); normalization Eq. 5.
+               CAVEAT: this paper does NOT support "BC is strong on expert data". It says TD3+BC never underperforms BC, and notes BC does poorly on Walker2d-expert.}
+}
+
+% ---------------------------------------------------------------------------
+% Software, environments, models
+% ---------------------------------------------------------------------------
+
+@inproceedings{towers2025gymnasium,
+  author    = {Towers, Mark and Kwiatkowski, Ariel and Balis, John and De Cola, Gianluca and Deleu, Tristan and Goul{\~a}o, Manuel and Kallinteris, Andreas and Krimmel, Markus and KG, Arjun and Perez-Vicente, Rodrigo and Terry, Jordan and Pierr{\'e}, Andrea and Schulhoff, Sander and Tai, Jun Jet and Tan, Hannah and Younis, Omar G.},
+  title     = {Gymnasium: A Standard Interface for Reinforcement Learning Environments},
+  booktitle = {Advances in Neural Information Processing Systems 38 (Datasets and Benchmarks Track)},
+  year      = {2025},
+  doi       = {10.52202/085713-4916},
+  annote    = {Verified 2026-10-09 via the NeurIPS 2025 proceedings BibTeX and arXiv 2407.17032 v4 (comment: accepted at NeurIPS D&B 2025).
+               Two names normalized from the proceedings BibTeX. CAVEAT: a snippet suggests the arXiv v4 PDF title says "Standardized"; not opened.}
+}
+
+@article{raffin2021sb3,
+  author  = {Raffin, Antonin and Hill, Ashley and Gleave, Adam and Kanervisto, Anssi and Ernestus, Maximilian and Dormann, Noah},
+  title   = {Stable-Baselines3: Reliable Reinforcement Learning Implementations},
+  journal = {Journal of Machine Learning Research},
+  volume  = {22},
+  number  = {268},
+  pages   = {1--8},
+  year    = {2021},
+  annote  = {Verified 2026-10-09 via the JMLR page. Software used: stable-baselines3 2.9.0 (PyPI, 2026-06-15).}
+}
+
+@article{huang2022cleanrl,
+  author  = {Huang, Shengyi and Dossa, Rousslan Fernand Julien and Ye, Chang and Braga, Jeff and Chakraborty, Dipam and Mehta, Kinal and Ara{\'u}jo, Jo{\~a}o G. M.},
+  title   = {{CleanRL}: High-quality Single-file Implementations of Deep Reinforcement Learning Algorithms},
+  journal = {Journal of Machine Learning Research},
+  volume  = {23},
+  number  = {274},
+  pages   = {1--18},
+  year    = {2022},
+  annote  = {Verified 2026-10-09 via the JMLR page (pages 1-18, not 1-8). CleanRL scripts pin gymnasium 0.29.1 and Python <3.11, so they are annotated reading only.}
+}
+
+@software{vonwerra2020trl,
+  author  = {von Werra, Leandro and Belkada, Younes and Tunstall, Lewis and Beeching, Edward and Thrush, Tristan and Lambert, Nathan and Huang, Shengyi and Rasul, Kashif and Gallou{\'e}dec, Quentin},
+  title   = {{TRL}: Transformers Reinforcement Learning},
+  year    = {2020},
+  url     = {https://github.com/huggingface/trl},
+  annote  = {Verified 2026-10-09 via the repository's CITATION.cff and README BibTeX. Software used: trl 1.15.0 (PyPI, 2026-10-08).}
+}
+
+@misc{allal2025smollm2,
+  author        = {Ben Allal, Loubna and Lozhkov, Anton and Bakouch, Elie and Mart{\'i}n Bl{\'a}zquez, Gabriel and Penedo, Guilherme and Tunstall, Lewis and others},
+  title         = {{SmolLM2}: When Smol Goes Big -- Data-Centric Training of a Small Language Model},
+  year          = {2025},
+  eprint        = {2502.02737},
+  archivePrefix = {arXiv},
+  annote        = {Verified 2026-10-09 via the arXiv API (22 authors; first six listed, last author Thomas Wolf).
+                   Model used: HuggingFaceTB/SmolLM2-135M-Instruct (Apache-2.0, 134.5M parameters, ungated; Hugging Face Hub API). Revision SHA to be pinned in Phase 1.}
+}
+
+% ---------------------------------------------------------------------------
+% Courses (Next steps page). Checked on the official course pages, 2026-10-09.
+% ---------------------------------------------------------------------------
+
+@misc{levine2026cs285,
+  author       = {Levine, Sergey},
+  title        = {{CS} 185/285: Deep Reinforcement Learning},
+  howpublished = {University of California, Berkeley},
+  year         = {2026},
+  url          = {https://rail.eecs.berkeley.edu/deeprlcourse/},
+  annote       = {Verified 2026-10-09 on the official page. The course is now numbered "CS 185/285". The current offering appears to be Spring 2026 (inferred from the Jan 19 start).}
+}
+
+@misc{brunskill2026cs234,
+  author       = {Brunskill, Emma},
+  title        = {{CS234}: Reinforcement Learning},
+  howpublished = {Stanford University, Winter 2026},
+  year         = {2026},
+  url          = {https://web.stanford.edu/class/cs234/},
+  annote       = {Verified 2026-10-09 on the official page.}
+}
+
+@misc{finn2026cs224r,
+  author       = {Finn, Chelsea},
+  title        = {{CS} 224R: Deep Reinforcement Learning},
+  howpublished = {Stanford University, Spring 2026},
+  year         = {2026},
+  url          = {https://cs224r.stanford.edu/},
+  annote       = {Verified 2026-10-09 on the official page.}
+}
+
+@misc{cmu2026deeprl,
+  author       = {Fragkiadaki, Katerina and Simchowitz, Max},
+  title        = {10-703: Deep Reinforcement Learning},
+  howpublished = {Carnegie Mellon University, Fall 2026},
+  year         = {2026},
+  url          = {https://cmudeeprl.github.io/703website_f26/},
+  annote       = {Verified 2026-10-09 on the official page. Instructors change by term (Fall 2025: Fragkiadaki and A. Kumar).
+                  The 2018 title was "Deep Reinforcement Learning and Control"; no "and Robotics" title was found.}
+}
+
+@misc{wu2026mit6792,
+  author       = {Wu, Cathy and Dahleh, Munther A.},
+  title        = {6.7920: Reinforcement Learning: Foundations and Methods},
+  howpublished = {Massachusetts Institute of Technology, Fall 2026},
+  year         = {2026},
+  url          = {https://web.mit.edu/6.7920/www/},
+  annote       = {Verified 2026-10-09 on the official page. Earlier numbers were 6.7950 and 6.246.}
+}
+
+@misc{vanhasselt2021ucl,
+  author       = {van Hasselt, Hado and Borsa, Diana and Hessel, Matteo},
+  title        = {{DeepMind} x {UCL} Reinforcement Learning Lecture Series},
+  howpublished = {YouTube, Google DeepMind},
+  year         = {2021},
+  url          = {https://www.youtube.com/watch?v=TCCjZe0y4Qc},
+  annote       = {Verified 2026-10-09 via the official channel's video descriptions (13 lectures, posted 2021-09-09; lecturers confirmed for lectures 1, 3 and 12).
+                  CAVEAT: the official DeepMind page now redirects to the homepage. The author list here covers only the confirmed lecturers.}
+}
+
+@misc{silver2015ucl,
+  author       = {Silver, David},
+  title        = {Reinforcement Learning (Advanced Topics 2015, {COMPM050/COMPGI13})},
+  howpublished = {University College London},
+  year         = {2015},
+  url          = {https://davidstarsilver.wordpress.com/teaching/},
+  annote       = {Verified 2026-10-09 on the author's teaching page (10 lectures). The UCL affiliation comes from the slides.}
+}
+
+@misc{achiam2018spinningup,
+  author = {Achiam, Joshua},
+  title  = {Spinning Up in Deep Reinforcement Learning},
+  year   = {2018},
+  url    = {https://spinningup.openai.com/},
+  annote = {Verified 2026-10-09 via the site and the repository README citation. The repository is in maintenance status.}
+}
+
+@misc{simonini2023hfdeeprl,
+  author       = {Simonini, Thomas and Sanseviero, Omar},
+  title        = {The {Hugging Face} Deep Reinforcement Learning Class},
+  howpublished = {GitHub repository},
+  year         = {2023},
+  url          = {https://github.com/huggingface/deep-rl-class},
+  annote       = {Verified 2026-10-09 via the course site (https://huggingface.co/learn/deep-rl-course/) and the repository citation. The course is in a low-maintenance state.}
+}
