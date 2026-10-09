@@ -8,7 +8,7 @@ Check your run path, take the entry check, and run a random agent on CartPole wi
 :::
 
 ::: {.module-actions}
-[Open [Lab 0: Setup and hello RL ]{.visually-hidden}in Colab[ (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/00-setup.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
+[Open [Lab 0: Setup and hello RL]{.visually-hidden} in Colab [(opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/00-setup.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
 :::
 :::
 

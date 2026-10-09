@@ -7,7 +7,7 @@
 
 Write an MDP as arrays, frame inventory control, and evaluate a policy exactly and by iteration.
 
-[Colab CPU]{.chip} [core 52 min]{.chip} [Open in Colab](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb){.btn-quiet target="_blank" rel="noopener"}
+[Colab CPU]{.chip} [core 52 min]{.chip} [Open [Lab 1]{.visually-hidden} in Colab [(opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb){.btn-quiet target="_blank" rel="noopener"}
 :::
 
 ::: {.module-card}

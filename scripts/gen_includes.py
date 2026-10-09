@@ -142,7 +142,7 @@ def module_md(mid: str, v: dict[str, Any]) -> str:
         + f"::: {{.module-summary}}\n{m['summary']}\n:::\n\n"
         + "::: {.module-actions}\n"
         + (
-            f"[Open [{title_for_sr} ]{{.visually-hidden}}in Colab[ (opens in a new tab)]{{.visually-hidden}}]"
+            f"[Open [{title_for_sr}]{{.visually-hidden}} in Colab [(opens in a new tab)]{{.visually-hidden}}]"
             f'({colab_url(m, v)}){{.btn-colab target="_blank" rel="noopener"}} '
             f"[Download .ipynb]({download_url(m, v)}){{.btn-quiet}} "
             if has_notebook(m)
@@ -272,7 +272,8 @@ def card(m: dict[str, Any], v: dict[str, Any]) -> str:
         f"{m['summary']}\n\n"
         f"[{runtime}]{{.chip}}{core_chip} "
         + (
-            f'[Open in Colab]({colab_url(m, v)}){{.btn-quiet target="_blank" rel="noopener"}}'
+            f"[Open [Lab {m['n']}]{{.visually-hidden}} in Colab [(opens in a new tab)]{{.visually-hidden}}]"
+            f'({colab_url(m, v)}){{.btn-quiet target="_blank" rel="noopener"}}'
             if has_notebook(m)
             else "[notebook not built yet]{.chip .chip-none}"
         )
@@ -335,10 +336,11 @@ def notebooks_md(v: dict[str, Any]) -> str:
             out.append(
                 f"- **[{m['n']} · {m['title']}]({page_href(m)})** "
                 f"[{runtime}]{{.chip}} [lab {m['status']['lab']}]{{.chip}} "
-                f"[readiness](/readiness.qmd){{.chip}}  \n"
+                f"[readiness [of Lab {m['n']}]{{.visually-hidden}}](/readiness.qmd#{mid}){{.chip}}  \n"
                 + (
-                    f'  [Open in Colab]({colab_url(m, v)}){{.btn-quiet target="_blank" rel="noopener"}} '
-                    f"[Download]({download_url(m, v)}){{.btn-quiet}}\n"
+                    f"  [Open [Lab {m['n']}]{{.visually-hidden}} in Colab [(opens in a new tab)]{{.visually-hidden}}]"
+                    f'({colab_url(m, v)}){{.btn-quiet target="_blank" rel="noopener"}} '
+                    f"[Download [Lab {m['n']}]{{.visually-hidden}} .ipynb]({download_url(m, v)}){{.btn-quiet}}\n"
                     if has_notebook(m)
                     else "  Not built yet.\n"
                 )

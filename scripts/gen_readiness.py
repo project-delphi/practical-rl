@@ -131,7 +131,7 @@ def build(v: dict[str, Any] | None = None) -> tuple[str, str]:
         if status in ("planned", "stub"):
             notes.append(f"lab {status}")
         rows.append(
-            f"| [{m['n']} · {m['title']}](/modules/{slug}.qmd) | {verdict} | {designed} | "
+            f"| []{{#{mid}}}[{m['n']} · {m['title']}](/modules/{slug}.qmd) | {verdict} | {designed} | "
             f"{cell('teach', teach)} | {cell('real', real)} | {cell('ci', ci)} | {'; '.join(notes) or '—'} |"
         )
         if mine:

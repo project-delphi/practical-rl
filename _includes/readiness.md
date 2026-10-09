@@ -14,22 +14,22 @@
 ::: {.table-scroll .readiness-matrix}
 | Lab | Teach on Colab? | Designed for | On its designed runtime | Real path elsewhere | CI | Notes |
 |---|---|---|---|---|---|---|
-| [0 · Setup and hello RL](/modules/00-setup.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-09 | — | — |
-| [1 · MDPs, returns and the Bellman equation](/modules/01-mdps-bellman.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-09 | — | lab stub |
-| [2 · Planning: value iteration, policy iteration and model error](/modules/02-planning.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [3 · Model-free prediction and control](/modules/03-model-free.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [4 · Bandits from first principles](/modules/04-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [7 · Function approximation and why it can diverge](/modules/07-function-approximation.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [8 · DQN from scratch](/modules/08-dqn.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [10 · Policy gradients](/modules/10-policy-gradients.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [11 · PPO from scratch](/modules/11-ppo.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [12 · RL for language models: preferences, RLHF, DPO and GRPO](/modules/12-rl-for-language-models.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [13 · Off-policy evaluation](/modules/13-off-policy-evaluation.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [14 · Offline RL](/modules/14-offline-rl.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| [15 · Capstone](/modules/15-capstone.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m00}[0 · Setup and hello RL](/modules/00-setup.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-09 | — | — |
+| []{#m01}[1 · MDPs, returns and the Bellman equation](/modules/01-mdps-bellman.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-09 | — | lab stub |
+| []{#m02}[2 · Planning: value iteration, policy iteration and model error](/modules/02-planning.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m03}[3 · Model-free prediction and control](/modules/03-model-free.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m04}[4 · Bandits from first principles](/modules/04-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m05}[5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m06}[6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m07}[7 · Function approximation and why it can diverge](/modules/07-function-approximation.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m08}[8 · DQN from scratch](/modules/08-dqn.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m09}[9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m10}[10 · Policy gradients](/modules/10-policy-gradients.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m11}[11 · PPO from scratch](/modules/11-ppo.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m12}[12 · RL for language models: preferences, RLHF, DPO and GRPO](/modules/12-rl-for-language-models.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m13}[13 · Off-policy evaluation](/modules/13-off-policy-evaluation.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m14}[14 · Offline RL](/modules/14-offline-rl.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m15}[15 · Capstone](/modules/15-capstone.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 :::
 
 ## Release items

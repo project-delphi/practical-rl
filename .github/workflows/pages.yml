@@ -35,6 +35,11 @@ jobs:
         run: quarto render
       - name: Internal links
         run: uv run --no-project python scripts/link_check.py
+      - name: Accessibility and layout site check (Playwright + Quarto's axe-core; 2 themes x 2 widths)
+        run: |
+          uv sync --locked --no-default-groups --group dev --group browser
+          uv run playwright install --with-deps chromium
+          uv run python scripts/site_check.py
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site

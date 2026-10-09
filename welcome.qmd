@@ -9,6 +9,8 @@ format:
     width: 1280
     height: 720
     footer: "Practical RL · Genial Labs"
+    menu: false
+    html-math-method: plain
 toc: false
 ---
 
