@@ -1,0 +1,740 @@
+#!/usr/bin/env bash
+# prl-aws: create, connect to, stop, start and tear down Practical RL participant instances
+# on AWS. Each participant gets one CloudFormation stack named prl-<cohort>-<participant>,
+# built from ../instance.yaml. Run "prl-aws help" for the commands.
+#
+# Needs AWS CLI v2; "connect" also needs the Session Manager plugin. Credentials come from
+# your own AWS CLI configuration (AWS_PROFILE or --profile, for example IAM Identity Center).
+# This script never stores credentials. It runs on the bash 3.2 that ships with macOS.
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+AWS_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
+INSTANCE_TEMPLATE="$AWS_DIR/instance.yaml"
+BUDGET_TEMPLATE="$AWS_DIR/account-budget.yaml"
+
+AMI_PARAMETER=/aws/service/deeplearning/ami/x86_64/base-oss-nvidia-driver-gpu-ubuntu-24.04/latest/ami-id
+CLI_DOCS=https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+PLUGIN_DOCS=https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html
+PROJECT=practical-rl
+BUDGET_STACK=prl-account-budget
+BUDGET_DEFAULT_REGION=us-east-1
+GPU_QUOTA_CODE=L-DB2E81BA # "Running On-Demand G and VT instances", counted in vCPUs
+VCPUS_PER_INSTANCE=4      # g4dn.xlarge, g5.xlarge and g6.xlarge all have 4 vCPUs
+
+OPT_REGION=""
+OPT_PROFILE=""
+OPT_COHORT="${PRL_COHORT:-solo}"
+OPT_COHORT_SET=0
+OPT_TYPE=""
+OPT_OWNER=""
+OPT_AMI=""
+OPT_SUBNET=""
+OPT_VPC=""
+OPT_REPO=""
+OPT_REF=""
+OPT_IDLE=""
+OPT_VOLUME=""
+OPT_PORT=8888
+OPT_YES=0
+OPT_UPDATE=0
+NPOS=0
+POS1=""
+POS2=""
+REGION=""
+
+usage() {
+	cat <<'EOF'
+Usage: prl-aws <command> [arguments] [options]
+
+Participant commands (stack prl-<cohort>-<participant>):
+  create <participant>       Resolve the GPU DLAMI once, create the stack, wait for it.
+                             With --update on an existing stack, apply the current template
+                             and options while keeping the same AMI (no replacement).
+  connect <participant>      Print the JupyterLab URL with its token, then forward
+                             localhost:8888 to the instance over SSM (Ctrl+C to stop).
+  stop <participant>         Stop the instance. The disk and your files are kept.
+  start <participant>        Start a stopped instance. JupyterLab restarts by itself.
+  status [<participant>]     One stack in detail, or every workshop instance in the region.
+  destroy <participant>      Delete the stack, its disk and its SSM parameters.
+
+Facilitator commands:
+  cohort-up <cohort> <N>     Create stacks prl-<cohort>-01 ... prl-<cohort>-NN (N <= 99).
+  cohort-down <cohort>       Delete every stack tagged Cohort=<cohort>, then list anything left.
+  budget <email> <usd>       Deploy the account-wide monthly cost budget (../account-budget.yaml)
+                             in us-east-1 unless --region is given.
+
+Options:
+  --cohort C          Cohort name, lowercase letters and digits (default: $PRL_COHORT or "solo").
+  --region R          AWS region (default: $AWS_REGION, $AWS_DEFAULT_REGION, then your CLI config).
+  --profile P         AWS CLI profile (default: $AWS_PROFILE or your default profile).
+  --type T            g4dn.xlarge (default), g5.xlarge or g6.xlarge.
+  --idle-minutes M    Idle-stop delay: 30, 60, 90 (default), 120, 180 or 240.
+  --volume GIB        Root volume size in GiB (default 100). Cannot change after create.
+  --repo URL          Repository to clone (default: the template's).
+  --ref REF           Branch, tag or commit to check out (default: main).
+  --owner TEXT        Owner tag (default: your caller ARN from sts get-caller-identity).
+  --ami AMI_ID        Use this AMI instead of resolving the latest Base DLAMI.
+  --subnet ID --vpc ID  Launch into this subnet of this VPC (default: the default VPC).
+  --port N            Local port for connect (default 8888).
+  --update            With create: update an existing stack instead of skipping it.
+  --yes, -y           Do not ask for confirmation.
+
+Examples:
+  prl-aws create ravi --cohort oct26 --region us-east-1
+  prl-aws connect ravi --cohort oct26
+  prl-aws cohort-up oct26 12 --region us-east-1
+  prl-aws cohort-down oct26 --region us-east-1
+EOF
+}
+
+say() { printf 'prl-aws: %s\n' "$*"; }
+warn() { printf 'prl-aws: warning: %s\n' "$*" >&2; }
+die() {
+	printf 'prl-aws: error: %s\n' "$*" >&2
+	exit 1
+}
+
+confirm() {
+	if [ "$OPT_YES" -eq 1 ]; then return 0; fi
+	[ -t 0 ] || die "no terminal to confirm on; pass --yes to proceed"
+	local answer=""
+	printf '%s [y/N] ' "$1"
+	read -r answer || true
+	case $answer in
+	y | Y | yes | YES) ;;
+	*) die "cancelled" ;;
+	esac
+}
+
+awsx() {
+	if [ -n "$OPT_PROFILE" ]; then
+		aws --profile "$OPT_PROFILE" --region "$REGION" "$@"
+	else
+		aws --region "$REGION" "$@"
+	fi
+}
+
+# ---------------------------------------------------------------- argument handling
+
+need_value() { [ "$2" -ge 2 ] || die "$1 needs a value"; }
+
+add_positional() {
+	NPOS=$((NPOS + 1))
+	case $NPOS in
+	1) POS1=$1 ;;
+	2) POS2=$1 ;;
+	*) die "too many arguments: $1" ;;
+	esac
+}
+
+parse_args() {
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--region | --profile | --cohort | --type | --owner | --ami | --subnet | --vpc | --repo | --ref | --idle-minutes | --volume | --port)
+			need_value "$1" $#
+			case $1 in
+			--region) OPT_REGION=$2 ;;
+			--profile) OPT_PROFILE=$2 ;;
+			--cohort) OPT_COHORT=$2 OPT_COHORT_SET=1 ;;
+			--type) OPT_TYPE=$2 ;;
+			--owner) OPT_OWNER=$2 ;;
+			--ami) OPT_AMI=$2 ;;
+			--subnet) OPT_SUBNET=$2 ;;
+			--vpc) OPT_VPC=$2 ;;
+			--repo) OPT_REPO=$2 ;;
+			--ref) OPT_REF=$2 ;;
+			--idle-minutes) OPT_IDLE=$2 ;;
+			--volume) OPT_VOLUME=$2 ;;
+			--port) OPT_PORT=$2 ;;
+			esac
+			shift 2
+			;;
+		--yes | -y)
+			OPT_YES=1
+			shift
+			;;
+		--update)
+			OPT_UPDATE=1
+			shift
+			;;
+		-h | --help)
+			usage
+			exit 0
+			;;
+		--)
+			shift
+			while [ $# -gt 0 ]; do
+				add_positional "$1"
+				shift
+			done
+			;;
+		-*) die "unknown option: $1 (see prl-aws help)" ;;
+		*)
+			add_positional "$1"
+			shift
+			;;
+		esac
+	done
+}
+
+expect_args() { # count usage
+	[ "$NPOS" -eq "$1" ] || die "usage: prl-aws $2"
+}
+
+# Values end up in JSON and in the instance's user-data, so they are checked strictly here
+# (the template's AllowedPattern constraints check them again).
+check_cohort() {
+	case $1 in '' | *[!a-z0-9]*) die "cohort must be lowercase letters and digits: '$1'" ;; esac
+	[ ${#1} -le 20 ] || die "cohort is longer than 20 characters: '$1'"
+}
+check_participant() {
+	case $1 in '' | -* | *[!a-z0-9-]*) die "participant must be lowercase letters, digits and hyphens: '$1'" ;; esac
+	[ ${#1} -le 40 ] || die "participant is longer than 40 characters: '$1'"
+}
+check_options() {
+	check_cohort "$OPT_COHORT"
+	case $OPT_TYPE in '' | g4dn.xlarge | g5.xlarge | g6.xlarge) ;; *) die "--type must be g4dn.xlarge, g5.xlarge or g6.xlarge" ;; esac
+	case $OPT_IDLE in '' | 30 | 60 | 90 | 120 | 180 | 240) ;; *) die "--idle-minutes must be 30, 60, 90, 120, 180 or 240" ;; esac
+	case $OPT_VOLUME in '') ;; *[!0-9]*) die "--volume must be a whole number of GiB" ;; *) [ "$OPT_VOLUME" -ge 100 ] && [ "$OPT_VOLUME" -le 1000 ] || die "--volume must be 100-1000" ;; esac
+	case $OPT_AMI in '') ;; ami-*) case ${OPT_AMI#ami-} in '' | *[!0-9a-f]*) die "bad --ami: $OPT_AMI" ;; esac ;; *) die "bad --ami: $OPT_AMI" ;; esac
+	case $OPT_SUBNET in '') ;; subnet-*) case ${OPT_SUBNET#subnet-} in '' | *[!0-9a-f]*) die "bad --subnet: $OPT_SUBNET" ;; esac ;; *) die "bad --subnet: $OPT_SUBNET" ;; esac
+	case $OPT_VPC in '') ;; vpc-*) case ${OPT_VPC#vpc-} in '' | *[!0-9a-f]*) die "bad --vpc: $OPT_VPC" ;; esac ;; *) die "bad --vpc: $OPT_VPC" ;; esac
+	if [ -n "$OPT_SUBNET" ] && [ -z "$OPT_VPC" ]; then die "--subnet needs --vpc (the subnet's VPC)"; fi
+	if [ -z "$OPT_SUBNET" ] && [ -n "$OPT_VPC" ]; then die "--vpc needs --subnet"; fi
+	case $OPT_REPO in '') ;; https://*) case ${OPT_REPO#https://} in '' | *[!A-Za-z0-9./_~:@%+-]*) die "bad --repo: $OPT_REPO" ;; esac ;; *) die "--repo must be an https:// URL" ;; esac
+	case $OPT_REF in *[!A-Za-z0-9._/-]*) die "bad --ref: $OPT_REF" ;; esac
+	case $OPT_PORT in '' | *[!0-9]*) die "--port must be a number" ;; esac
+	case $OPT_OWNER in *[!A-Za-z0-9_.:/=+@\ -]*) die "--owner may contain only letters, digits, spaces and _.:/=+@-" ;; esac
+}
+
+resolve_region() {
+	REGION=${OPT_REGION:-${AWS_REGION:-${AWS_DEFAULT_REGION:-}}}
+	if [ -z "$REGION" ]; then
+		if [ -n "$OPT_PROFILE" ]; then
+			REGION=$(aws configure get region --profile "$OPT_PROFILE" 2>/dev/null || true)
+		else
+			REGION=$(aws configure get region 2>/dev/null || true)
+		fi
+	fi
+	[ -n "$REGION" ] || die "no AWS region: pass --region or set AWS_REGION"
+}
+
+need_aws() {
+	command -v aws >/dev/null 2>&1 || die "AWS CLI v2 is not installed: $CLI_DOCS"
+	local version
+	version=$(aws --version 2>&1) || die "the aws command does not run ($version). Reinstall AWS CLI v2 for this machine: $CLI_DOCS"
+	case $version in aws-cli/2.*) ;; *) warn "expected AWS CLI v2, found: $version" ;; esac
+}
+
+# ---------------------------------------------------------------- AWS lookups
+
+stack_name() { printf 'prl-%s-%s' "$OPT_COHORT" "$1"; }
+
+stack_status() { # prints the status, or nothing when the stack does not exist
+	local out
+	if out=$(awsx cloudformation describe-stacks --stack-name "$1" --query 'Stacks[0].StackStatus' --output text 2>&1); then
+		printf '%s\n' "$out"
+	elif printf '%s' "$out" | grep -q 'does not exist'; then
+		return 0
+	else
+		die "could not read stack $1: $out"
+	fi
+}
+
+stack_output() {
+	awsx cloudformation describe-stacks --stack-name "$1" \
+		--query "Stacks[0].Outputs[?OutputKey=='$2'].OutputValue | [0]" --output text
+}
+
+stack_param() {
+	awsx cloudformation describe-stacks --stack-name "$1" \
+		--query "Stacks[0].Parameters[?ParameterKey=='$2'].ParameterValue | [0]" --output text
+}
+
+require_stack() { # participant -> prints stack name; dies when it does not exist
+	local stack status
+	stack=$(stack_name "$1")
+	status=$(stack_status "$stack")
+	[ -n "$status" ] || die "no stack $stack in $REGION (check --cohort and --region)"
+	printf '%s\n' "$stack"
+}
+
+instance_id() {
+	local id
+	id=$(stack_output "$1" InstanceId)
+	case $id in i-*) printf '%s\n' "$id" ;; *) die "stack $1 has no InstanceId output (status: $(stack_status "$1"))" ;; esac
+}
+
+instance_state() {
+	awsx ec2 describe-instances --instance-ids "$1" --query 'Reservations[0].Instances[0].State.Name' --output text
+}
+
+get_param() { # name [--with-decryption] -> value, or nothing
+	local value
+	value=$(awsx ssm get-parameter --name "$1" ${2:+"$2"} --query Parameter.Value --output text 2>/dev/null || true)
+	if [ "$value" != None ]; then printf '%s\n' "$value"; fi
+}
+
+delete_params() { # stack
+	awsx ssm delete-parameters --names "/prl/$1/jupyter-token" "/prl/$1/setup-status" >/dev/null 2>&1 ||
+		warn "could not delete the SSM parameters under /prl/$1/ (cohort-down lists any that remain)"
+}
+
+print_failures() {
+	awsx cloudformation describe-stack-events --stack-name "$1" \
+		--query "StackEvents[?contains(ResourceStatus, 'FAILED')].[Timestamp, LogicalResourceId, ResourceStatus, ResourceStatusReason]" \
+		--output text >&2 || true
+}
+
+resolve_ami() {
+	if [ -n "$OPT_AMI" ]; then
+		printf '%s\n' "$OPT_AMI"
+	else
+		awsx ssm get-parameter --name "$AMI_PARAMETER" --query Parameter.Value --output text
+	fi
+}
+
+root_device() {
+	awsx ec2 describe-images --image-ids "$1" --query 'Images[0].RootDeviceName' --output text
+}
+
+resolve_owner() {
+	local owner=$OPT_OWNER
+	if [ -z "$owner" ]; then
+		owner=$(awsx sts get-caller-identity --query Arn --output text)
+	fi
+	case $owner in '' | *[!A-Za-z0-9_.:/=+@\ -]*) die "owner '$owner' has characters a tag cannot hold; pass --owner" ;; esac
+	printf '%s\n' "$owner"
+}
+
+# CloudWatch alarm actions that stop instances use the service-linked role
+# AWSServiceRoleForCloudWatchEvents. Create it if it is missing (best effort).
+ensure_alarm_role() {
+	if awsx iam get-role --role-name AWSServiceRoleForCloudWatchEvents >/dev/null 2>&1; then return 0; fi
+	say "creating the service-linked role AWSServiceRoleForCloudWatchEvents (lets the idle alarm stop instances)"
+	awsx iam create-service-linked-role --aws-service-name events.amazonaws.com >/dev/null 2>&1 ||
+		warn "could not create it. If the idle alarm fails, run: aws iam create-service-linked-role --aws-service-name events.amazonaws.com"
+}
+
+check_quota() { # vCPUs needed
+	local have
+	have=$(awsx service-quotas get-service-quota --service-code ec2 --quota-code "$GPU_QUOTA_CODE" \
+		--query Quota.Value --output text 2>/dev/null || true)
+	case $have in '' | None)
+		warn "could not read the 'Running On-Demand G and VT instances' quota ($GPU_QUOTA_CODE); check it in Service Quotas"
+		return 0
+		;;
+	esac
+	have=${have%%.*}
+	if [ "$have" -lt "$1" ]; then
+		warn "the 'Running On-Demand G and VT instances' quota in $REGION is $have vCPUs; this needs $1 (plus any G instances already running). Request an increase first (README, Prerequisites)."
+	else
+		say "G and VT on-demand quota in $REGION: $have vCPUs (this needs $1 plus any already running)"
+	fi
+}
+
+# ---------------------------------------------------------------- stack operations
+
+json_pairs() { # keyname valuename key value [key value ...] -> JSON list of objects
+	local kname=$1 vname=$2 out="" sep=""
+	shift 2
+	while [ $# -ge 2 ]; do
+		out="$out$sep{\"$kname\":\"$1\",\"$vname\":\"$2\"}"
+		sep=","
+		shift 2
+	done
+	printf '[%s]' "$out"
+}
+
+launch_stack() { # participant ami rootdev owner
+	local participant=$1 ami=$2 rootdev=$3 owner=$4 stack params tags
+	stack=$(stack_name "$participant")
+	set -- AmiId "$ami" RootDeviceName "$rootdev" Cohort "$OPT_COHORT" Participant "$participant" Owner "$owner"
+	if [ -n "$OPT_TYPE" ]; then set -- "$@" InstanceType "$OPT_TYPE"; fi
+	if [ -n "$OPT_IDLE" ]; then set -- "$@" IdleMinutes "$OPT_IDLE"; fi
+	if [ -n "$OPT_VOLUME" ]; then set -- "$@" VolumeSizeGiB "$OPT_VOLUME"; fi
+	if [ -n "$OPT_REPO" ]; then set -- "$@" RepoUrl "$OPT_REPO"; fi
+	if [ -n "$OPT_REF" ]; then set -- "$@" RepoRef "$OPT_REF"; fi
+	if [ -n "$OPT_SUBNET" ]; then set -- "$@" SubnetId "$OPT_SUBNET" VpcId "$OPT_VPC"; fi
+	params=$(json_pairs ParameterKey ParameterValue "$@")
+	tags=$(json_pairs Key Value Project "$PROJECT" Cohort "$OPT_COHORT" Participant "$participant" Owner "$owner")
+	# Explicit return: callers use this in an "if", where set -e does not apply.
+	if ! awsx cloudformation create-stack --stack-name "$stack" \
+		--template-body "file://$INSTANCE_TEMPLATE" \
+		--capabilities CAPABILITY_IAM \
+		--parameters "$params" \
+		--tags "$tags" \
+		--query StackId --output text >/dev/null; then
+		return 1
+	fi
+	say "creating $stack"
+}
+
+wait_create() { # stack
+	if awsx cloudformation wait stack-create-complete --stack-name "$1"; then
+		return 0
+	fi
+	warn "stack $1 did not reach CREATE_COMPLETE; its failed events:"
+	print_failures "$1"
+	return 1
+}
+
+wait_delete() { # stack
+	if awsx cloudformation wait stack-delete-complete --stack-name "$1"; then
+		return 0
+	fi
+	warn "stack $1 did not finish deleting; its failed events:"
+	print_failures "$1"
+	return 1
+}
+
+print_plan() { # ami rootdev owner
+	say "  region:       $REGION"
+	say "  cohort:       $OPT_COHORT"
+	say "  type:         ${OPT_TYPE:-g4dn.xlarge}"
+	say "  AMI:          $1 (root device $2), resolved once from $AMI_PARAMETER"
+	say "  repository:   ${OPT_REPO:-template default} at ${OPT_REF:-main}"
+	say "  idle stop:    ${OPT_IDLE:-90} minutes below 5% CPU"
+	say "  volume:       ${OPT_VOLUME:-100} GiB gp3, encrypted, deleted with the instance"
+	say "  network:      ${OPT_SUBNET:-default VPC} (no inbound rules; access through SSM)"
+	say "  owner tag:    $3"
+}
+
+next_steps() { # participant
+	say "Setup continues on the instance for about 10-15 minutes (uv, Python 3.13, the repository)."
+	say "Then connect:  prl-aws connect $1 --cohort $OPT_COHORT --region $REGION"
+}
+
+update_stack() { # participant stack
+	local participant=$1 stack=$2 ami rootdev owner
+	ami=$(stack_param "$stack" AmiId)
+	rootdev=$(stack_param "$stack" RootDeviceName)
+	owner=$(stack_param "$stack" Owner)
+	if [ -n "$OPT_VOLUME" ]; then warn "--volume is ignored with --update (the root volume size is fixed at create)"; fi
+	set -- "AmiId=$ami" "RootDeviceName=$rootdev"
+	if [ -n "$OPT_TYPE" ]; then set -- "$@" "InstanceType=$OPT_TYPE"; fi
+	if [ -n "$OPT_IDLE" ]; then set -- "$@" "IdleMinutes=$OPT_IDLE"; fi
+	say "updating $stack in $REGION with the current template, keeping AMI $ami."
+	say "parameters set: $*; every other parameter keeps its current value."
+	say "A new instance type or new user-data stops and restarts the instance: running notebooks lose their state."
+	confirm "Update $stack?"
+	awsx cloudformation deploy --stack-name "$stack" --template-file "$INSTANCE_TEMPLATE" \
+		--capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
+		--parameter-overrides "$@" \
+		--tags "Project=$PROJECT" "Cohort=$OPT_COHORT" "Participant=$participant" "Owner=$owner"
+}
+
+# ---------------------------------------------------------------- commands
+
+cmd_create() {
+	expect_args 1 "create <participant> [--cohort C] [--type T] [--region R] [--profile P] [--update]"
+	local participant=$POS1 stack status ami rootdev owner
+	check_participant "$participant"
+	stack=$(stack_name "$participant")
+	status=$(stack_status "$stack")
+	if [ -n "$status" ]; then
+		if [ "$OPT_UPDATE" -eq 1 ]; then
+			update_stack "$participant" "$stack"
+			return 0
+		fi
+		case $status in
+		ROLLBACK_COMPLETE | ROLLBACK_FAILED | CREATE_FAILED | DELETE_FAILED)
+			print_failures "$stack"
+			die "stack $stack is $status. Delete it (prl-aws destroy $participant --cohort $OPT_COHORT), fix the cause above, then create it again."
+			;;
+		esac
+		say "stack $stack already exists ($status); nothing to do. Use --update to apply template or option changes."
+		return 0
+	fi
+	ami=$(resolve_ami)
+	rootdev=$(root_device "$ami")
+	owner=$(resolve_owner)
+	say "will create stack $stack:"
+	print_plan "$ami" "$rootdev" "$owner"
+	ensure_alarm_role
+	launch_stack "$participant" "$ami" "$rootdev" "$owner"
+	say "waiting for $stack (usually about 5 minutes)"
+	wait_create "$stack" || die "could not create $stack"
+	say "created $stack: instance $(stack_output "$stack" InstanceId)"
+	next_steps "$participant"
+}
+
+cmd_connect() {
+	expect_args 1 "connect <participant> [--cohort C] [--port N]"
+	local participant=$POS1 stack iid state status token
+	check_participant "$participant"
+	command -v session-manager-plugin >/dev/null 2>&1 ||
+		die "the Session Manager plugin is not installed. Install it from $PLUGIN_DOCS, then run this again."
+	stack=$(require_stack "$participant")
+	iid=$(instance_id "$stack")
+	state=$(instance_state "$iid")
+	case $state in
+	running) ;;
+	stopped | stopping) die "instance $iid is $state. Start it first: prl-aws start $participant --cohort $OPT_COHORT" ;;
+	*) die "instance $iid is $state; try again in a minute" ;;
+	esac
+	status=$(get_param "/prl/$stack/setup-status")
+	case $status in
+	complete*) ;;
+	failed*) warn "setup failed on the instance ($status). See /var/log/prl-setup.log there (README, Troubleshooting)." ;;
+	running*) warn "setup is still running ($status). JupyterLab answers when it finishes." ;;
+	*) warn "no setup status yet; the instance may still be booting." ;;
+	esac
+	token=$(get_param "/prl/$stack/jupyter-token" --with-decryption)
+	if [ -z "$token" ]; then
+		warn "no token in /prl/$stack/jupyter-token yet (setup not finished, or you lack ssm:GetParameter)."
+		token="<token not available yet>"
+	fi
+	say "forwarding localhost:$OPT_PORT to JupyterLab on $iid ($stack). Press Ctrl+C to stop."
+	printf '\n  Open: http://localhost:%s/lab?token=%s\n\n' "$OPT_PORT" "$token"
+	awsx ssm start-session --target "$iid" --document-name AWS-StartPortForwardingSession \
+		--parameters "{\"portNumber\":[\"8888\"],\"localPortNumber\":[\"$OPT_PORT\"]}"
+}
+
+cmd_stop() {
+	expect_args 1 "stop <participant> [--cohort C]"
+	local participant=$POS1 stack iid
+	check_participant "$participant"
+	stack=$(require_stack "$participant")
+	iid=$(instance_id "$stack")
+	say "stopping $iid ($stack). The disk and your files are kept; a stopped instance costs only its storage."
+	awsx ec2 stop-instances --instance-ids "$iid" >/dev/null
+	awsx ec2 wait instance-stopped --instance-ids "$iid"
+	say "stopped."
+}
+
+cmd_start() {
+	expect_args 1 "start <participant> [--cohort C]"
+	local participant=$POS1 stack iid
+	check_participant "$participant"
+	stack=$(require_stack "$participant")
+	iid=$(instance_id "$stack")
+	say "starting $iid ($stack)"
+	awsx ec2 start-instances --instance-ids "$iid" >/dev/null
+	awsx ec2 wait instance-running --instance-ids "$iid"
+	say "running. JupyterLab starts by itself within a couple of minutes. Then: prl-aws connect $participant --cohort $OPT_COHORT"
+}
+
+cmd_status() {
+	if [ "$NPOS" -eq 0 ]; then
+		local filters="Name=tag:Project,Values=$PROJECT"
+		if [ "$OPT_COHORT_SET" -eq 1 ]; then filters="$filters Name=tag:Cohort,Values=$OPT_COHORT"; fi
+		say "workshop instances in $REGION (columns: cohort, participant, instance, type, state, launched):"
+		# shellcheck disable=SC2086 # $filters is a list of filter words without spaces
+		awsx ec2 describe-instances --filters $filters \
+			"Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
+			--query "Reservations[].Instances[].[Tags[?Key=='Cohort']|[0].Value, Tags[?Key=='Participant']|[0].Value, InstanceId, InstanceType, State.Name, LaunchTime]" \
+			--output table
+		return 0
+	fi
+	expect_args 1 "status [<participant>] [--cohort C]"
+	local participant=$POS1 stack iid alarm
+	check_participant "$participant"
+	stack=$(require_stack "$participant")
+	say "stack:        $stack ($(stack_status "$stack"))"
+	iid=$(instance_id "$stack")
+	say "instance:     $iid, $(awsx ec2 describe-instances --instance-ids "$iid" \
+		--query 'Reservations[0].Instances[0].[InstanceType, State.Name]' --output text | tr '\t' ' ')"
+	say "AMI:          $(stack_param "$stack" AmiId)"
+	alarm=$(awsx cloudformation describe-stack-resource --stack-name "$stack" --logical-resource-id IdleStopAlarm \
+		--query StackResourceDetail.PhysicalResourceId --output text 2>/dev/null || true)
+	if [ -n "$alarm" ]; then
+		say "idle alarm:   $(awsx cloudwatch describe-alarms --alarm-names "$alarm" --query 'MetricAlarms[0].StateValue' --output text) ($alarm)"
+	fi
+	say "setup:        $(get_param "/prl/$stack/setup-status")"
+}
+
+cmd_destroy() {
+	expect_args 1 "destroy <participant> [--cohort C] [--yes]"
+	local participant=$POS1 stack status
+	check_participant "$participant"
+	stack=$(stack_name "$participant")
+	status=$(stack_status "$stack")
+	if [ -z "$status" ]; then
+		say "no stack $stack in $REGION; removing any leftover SSM parameters under /prl/$stack/"
+		delete_params "$stack"
+		return 0
+	fi
+	say "will delete stack $stack ($status) in $REGION: the instance, its disk and every file on it,"
+	say "the security group, the IAM role and instance profile, the idle alarm, and the SSM parameters under /prl/$stack/."
+	confirm "Delete $stack?"
+	awsx cloudformation delete-stack --stack-name "$stack"
+	say "waiting for $stack to be deleted"
+	wait_delete "$stack" || die "could not delete $stack; fix the cause above, then run destroy again"
+	delete_params "$stack"
+	say "deleted $stack."
+}
+
+cmd_cohort_up() {
+	expect_args 2 "cohort-up <cohort> <N> [--type T] [--region R] [--yes]"
+	local count=$POS2 i participant stack ami rootdev owner launched="" failed=0
+	OPT_COHORT=$POS1
+	check_cohort "$OPT_COHORT"
+	case $count in '' | *[!0-9]*) die "N must be a number from 1 to 99" ;; esac
+	[ "$count" -ge 1 ] && [ "$count" -le 99 ] || die "N must be a number from 1 to 99"
+	ami=$(resolve_ami)
+	rootdev=$(root_device "$ami")
+	owner=$(resolve_owner)
+	say "will create $count stacks, prl-$OPT_COHORT-01 to prl-$OPT_COHORT-$(printf '%02d' "$count") (existing ones are skipped):"
+	print_plan "$ami" "$rootdev" "$owner"
+	check_quota $((count * VCPUS_PER_INSTANCE))
+	confirm "Create $count GPU instances?"
+	ensure_alarm_role
+	i=1
+	while [ "$i" -le "$count" ]; do
+		participant=$(printf '%02d' "$i")
+		stack=$(stack_name "$participant")
+		if [ -n "$(stack_status "$stack")" ]; then
+			say "skipping $stack: it already exists"
+		elif launch_stack "$participant" "$ami" "$rootdev" "$owner"; then
+			launched="$launched $stack"
+		else
+			warn "could not start creating $stack"
+			failed=$((failed + 1))
+		fi
+		i=$((i + 1))
+	done
+	say "waiting for the stacks (they are created in parallel; usually about 5 minutes)"
+	for stack in $launched; do
+		if wait_create "$stack"; then
+			say "ready: $stack ($(stack_output "$stack" InstanceId))"
+		else
+			failed=$((failed + 1))
+		fi
+	done
+	say "participants connect with: prl-aws connect <NN> --cohort $OPT_COHORT --region $REGION"
+	say "see who is up with:        prl-aws status --cohort $OPT_COHORT --region $REGION"
+	[ "$failed" -eq 0 ] || die "$failed stack(s) failed; see the events above"
+}
+
+cohort_stacks() { # cohort -> stack names, space-separated
+	local names
+	names=$(awsx cloudformation describe-stacks \
+		--query "Stacks[?Tags[?Key=='Project' && Value=='$PROJECT'] && Tags[?Key=='Cohort' && Value=='$1']].StackName" \
+		--output text)
+	if [ "$names" != None ]; then printf '%s\n' "$names"; fi
+}
+
+LEFT=0
+check_left() { # label command...
+	local label=$1 out
+	shift
+	if ! out=$("$@" 2>&1); then
+		warn "could not check $label: $out"
+		LEFT=1
+	elif [ -n "$out" ] && [ "$out" != None ]; then
+		warn "$label still present: $(printf '%s' "$out" | tr '\t\n' '  ')"
+		LEFT=1
+	fi
+}
+
+report_leftovers() { # cohort
+	local cohort=$1 tagfilters="Name=tag:Project,Values=$PROJECT Name=tag:Cohort,Values=$1"
+	say "checking $REGION for anything left from cohort $cohort"
+	LEFT=0
+	check_left "CloudFormation stacks" cohort_stacks "$cohort"
+	# shellcheck disable=SC2086 # $tagfilters is a list of filter words without spaces
+	check_left "EC2 instances" awsx ec2 describe-instances --filters $tagfilters \
+		"Name=instance-state-name,Values=pending,running,shutting-down,stopping,stopped" \
+		--query 'Reservations[].Instances[].InstanceId' --output text
+	# shellcheck disable=SC2086
+	check_left "EBS volumes" awsx ec2 describe-volumes --filters $tagfilters --query 'Volumes[].VolumeId' --output text
+	# shellcheck disable=SC2086
+	check_left "security groups" awsx ec2 describe-security-groups --filters $tagfilters \
+		--query 'SecurityGroups[].GroupId' --output text
+	check_left "CloudWatch alarms" awsx cloudwatch describe-alarms --alarm-name-prefix "prl-$cohort-" \
+		--query 'MetricAlarms[].AlarmName' --output text
+	check_left "SSM parameters" awsx ssm describe-parameters \
+		--parameter-filters "Key=Name,Option=BeginsWith,Values=/prl/prl-$cohort-" \
+		--query 'Parameters[].Name' --output text
+	check_left "IAM roles" awsx iam list-roles \
+		--query "Roles[?starts_with(RoleName, 'prl-$cohort-')].RoleName" --output text
+	check_left "IAM instance profiles" awsx iam list-instance-profiles \
+		--query "InstanceProfiles[?starts_with(InstanceProfileName, 'prl-$cohort-')].InstanceProfileName" --output text
+	if [ "$LEFT" -eq 0 ]; then
+		say "nothing left from cohort $cohort in $REGION."
+	else
+		warn "something from cohort $cohort may remain (listed above). Delete it, or run cohort-down again."
+		return 1
+	fi
+}
+
+cmd_cohort_down() {
+	expect_args 1 "cohort-down <cohort> [--region R] [--yes]"
+	local stacks stack failed=0
+	OPT_COHORT=$POS1
+	check_cohort "$OPT_COHORT"
+	stacks=$(cohort_stacks "$OPT_COHORT")
+	if [ -z "$stacks" ]; then
+		say "no stacks tagged Project=$PROJECT, Cohort=$OPT_COHORT in $REGION"
+	else
+		say "will delete these stacks in $REGION, with their instances, disks and SSM parameters:"
+		for stack in $stacks; do say "  $stack"; done
+		confirm "Delete all of them?"
+		for stack in $stacks; do
+			awsx cloudformation delete-stack --stack-name "$stack"
+			say "deleting $stack"
+		done
+		for stack in $stacks; do
+			if wait_delete "$stack"; then
+				delete_params "$stack"
+				say "deleted $stack"
+			else
+				failed=$((failed + 1))
+			fi
+		done
+	fi
+	report_leftovers "$OPT_COHORT" || failed=$((failed + 1))
+	[ "$failed" -eq 0 ] || die "cohort-down did not finish cleanly; see above"
+}
+
+cmd_budget() {
+	expect_args 2 "budget <email> <usd> [--region R]"
+	local email=$POS1 usd=$POS2
+	case $email in *[[:space:]\"\\]* | *@*@*) die "bad email address: $email" ;; ?*@?*.?*) ;; *) die "bad email address: $email" ;; esac
+	case $usd in '' | *[!0-9.]* | *.*.*) die "the budget must be a number of US dollars: $usd" ;; esac
+	say "will deploy stack $BUDGET_STACK in $REGION: a monthly cost budget of $usd USD for the whole account,"
+	say "with email alerts to $email at 80% of actual and 100% of forecasted spend. Alerts only; nothing is stopped."
+	awsx cloudformation deploy --stack-name "$BUDGET_STACK" --template-file "$BUDGET_TEMPLATE" \
+		--no-fail-on-empty-changeset \
+		--parameter-overrides "NotificationEmail=$email" "MonthlyLimitUSD=$usd" \
+		--tags "Project=$PROJECT"
+	say "done. See Billing and Cost Management, Budgets."
+}
+
+main() {
+	[ $# -ge 1 ] || {
+		usage >&2
+		exit 1
+	}
+	local command=$1
+	shift
+	case $command in -h | --help | help)
+		usage
+		exit 0
+		;;
+	esac
+	parse_args "$@"
+	check_options
+	need_aws
+	if [ "$command" = budget ] && [ -z "$OPT_REGION" ]; then
+		REGION=$BUDGET_DEFAULT_REGION
+	else
+		resolve_region
+	fi
+	case $command in
+	create) cmd_create ;;
+	connect) cmd_connect ;;
+	stop) cmd_stop ;;
+	start) cmd_start ;;
+	status) cmd_status ;;
+	destroy) cmd_destroy ;;
+	cohort-up) cmd_cohort_up ;;
+	cohort-down) cmd_cohort_down ;;
+	budget) cmd_budget ;;
+	*) die "unknown command: $command (see prl-aws help)" ;;
+	esac
+}
+
+main "$@"
