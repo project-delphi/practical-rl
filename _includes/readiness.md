@@ -37,7 +37,7 @@
 | Item | Status |
 |---|---|
 | Human smoke run of 00-setup on a Colab CPU runtime (records vCPUs and throughput) | [[○]{aria-hidden="true"} Open]{.chip .chip-none} |
-| Human smoke run: one DPOTrainer step on a Colab T4 (TRL's Triton kernel on compute capability 7.5) | [[○]{aria-hidden="true"} Open]{.chip .chip-none} |
+| Human smoke run: one DPOTrainer step on a Colab T4 (ci/smoke/t4-dpotrainer-smoke.ipynb) | [[○]{aria-hidden="true"} Open]{.chip .chip-none} |
 | Human end-to-end run of the AWS path (create, connect, stop, start, destroy) | [[○]{aria-hidden="true"} Open]{.chip .chip-none} |
 
 ## Records by lab

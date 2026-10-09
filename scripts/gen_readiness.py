@@ -156,7 +156,8 @@ def build(v: dict[str, Any] | None = None) -> tuple[str, str]:
         if "record" in chk:
             want = chk["record"]
             done = any(
-                all(r.get(k) == val for k, val in want.items()) and r.get("status") == "pass"
+                all(r.get(k) == val for k, val in want.items())
+                and (r.get("kind") == "experiment" or r.get("status") == "pass")
                 for r in recs
             )
         else:

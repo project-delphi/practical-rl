@@ -123,8 +123,8 @@ readiness:
       title: "Human smoke run of 00-setup on a Colab CPU runtime (records vCPUs and throughput)"
       check: {record: {notebook: 00-setup, env: colab-cpu}}
     t4_dpo_smoke:
-      title: "Human smoke run: one DPOTrainer step on a Colab T4 (TRL's Triton kernel on compute capability 7.5)"
-      check: {manual: true, done: false}
+      title: "Human smoke run: one DPOTrainer step on a Colab T4 (ci/smoke/t4-dpotrainer-smoke.ipynb)"
+      check: {record: {kind: experiment, experiment: t4-dpotrainer-smoke, env: colab-t4}}
     aws_e2e:
       title: "Human end-to-end run of the AWS path (create, connect, stop, start, destroy)"
       check: {manual: true, done: false}
