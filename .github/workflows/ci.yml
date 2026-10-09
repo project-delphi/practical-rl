@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint, tests and drift gate (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - name: Install (dev group only; no torch)
+        run: uv sync --locked --no-default-groups --group dev
+      - name: Ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Validate _variables.yml
+        run: uv run python scripts/variables.py
+      - name: Tests (prl, generators, notebook build, records, pages)
+        run: uv run pytest
+
+  colab-compat:
+    name: Our pins install on Colab's packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: CPU runtime freeze
+        run: uv run --no-project --with pyyaml python scripts/colab_constraints.py compat --runtime cpu
+      - name: GPU runtime freeze
+        run: uv run --no-project --with pyyaml python scripts/colab_constraints.py compat --runtime gpu
+
+  notebooks:
+    name: List notebooks
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: list
+        run: echo "matrix=$(ls notebooks/*.ipynb | xargs -n1 basename | sed 's/.ipynb$//' | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+
+  colab-sim:
+    name: Notebook ${{ matrix.notebook }} (Colab-like, QUICK)
+    needs: [test, notebooks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        notebook: ${{ fromJson(needs.notebooks.outputs.matrix) }}
+    env:
+      PRL_PLATFORM: colab-sim
+      PRL_QUICK: "1"
+      MPLBACKEND: Agg
+      PRL_SPEC: ${{ github.workspace }}/prl
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Build a Colab-like environment (Colab's versions of torch, numpy, scipy, ...)
+        run: |
+          uv venv --seed --python 3.13 .colab
+          uv run --no-project --with pyyaml python scripts/colab_constraints.py sim-requirements --out sim.txt
+          uv pip install --python .colab/bin/python -r sim.txt \
+            --extra-index-url https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match
+      - name: Worked mode (solutions bound; the setup cell installs prl the Colab way)
+        run: .colab/bin/python scripts/check_notebooks.py --mode worked ${{ matrix.notebook }}
+      - name: Learner mode (must stop at the first TODO)
+        run: .colab/bin/python scripts/check_notebooks.py --mode learner ${{ matrix.notebook }}
