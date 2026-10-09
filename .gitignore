@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Quarto
+/_site/
+/.quarto/
+*.quarto_ipynb
+_freeze/
+
+# Run records waiting to be filed (see runs/README.md)
+runs/inbox/
+
+# Local tooling
+.DS_Store
+.claude/settings.local.json
+node_modules/
+
+# Agent worktrees (parallel work; merged via branches)
+.claude/worktrees/

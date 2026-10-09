@@ -1,0 +1,34 @@
+# Dark theme tokens (Quarto brand.yml). Contrast ratios vs background are in PLAN.md §8.
+meta:
+  name: Practical Reinforcement Learning
+  link: https://project-delphi.github.io/practical-rl/
+color:
+  palette:
+    navy: "#0d141b"
+    text: "#d7dee6"
+    heading: "#eef2f6"
+    muted: "#9ba8b6"
+    link: "#8cc4ee"
+    code: "#f0b48a"
+    accent: "#f0a070"
+    on-accent: "#1b120b"
+    surface: "#1a222c"
+    border-strong: "#5d6d80"
+    chip-ok-fg: "#8fd3ad"
+    chip-ok-bg: "#15271d"
+    chip-partial-fg: "#f2c46b"
+    chip-partial-bg: "#2a2213"
+    chip-none-fg: "#c3ccd6"
+    chip-none-bg: "#222a33"
+    chip-stale-fg: "#f3a3a3"
+    chip-stale-bg: "#2c1a1a"
+    series-1: "#3F97DB"
+    series-2: "#E0702F"
+    series-3: "#22AE80"
+    series-4: "#A9529E"
+    neutral: "#8C98A5"
+  background: "#12181f"
+  foreground: text
+  primary: link
+  secondary: muted
+  dark: navy

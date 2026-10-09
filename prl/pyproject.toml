@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "prl"
+version = "0.1.0.dev0"
+description = "Infrastructure for the Practical Reinforcement Learning workshop: environments, evaluation, plotting, checkpoints and run records. No algorithms: participants write those."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Genial Labs" }]
+# Floors stay at or below Google Colab's preinstalled versions (see PLAN.md §6),
+# so installing prl on Colab never upgrades numpy, scipy or matplotlib.
+dependencies = [
+  "numpy>=2.0",
+  "scipy>=1.13",
+  "matplotlib>=3.9",
+  "gymnasium>=1.0",
+]
+
+[project.urls]
+Homepage = "https://project-delphi.github.io/practical-rl/"
+Source = "https://github.com/project-delphi/practical-rl"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/prl"]

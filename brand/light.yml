@@ -1,0 +1,35 @@
+# Light theme tokens (Quarto brand.yml). Contrast ratios vs background are in PLAN.md §8.
+# The ui-expert owns this file. scripts/gen_tokens.py copies the plot series into prl.
+meta:
+  name: Practical Reinforcement Learning
+  link: https://project-delphi.github.io/practical-rl/
+color:
+  palette:
+    navy: "#14324f"
+    text: "#1d2430"
+    heading: "#111a26"
+    muted: "#56606c"
+    link: "#0b5c99"
+    code: "#8a3b12"
+    accent: "#b04a12"
+    on-accent: "#ffffff"
+    surface: "#f5f7f9"
+    border-strong: "#7d8996"
+    chip-ok-fg: "#1f6b45"
+    chip-ok-bg: "#e7f3ec"
+    chip-partial-fg: "#7a4b00"
+    chip-partial-bg: "#fcf1dc"
+    chip-none-fg: "#3f4955"
+    chip-none-bg: "#eceff3"
+    chip-stale-fg: "#9b2c2c"
+    chip-stale-bg: "#fbe9e9"
+    series-1: "#0072B2"
+    series-2: "#D55E00"
+    series-3: "#009E73"
+    series-4: "#AA3377"
+    neutral: "#6B7480"
+  background: "#ffffff"
+  foreground: text
+  primary: link
+  secondary: muted
+  dark: navy
