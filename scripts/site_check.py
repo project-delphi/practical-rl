@@ -379,7 +379,11 @@ async def check_page(
             AXE_TAGS,
         )
         for v in axe["violations"]:
-            targets = [", ".join(t) if isinstance(t, list) else str(t) for n in v["nodes"] for t in n["target"]]
+            targets = [
+                ", ".join(t) if isinstance(t, list) else str(t)
+                for n in v["nodes"]
+                for t in n["target"]
+            ]
             if v.get("impact") in FAIL_IMPACTS:
                 if axe_allowed(allow, v["id"], page_name, targets):
                     res.warnings.append(f"axe {v['id']} allow-listed ({len(v['nodes'])} nodes)")
@@ -399,7 +403,9 @@ async def check_page(
 
         # focus: real Tab presses from the top of the page, then a sample of the content
         await page.evaluate(JS_TIPPY_INSTANT)
-        await page.evaluate("() => { window.scrollTo(0, 0); document.activeElement && document.activeElement.blur(); }")
+        await page.evaluate(
+            "() => { window.scrollTo(0, 0); document.activeElement && document.activeElement.blur(); }"
+        )
         seen = []
         for _ in range(TAB_STOPS):
             await page.keyboard.press("Tab")
@@ -494,12 +500,19 @@ async def run(site: Path, pages: list[str], axe_path: Path, allow: dict) -> list
                     for name in pages:
                         queue.put_nowait(name)
 
-                    async def worker(ctx: Any = ctx, scheme: str = scheme, width: int = width) -> None:
+                    async def worker(
+                        ctx: Any = ctx,
+                        scheme: str = scheme,
+                        width: int = width,
+                        queue: asyncio.Queue[str] = queue,
+                    ) -> None:
                         while not queue.empty():
                             name = queue.get_nowait()
                             url = f"{origin}{base}{name}"
                             results.append(
-                                await check_page(ctx, url, name, scheme, width, origin, axe_src, allow)
+                                await check_page(
+                                    ctx, url, name, scheme, width, origin, axe_src, allow
+                                )
                             )
 
                     await asyncio.gather(*(worker() for _ in range(WORKERS)))
@@ -515,7 +528,9 @@ def report(results: list[Result], axe_version: str) -> int:
     pages = sorted({r.page for r in results})
     by = {(r.page, r.key): r for r in results}
     col = max(len(p) for p in pages) + 2
-    print(f"site check: {len(pages)} pages x {len(keys)} configs, axe-core {axe_version}, tags {', '.join(AXE_TAGS)}")
+    print(
+        f"site check: {len(pages)} pages x {len(keys)} configs, axe-core {axe_version}, tags {', '.join(AXE_TAGS)}"
+    )
     print("page".ljust(col) + "".join(k.ljust(13) for k in keys))
     for p in pages:
         cells = []
@@ -578,4 +593,3 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
-

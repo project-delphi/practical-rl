@@ -113,7 +113,10 @@ def test_rendered_text_is_covered_by_the_fonts() -> None:
             continue
         parser = _Text()
         parser.feed(page.read_text(errors="replace"))
-        for chunks, cps, label in ((parser.prose, text_cps, "Inter"), (parser.code, mono_cps, "JetBrains Mono")):
+        for chunks, cps, label in (
+            (parser.prose, text_cps, "Inter"),
+            (parser.code, mono_cps, "JetBrains Mono"),
+        ):
             for ch in set("".join(chunks)):
                 if ch.isspace() or ord(ch) < 0x20 or ch in FALLBACK_OK:
                     continue
@@ -121,8 +124,9 @@ def test_rendered_text_is_covered_by_the_fonts() -> None:
                     problems.setdefault(f"{label}: U+{ord(ch):04X} {ch}", set()).add(
                         str(page.relative_to(SITE))
                     )
-    assert not problems, "characters missing from the subset fonts (extend fonts/build.sh): " + "; ".join(
-        f"{k} on {', '.join(sorted(v)[:3])}" for k, v in sorted(problems.items())
+    assert not problems, (
+        "characters missing from the subset fonts (extend fonts/build.sh): "
+        + "; ".join(f"{k} on {', '.join(sorted(v)[:3])}" for k, v in sorted(problems.items()))
     )
 
 
