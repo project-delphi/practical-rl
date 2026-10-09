@@ -1,0 +1,19 @@
+---
+title: "References"
+nocite: |
+  @*
+---
+
+Every entry below was checked against its primary source (the paper, the publisher's or
+proceedings record, or the official course page) before it was listed. The workshop cites
+specific sections, equations or theorems; the repository's `references.bib` records, for
+each entry, what was opened and which location we rely on. Facts we could not verify are
+listed in [`OPEN_QUESTIONS.md`](https://github.com/project-delphi/practical-rl/blob/main/OPEN_QUESTIONS.md)
+and are not used on the site.
+
+Module pages group their own further reading, with which sections to read and why.
+
+## All references {#bibliography}
+
+::: {#refs}
+:::

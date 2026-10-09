@@ -1,0 +1,35 @@
+---
+title: "Day 5"
+subtitle: "{{< var days.d5.title >}}"
+---
+
+**{{< var days.d5.question >}}**
+
+Today's real-shaped problem: {{< var days.d5.framing >}}.
+
+## Warm-up (09:00–09:15) {#warm-up}
+
+Five questions on earlier material: 6 minutes alone with notes closed, 4 minutes with a
+neighbor, 5 minutes on the two most missed. The questions come from the
+[knowledge checks](/knowledge-checks.qmd).
+
+::: {.callout-note}
+The warm-up questions for this day are written in Phase 4.
+:::
+
+## Modules {#modules}
+
+{{< include /_includes/day-5.md >}}
+
+## Wrap-up (16:45–17:00) {#wrap-up}
+
+1. **The running results table.** Fill in the room's numbers from each debrief. Every
+   comparison states its seeds and budget, and says "tie" when the spreads overlap.
+
+| Lab | Rows | Metric | Room's result |
+|---|---|---|---|
+| 13 Logs | six estimators × 2 levels of mismatch | bias, std, MSE; does the CI cover the truth? | |
+| 14 Datasets | BC, naive offline DQN, CQL, IQL | true return; FQE estimate; Q-gap | |
+| Capstone | each pair | metric ± spread; budget; one failure | |
+
+2. **What is still broken?** List what failed today and why, so tomorrow can start from it.

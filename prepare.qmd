@@ -1,0 +1,28 @@
+---
+title: "Start here"
+subtitle: "Before Day 1"
+---
+
+## 1. Take the entry check {#entry-check}
+
+A 15-minute self-assessment with three questions in each of four areas: probability, linear
+algebra and calculus, PyTorch, and Python with NumPy. If you miss two or more questions in an
+area, the check links to specific free reading for that area.
+
+::: {.callout-note}
+The entry check is written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+:::
+
+## 2. Set up one run path {#setup}
+
+Google Colab is the default and needs only a Google account. You can also run the labs on
+your own machine or on an AWS GPU instance. See [Setup](/setup.qmd).
+
+## 3. Run Module 0 {#module-0}
+
+[Module 0 · Setup and hello RL](/modules/00-setup.qmd) checks your environment, measures how
+fast it is, and runs a random agent on CartPole. It takes about 20 minutes.
+
+## 4. Start with Module 1 {#module-1}
+
+[Module 1 · MDPs, returns and the Bellman equation](/modules/01-mdps-bellman.qmd) opens Day 1.

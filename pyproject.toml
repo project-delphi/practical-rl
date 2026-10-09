@@ -1,0 +1,84 @@
+# Root project: site, scripts, tests and the local notebook environment.
+# The workshop package itself lives in prl/ (its own pyproject; installed editable here).
+[project]
+name = "practical-rl-workshop"
+version = "0.1.0"
+description = "Practical Reinforcement Learning: a five-day workshop (site, labs and the prl package)."
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = []
+
+[tool.uv]
+package = false
+default-groups = ["dev", "cpu"]
+conflicts = [[{ group = "cpu" }, { group = "gpu" }]]
+
+[dependency-groups]
+# Tests, linting, notebook build and execution. Always installed.
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.8",
+  "pyyaml>=6.0",
+  "nbformat>=5.10",
+  "jupytext>=1.19",
+  "nbclient>=0.10",
+  "ipykernel>=6.29",
+  "prl",
+]
+# What the labs import (besides torch, which comes from exactly one of cpu/gpu).
+notebooks = [
+  { include-group = "dev" },
+  "jupyterlab>=4.2",
+  "gymnasium==1.4.0",
+  "stable-baselines3==2.9.0",
+  "trl==1.15.0",
+  "transformers>=5.18,<6",
+  "accelerate>=1.4",
+  "datasets>=4.7",
+]
+# torch, CPU build (default; macOS, Linux CI, laptops).
+cpu = ["torch>=2.8"]
+# torch, CUDA build (AWS GPU instances): uv sync --group notebooks --group gpu --no-group cpu
+gpu = ["torch>=2.8"]
+# Rendering only (no torch): used by the Pages job with --no-project.
+site = ["pyyaml>=6.0", "nbformat>=5.10", "jupytext>=1.19"]
+# Browser-based site checks (Playwright + axe).
+browser = ["playwright>=1.48"]
+
+[tool.uv.sources]
+prl = { path = "prl", editable = true }
+torch = [
+  { index = "pytorch-cpu", group = "cpu" },
+  { index = "pytorch-cu130", group = "gpu", marker = "sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.ruff]
+line-length = 100
+src = [".", "prl/src", "scripts"]
+target-version = "py312"
+extend-exclude = ["notebooks", "_site", ".quarto", ".claude", ".colab", "ci/smoke/*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["prl"]
+
+[tool.ruff.lint.per-file-ignores]
+# Lab sources are notebooks: imports appear mid-file and names are redefined by design.
+"labs/**" = ["E402", "F811", "F821", "B018"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "prl/tests"]
+addopts = "-q"

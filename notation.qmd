@@ -1,0 +1,40 @@
+---
+title: "Notation"
+subtitle: "One set of symbols for the whole week"
+---
+
+When a paper uses a symbol that clashes with ours, we keep its letter with a method subscript
+and note the paper's original symbol here.
+
+| Symbol | Meaning | Paper symbol it replaces |
+|---|---|---|
+| $s, a, s'$ | state, action, next state | |
+| $\mathcal{S}, \mathcal{A}$ | state and action sets | |
+| $r_t$ | reward received after action $a_t$ (Sutton and Barto write $R_{t+1}$) | |
+| $r(s,a)$ | expected reward; the array `R[s, a]` holds it | |
+| $P(s' \mid s,a)$ | transition probability; the array `P[s, a, s']` | |
+| $\gamma$ | discount factor (only this) | Ouyang et al.'s pretraining coefficient → $c_{\text{ptx}}$ |
+| $G_t$ | return from time $t$ | |
+| $\pi$, $\pi(a \mid s)$ | target policy | |
+| $\pi_b$ | behavior policy (frees $b$ for the baseline $b(s)$) | Dudík et al.'s $p$; CQL's $\pi_\beta$ |
+| $\pi_{\text{ref}}$ | reference policy (language models) | |
+| $V^\pi, Q^\pi, A^\pi$ | state value, action value, advantage | |
+| $\hat{A}_t$ | advantage estimate | |
+| $\delta_t$ | TD error | Hoeffding's failure probability → $p_{\text{fail}}$ |
+| $\alpha$ | step size (only this) | SAC's temperature → $\alpha_{\text{ent}}$; CQL's weight → $\alpha_{\text{cql}}$ |
+| $\varepsilon$ | exploration rate ($\varepsilon$-greedy) | |
+| $\varepsilon_{\text{clip}}$ | PPO clipping range | PPO's $\epsilon$ |
+| $\lambda$ | λ-return and GAE (the same object) | ridge regularizer → $\lambda_{\text{ridge}}$ |
+| $\rho_t$, $\rho_{0:t}$ | importance ratio $\pi/\pi_b$ and its running product; in PPO $\rho_t(\theta) = \pi_\theta/\pi_{\theta_{\text{old}}}$ | PPO's $r_t(\theta)$ |
+| $\beta$ | KL coefficient (RLHF, DPO); AWR weights are written $\exp(\hat{A}/\beta)$ | IQL's inverse temperature |
+| $c$ | exploration-bonus coefficient | LinUCB's $\alpha$; MBIE-EB's $\beta$ |
+| $c_V, c_H$ | PPO value-loss and entropy weights | PPO's $c_1, c_2$ |
+| $K$ | GRPO group size | DeepSeekMath's $G$ (clashes with $G_t$) |
+| $N(s,a)$ | visit count ($n$ stays the n-step length) | MBIE-EB's $n(s,a)$ |
+| $\Lambda_a$ | LinUCB Gram matrix | Li et al.'s $A_a$ |
+| $\theta$, $w$, $\phi(s)$ | policy parameters, value parameters, features | |
+| $\mu$, $d$ | state weighting, feature dimension | |
+| $\tau$, $\tau_e$ | trajectory, IQL expectile | |
+| $\varepsilon_P$ | model error (Module 2) | |
+| $Z(x)$ | partition function in the KL-regularized optimum | |
+| $H$ | horizon | |

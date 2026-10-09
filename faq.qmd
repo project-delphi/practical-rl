@@ -1,0 +1,18 @@
+---
+title: "FAQ"
+---
+
+**Do I need a GPU?** No. Almost every lab is designed for Colab's free CPU runtime. Only the
+Module 12 stretch and one capstone option are designed for a T4 GPU.
+
+**Do I need API keys or paid services?** No. Nothing in the workshop uses a paid API.
+
+**Can I run the labs on my own laptop?** Yes; see [Setup](/setup.qmd#local).
+
+**Is a given lab ready?** The [readiness page](/readiness.qmd) shows which labs have run on
+their designed runtime, built from recorded runs only.
+
+{{< include /_includes/readiness-summary.md >}}
+
+**I found a mistake.** Please open an issue on
+[GitHub](https://github.com/project-delphi/practical-rl/issues).

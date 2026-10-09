@@ -1,0 +1,118 @@
+project:
+  type: website
+  output-dir: _site
+  # Explicit render list: nothing else (PLAN.md, notebooks, READMEs) becomes a page,
+  # and nothing executes at render time.
+  render:
+    - index.qmd
+    - prepare.qmd
+    - setup.qmd
+    - schedule.qmd
+    - day-1.qmd
+    - day-2.qmd
+    - day-3.qmd
+    - day-4.qmd
+    - day-5.qmd
+    - modules/*.qmd
+    - notebooks.qmd
+    - readiness.qmd
+    - references.qmd
+    - notation.qmd
+    - next-steps.qmd
+    - faq.qmd
+    - teach.qmd
+    - facilitator-guide.qmd
+    - instructor-pace.qmd
+    - knowledge-checks.qmd
+    - welcome.qmd
+    - 404.qmd
+
+metadata-files:
+  - _includes/sidebar.yml
+
+brand:
+  light: brand/light.yml
+  dark: brand/dark.yml
+
+lang: en-US
+bibliography: references.bib
+link-citations: true
+
+website:
+  title: "Practical RL"
+  site-url: "https://project-delphi.github.io/practical-rl"
+  repo-url: "https://github.com/project-delphi/practical-rl"
+  page-navigation: true
+  bread-crumbs: true
+  search: true
+  navbar:
+    left:
+      - href: prepare.qmd
+        text: Start here
+      - href: schedule.qmd
+        text: Schedule
+      - text: Days
+        menu:
+          - href: modules/00-setup.qmd
+            text: "Module 0 · Setup"
+          - day-1.qmd
+          - day-2.qmd
+          - day-3.qmd
+          - day-4.qmd
+          - day-5.qmd
+      - href: notebooks.qmd
+        text: Notebooks
+      - text: Reference
+        menu:
+          - references.qmd
+          - notation.qmd
+          - next-steps.qmd
+          - faq.qmd
+      - text: Instructors
+        menu:
+          - teach.qmd
+          - facilitator-guide.qmd
+          - instructor-pace.qmd
+          - knowledge-checks.qmd
+          - href: welcome.qmd
+            text: Welcome slides
+          - readiness.qmd
+    right:
+      - icon: github
+        href: https://github.com/project-delphi/practical-rl
+        aria-label: "Source on GitHub"
+  page-footer:
+    left: "Genial Labs · Text CC BY 4.0 · Code MIT"
+    right:
+      - href: setup.qmd
+        text: Setup
+      - href: faq.qmd
+        text: FAQ
+      - href: notation.qmd
+        text: Notation
+      - href: readiness.qmd
+        text: Readiness
+
+# Lua filters (ui-expert): self-hosted KaTeX, <details> disclosure, scrollable table regions.
+filters:
+  - filters/katex.lua
+  - filters/disclosure.lua
+  - filters/scroll-regions.lua
+
+format:
+  html:
+    theme:
+      light: [brand, styles/prl.scss]
+      dark: [brand, styles/prl.scss]
+    include-in-header: styles/prl-head.html
+    respect-user-color-scheme: true
+    toc: true
+    toc-depth: 3
+    toc-title: "On this page"
+    code-copy: true
+    code-overflow: wrap
+    html-math-method: katex
+    link-external-newwindow: true
+    lightbox: auto
+    anchor-sections: true
+    smooth-scroll: false

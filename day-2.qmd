@@ -1,0 +1,35 @@
+---
+title: "Day 2"
+subtitle: "{{< var days.d2.title >}}"
+---
+
+**{{< var days.d2.question >}}**
+
+Today's real-shaped problem: {{< var days.d2.framing >}}.
+
+## Warm-up (09:00–09:15) {#warm-up}
+
+Five questions on earlier material: 6 minutes alone with notes closed, 4 minutes with a
+neighbor, 5 minutes on the two most missed. The questions come from the
+[knowledge checks](/knowledge-checks.qmd).
+
+::: {.callout-note}
+The warm-up questions for this day are written in Phase 4.
+:::
+
+## Modules {#modules}
+
+{{< include /_includes/day-2.md >}}
+
+## Wrap-up (16:45–17:00) {#wrap-up}
+
+1. **The running results table.** Fill in the room's numbers from each debrief. Every
+   comparison states its seeds and budget, and says "tie" when the spreads overlap.
+
+| Lab | Rows | Metric | Room's result |
+|---|---|---|---|
+| 4 Bandits | greedy, ε-greedy, UCB1, Thompson sampling; rewards ×10 | regret at T over 20 seeds; verdict or tie | |
+| 5 Recommender | LinUCB, linear TS, predict-then-greedy × 3 regimes | regret over 5 seeds; mean logged importance weight | |
+| 6 RiverSwim | ε-greedy, optimistic, MBIE-EB | hitting time; share of seeds reaching the right end; regret over 10 seeds | |
+
+2. **What is still broken?** List what failed today and why, so tomorrow can start from it.

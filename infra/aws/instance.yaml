@@ -1,0 +1,431 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Practical RL workshop: one participant GPU instance. No inbound ports; access is
+  through SSM port forwarding to JupyterLab on 127.0.0.1:8888. Idle auto-stop, encrypted
+  gp3 root volume deleted with the instance, tags on every resource. Create it with
+  infra/aws/bin/prl-aws, which resolves the AMI once and passes it as a literal ID.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: Instance }
+        Parameters: [AmiId, RootDeviceName, InstanceType, VolumeSizeGiB, IdleMinutes]
+      - Label: { default: Workshop repository }
+        Parameters: [RepoUrl, RepoRef]
+      - Label: { default: Tags }
+        Parameters: [Cohort, Participant, Owner]
+      - Label: { default: Network (leave both empty for the default VPC) }
+        Parameters: [SubnetId, VpcId]
+
+Parameters:
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Description: >-
+      Literal AMI ID of the Base OSS Nvidia Driver GPU DLAMI (Ubuntu 24.04). prl-aws resolves it
+      once from the public SSM parameter. This is deliberately not an SSM parameter type: that
+      would re-resolve on every stack update and replace the instance, losing the participant's work.
+  RootDeviceName:
+    Type: String
+    Default: /dev/sda1
+    AllowedPattern: ^/dev/[a-z0-9]+$
+    Description: Root device name of the AMI (prl-aws reads it from describe-images).
+  InstanceType:
+    Type: String
+    Default: g4dn.xlarge
+    AllowedValues: [g4dn.xlarge, g5.xlarge, g6.xlarge]
+    Description: Each of these has 1 GPU and 4 vCPUs (4 vCPUs of the G and VT on-demand quota).
+  VolumeSizeGiB:
+    Type: Number
+    Default: 100
+    MinValue: 100
+    MaxValue: 1000
+    Description: Size of the encrypted gp3 root volume. It is deleted with the instance.
+  RepoUrl:
+    Type: String
+    Default: https://github.com/project-delphi/practical-rl.git
+    AllowedPattern: ^https://[A-Za-z0-9./_~:@%+-]+$
+    Description: HTTPS URL of the workshop repository to clone.
+  RepoRef:
+    Type: String
+    Default: main
+    AllowedPattern: ^[A-Za-z0-9._/-]{1,128}$
+    Description: Branch, tag or commit to check out.
+  Cohort:
+    Type: String
+    AllowedPattern: ^[a-z0-9]{1,20}$
+    Description: Cohort name (lowercase letters and digits). Used in tags and the stack name.
+  Participant:
+    Type: String
+    AllowedPattern: ^[a-z0-9][a-z0-9-]{0,39}$
+    Description: Participant ID (lowercase letters, digits and hyphens). Used in tags and the stack name.
+  Owner:
+    Type: String
+    AllowedPattern: ^[A-Za-z0-9_.:/=+@ -]{1,256}$
+    Description: Who created this stack (prl-aws passes the caller's ARN). Used in tags.
+  IdleMinutes:
+    Type: Number
+    Default: 90
+    AllowedValues: [30, 60, 90, 120, 180, 240]
+    Description: >-
+      Stop the instance after this many minutes with every 5-minute average CPU below 5%.
+      The 90-minute default spans a lunch break.
+  SubnetId:
+    Type: String
+    Default: ""
+    AllowedPattern: ^(subnet-[0-9a-f]+)?$
+    Description: >-
+      Optional subnet. Empty means a default subnet of the default VPC (public IP, so egress works).
+      A custom subnet needs outbound internet through a public IP or a NAT gateway: setup downloads
+      from GitHub, PyPI and astral.sh, and SSM needs its endpoints (or VPC endpoints).
+  VpcId:
+    Type: String
+    Default: ""
+    AllowedPattern: ^(vpc-[0-9a-f]+)?$
+    Description: The VPC of SubnetId. Required with SubnetId, and empty without it.
+
+Rules:
+  SubnetAndVpcTogether:
+    Assertions:
+      - Assert: !Or
+          - !And [!Equals [!Ref SubnetId, ""], !Equals [!Ref VpcId, ""]]
+          - !And [!Not [!Equals [!Ref SubnetId, ""]], !Not [!Equals [!Ref VpcId, ""]]]
+        AssertDescription: Pass SubnetId and VpcId together, or leave both empty to use the default VPC.
+
+Conditions:
+  HasSubnet: !Not [!Equals [!Ref SubnetId, ""]]
+  HasVpc: !Not [!Equals [!Ref VpcId, ""]]
+
+Mappings:
+  # CloudFormation has no division, so IdleMinutes maps to a count of 5-minute alarm periods.
+  IdleMinutesToPeriods:
+    "30": { Periods: 6 }
+    "60": { Periods: 12 }
+    "90": { Periods: 18 }
+    "120": { Periods: 24 }
+    "180": { Periods: 36 }
+    "240": { Periods: 48 }
+
+Resources:
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: !Sub "Practical RL instance role for ${AWS::StackName}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      Policies:
+        - PolicyName: prl-own-parameters
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: OwnParametersOnly
+                Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                  - ssm:GetParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/prl/${AWS::StackName}/*"
+      Tags:
+        - { Key: Project, Value: practical-rl }
+        - { Key: Cohort, Value: !Ref Cohort }
+        - { Key: Participant, Value: !Ref Participant }
+        - { Key: Owner, Value: !Ref Owner }
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      # No ingress rules. A VPC security group gets the default allow-all outbound rule, which
+      # setup (GitHub, PyPI, astral.sh, the AWS CLI installer) and the SSM agent need.
+      GroupDescription: Practical RL participant instance. No inbound rules; access is through SSM only.
+      VpcId: !If [HasVpc, !Ref VpcId, !Ref AWS::NoValue]
+      Tags:
+        - { Key: Name, Value: !Ref AWS::StackName }
+        - { Key: Project, Value: practical-rl }
+        - { Key: Cohort, Value: !Ref Cohort }
+        - { Key: Participant, Value: !Ref Participant }
+        - { Key: Owner, Value: !Ref Owner }
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SubnetId: !If [HasSubnet, !Ref SubnetId, !Ref AWS::NoValue]
+      SecurityGroupIds: [!GetAtt SecurityGroup.GroupId]
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+      BlockDeviceMappings:
+        - DeviceName: !Ref RootDeviceName
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: !Ref VolumeSizeGiB
+            Encrypted: true
+            DeleteOnTermination: true
+      PropagateTagsToVolumeOnCreation: true
+      Tags:
+        - { Key: Name, Value: !Ref AWS::StackName }
+        - { Key: Project, Value: practical-rl }
+        - { Key: Cohort, Value: !Ref Cohort }
+        - { Key: Participant, Value: !Ref Participant }
+        - { Key: Owner, Value: !Ref Owner }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # BEGIN prl-user-data (lint.sh extracts this block and runs shellcheck on it)
+          # Practical RL instance setup. cloud-init runs it once, at first boot. Every step is
+          # idempotent and an existing checkout is never touched, so it is safe to re-run by hand:
+          #   sudo bash /var/lib/cloud/instance/user-data.txt
+          # Log: /var/log/prl-setup.log. Status: SSM parameter /prl/<stack>/setup-status.
+          set -Eeuo pipefail
+          exec > >(tee -a /var/log/prl-setup.log) 2>&1
+
+          PRL_REGION='${AWS::Region}'
+          PRL_STACK='${AWS::StackName}'
+          PRL_REPO_URL='${RepoUrl}'
+          PRL_REPO_REF='${RepoRef}'
+          PRL_UV_VERSION='0.12.24'
+          PRL_JUPYTERLAB_VERSION='4.6.4'
+          PRL_PYTHON='3.13'
+          PRL_USER='ubuntu'
+          PRL_HOME='/home/ubuntu'
+          PRL_DIR='/home/ubuntu/practical-rl'
+          PRL_PARAMS="/prl/$PRL_STACK"
+          export AWS_DEFAULT_REGION="$PRL_REGION"
+
+          log() { printf '[prl-setup %s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
+          as_user() { sudo -u "$PRL_USER" -H env PATH="$PRL_HOME/.local/bin:/usr/local/bin:/usr/bin:/bin" "$@"; }
+          retry() {
+            local n=1
+            until "$@"; do
+              if [ "$n" -ge 3 ]; then return 1; fi
+              log "attempt $n failed; retrying in $((n * 20)) s: $*"
+              sleep $((n * 20))
+              n=$((n + 1))
+            done
+          }
+          put_status() {
+            if command -v aws >/dev/null 2>&1; then
+              aws ssm put-parameter --name "$PRL_PARAMS/setup-status" --type String --overwrite \
+                --value "$1 $(date -u +%Y-%m-%dT%H:%M:%SZ)" >/dev/null || log "could not publish setup status: $1"
+            fi
+          }
+          on_error() {
+            log "FAILED at line $1. Fix the cause, then re-run this script (see the header)."
+            put_status "failed at line $1; see /var/log/prl-setup.log"
+          }
+          trap 'on_error $LINENO' ERR
+
+          log "setup started: $PRL_STACK, $PRL_REPO_URL at $PRL_REPO_REF"
+          id "$PRL_USER" >/dev/null
+          nvidia-smi --query-gpu=name,driver_version --format=csv,noheader || log "WARNING: nvidia-smi failed"
+
+          # 1. AWS CLI v2, used only to publish the token and the setup status to SSM.
+          if ! command -v aws >/dev/null 2>&1; then
+            log "installing AWS CLI v2"
+            if ! command -v unzip >/dev/null 2>&1; then
+              export DEBIAN_FRONTEND=noninteractive
+              retry apt-get -o DPkg::Lock::Timeout=600 update -q
+              retry apt-get -o DPkg::Lock::Timeout=600 install -y -q unzip
+            fi
+            awstmp=$(mktemp -d)
+            retry curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o "$awstmp/awscliv2.zip"
+            unzip -q "$awstmp/awscliv2.zip" -d "$awstmp"
+            "$awstmp/aws/install" --update
+            rm -rf "$awstmp"
+          fi
+          aws --version
+          put_status running
+
+          # 2. uv, pinned, installed for the ubuntu user.
+          if [ ! -x "$PRL_HOME/.local/bin/uv" ]; then
+            log "installing uv $PRL_UV_VERSION"
+            installer=$(mktemp)
+            retry curl -LsSf "https://astral.sh/uv/$PRL_UV_VERSION/install.sh" -o "$installer"
+            chmod 0644 "$installer"
+            as_user sh "$installer"
+            rm -f "$installer"
+          fi
+          as_user uv --version
+
+          # 3. Python 3.13 managed by uv (the AMI's system Python is 3.12).
+          retry as_user uv python install "$PRL_PYTHON"
+
+          # 4. The workshop repository. An existing checkout is left exactly as it is.
+          if [ -d "$PRL_DIR/.git" ]; then
+            log "$PRL_DIR already exists; leaving it as it is"
+          else
+            if [ -e "$PRL_DIR" ]; then
+              log "moving the non-git $PRL_DIR aside"
+              mv "$PRL_DIR" "$PRL_DIR.moved-$(date -u +%Y%m%dT%H%M%SZ)"
+            fi
+            log "cloning $PRL_REPO_URL at $PRL_REPO_REF"
+            if ! as_user git clone --quiet --depth 1 --branch "$PRL_REPO_REF" "$PRL_REPO_URL" "$PRL_DIR"; then
+              log "$PRL_REPO_REF is not a branch or tag (or the clone failed); fetching it as a commit"
+              as_user git init --quiet "$PRL_DIR"
+              as_user git -C "$PRL_DIR" remote add origin "$PRL_REPO_URL"
+              retry as_user git -C "$PRL_DIR" fetch --quiet --depth 1 origin "$PRL_REPO_REF"
+              as_user git -C "$PRL_DIR" checkout --quiet FETCH_HEAD
+            fi
+          fi
+
+          # 5. The Python environment: the project's "notebooks" dependency group when it exists.
+          cd "$PRL_DIR"
+          sync_env() {
+            if [ -f uv.lock ]; then
+              if retry as_user uv sync --python "$PRL_PYTHON" --locked "$@"; then return 0; fi
+              log "WARNING: uv sync --locked failed (is uv.lock stale at $PRL_REPO_REF?); syncing without --locked"
+            fi
+            retry as_user uv sync --python "$PRL_PYTHON" "$@"
+          }
+          if [ ! -f pyproject.toml ]; then
+            log "WARNING: no pyproject.toml at $PRL_REPO_REF; creating .venv with JupyterLab only"
+            as_user uv venv --allow-existing --python "$PRL_PYTHON" .venv
+          elif python3 -c 'import sys, tomllib; sys.exit("notebooks" not in tomllib.load(open("pyproject.toml", "rb")).get("dependency-groups", {}))'; then
+            # The default "cpu" group would install CPU-only PyTorch; GPU instances use the CUDA build.
+            if python3 -c 'import sys, tomllib; sys.exit("gpu" not in tomllib.load(open("pyproject.toml", "rb")).get("dependency-groups", {}))'; then
+              log "uv sync --group notebooks --group gpu --no-group cpu"
+              sync_env --group notebooks --group gpu --no-group cpu
+            else
+              log "uv sync --group notebooks"
+              sync_env --group notebooks
+            fi
+          else
+            log "WARNING: pyproject.toml has no 'notebooks' dependency group at $PRL_REPO_REF; running plain uv sync"
+            sync_env
+          fi
+          if [ ! -x .venv/bin/jupyter ]; then
+            log "WARNING: JupyterLab is not in the project environment; adding jupyterlab==$PRL_JUPYTERLAB_VERSION to .venv"
+            retry as_user uv pip install --python .venv/bin/python "jupyterlab==$PRL_JUPYTERLAB_VERSION"
+          fi
+
+          # 6. Jupyter token: generated once, kept in root-only files, published as an SSM SecureString.
+          install -d -m 0700 /etc/prl
+          if [ ! -s /etc/prl/jupyter-token ]; then
+            (umask 077 && openssl rand -hex 24 | tr -d '\n' >/etc/prl/jupyter-token)
+          fi
+          (umask 077 && printf 'JUPYTER_TOKEN=%s\n' "$(cat /etc/prl/jupyter-token)" >/etc/prl/jupyter.env)
+          retry aws ssm put-parameter --name "$PRL_PARAMS/jupyter-token" --type SecureString --overwrite \
+            --description "JupyterLab token for $PRL_STACK" --value file:///etc/prl/jupyter-token >/dev/null
+          log "published the token to the SSM parameter $PRL_PARAMS/jupyter-token"
+
+          # 7. JupyterLab as a systemd service: it starts on every boot, so it survives stop and start.
+          cat >/etc/systemd/system/prl-jupyter.service <<'UNIT'
+          [Unit]
+          Description=Practical RL JupyterLab on 127.0.0.1:8888
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=ubuntu
+          Group=ubuntu
+          WorkingDirectory=/home/ubuntu/practical-rl
+          Environment=HOME=/home/ubuntu
+          Environment=PRL_PLATFORM=aws
+          Environment=VIRTUAL_ENV=/home/ubuntu/practical-rl/.venv
+          Environment=PATH=/home/ubuntu/practical-rl/.venv/bin:/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
+          EnvironmentFile=/etc/prl/jupyter.env
+          ExecStart=/home/ubuntu/practical-rl/.venv/bin/jupyter lab --no-browser --ip=127.0.0.1 --port=8888 --ServerApp.root_dir=/home/ubuntu/practical-rl
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+
+          # 8. Idle-stop re-arm. CloudWatch alarm actions run only when the alarm changes state. If the
+          # alarm stopped the instance and someone starts it again, the alarm can still be in ALARM, so
+          # an idle restarted instance would never be stopped. Keeping one vCPU busy (lowest priority)
+          # for 6 minutes after each boot gives at least one 5-minute average above 5%, which moves the
+          # alarm back to OK so it can fire again after IdleMinutes of real idleness.
+          cat >/etc/systemd/system/prl-idle-rearm.service <<'UNIT'
+          [Unit]
+          Description=Practical RL: one busy vCPU for 6 minutes after boot so the idle-stop alarm re-arms
+
+          [Service]
+          Type=simple
+          Nice=19
+          ExecStart=/usr/bin/timeout 360 /bin/sh -c 'while :; do :; done'
+          SuccessExitStatus=124
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+
+          systemctl daemon-reload
+          systemctl enable prl-idle-rearm.service
+          systemctl enable prl-jupyter.service
+          systemctl restart prl-jupyter.service
+          install -d /var/lib/prl
+          touch /var/lib/prl/setup-complete
+          put_status complete
+          log "setup complete"
+          # END prl-user-data
+
+  IdleStopAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: !Sub >-
+        Stops ${AWS::StackName} when every 5-minute average CPU stays below 5% for ${IdleMinutes} minutes.
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref Instance
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: !FindInMap [IdleMinutesToPeriods, !Ref IdleMinutes, Periods]
+      DatapointsToAlarm: !FindInMap [IdleMinutesToPeriods, !Ref IdleMinutes, Periods]
+      Threshold: 5
+      ComparisonOperator: LessThanThreshold
+      # AWS recommends "missing" for alarms that stop, terminate, reboot or recover instances.
+      TreatMissingData: missing
+      AlarmActions:
+        - !Sub "arn:${AWS::Partition}:automate:${AWS::Region}:ec2:stop"
+      Tags:
+        - { Key: Project, Value: practical-rl }
+        - { Key: Cohort, Value: !Ref Cohort }
+        - { Key: Participant, Value: !Ref Participant }
+        - { Key: Owner, Value: !Ref Owner }
+
+Outputs:
+  InstanceId:
+    Description: The participant's EC2 instance.
+    Value: !Ref Instance
+  StackName:
+    Description: This stack (prl-<cohort>-<participant>).
+    Value: !Ref AWS::StackName
+  AmiId:
+    Description: The literal AMI ID this instance was launched from.
+    Value: !Ref AmiId
+  TokenParameter:
+    Description: SSM SecureString parameter that holds the JupyterLab token (written by the instance).
+    Value: !Sub "/prl/${AWS::StackName}/jupyter-token"
+  SetupStatusParameter:
+    Description: SSM String parameter with the setup status (running, complete or failed).
+    Value: !Sub "/prl/${AWS::StackName}/setup-status"
+  TokenCommand:
+    Description: Prints the JupyterLab token.
+    Value: !Sub >-
+      aws ssm get-parameter --region ${AWS::Region} --name /prl/${AWS::StackName}/jupyter-token
+      --with-decryption --query Parameter.Value --output text
+  ConnectCommand:
+    Description: >-
+      Forwards localhost:8888 to JupyterLab on the instance (needs the Session Manager plugin).
+      Then open http://localhost:8888/lab and paste the token. prl-aws connect does both steps.
+    Value: !Sub >-
+      aws ssm start-session --region ${AWS::Region} --target ${Instance}
+      --document-name AWS-StartPortForwardingSession
+      --parameters '{"portNumber":["8888"],"localPortNumber":["8888"]}'

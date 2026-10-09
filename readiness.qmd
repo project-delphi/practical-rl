@@ -1,0 +1,10 @@
+---
+title: "Readiness"
+subtitle: "What has run, where, and what has not"
+---
+
+This page is generated from the run records in
+[`runs/`](https://github.com/project-delphi/practical-rl/tree/main/runs). Nothing on this site
+claims a lab works on a runtime unless a record shows it.
+
+{{< include /_includes/readiness.md >}}

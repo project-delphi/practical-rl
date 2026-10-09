@@ -1,0 +1,17 @@
+---
+title: "Schedule"
+subtitle: "Five days, 09:00–17:00"
+---
+
+All five days share one clock. Each module is a 40-minute briefing, a 70-minute lab and a
+10-minute debrief. Module B's briefing comes before lunch and its lab after it; the briefing
+ends with two minutes to open the notebook and run its setup cell, so problems surface early.
+
+{{< include /_includes/schedule.md >}}
+
+## Warm-up and wrap-up {#rituals}
+
+- **Warm-up (09:00–09:15).** Five questions on earlier material: 6 minutes alone with notes
+  closed, 4 minutes with a neighbor, 5 minutes on the two most missed. Nothing is graded.
+- **Wrap-up (16:45–17:00).** The room fills in the day's running results table, and lists
+  what is still broken.

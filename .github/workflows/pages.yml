@@ -1,0 +1,60 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Render and check the site
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: 1.10.19
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Generated includes are current (no torch needed)
+        run: |
+          uv run --no-project --with pyyaml python scripts/gen_includes.py --check
+          uv run --no-project --with pyyaml python scripts/gen_readiness.py --check
+      - name: Render (nothing executes at render)
+        run: quarto render
+      - name: Internal links
+        run: uv run --no-project python scripts/link_check.py
+      - name: Accessibility and layout site check (Playwright + Quarto's axe-core; 2 themes x 2 widths)
+        run: |
+          uv sync --locked --no-default-groups --group dev --group browser
+          uv run playwright install --with-deps chromium
+          uv run python scripts/site_check.py
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

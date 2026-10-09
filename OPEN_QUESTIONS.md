@@ -9,7 +9,7 @@ Each entry gives our working default, who decides, and when. When an entry is re
 
 **Owners:** user (you), AD (academic director), PE (pedagogy expert), TE (technical expert), UI (UI expert), lead (the main session).
 
-Last updated 2026-10-09 (Phase 0, after the four persona reviews).
+Last updated 2026-10-09 (Phase 1).
 
 ---
 
@@ -129,8 +129,9 @@ Last updated 2026-10-09 (Phase 0, after the four persona reviews).
 | # | Item | How it gets checked | Owner | When |
 |---|---|---|---|---|
 | B6 | ~~The SSM parameter for the Base DLAMI~~ **Resolved:** `/aws/service/deeplearning/ami/x86_64/base-oss-nvidia-driver-gpu-ubuntu-24.04/latest/ami-id` (AWS DLAMI docs; TE review) | — | — | — |
-| B7 | g4dn.xlarge on-demand price in us-east-1 | `price_table.py` against the AWS Price List; manual or weekly | TE | Phase 1 |
-| B21 | Whether `AWS::Budgets::Budget` must be deployed in us-east-1 | AWS docs | TE | Phase 1 |
+| B7 | ~~g4dn.xlarge on-demand price~~ **Resolved:** $0.526/h in us-east-1, from the public AWS Price List (EC2 offer 20261008184850), checked 2026-10-09 by `infra/aws/price_table.py`; rerun before relying on it | — | — | — |
+| B21 | Where `AWS::Budgets::Budget` can be deployed. CloudFormation's per-region schemas (cfn-lint 1.57.2) list it in us-east-1, us-west-2 and eu-west-1 but not eu-north-1; the AWS docs do not say. `prl-aws budget` defaults to us-east-1. | AWS docs or a real deploy | TE | Before release |
+| B25 | The AWS user-data on the real AMI, the idle-stop timing, the alarm re-arm service, KMS for the SecureString token, and `deploy --update` keeping parameters (see the Unverified section of `infra/aws/README.md`) | Human end-to-end run | user | Before release |
 
 **Citations: lemma numbers and wording**
 
@@ -194,3 +195,4 @@ Last updated 2026-10-09 (Phase 0, after the four persona reviews).
 | R7 | 2026-10-09 | Persona agents (AD, PE, TE, UI) plus a fresh-context verifier. Git worktrees for parallel work. |
 | R8 | 2026-10-09 | d3rlpy dropped; MABWiser kept as an optional parity cell (TE review). |
 | R9 | 2026-10-09 | MBIE-EB form, the BC-on-expert source, the probe-environments source and the Base DLAMI SSM parameter verified (AD and TE reviews). |
+| R10 | 2026-10-09 | Phase 1 defaults applied for A1–A8, A10, A12–A13 and C3–C5 (you said "go"); revisit any at the Phase 1 gate. Probe environments stay out of `prl` (Module 9 participants write them). |

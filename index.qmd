@@ -1,0 +1,77 @@
+---
+title: "{{< var workshop.title >}}"
+subtitle: "{{< var workshop.subtitle >}}"
+page-layout: full
+toc: false
+---
+
+::: {.hero}
+Five days of writing, running, debugging and evaluating reinforcement learning code. Every
+algorithm is derived from a few ideas (the Bellman equation, sampling, function
+approximation, the policy gradient and importance weighting), implemented from scratch,
+and then compared with a maintained library or with exact ground truth.
+
+[Start here](/prepare.qmd){.btn-colab} [See the schedule](/schedule.qmd){.btn-quiet}
+:::
+
+## The five days {#days}
+
+{{< include /_includes/path.md >}}
+
+## What you will be able to do {#outcomes}
+
+By Friday you can:
+
+- build a working agent for a problem you have not seen before;
+- explain why each line of it is there;
+- tell whether it is actually working, with seeds, intervals and a stated budget.
+
+## Who it is for {#who}
+
+ML engineers, data scientists and graduate students who know supervised learning and want to
+use RL on real problems: recommendation and ranking, pricing and inventory, control, and
+fine-tuning language models from preferences. You should be comfortable with Python, NumPy
+and PyTorch (you have trained a model with an `nn.Module` and an optimizer loop), with
+probability (expectation, variance, conditional probability), and with basic linear algebra
+and calculus. No prior RL is assumed. The [entry check](/prepare.qmd#entry-check) tells you
+what to brush up on.
+
+## How each module works {#how}
+
+Each module is a 40-minute briefing, a 70-minute lab and a 10-minute debrief. In the lab,
+every exercise follows the same rhythm:
+
+1. **Predict**: write down what you expect before running anything.
+2. **Write**: complete a `# TODO` cell. A Hint and the Solution are folded beneath it.
+3. **Run** and **Explain**: compare the result with your prediction.
+4. **Check**: a checkpoint passes, or says what to look at.
+
+Labs open in Google Colab and also run locally or on AWS ([Setup](/setup.qmd)). No API
+keys or paid services are needed.
+
+## What this workshop is not {#not}
+
+- Not an introduction to deep learning: you should already train neural networks.
+- Not heavy theory: no PAC bounds, regret proofs beyond the UCB intuition, stochastic-approximation proofs or Bellman rank.
+- Not robotics simulator engineering: no MuJoCo scene building, ROS or Isaac.
+- Not distributed RL infrastructure: no Ray clusters or Kubernetes.
+- Not continuous-time control: no LQR or Hamilton–Jacobi–Bellman equations.
+- Not Monte Carlo tree search or AlphaZero.
+- Not pretraining or supervised fine-tuning of language models: alignment starts from an instruction-tuned model.
+
+[Where to go next](/next-steps.qmd) points to resources for these topics.
+
+## Levels {#levels}
+
+| Level | Meaning |
+|---|---|
+| 100 | Foundational |
+| 200 | Intermediate |
+| 300 | Advanced |
+| 400 | Expert |
+
+## Is it ready to teach? {#ready}
+
+{{< include /_includes/readiness-summary.md >}}
+
+See the [readiness page](/readiness.qmd) for each lab.

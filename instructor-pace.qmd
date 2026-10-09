@@ -1,0 +1,9 @@
+---
+title: "Pace sheet"
+---
+
+Minute-by-minute targets for each briefing (generated from each page's agenda) and checkpoint-by-time targets for each lab, with a "behind → demo" rule per lab.
+
+::: {.callout-note}
+Written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+:::
