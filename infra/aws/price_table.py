@@ -261,7 +261,8 @@ def sagemaker_prices(region: str) -> dict:
 
 
 def money(x: float) -> str:
-    return f"{x:.4f}".rstrip("0").rstrip(".") if x < 1 else f"{x:.2f}"
+    """A listed unit price, with no rounding beyond the Price List's own 4 to 6 decimals."""
+    return f"{x:.6f}".rstrip("0").rstrip(".")
 
 
 def render_table(data: dict) -> str:
