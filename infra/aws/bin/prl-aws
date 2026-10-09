@@ -402,7 +402,7 @@ print_plan() { # ami rootdev owner
 }
 
 next_steps() { # participant
-	say "Setup continues on the instance for about 10-15 minutes (uv, Python 3.13, the repository)."
+	say "Setup now runs on the instance (uv, Python 3.13, the repository, the environment); it takes several minutes."
 	say "Then connect:  prl-aws connect $1 --cohort $OPT_COHORT --region $REGION"
 }
 
@@ -454,7 +454,7 @@ cmd_create() {
 	print_plan "$ami" "$rootdev" "$owner"
 	ensure_alarm_role
 	launch_stack "$participant" "$ami" "$rootdev" "$owner"
-	say "waiting for $stack (usually about 5 minutes)"
+	say "waiting for $stack to finish creating"
 	wait_create "$stack" || die "could not create $stack"
 	say "created $stack: instance $(stack_output "$stack" InstanceId)"
 	next_steps "$participant"
@@ -513,7 +513,7 @@ cmd_start() {
 	say "starting $iid ($stack)"
 	awsx ec2 start-instances --instance-ids "$iid" >/dev/null
 	awsx ec2 wait instance-running --instance-ids "$iid"
-	say "running. JupyterLab starts by itself within a couple of minutes. Then: prl-aws connect $participant --cohort $OPT_COHORT"
+	say "running. JupyterLab starts by itself once the instance has booted. Then: prl-aws connect $participant --cohort $OPT_COHORT"
 }
 
 cmd_status() {
@@ -595,7 +595,7 @@ cmd_cohort_up() {
 		fi
 		i=$((i + 1))
 	done
-	say "waiting for the stacks (they are created in parallel; usually about 5 minutes)"
+	say "waiting for the stacks (they are created in parallel)"
 	for stack in $launched; do
 		if wait_create "$stack"; then
 			say "ready: $stack ($(stack_output "$stack" InstanceId))"
