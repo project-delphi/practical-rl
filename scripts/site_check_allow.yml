@@ -1,0 +1,39 @@
+# Exceptions for scripts/site_check.py. Keep this short: every entry needs a reason,
+# and an entry for something we can fix names the fix. Fields:
+#
+# axe:      rule (axe rule id), page (glob, default "*"), selector (optional substring
+#           of the node's CSS target), reason
+# hosts:    host (glob) a page may request, page (glob, default "*"), reason
+# missing:  path (glob) of a local request that may fail, page (glob), reason
+
+axe:
+  # The welcome deck (welcome.qmd, revealjs). Its front matter is not part of the
+  # theme work; the proposed fix is in the ui-expert report (Phase 1).
+  - rule: meta-viewport
+    page: welcome.html
+    reason: >-
+      Quarto 1.10's revealjs template hard-codes user-scalable=no; no option turns it
+      off. Fix with a revealjs template partial or a viewport script when the deck is
+      built (Phase 4).
+  - rule: link-name
+    page: welcome.html
+    selector: .slide-menu-button
+    reason: >-
+      reveal's slide-menu button is an icon link with no name. Fix: `menu: false` in
+      welcome.qmd's revealjs options (verified to remove it).
+
+hosts:
+  - host: cdn.jsdelivr.net
+    page: welcome.html
+    reason: >-
+      Quarto's revealjs math plugin loads MathJax 2.7.9 from the CDN even without math.
+      Fix: `html-math-method: plain` in welcome.qmd until the deck has math (verified
+      to remove the request).
+
+missing:
+  - path: "*/fonts/source-sans-pro/source-sans-pro.css"
+    page: welcome.html
+    reason: >-
+      reveal's default theme @imports a Source Sans Pro stylesheet that Quarto 1.10 does
+      not ship. Goes away when the deck uses its own theme (PLAN.md §8:
+      theme: [brand, slides.scss]).

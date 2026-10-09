@@ -1,19 +1,24 @@
-# Dark theme tokens (Quarto brand.yml). Contrast ratios vs background are in PLAN.md §8.
+# Dark theme tokens (Quarto brand.yml). Contrast ratios vs background are in PLAN.md §8
+# and are checked by tests/test_site_tokens.py. Same keys as light.yml.
 meta:
   name: Practical Reinforcement Learning
   link: https://project-delphi.github.io/practical-rl/
 color:
   palette:
     navy: "#0d141b"
+    on-navy: "#d7dee6"
+    navbar-hl: "#8cc4ee"
     text: "#d7dee6"
     heading: "#eef2f6"
     muted: "#9ba8b6"
     link: "#8cc4ee"
     code: "#f0b48a"
+    code-bg: "#212a35"
     accent: "#f0a070"
     on-accent: "#1b120b"
     surface: "#1a222c"
     border-strong: "#5d6d80"
+    border-subtle: "#2e3a47"
     chip-ok-fg: "#8fd3ad"
     chip-ok-bg: "#15271d"
     chip-partial-fg: "#f2c46b"
@@ -32,3 +37,15 @@ color:
   primary: link
   secondary: muted
   dark: navy
+defaults:
+  bootstrap:
+    defaults:
+      navbar-bg: $brand-navy
+      navbar-fg: $brand-on-navy
+      navbar-hl: $brand-navbar-hl
+      headings-color: $brand-heading
+      code-color: $brand-code
+      code-bg: $brand-code-bg
+      code-block-bg: $brand-surface
+      text-muted: $brand-muted
+      border-color: $brand-border-subtle
