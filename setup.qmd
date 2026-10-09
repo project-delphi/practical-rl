@@ -1,0 +1,66 @@
+---
+title: "Setup"
+subtitle: "Three ways to run the labs"
+---
+
+Every lab runs in three places. **Google Colab** is the default and needs nothing but a
+Google account. You can also run the labs **locally** with `uv`, or on an **AWS** GPU
+instance. No lab needs API keys or paid services.
+
+## Google Colab (default) {#colab}
+
+1. Open a lab from its module page or the [notebooks page](/notebooks.qmd) with **Open in Colab**.
+2. Run the first cell (**Setup**). On Colab it installs exactly what the lab adds (a pinned
+   `gymnasium`, `stable-baselines3` or `trl`, and this workshop's `prl` package) and keeps
+   every package Colab already has, including PyTorch. It prints the versions and the runtime.
+3. Run the cells in order. Each exercise has a `# TODO` cell, a folded Hint and Solution, and a
+   checkpoint.
+
+Almost every lab is designed for Colab's default **CPU** runtime. The Module 12 stretch and
+one capstone option are designed for a **T4 GPU** (Runtime → Change runtime type → T4 GPU).
+A free T4 is not guaranteed on Colab's free tier.
+
+If the setup cell says a package changed version, use Runtime → Restart session and run it
+again.
+
+## Your own machine {#local}
+
+You need [`uv`](https://docs.astral.sh/uv/) and Git. On Windows, use WSL 2 and follow the
+Linux steps.
+
+```bash
+git clone https://github.com/project-delphi/practical-rl.git
+cd practical-rl
+uv sync --group notebooks          # Python 3.13, CPU PyTorch, the lab packages, prl (editable)
+uv run --group notebooks jupyter lab notebooks/
+```
+
+The setup cell checks versions instead of installing (`uv` owns your environment) and warns
+if anything differs from the pins. On Apple silicon the labs use the CPU by default: small
+networks run faster there than on the GPU (MPS).
+
+To run your copy against an NVIDIA GPU on Linux, sync the CUDA build of PyTorch instead:
+`uv sync --group notebooks --group gpu --no-group cpu`.
+
+## AWS GPU instance {#aws}
+
+For a dedicated T4 GPU, `infra/aws/` in the repository creates one EC2 `g4dn.xlarge`
+instance per participant with CloudFormation. It has no open inbound ports: you reach
+JupyterLab through AWS Systems Manager port forwarding. It stops itself after about 90
+minutes of idle time, and one command tears everything down. Facilitators can create and
+destroy instances for a whole cohort.
+
+See [`infra/aws/README.md`](https://github.com/project-delphi/practical-rl/blob/main/infra/aws/README.md)
+for prerequisites (an AWS account, the AWS CLI v2, the Session Manager plugin, and GPU
+quota), costs with their source and date, and step-by-step commands. SageMaker AI Studio is
+documented there as an alternative.
+
+::: {.callout-warning}
+The AWS path has not yet been run end to end; that is a human item on the release checklist.
+The [readiness page](/readiness.qmd) says what has run where.
+:::
+
+## Check your setup {#check}
+
+Run [Module 0](/modules/00-setup.qmd). Its checkpoints confirm the runtime, and its last cell
+prints a **run record** you can send to your instructor.

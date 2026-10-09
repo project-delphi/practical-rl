@@ -1,0 +1,16 @@
+---
+title: "{{< var modules.m02.title >}}"
+status: placeholder
+---
+
+{{< include /_includes/module-02.md >}}
+
+{{< include /_includes/lab-02.md >}}
+
+## Agenda {#agenda}
+
+{{< include /_includes/live-02.md >}}
+
+::: {.callout-note}
+This briefing is not written yet. It follows the Module 1 template (see [the plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+:::

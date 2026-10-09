@@ -1,0 +1,10 @@
+---
+title: "Notebooks"
+subtitle: "Every lab, by day"
+---
+
+Each lab opens in Google Colab from its button, or download the `.ipynb` and run it locally
+([Setup](/setup.qmd)). Run the first cell before anything else. The status chip links to the
+[readiness page](/readiness.qmd), which says what has actually run where.
+
+{{< include /_includes/notebooks.md >}}

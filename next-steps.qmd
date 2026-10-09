@@ -1,0 +1,30 @@
+---
+title: "Where to go next"
+subtitle: "Courses and books, checked against their official pages"
+---
+
+Each entry was checked on its official page or publisher record; the dates are the most
+recent offering listed there.
+
+## Books {#books}
+
+- **Sutton and Barto, *Reinforcement Learning: An Introduction*, 2nd edition** [@sutton2018rl]. The free online edition is the course's backbone for Days 1–4.
+- **Lattimore and Szepesvári, *Bandit Algorithms*** [@lattimore2020bandit]. The reference for Day 2: concentration (Ch. 5), UCB (Ch. 7), linear bandits (Ch. 19–20), Thompson sampling (Ch. 36).
+- **Agarwal, Jiang, Kakade and Sun, *Reinforcement Learning: Theory and Algorithms*** [@agarwal2022rltheory]. The theory behind Days 1 and 4, if you want the proofs.
+- **Szepesvári, *Algorithms for Reinforcement Learning*** [@szepesvari2010algorithms]. A compact algorithmic survey.
+
+## Courses {#courses}
+
+- **UC Berkeley CS 185/285, Deep Reinforcement Learning** (Sergey Levine) [@levine2026cs285].
+- **Stanford CS234, Reinforcement Learning** (Emma Brunskill) [@brunskill2026cs234].
+- **Stanford CS 224R, Deep Reinforcement Learning** (Chelsea Finn) [@finn2026cs224r].
+- **CMU 10-703, Deep Reinforcement Learning** (Fall 2026: Katerina Fragkiadaki and Max Simchowitz) [@cmu2026deeprl].
+- **MIT 6.7920, Reinforcement Learning: Foundations and Methods** (Cathy Wu and Munther Dahleh) [@wu2026mit6792].
+- **DeepMind x UCL Reinforcement Learning Lecture Series, 2021** [@vanhasselt2021ucl], and **David Silver's UCL course, 2015** [@silver2015ucl].
+- **OpenAI Spinning Up in Deep RL** [@achiam2018spinningup] (in maintenance) and the **Hugging Face Deep RL Course** [@simonini2023hfdeeprl] (low-maintenance).
+
+## Topics this workshop leaves out {#out-of-scope}
+
+Heavy theory, robotics simulators, distributed RL infrastructure, continuous-time control,
+Monte Carlo tree search and AlphaZero, and language-model pretraining. Annotated pointers for
+each are added in Phase 4, once each source has been checked.

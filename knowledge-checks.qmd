@@ -1,0 +1,9 @@
+---
+title: "Knowledge checks"
+---
+
+The entry check (three questions in each of four areas), one or two questions per learning objective with folded answers naming their evidence, and five-question warm-up sets for Days 2–5.
+
+::: {.callout-note}
+Written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+:::

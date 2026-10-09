@@ -1,0 +1,37 @@
+---
+title: "Day 3"
+subtitle: "{{< var days.d3.title >}}"
+---
+
+**{{< var days.d3.question >}}**
+
+Today's real-shaped problem: {{< var days.d3.framing >}}.
+
+## Warm-up (09:00–09:15) {#warm-up}
+
+Five questions on earlier material: 6 minutes alone with notes closed, 4 minutes with a
+neighbor, 5 minutes on the two most missed. The questions come from the
+[knowledge checks](/knowledge-checks.qmd).
+
+::: {.callout-note}
+The warm-up questions for this day are written in Phase 4.
+:::
+
+## Modules {#modules}
+
+{{< include /_includes/day-3.md >}}
+
+## Wrap-up (16:45–17:00) {#wrap-up}
+
+1. **The running results table.** Fill in the room's numbers from each debrief. Every
+   comparison states its seeds and budget, and says "tie" when the spreads overlap.
+
+| Lab | Rows | Metric | Room's result |
+|---|---|---|---|
+| 7 Baird / CartPole | each leg of the triad removed; linear Q | ‖w‖ after k updates; return ÷ random | |
+| 8 CartPole | your DQN; Double DQN and SB3 bands; the room's IQM | return at budget; Q(s₀) − Monte Carlo return | |
+| 9 Logs | four bugs; probes; the room's IQM | diagnosis tally; probe Q; IQM [CI] and budget | |
+
+2. **What is still broken?** List what failed today and why, so tomorrow can start from it.
+
+- The [capstone brief](/modules/15-capstone.qmd) is published today. Read it tonight; pairs choose a track at tomorrow's wrap-up.

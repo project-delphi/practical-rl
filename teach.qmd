@@ -1,0 +1,24 @@
+---
+title: "Instructors"
+subtitle: "Everything you need to run the workshop"
+---
+
+{{< include /_includes/readiness-summary.md >}}
+
+- [Welcome slides](/welcome.qmd)
+- [Facilitator guide](/facilitator-guide.qmd): per day and per module, including what to do when the clock slips or a service fails.
+- [Pace sheet](/instructor-pace.qmd): minute-by-minute targets for briefings and labs.
+- [Knowledge checks](/knowledge-checks.qmd): the entry check, warm-ups, and questions per objective.
+- [Readiness](/readiness.qmd): what has run where.
+
+## The shape of a module {#shape}
+
+A 40-minute briefing (at most 30 minutes of exposition, at least 8 of live activity), a
+70-minute lab (at most 52 minutes of core exercises, 51 plus a 3-minute reconnect after
+lunch), and a 10-minute debrief: the room's numbers (4 minutes), one misconception (3) and
+the bridge to the next module (3).
+
+## Before the workshop {#before}
+
+Run every notebook on a fresh Colab runtime in the week before, and file each run record
+(`scripts/add_run_record.py`). A laptop or CI run is not a Colab run.

@@ -1,0 +1,654 @@
+# Single source of truth for the workshop. Pages read it through {{< var ... >}};
+# scripts/gen_includes.py and scripts/build_notebooks.py generate from it.
+# Validated by scripts/variables.py (pytest: tests/test_variables.py). American English.
+
+repo:
+  owner: project-delphi
+  name: practical-rl
+  branch: main
+  url: https://github.com/project-delphi/practical-rl
+  site_url: https://project-delphi.github.io/practical-rl
+  colab_base: https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks
+  raw_base: https://github.com/project-delphi/practical-rl/raw/main/notebooks
+
+prl:
+  ref: main          # a tag at release (release check enforces it)
+  version: 0.1.0.dev0
+  api: 1
+
+workshop:
+  title: Practical Reinforcement Learning
+  subtitle: A five-day, first-principles, hands-on workshop
+  org: Genial Labs
+  days: 5
+  license_text: CC BY 4.0
+  license_code: MIT
+
+# The daily clock. Every day uses it; module slots A, B and C fill the module blocks.
+clock:
+  blocks:
+    - {start: "08:00", end: "09:00", kind: clinic, days: [1], label: "Optional setup clinic"}
+    - {start: "09:00", end: "09:15", kind: warmup, label: "Warm-up"}
+    - {start: "09:15", end: "11:15", kind: module, slot: A, parts: [[briefing, 40], [lab, 70], [debrief, 10]]}
+    - {start: "11:15", end: "11:30", kind: break, label: "Break"}
+    - {start: "11:30", end: "12:10", kind: module, slot: B, parts: [[briefing, 40]]}
+    - {start: "12:10", end: "13:10", kind: lunch, label: "Lunch"}
+    - {start: "13:10", end: "14:30", kind: module, slot: B, parts: [[lab, 70], [debrief, 10]]}
+    - {start: "14:30", end: "14:45", kind: break, label: "Break"}
+    - {start: "14:45", end: "16:45", kind: module, slot: C, parts: [[briefing, 40], [lab, 70], [debrief, 10]]}
+    - {start: "16:45", end: "17:00", kind: wrapup, label: "Wrap-up and running results table"}
+  capstone_parts: [[kickoff, 10], [work, 80], [share-outs, 30]]
+  budgets:
+    briefing_exposition_max: 30
+    briefing_activity_min: 8
+    lab_core_max: {A: 52, B: 54, C: 52}
+    lab_reconnect_B: 3
+    exercise_min: 5
+    live_compute_max: 12
+
+days:
+  d1:
+    n: 1
+    title: From the Bellman equation to learning from experience
+    question: What does "optimal" mean, and how do we find it, first with a model and then without one?
+    framing: inventory control
+    modules: [m01, m02, m03]
+  d2:
+    n: 2
+    title: Exploration and bandits
+    question: How should an agent gather data when every action costs something?
+    framing: a recommender
+    modules: [m04, m05, m06]
+  d3:
+    n: 3
+    title: Value-based deep RL
+    question: What changes when the value function is a neural network?
+    framing: inventory at scale; "a teammate's DQN stopped learning"
+    modules: [m07, m08, m09]
+  d4:
+    n: 4
+    title: Policy optimization
+    question: How do we improve a policy directly, and how far can we safely step?
+    framing: pricing
+    modules: [m10, m11, m12]
+  d5:
+    n: 5
+    title: Learning from logged data
+    question: Can we evaluate and improve a policy we never deployed?
+    framing: shipping a recommender policy
+    modules: [m13, m14, m15]
+
+levels:
+  100: Foundational
+  200: Intermediate
+  300: Advanced
+  400: Expert
+
+# Exact pins for what the notebooks add on Colab; everything else Colab already has is kept.
+packages:
+  checked: "2026-10-09"
+  colab:
+    backend_info_commit: e39694e267
+    python: "3.13.16"
+    use_preinstalled: [torch, numpy, scipy, pandas, matplotlib, transformers, accelerate, datasets]
+    allow_upgrade: [gymnasium]
+  pins:
+    gymnasium: "1.4.0"
+    stable-baselines3: "2.9.0"
+    trl: "1.15.0"
+    box2d: "2.3.10"
+    mabwiser: "2.7.4"
+
+models:
+  smollm2:
+    id: HuggingFaceTB/SmolLM2-135M-Instruct
+    revision: 12fd25f77366fa6b3b4b768ec3050bf629380bac
+    license: Apache-2.0
+    params: 134.5M
+
+datasets: {}
+
+runtimes:
+  colab-cpu: {name: "Google Colab, CPU runtime", teaching: true, gpu: false}
+  colab-t4: {name: "Google Colab, T4 GPU runtime", teaching: true, gpu: true}
+  local: {name: "Your own machine (uv)", teaching: false, gpu: false}
+  aws-g4dn: {name: "AWS g4dn.xlarge (T4)", teaching: false, gpu: true}
+  ci: {name: "GitHub Actions runner (CPU)", teaching: false, gpu: false, ci: true}
+  ci-proxy: {name: "GitHub Actions runner pinned to 2 cores", teaching: false, gpu: false, ci: true}
+
+readiness:
+  max_run_age_days: 21
+  items:
+    colab_smoke:
+      title: "Human smoke run of 00-setup on a Colab CPU runtime (records vCPUs and throughput)"
+      check: {record: {notebook: 00-setup, env: colab-cpu}}
+    t4_dpo_smoke:
+      title: "Human smoke run: one DPOTrainer step on a Colab T4 (TRL's Triton kernel on compute capability 7.5)"
+      check: {manual: true, done: false}
+    aws_e2e:
+      title: "Human end-to-end run of the AWS path (create, connect, stop, start, destroy)"
+      check: {manual: true, done: false}
+
+modules:
+  m00:
+    n: 0
+    slug: 00-setup
+    day: 0
+    slot: pre
+    level: 100
+    title: Setup and hello RL
+    summary: Check your run path, take the entry check, and run a random agent on CartPole with seed bands.
+    question: Is my environment ready, and what does a baseline look like?
+    where_we_are: Before Day 1.
+    objectives:
+      - Run the setup notebook on at least one run path and read its versions and runtime.
+      - Plot returns of a random CartPole agent with seed bands.
+      - Produce and submit a run record.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole notebook runs.
+    scaffold: S3
+    testbeds: [CartPole-v1]
+    compared_with: {kind: truth, what: "CartPole-v1 return bounds [1, 500]"}
+    planted_bug: null
+    stretch: null
+    minutes: 20
+    exercises:
+      - {n: 0, title: Runtime check, minutes: 5, writes: []}
+      - {n: 1, title: A random agent, minutes: 5, writes: [run_episode]}
+      - {n: 2, title: Seed bands, minutes: 5, writes: [returns_by_seed]}
+      - {n: 3, title: Your run record, minutes: 5, writes: []}
+    status: {briefing: placeholder, lab: draft}
+
+  m01:
+    n: 1
+    slug: 01-mdps-bellman
+    day: 1
+    slot: A
+    level: 200
+    title: MDPs, returns and the Bellman equation
+    summary: Write an MDP as arrays, frame inventory control, and evaluate a policy exactly and by iteration.
+    question: What quantity are we estimating, and why can we compute it exactly when the model is known?
+    where_we_are: The start of the week.
+    objectives:
+      - Encode a finite MDP as arrays P[s,a,s'] and R[s,a] and validate it.
+      - Frame inventory control as an MDP (state, action, reward, discount) and justify the choices.
+      - Evaluate a policy exactly and iteratively, and bound the iteration count from the discount.
+      - Find a wrong evaluator from its Bellman residual.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S3
+    testbeds: [CliffGridworld, InventoryMDP]
+    compared_with: {kind: truth, what: "exact fixtures"}
+    planted_bug: {what: "an evaluator that uses P_pi.T", diagnostic: "Bellman residual"}
+    stretch: "The infinity-norm contraction holds; the 2-norm one can fail"
+    exercises:
+      - {n: 1, title: Discounted return, minutes: 5, writes: [discounted_return]}
+      - {n: 2, title: A tiny cliff gridworld as arrays, minutes: 8, writes: [gridworld_arrays]}
+      - {n: 3a, title: Framing card for inventory, minutes: 5, writes: [inventory_spec]}
+      - {n: 3b, title: The inventory MDP, minutes: 12, writes: [inventory_arrays]}
+      - {n: 4, title: Exact evaluation, minutes: 5, writes: [evaluate_exact]}
+      - {n: 5, title: Iterative evaluation and the contraction, minutes: 9, writes: [evaluate_iterative]}
+      - {n: 6, title: "Planted bug: a wrong evaluator", minutes: 8, writes: []}
+    status: {briefing: placeholder, lab: stub}
+
+  m02:
+    n: 2
+    slug: 02-planning
+    day: 1
+    slot: B
+    level: 200
+    title: "Planning: value iteration, policy iteration and model error"
+    summary: Find the best policy with a model, then measure what an estimated model costs you.
+    question: Given a model, how do we find the best policy, and what happens when the model is wrong?
+    where_we_are: Module 1 evaluates a given policy.
+    objectives:
+      - Implement value iteration and policy iteration and compare their iteration counts.
+      - Extract a greedy policy and check the greedy-loss bound.
+      - Measure the true loss of a policy planned in an estimated model as the data shrinks, over 5 seeds.
+      - State the simulation lemma with its assumptions and horizon factor.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S3
+    testbeds: [InventoryMDP]
+    compared_with: {kind: truth, what: "exact fixtures"}
+    planted_bug: {what: "value iteration stops on the mean change, not the max", diagnostic: "logged max |ΔV| per sweep and the Bellman residual"}
+    stretch: Modified policy iteration
+    exercises:
+      - {n: 0, title: Reconnect and rerun setup, minutes: 3, writes: []}
+      - {n: 1, title: Value iteration and greedy extraction, minutes: 12, writes: [value_iteration, greedy]}
+      - {n: 2, title: Policy iteration, minutes: 9, writes: [policy_iteration]}
+      - {n: 3, title: Estimate the model, minutes: 8, writes: [estimate_model]}
+      - {n: 4, title: Plan in the estimate, evaluate in the truth, minutes: 12, writes: [plan_and_evaluate]}
+      - {n: 5, title: "Planted bug: a stopping rule", minutes: 8, writes: []}
+    status: {briefing: placeholder, lab: planned}
+
+  m03:
+    n: 3
+    slug: 03-model-free
+    day: 1
+    slot: C
+    level: 200
+    title: Model-free prediction and control
+    summary: Learn values and policies from experience with Monte Carlo, TD, SARSA and Q-learning.
+    question: Without a model, how do we learn values and policies from experience?
+    where_we_are: Module 2 needs P and R.
+    objectives:
+      - Measure the RMS error, squared bias and variance of MC and TD(0) estimates over 10 seeds against the exact V.
+      - Implement SARSA and Q-learning and explain the cliff contrast under a constant epsilon.
+      - Diagnose a terminal-bootstrap bug from a learning curve and the Q-values.
+      - Compute n-step TD targets and place them between MC and TD.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S3
+    testbeds: [CliffGridworld]
+    compared_with: {kind: truth, what: "exact V and the optimal policy"}
+    planted_bug: {what: "bootstrapping through the terminal state", diagnostic: "Q(goal) not 0 under optimistic initialization; a flattened learning curve"}
+    stretch: An n-step sweep
+    exercises:
+      - {n: 1, title: First-visit Monte Carlo prediction, minutes: 9, writes: [mc_prediction]}
+      - {n: 2, title: TD(0) and its bias and variance, minutes: 10, writes: [td0_prediction]}
+      - {n: 3, title: The n-step target, minutes: 5, writes: [n_step_target]}
+      - {n: 4, title: SARSA, minutes: 8, writes: [sarsa]}
+      - {n: 5, title: Q-learning and the cliff, minutes: 9, writes: [q_learning]}
+      - {n: 6, title: "Planted bug: bootstrapping through the terminal", minutes: 8, writes: []}
+    status: {briefing: placeholder, lab: planned}
+
+  m04:
+    n: 4
+    slug: 04-bandits
+    day: 2
+    slot: A
+    level: 200
+    title: Bandits from first principles
+    summary: Regret, UCB derived from Hoeffding's inequality, and Thompson sampling from Bayes' rule.
+    question: Each pull earns reward and also reveals information. How should we choose?
+    where_we_are: Module 3's epsilon-greedy explores blindly.
+    objectives:
+      - Define pseudo-regret and measure it with seed bands.
+      - Derive the UCB1 bonus from Hoeffding's inequality and implement it.
+      - Implement Beta-Bernoulli Thompson sampling from Bayes' rule.
+      - Show how epsilon-greedy and UCB1 depend on epsilon and the reward scale, and explain why.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S3
+    testbeds: [Bernoulli bandits]
+    compared_with: {kind: truth, what: "pseudo-regret from the known arm means"}
+    planted_bug: {what: "UCB counts never incremented", diagnostic: "arm-pull histogram"}
+    stretch: Gaussian Thompson sampling
+    exercises:
+      - {n: 1, title: "Bandit loop, epsilon-greedy and regret", minutes: 11, writes: [run_bandit, eps_greedy]}
+      - {n: 2, title: UCB1, minutes: 10, writes: [ucb1_index]}
+      - {n: 3, title: Thompson sampling, minutes: 10, writes: [thompson_step]}
+      - {n: 4, title: Three methods over 20 seeds, minutes: 7, writes: []}
+      - {n: 5, title: Reward scale and epsilon, minutes: 6, writes: []}
+      - {n: 6, title: "Planted bug: counts that never grow", minutes: 7, writes: []}
+    status: {briefing: placeholder, lab: planned}
+
+  m05:
+    n: 5
+    slug: 05-contextual-bandits
+    day: 2
+    slot: B
+    level: 200
+    title: Contextual bandits for recommendation
+    summary: Ridge regression, LinUCB and linear Thompson sampling on a recommender, and logging data you can learn from later.
+    question: How do we explore when the best action depends on the context, and log data we can learn from later?
+    where_we_are: Module 4 learns nothing across users.
+    objectives:
+      - Frame a recommender as a contextual bandit and say what is lost compared with full RL.
+      - Implement incremental ridge regression, LinUCB and linear Thompson sampling.
+      - Compare them with predict-then-greedy under misspecification and drift over 5 seeds.
+      - Log data with correct propensities from a stochastic behavior policy.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S3
+    testbeds: [RecSim]
+    compared_with: {kind: truth, what: "pseudo-regret from the simulator's known means; MABWiser parity in the stretch"}
+    planted_bug: {what: "the logger records the greedy action's propensity", diagnostic: "mean importance weight differs from 1"}
+    stretch: "MABWiser parity; delayed feedback"
+    exercises:
+      - {n: 0, title: Reconnect and rerun setup, minutes: 3, writes: []}
+      - {n: 1, title: Frame the recommender, minutes: 5, writes: [reward_fn]}
+      - {n: 2, title: Incremental ridge regression, minutes: 8, writes: [Ridge]}
+      - {n: 3, title: LinUCB, minutes: 10, writes: [linucb_scores]}
+      - {n: 4, title: Linear Thompson sampling, minutes: 7, writes: [lints_sample]}
+      - {n: 5, title: Three regimes, minutes: 8, writes: []}
+      - {n: 6, title: A logging policy with propensities, minutes: 6, writes: [log_policy]}
+      - {n: 7, title: "Planted bug: the wrong propensity", minutes: 5, writes: []}
+    status: {briefing: placeholder, lab: planned}
+
+  m06:
+    n: 6
+    slug: 06-exploration-mdps
+    day: 2
+    slot: C
+    level: 300
+    title: Exploration in MDPs
+    summary: Why epsilon-greedy fails on RiverSwim, and how optimism and count bonuses fix it.
+    question: How do we explore when the reward is many steps away?
+    where_we_are: Bandit bonuses look one step ahead.
+    objectives:
+      - Compute RiverSwim hitting times under uniform random play by first-step analysis and show exponential growth in chain length.
+      - Implement optimistic initialization and MBIE-EB's bonus inside the backup of an estimated model.
+      - Measure state visitation and cumulative regret against the DP optimum over 10 seeds.
+      - Explain where count bonuses stop working and what pseudo-counts and RND attempt.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S3
+    testbeds: [RiverSwim]
+    compared_with: {kind: truth, what: "the DP-optimal policy"}
+    planted_bug: {what: "the bonus applied only at action selection", diagnostic: "state visitation"}
+    stretch: Posterior sampling for RL (PSRL)
+    exercises:
+      - {n: 1, title: Uniform random play on RiverSwim, minutes: 5, writes: [policy_transition]}
+      - {n: 2, title: Hitting time against chain length, minutes: 10, writes: [hitting_times]}
+      - {n: 3, title: "Epsilon-greedy and visitation", minutes: 7, writes: [visitation]}
+      - {n: 4, title: Optimistic initialization, minutes: 6, writes: [optimistic_q0]}
+      - {n: 5, title: The MBIE-EB backup, minutes: 10, writes: [mbie_eb_backup]}
+      - {n: 6, title: Cumulative regret over 10 seeds, minutes: 6, writes: []}
+      - {n: 7, title: "Planted bug: a bonus in the wrong place", minutes: 7, writes: []}
+    status: {briefing: placeholder, lab: planned}
+
+  m07:
+    n: 7
+    slug: 07-function-approximation
+    day: 3
+    slot: A
+    level: 300
+    title: Function approximation and why it can diverge
+    summary: Semi-gradient TD, the deadly triad on Baird's counterexample, and linear Q-learning on CartPole.
+    question: What breaks when a parameterized function replaces the table?
+    where_we_are: Tables do not scale.
+    objectives:
+      - Derive semi-gradient TD(0) for linear values and show it is not the gradient of any objective.
+      - Reproduce Baird's divergence with expected updates and show which leg of the deadly triad restores convergence when removed.
+      - Frame inventory at scale and justify a feature representation.
+      - Train linear semi-gradient Q-learning on CartPole and report the weight norm and returns.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S2
+    testbeds: [Baird, CartPole-v1, InventoryMDP]
+    compared_with: {kind: band, what: "a recorded multi-seed band"}
+    planted_bug: {what: "unnormalized features", diagnostic: "weight-norm log"}
+    stretch: TDC on Baird
+    exercises:
+      - {n: 1, title: Frame inventory at scale, minutes: 5, writes: [scale_spec]}
+      - {n: 2, title: The semi-gradient TD(0) update, minutes: 7, writes: [semi_gradient_td0]}
+      - {n: 3, title: Why it is not a gradient, minutes: 6, writes: [td_matrix]}
+      - {n: 4, title: "Baird's counterexample", minutes: 8, writes: [baird_expected_update]}
+      - {n: 5, title: Remove one leg of the triad, minutes: 9, writes: []}
+      - {n: 6, title: Linear Q-learning on CartPole, minutes: 8, writes: [linear_q_update]}
+      - {n: 7, title: "Planted bug: unnormalized features", minutes: 6, writes: []}
+    status: {briefing: placeholder, lab: planned}
+
+  m08:
+    n: 8
+    slug: 08-dqn
+    day: 3
+    slot: B
+    level: 300
+    title: DQN from scratch
+    summary: Replay, a target network and the Huber loss make neural Q-learning stable; Double DQN reduces the max bias.
+    question: Which changes make neural Q-learning stable, and what bias remains?
+    where_we_are: Linear Q is limited and naive neural Q is unstable.
+    objectives:
+      - Implement a replay buffer and explain the two problems it fixes.
+      - Implement DQN with a target network and the Huber loss, masking only on terminated.
+      - Derive the max-of-noisy-estimates bias, implement Double DQN and measure Q against Monte Carlo returns.
+      - Place your live seed against recorded bands of the reference DQN and SB3's DQN at the same budget.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S2
+    testbeds: [CartPole-v1]
+    compared_with: {kind: library, what: "Stable-Baselines3 2.9 DQN (recorded bands)"}
+    planted_bug: {what: "a recent-only replay buffer", diagnostic: "sampling histogram"}
+    stretch: LunarLander-v3 (installs box2d only)
+    exercises:
+      - {n: 0, title: Reconnect and rerun setup, minutes: 3, writes: []}
+      - {n: 1, title: A replay buffer, minutes: 8, writes: [ReplayBuffer]}
+      - {n: 2, title: "Planted bug: a recent-only buffer", minutes: 5, writes: []}
+      - {n: 3, title: The masked target and the Huber loss, minutes: 9, writes: [td_target, huber]}
+      - {n: 4, title: The training loop, minutes: 12, writes: [train_dqn]}
+      - {n: 5, title: The Double DQN target, minutes: 5, writes: [double_dqn_target]}
+      - {n: 6, title: Measuring overestimation, minutes: 7, writes: [mc_return]}
+      - {n: 7, title: SB3 at the same budget, minutes: 5, writes: []}
+    status: {briefing: placeholder, lab: planned}
+
+  m09:
+    n: 9
+    slug: 09-debugging-evaluation
+    day: 3
+    slot: C
+    level: 300
+    title: Debugging and evaluating RL
+    summary: Diagnose broken agents from their logs, confirm with probe environments, and report results honestly.
+    question: How do we know an agent works, and find out why when it does not?
+    where_we_are: Module 8 works on one seed.
+    objectives:
+      - Diagnose four DQN failures from logged metrics by writing the signal that exposes each.
+      - Confirm a diagnosis with probe environments and a debugging checklist.
+      - Report a comparison with IQM, bootstrap confidence intervals and a budget sentence, and call ties.
+      - Interpret a hyperparameter sensitivity sweep.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S2
+    testbeds: [CartPole-v1, probe environments]
+    compared_with: {kind: band, what: "recorded bands"}
+    planted_bug: {what: "four recorded broken runs", diagnostic: "the signal each participant writes"}
+    stretch: A two-step probe environment
+    exercises:
+      - {n: 1, title: Healthy logs, minutes: 5, writes: []}
+      - {n: 2, title: "Broken run 1: no terminal mask", minutes: 6, writes: [q_drift]}
+      - {n: 3, title: "Broken run 2: a frozen target", minutes: 6, writes: [target_lag]}
+      - {n: 4, title: "Broken run 3: a huge learning rate", minutes: 6, writes: [td_error_scale]}
+      - {n: 5, title: "Broken run 4: the wrong action index", minutes: 6, writes: [gather_check]}
+      - {n: 6, title: Probe environments, minutes: 10, writes: [ConstantRewardEnv, ObsRewardEnv]}
+      - {n: 7, title: Reporting a recorded sweep, minutes: 8, writes: [iqm, bootstrap_ci]}
+      - {n: 8, title: One live run, minutes: 5, writes: []}
+    status: {briefing: placeholder, lab: planned}
+
+  m10:
+    n: 10
+    slug: 10-policy-gradients
+    day: 4
+    slot: A
+    level: 300
+    title: Policy gradients
+    summary: The log-derivative trick, REINFORCE, baselines without bias, and GAE as a bias-variance dial.
+    question: Can we improve the policy directly?
+    where_we_are: Value methods need a max over actions.
+    objectives:
+      - Derive the policy gradient theorem with the log-derivative trick and implement REINFORCE.
+      - Show that an action-independent baseline leaves the expected gradient unchanged and measure the variance change.
+      - Implement GAE with terminated and truncated handled, and measure its bias and variance across lambda.
+      - Implement an actor-critic loss and compare it with REINFORCE at a fixed budget.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S1
+    testbeds: [CartPole-v1, CliffGridworld]
+    compared_with: {kind: band, what: "recorded bands"}
+    planted_bug: {what: "GAE not reset at episode boundaries", diagnostic: "advantages plotted by step"}
+    stretch: A Gaussian policy on Pendulum
+    exercises:
+      - {n: 1, title: The score-function estimate, minutes: 6, writes: [score_function_grad]}
+      - {n: 2, title: REINFORCE with reward-to-go, minutes: 12, writes: [rewards_to_go, reinforce_loss]}
+      - {n: 3, title: A learned baseline, minutes: 10, writes: [baseline_loss]}
+      - {n: 4, title: GAE and the lambda dial, minutes: 10, writes: [gae]}
+      - {n: 5, title: "Planted bug: GAE across episodes", minutes: 5, writes: []}
+      - {n: 6, title: The actor-critic loss, minutes: 8, writes: [actor_critic_loss]}
+    status: {briefing: placeholder, lab: planned}
+
+  m11:
+    n: 11
+    slug: 11-ppo
+    day: 4
+    slot: B
+    level: 300
+    title: PPO from scratch
+    summary: Why big steps hurt, the clipped surrogate, and the implementation details that matter.
+    question: How far can one batch move the policy before performance drops?
+    where_we_are: Module 10's updates can overshoot.
+    objectives:
+      - Show that a large policy-gradient step can collapse performance and measure the step's KL.
+      - Implement PPO's clipped surrogate with value and entropy terms and the update loop over vectorized environments.
+      - Ablate clipping live over 3 seeds and read two implementation details from a recorded ablation.
+      - Place your seed against recorded bands of SB3's PPO and the reference PPO.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S1
+    testbeds: [CartPole-v1]
+    compared_with: {kind: library, what: "Stable-Baselines3 2.9 PPO (recorded bands)"}
+    planted_bug: {what: "old log-probs recomputed from current parameters", diagnostic: "clipfrac = 0 and approx-KL = 0"}
+    stretch: SAC on Pendulum
+    exercises:
+      - {n: 0, title: Reconnect and rerun setup, minutes: 3, writes: []}
+      - {n: 1, title: Big steps hurt, minutes: 6, writes: [categorical_kl]}
+      - {n: 2, title: Boundary masks and truncation, minutes: 5, writes: [boundary_masks]}
+      - {n: 3, title: The clipped surrogate, minutes: 10, writes: [ppo_loss]}
+      - {n: 4, title: The update loop, minutes: 10, writes: [ppo_update]}
+      - {n: 5, title: "Planted bug: stale log-probs", minutes: 5, writes: []}
+      - {n: 6, title: Clipping on and off, minutes: 10, writes: []}
+      - {n: 7, title: SB3 at the same budget, minutes: 5, writes: []}
+    status: {briefing: placeholder, lab: planned}
+
+  m12:
+    n: 12
+    slug: 12-rl-for-language-models
+    day: 4
+    slot: C
+    level: 400
+    title: "RL for language models: preferences, RLHF, DPO and GRPO"
+    summary: Rewards from comparisons, the KL-regularized closed form, DPO derived from it, GRPO, and reward hacking made exact.
+    question: What if the reward is learned from comparisons, and how far should we trust it?
+    where_we_are: Module 11 bounds a step with the clip.
+    objectives:
+      - Fit a Bradley-Terry reward model and read its accuracy against the label-noise ceiling.
+      - Derive the KL-regularized optimum and the DPO loss, and verify on an exact toy that DPO reaches it.
+      - Compute GRPO's group-relative advantages and explain what the group replaces.
+      - Show reward hacking as an exact gold-versus-proxy curve, and match your DPO loss on a small language model to TRL's.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: "The core runs on CPU; the T4 training run is the stretch."
+    scaffold: S1
+    testbeds: [bandit over strings, SmolLM2-135M-Instruct]
+    compared_with: {kind: library, what: "TRL 1.15 DPO loss on the same batch"}
+    planted_bug: {what: "the reference model is the policy itself", diagnostic: "the loss reads exactly ln 2 while the weights change"}
+    stretch: "Your DPO loop against TRL's DPOTrainer on a T4: proxy score, gold reward, KL and a hacked sample"
+    exercises:
+      - {n: 1, title: Frame a language model as RL, minutes: 5, writes: [framing]}
+      - {n: 2, title: A Bradley-Terry reward model, minutes: 8, writes: [bt_loss]}
+      - {n: 3, title: The closed form and reward hacking, minutes: 8, writes: [optimal_policy, kl]}
+      - {n: 4, title: DPO on the toy, minutes: 9, writes: [dpo_loss]}
+      - {n: 5, title: GRPO advantages, minutes: 7, writes: [grpo_advantages]}
+      - {n: 6, title: Sequence log-probabilities, minutes: 8, writes: [sequence_logprobs]}
+      - {n: 7, title: Your DPO loss against TRL's, minutes: 7, writes: [ref_logprobs]}
+    status: {briefing: placeholder, lab: planned}
+
+  m13:
+    n: 13
+    slug: 13-off-policy-evaluation
+    day: 5
+    slot: A
+    level: 300
+    title: Off-policy evaluation
+    summary: Importance sampling, weighted IS, the direct method, doubly robust estimation and fitted Q evaluation, checked against ground truth.
+    question: How good is a new policy, judged only from logs of an old one?
+    where_we_are: Module 5 logged data with propensities.
+    objectives:
+      - Derive the importance-sampling identity under overlap and implement IS, weighted IS and the effective sample size.
+      - Implement the direct method and doubly robust estimation and state when DR is unbiased.
+      - Implement per-decision IS and tabular FQE, and show how variance grows with the horizon.
+      - Measure bias, variance and MSE against ground truth as the target policy moves away from the behavior policy.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S1
+    testbeds: [RecSim, CliffGridworld]
+    compared_with: {kind: truth, what: "simulator ground truth (no maintained OPE library)"}
+    planted_bug: {what: "logged propensities belong to the wrong action", diagnostic: "mean importance weight differs from 1"}
+    stretch: Clipped importance sampling
+    exercises:
+      - {n: 1, title: Importance sampling and weighted IS, minutes: 9, writes: [is_estimate, wis_estimate]}
+      - {n: 2, title: The direct method, minutes: 6, writes: [dm_estimate]}
+      - {n: 3, title: Doubly robust, minutes: 6, writes: [dr_estimate]}
+      - {n: 4, title: Overlap and policy mismatch, minutes: 8, writes: [ess]}
+      - {n: 5, title: Per-decision IS over the horizon, minutes: 8, writes: [pdis_estimate]}
+      - {n: 6, title: Fitted Q evaluation, minutes: 8, writes: [fqe_tabular]}
+      - {n: 7, title: "Planted bug: the wrong propensities", minutes: 5, writes: []}
+    status: {briefing: placeholder, lab: planned}
+
+  m14:
+    n: 14
+    slug: 14-offline-rl
+    day: 5
+    slot: B
+    level: 300
+    title: Offline RL
+    summary: Why naive off-policy RL fails on a fixed log, behavior cloning as a baseline, and pessimism with CQL and IQL.
+    question: How do we improve a policy from a fixed log, without new data?
+    where_we_are: Module 13 can evaluate a policy from logs.
+    objectives:
+      - Show extrapolation error with naive offline DQN's Q-values on unseen actions.
+      - Implement behavior cloning and predict on which dataset it matches the best offline-RL method.
+      - Implement the discrete CQL penalty and IQL's expectile loss, and explain each from the failure it fixes.
+      - Compare methods by ground-truth rollouts and by FQE, stating seeds and budget.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: The whole lab runs.
+    scaffold: S1
+    testbeds: [CartPole-v1 logged datasets]
+    compared_with: {kind: truth, what: "behavior cloning and ground-truth rollouts (no co-installable library)"}
+    planted_bug: {what: "the CQL penalty's sign flipped", diagnostic: "the Q-gap grows"}
+    stretch: Neural FQE against rollouts
+    exercises:
+      - {n: 0, title: Reconnect and rerun setup, minutes: 3, writes: []}
+      - {n: 1, title: Dataset coverage, minutes: 5, writes: [coverage]}
+      - {n: 2, title: Behavior cloning, minutes: 7, writes: [bc_loss]}
+      - {n: 3, title: Naive offline DQN and the Q-gap, minutes: 6, writes: [q_gap]}
+      - {n: 4, title: The CQL penalty, minutes: 8, writes: [cql_penalty]}
+      - {n: 5, title: "Planted bug: a flipped sign", minutes: 5, writes: []}
+      - {n: 6, title: IQL's expectile loss and AWR weights, minutes: 9, writes: [expectile_loss, awr_weights]}
+      - {n: 7, title: The comparison, minutes: 11, writes: []}
+    status: {briefing: placeholder, lab: planned}
+
+  m15:
+    n: 15
+    slug: 15-capstone
+    day: 5
+    slot: C
+    level: 300
+    title: Capstone
+    summary: In pairs, frame a new problem, make one controlled change, and report it honestly.
+    question: Can you build, explain and evaluate an agent for a problem you have not seen?
+    where_we_are: The week's tools, applied by you.
+    objectives:
+      - Frame a new problem as state, action, reward and evaluation, and state the assumptions.
+      - Run one controlled change within a stated budget.
+      - Report per-seed results (at least 3 seeds; confidence intervals only with 5 or more).
+      - Analyze honestly what failed and why.
+    runtime: colab-cpu
+    cost: Free (Google account)
+    without_gpu: "Tracks 15a and 15b run on CPU; 15c runs on the exact toy on CPU or on SmolLM2 on a T4."
+    scaffold: S1
+    testbeds: [RecSim, Acrobot-v1, bandit over strings]
+    compared_with: {kind: truth, what: "per track: simulator truth, recorded baselines, the exact toy"}
+    planted_bug: null
+    stretch: null
+    tracks:
+      - {id: 15a, title: Ship a recommender policy}
+      - {id: 15b, title: A new control task}
+      - {id: 15c, title: Preference tuning}
+    exercises: []
+    status: {briefing: placeholder, lab: planned}

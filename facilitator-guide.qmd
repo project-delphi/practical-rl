@@ -1,0 +1,9 @@
+---
+title: "Facilitator guide"
+---
+
+Per day and per module: setup, first words, where groups get stuck, debrief prompts, what to cut when the clock slips, and what to do when Colab, the Hugging Face Hub or AWS fails.
+
+::: {.callout-note}
+Written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+:::

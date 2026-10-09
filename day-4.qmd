@@ -1,0 +1,37 @@
+---
+title: "Day 4"
+subtitle: "{{< var days.d4.title >}}"
+---
+
+**{{< var days.d4.question >}}**
+
+Today's real-shaped problem: {{< var days.d4.framing >}}.
+
+## Warm-up (09:00–09:15) {#warm-up}
+
+Five questions on earlier material: 6 minutes alone with notes closed, 4 minutes with a
+neighbor, 5 minutes on the two most missed. The questions come from the
+[knowledge checks](/knowledge-checks.qmd).
+
+::: {.callout-note}
+The warm-up questions for this day are written in Phase 4.
+:::
+
+## Modules {#modules}
+
+{{< include /_includes/day-4.md >}}
+
+## Wrap-up (16:45–17:00) {#wrap-up}
+
+1. **The running results table.** Fill in the room's numbers from each debrief. Every
+   comparison states its seeds and budget, and says "tie" when the spreads overlap.
+
+| Lab | Rows | Metric | Room's result |
+|---|---|---|---|
+| 10 CartPole / gridworld | REINFORCE, with baseline, actor-critic; λ sweep | variance ratio; return; bias and variance by λ | |
+| 11 CartPole | clipping on vs off × 3 seeds; SB3 band | return, approx-KL, clipfrac; verdict | |
+| 12 Toy / SmolLM2 | β ∈ {1, 0.25, 0.05}; DPO | proxy vs gold reward (exact); distance to π*; your loss − TRL's | |
+
+2. **What is still broken?** List what failed today and why, so tomorrow can start from it.
+
+- **Capstone sign-up (4 minutes).** Pairs choose a track on the board. Pairs are fixed by 17:00.

@@ -46,3 +46,11 @@ def check_throughput(steps_per_second: float) -> None:
         np.isfinite(steps_per_second) and steps_per_second > 0,
         "throughput should be a positive number of steps per second",
     )
+
+
+def check_record(rec: dict) -> None:
+    from ..record import validate
+
+    problems = validate(rec)
+    if problems:
+        raise CheckFailed("Your run record is not valid: " + "; ".join(problems))

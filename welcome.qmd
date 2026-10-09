@@ -1,0 +1,36 @@
+---
+title: "{{< var workshop.title >}}"
+subtitle: "{{< var workshop.subtitle >}}"
+format:
+  revealjs:
+    theme: [default]
+    slide-number: true
+    hash: true
+    width: 1280
+    height: 720
+    footer: "Practical RL · Genial Labs"
+toc: false
+---
+
+## Five days, one question each
+
+1. **{{< var days.d1.title >}}**: {{< var days.d1.question >}}
+2. **{{< var days.d2.title >}}**: {{< var days.d2.question >}}
+3. **{{< var days.d3.title >}}**: {{< var days.d3.question >}}
+4. **{{< var days.d4.title >}}**: {{< var days.d4.question >}}
+5. **{{< var days.d5.title >}}**: {{< var days.d5.question >}}
+
+## How a module works
+
+- Briefing 40 · lab 70 · debrief 10
+- Every exercise: **Predict → Run → Explain → Check**
+- Every comparison states its seeds and budget, and says "tie" when spreads overlap
+
+## Setup check: do this now
+
+Open [Module 0](https://project-delphi.github.io/practical-rl/modules/00-setup.html) and run
+the first cell.
+
+::: {.notes}
+The full deck (about 10 slides) is built in Phase 4 from the generated includes.
+:::

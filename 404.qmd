@@ -1,0 +1,6 @@
+---
+title: "Page not found"
+---
+
+That page does not exist. Try the [home page](/index.qmd), the [schedule](/schedule.qmd), or
+the [notebooks](/notebooks.qmd).

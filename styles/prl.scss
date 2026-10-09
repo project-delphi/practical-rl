@@ -1,0 +1,17 @@
+/*-- scss:defaults --*/
+// Phase 1 baseline. The ui-expert owns this file (tokens, components, print).
+
+/*-- scss:rules --*/
+.chip { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.85em;
+  border: 1px solid currentColor; margin: 0 0.15rem 0.15rem 0; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; }
+.btn-colab, .btn-quiet, .btn-disabled { display: inline-block; padding: 0.35rem 0.8rem;
+  border-radius: 0.4rem; margin: 0.2rem 0.3rem 0.2rem 0; text-decoration: none; }
+.btn-colab { font-weight: 600; border: 2px solid currentColor; }
+.btn-quiet { border: 1px solid currentColor; }
+.btn-disabled { border: 1px dashed currentColor; opacity: 0.8; }
+.module-clock { display: block; margin: 0.3rem 0; }
+.facts dl, .facts { margin: 1rem 0; }
+.recap { border-left: 4px solid currentColor; padding: 0.5rem 1rem; margin: 1rem 0; }
+.table-scroll { overflow-x: auto; }

@@ -27,3 +27,5 @@ node_modules/
 
 # Agent worktrees (parallel work; merged via branches)
 .claude/worktrees/
+
+**/*.quarto_ipynb
