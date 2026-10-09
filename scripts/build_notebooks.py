@@ -113,6 +113,7 @@ SEED = 0  #@param {{type:"integer"}}
 
 _PINS = {{{pin_lines}}}
 _ALLOW = {json.dumps(allow)}
+_CORE = {json.dumps([n.lower() for n in v["packages"]["colab"]["use_preinstalled"]])}
 _PRL_SPEC = _os.environ.get("PRL_SPEC") or "git+{repo["url"]}@" + PRL_REF + "#subdirectory=prl"
 if WORKED:
     _os.environ["PRL_WORKED"] = "1"
@@ -124,16 +125,43 @@ def _norm(name):
     return name.lower().replace("_", "-").replace(".", "-")
 
 
+def _installed_pins(names=None):
+    """One name==version per package: the copy Python imports (first on sys.path).
+
+    Colab's sys.path also holds older system copies of some packages; pinning
+    every copy would ask pip for two versions of the same package.
+    """
+    pins = {{}}
+    for d in _md.distributions():
+        name = d.metadata["Name"]
+        key = _norm(name) if name else None
+        if not key or key in pins or key in _keep or (names is not None and key not in names):
+            continue
+        try:
+            pins[key] = f"{{name}}=={{_md.version(name)}}"
+        except _md.PackageNotFoundError:
+            continue
+    return sorted(pins.values())
+
+
+def _pip_install(constraints):
+    with open("/tmp/prl-constraints.txt", "w") as fh:
+        fh.write("\\n".join(constraints) + "\\n")
+    cmd = [_sys.executable, "-m", "pip", "install", "-q", "-c", "/tmp/prl-constraints.txt",
+           *[f"{{k}}=={{val}}" for k, val in _PINS.items()], _PRL_SPEC]
+    return _sp.run(cmd, capture_output=True, text=True)
+
+
 if _on_colab:
-    _keep = _ALLOW + ["prl"]
-    _cons = sorted({{f"{{d.metadata['Name']}}=={{d.version}}" for d in _md.distributions()
-                    if d.metadata["Name"] and _norm(d.metadata["Name"]) not in _keep}})
-    with open("/tmp/prl-constraints.txt", "w") as _fh:
-        _fh.write("\\n".join(_cons) + "\\n")
+    _keep = set(_ALLOW) | {{"prl"}}
     _before = {{k: _md.version(k) for k in ("numpy", "torch", "scipy") if k in _sys.modules}}
-    _cmd = [_sys.executable, "-m", "pip", "install", "-q", "-c", "/tmp/prl-constraints.txt",
-            *[f"{{k}}=={{val}}" for k, val in _PINS.items()], _PRL_SPEC]
-    _r = _sp.run(_cmd, capture_output=True, text=True)
+    _r = _pip_install(_installed_pins())
+    if _r.returncode != 0:
+        # Fall back to protecting only the heavy preinstalled packages.
+        print("Keeping every preinstalled package was not possible; keeping the core ones "
+              f"({{', '.join(_CORE)}}) and retrying.")
+        print(_r.stderr.strip().splitlines()[-1] if _r.stderr.strip() else "")
+        _r = _pip_install(_installed_pins(set(_CORE)))
     if _r.returncode != 0:
         print(_r.stdout[-3000:], _r.stderr[-3000:])
         raise SystemExit("Setup failed: the runtime's packages changed. Tell the instructor.")

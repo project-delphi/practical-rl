@@ -102,6 +102,13 @@ jobs:
           uv run --no-project --with pyyaml python scripts/colab_constraints.py sim-requirements --out sim.txt
           uv pip install --python .colab/bin/python -r sim.txt \
             --extra-index-url https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match
+      - name: Shadow older system copies on sys.path, as Ubuntu's dist-packages does on Colab
+        run: |
+          uv pip install --target .colab-system "typing_extensions==4.10.0"
+          uv pip install --target .colab-system --no-deps "numpy==2.1.0"
+          SP=$(.colab/bin/python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
+          echo "$GITHUB_WORKSPACE/.colab-system" > "$SP/zz-system-dist-packages.pth"
+          .colab/bin/python -c "import importlib.metadata as md; print(sorted({(d.metadata['Name'], d.version) for d in md.distributions() if d.metadata['Name'] in ('numpy', 'typing_extensions')}))"
       - name: Worked mode (solutions bound; the setup cell installs prl the Colab way)
         run: .colab/bin/python scripts/check_notebooks.py --mode worked ${{ matrix.notebook }}
       - name: Learner mode (must stop at the first TODO)
