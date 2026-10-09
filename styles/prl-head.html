@@ -1,0 +1,53 @@
+<script>
+// Practical RL (styles/prl-head.html, included in every HTML page's <head>).
+(function () {
+  "use strict";
+
+  // Print always uses the light theme. Quarto layers the dark stylesheets over the
+  // light ones and toggles them with `rel`, so limiting the dark ones to screen media
+  // leaves the light theme in place for printing.
+  var dark = document.querySelectorAll("link.quarto-color-scheme.quarto-color-alternate");
+  for (var i = 0; i < dark.length; i++) dark[i].media = "screen";
+
+  // Folded answers print open, then fold again.
+  var opened = [];
+  window.addEventListener("beforeprint", function () {
+    var closed = document.querySelectorAll("details:not([open])");
+    for (var j = 0; j < closed.length; j++) {
+      closed[j].open = true;
+      opened.push(closed[j]);
+    }
+  });
+  window.addEventListener("afterprint", function () {
+    while (opened.length) opened.pop().open = false;
+  });
+
+  // A table wrapper that scrolls sideways (filters/scroll-regions.lua) becomes a
+  // named, focusable region so the keyboard can scroll it; one that fits does not
+  // add a tab stop.
+  function markRegions() {
+    var wraps = document.querySelectorAll(".table-scroll, .table-wrap");
+    for (var k = 0; k < wraps.length; k++) {
+      var w = wraps[k];
+      if (w.scrollWidth > w.clientWidth + 1) {
+        w.setAttribute("tabindex", "0");
+        w.setAttribute("role", "region");
+        w.setAttribute("aria-label", w.getAttribute("data-region-label") || "Table");
+      } else if (w.getAttribute("role") === "region") {
+        w.removeAttribute("tabindex");
+        w.removeAttribute("role");
+        w.removeAttribute("aria-label");
+      }
+    }
+  }
+  var pending;
+  function later() {
+    clearTimeout(pending);
+    pending = setTimeout(markRegions, 150);
+  }
+  document.addEventListener("DOMContentLoaded", markRegions);
+  window.addEventListener("load", markRegions);
+  window.addEventListener("resize", later);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(markRegions);
+})();
+</script>
