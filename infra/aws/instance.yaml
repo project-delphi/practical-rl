@@ -186,7 +186,7 @@ Resources:
           # BEGIN prl-user-data (lint.sh extracts this block and runs shellcheck on it)
           # Practical RL instance setup. cloud-init runs it once, at first boot. Every step is
           # idempotent and an existing checkout is never touched, so it is safe to re-run by hand:
-          #   sudo bash /var/lib/cloud/instance/scripts/part-001
+          #   sudo bash /var/lib/cloud/instance/user-data.txt
           # Log: /var/log/prl-setup.log. Status: SSM parameter /prl/<stack>/setup-status.
           set -Eeuo pipefail
           exec > >(tee -a /var/log/prl-setup.log) 2>&1
