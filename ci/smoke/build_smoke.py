@@ -34,9 +34,13 @@ workshop builders. It takes about 5 minutes and needs no API keys."""
 SETUP = """import importlib.metadata as md, os, subprocess, sys, time
 PRL_REF = "main"  #@param {type:"string"}
 _keep = {"trl", "prl"}
-_cons = sorted({f"{d.metadata['Name']}=={d.version}" for d in md.distributions()
-                if d.metadata["Name"] and d.metadata["Name"].lower().replace("_", "-") not in _keep})
-open("/tmp/constraints.txt", "w").write("\\n".join(_cons) + "\\n")
+_pins = {}  # one pin per package: the copy Python imports (Colab also has older system copies)
+for _d in md.distributions():
+    _n = _d.metadata["Name"]
+    _k = _n.lower().replace("_", "-").replace(".", "-") if _n else None
+    if _k and _k not in _pins and _k not in _keep:
+        _pins[_k] = f"{_n}=={md.version(_n)}"
+open("/tmp/constraints.txt", "w").write("\\n".join(sorted(_pins.values())) + "\\n")
 r = subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-c", "/tmp/constraints.txt", "trl==1.15.0",
                     f"git+https://github.com/project-delphi/practical-rl@{PRL_REF}#subdirectory=prl"],
                    capture_output=True, text=True)
