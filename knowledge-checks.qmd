@@ -5,5 +5,91 @@ title: "Knowledge checks"
 The entry check (three questions in each of four areas), one or two questions per learning objective with folded answers naming their evidence, and five-question warm-up sets for Days 2–5.
 
 ::: {.callout-note}
-Written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+Module 1 is written below. The entry check, the other modules and the warm-up sets are written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+:::
+
+## Module 1 {#m01}
+
+Questions for [Module 1 · MDPs, returns and the Bellman equation](/modules/01-mdps-bellman.qmd), two per objective. Each answer ends with the Lab 1 checkpoint that is its evidence.
+
+### Objective 1: encode a finite MDP as arrays and validate it
+
+[**1.1**]{#q1-1} In the 4 × 12 cliff gridworld (state = row · 12 + column, row 0 at the top; actions 0 up, 1 right, 2 down, 3 left), the start is the bottom-left cell. Give its state number, and for each of the four actions the nonzero entry of `P[start, a, :]` and the value `R[start, a]`.
+
+::: {.callout-tip collapse="true" title="Answer to 1.1"}
+The start is row 3, column 0: state $3 \cdot 12 + 0 = 36$.
+
+- Up: `P[36, 0, 24] = 1`, `R[36, 0] = -1`.
+- Right: the move lands in the cliff, so it returns to the start: `P[36, 1, 36] = 1`, `R[36, 1] = -100`.
+- Down and left: the move would leave the grid, so you stay: `P[36, 2, 36] = P[36, 3, 36] = 1`, with reward $-1$ each.
+
+**Evidence:** Lab 1, checkpoint 2.
+:::
+
+[**1.2**]{#q1-2} A colleague builds `P` with shape `(S, A, S)` and validates it with `np.allclose(P.sum(axis=0), 1)`. What is wrong with this check, what should it be, and what else should a validator test?
+
+::: {.callout-tip collapse="true" title="Answer to 1.2"}
+`P[s, a, :]` is the distribution of the next state, so the probabilities that must sum to 1 lie along the last axis: `np.allclose(P.sum(axis=2), 1)`, one check for every pair $(s, a)$. Summing over axis 0 adds the probabilities of reaching $s'$ from different current states, which need not sum to 1. A validator should also check that `P` has no negative entries, that `R` has shape `(S, A)`, and that both arrays are finite. If the MDP has terminal states, it should check that they are absorbing with reward 0. `prl.envs.TabularMDP(P, R, gamma).validate()` does these checks.
+
+**Evidence:** Lab 1, checkpoints 2 and 3b.
+:::
+
+### Objective 2: frame inventory control as an MDP and justify the choices
+
+[**1.3**]{#q1-3} The lab's shop holds at most 10 units. How many states and actions does its MDP have? With the lab's prices (4 per sale; 5 per order plus 2 per unit; 0.2 per unit left over; 1 per unit of lost demand), what is the reward of a period that starts with 3 units, orders 4 and meets a demand of 5? And with a demand of 9?
+
+::: {.callout-tip collapse="true" title="Answer to 1.3"}
+11 states (stock 0 to 10) and 11 actions (order 0 to 10; an order larger than $10 - x$ is cut to $10 - x$).
+
+With 3 in stock and 4 ordered, 7 units are on the shelf. Demand 5: sell 5, keep 2, lose none. The reward is $4 \cdot 5 - (5 + 2 \cdot 4) - 0.2 \cdot 2 - 0 = 6.6$. Demand 9: sell 7, keep 0, lose 2. The reward is $28 - 13 - 0 - 2 = 13$.
+
+**Evidence:** Lab 1, checkpoints 3a.1 (counts) and 3a.2 (rewards on hand-worked cases).
+:::
+
+[**1.4**]{#q1-4} Suppose orders take one full period to arrive. Is the stock on hand still a valid state? If not, what must you add, and why? Which of the lab's modeling choices is a judgment rather than a fact about the shop?
+
+::: {.callout-tip collapse="true" title="Answer to 1.4"}
+No. The order placed last period is still on its way, and it will change the next stock, so two shops with the same stock but different orders in transit have different futures. The state must include the units in transit: (stock, units in transit). With that addition, what happens next again depends only on the state and the action, which is the Markov property.
+
+The lost-sales penalty of 1 per unit is a judgment: it stands for the future cost of an unserved customer, which no receipt records. The discount $\gamma = 0.95$ is also a choice about how much the future counts. Change either, and the value of a policy changes, and so can the best policy.
+
+**Evidence:** Lab 1, checkpoint 3a.1 (the state count of the lab's framing); the variation is discussed in the debrief.
+:::
+
+### Objective 3: evaluate a policy exactly and iteratively, and bound the iteration count
+
+[**1.5**]{#q1-5} A policy on a two-state MDP has $r_\pi = (2, -1)$ and $P_\pi = \begin{pmatrix} 3/4 & 1/4 \\ 1/4 & 3/4 \end{pmatrix}$, with $\gamma = 0.5$. Find $V^\pi$ exactly. Then apply $T^\pi$ twice from $V_0 = 0$ and compare each error with the bound $\gamma^k \lVert V_0 - V^\pi \rVert_\infty$.
+
+::: {.callout-tip collapse="true" title="Answer to 1.5"}
+The system $(I - 0.5\, P_\pi) V = r_\pi$ is $\tfrac58 V(0) - \tfrac18 V(1) = 2$ and $-\tfrac18 V(0) + \tfrac58 V(1) = -1$. Multiply both by 8: $5V(0) - V(1) = 16$ and $-V(0) + 5V(1) = -8$. From the first, $V(1) = 5V(0) - 16$; substitute: $-V(0) + 25V(0) - 80 = -8$, so $V(0) = 3$ and $V(1) = -1$.
+
+Iterating: $V_1 = r_\pi = (2, -1)$, with error 1 against the bound $0.5 \cdot 3 = 1.5$. Then $P_\pi V_1 = (1.25, -0.25)$, so $V_2 = (2.625, -1.125)$, with error 0.375 against the bound 0.75. Both errors are within the bound, as the contraction guarantees.
+
+**Evidence:** Lab 1, checkpoints 4 and 5.
+:::
+
+[**1.6**]{#q1-6} Iterative evaluation with $V_0 = 0$ and $\mathrm{tol} = 10^{-6}$ takes some number of sweeps at $\gamma = 0.9$. About how many times as many do you expect at $\gamma = 0.99$, and why? What error does the stopping rule guarantee in each case?
+
+::: {.callout-tip collapse="true" title="Answer to 1.6"}
+The iteration bound grows like $1/\log(1/\gamma)$: each factor of 10 in accuracy costs $\log 10 / \log(1/\gamma)$ sweeps, about 22 at $\gamma = 0.9$ and about 229 at $\gamma = 0.99$, some 10.5 times as many. The starting error $\lVert V^\pi \rVert_\infty$ can also grow with $\gamma$, so expect about ten times as many sweeps or more. The stopping rule guarantees an error of at most $\gamma\, \mathrm{tol}/(1 - \gamma)$: $9 \times 10^{-6}$ at $\gamma = 0.9$ and $9.9 \times 10^{-5}$ at $\gamma = 0.99$.
+
+**Evidence:** Lab 1, checkpoint 5, and the provided $\gamma$ sweep in Exercise 5.
+:::
+
+### Objective 4: find a wrong evaluator from its Bellman residual
+
+[**1.7**]{#q1-7} An evaluator returns a vector $V$ for a policy $\pi$, and you have no reference answer. How do you test it? If the Bellman residual is 0.01 at $\gamma = 0.95$, what can you say about the error of $V$?
+
+::: {.callout-tip collapse="true" title="Answer to 1.7"}
+Compute the Bellman residual $\lVert T^\pi V - V \rVert_\infty = \lVert r_\pi + \gamma P_\pi V - V \rVert_\infty$. It needs only $P$, $R$, $\pi$, $\gamma$ and $V$. It is zero exactly at $V^\pi$, because $T^\pi$ has only one fixed point. It also bounds the error: $\lVert V - V^\pi \rVert_\infty \le \lVert T^\pi V - V \rVert_\infty / (1 - \gamma) = 0.01 / 0.05 = 0.2$.
+
+**Evidence:** Lab 1, checkpoint 6.1.
+:::
+
+[**1.8**]{#q1-8} An evaluator computes `P_pi.T @ V` where it should compute `P_pi @ V`. Why does NumPy raise no error? For which test MDPs would the bug go unnoticed? How does the residual expose it?
+
+::: {.callout-tip collapse="true" title="Answer to 1.8"}
+$P_\pi$ is square, so `P_pi.T @ V` has the same shape as `P_pi @ V`, and nothing fails. The two products agree for every $V$ only when $P_\pi$ is symmetric, so a test MDP with a symmetric $P_\pi$ hides the bug. The buggy evaluator solves $V = r_\pi + \gamma P_\pi^\top V$, which is not the Bellman equation, so the true residual $\lVert r_\pi + \gamma P_\pi V - V \rVert_\infty$ of its output is not zero. In the two-state shop of the briefing it returns $(1.25, 8.75)$ instead of $(5, 10)$, with a residual of 1.75. The fix is to use the rows of $P_\pi$: row $s$ is the distribution of the next state from $s$.
+
+**Evidence:** Lab 1, checkpoint 6.2.
 :::
