@@ -420,8 +420,10 @@ lab.check(4, m01.check_evaluate_exact, evaluate_exact)
 # error of at most γ·tol / (1 − γ) (stopping rule).
 
 # %% [markdown] role="ex5-predict"
-# Going from γ = 0.9 to γ = 0.99, how many times more sweeps do you need to reach
-# tol = 1e−6? Write a number.
+# The briefing's demo counted sweeps on a two-state model. The shop has 11 states. At
+# γ = 0.9 and tol = 1e−6, will it need tens, hundreds or thousands of sweeps? And from
+# γ = 0.9 to 0.99, will its count grow by a bigger factor than the demo's, a smaller one, or
+# about the same?
 
 
 # %% role="ex5-stub"

@@ -13,7 +13,7 @@ lightbox.
   01-cliff-gridworld      The 4x12 cliff layout from prl.envs.CliffGridworld, with a safe
                           path along the top row and an edge path beside the cliff.
   01-iterations-vs-gamma  Iterative policy evaluation on the lab's inventory MDP under the
-                          base-stock policy: iterations until the stopping test passes,
+                          base-stock policy: sweeps until the stopping test passes,
                           against gamma, with a bound that follows from eq-iteration-bound.
 
 Deterministic output: svg.hashsalt is the figure name, no date in the metadata, text
@@ -406,13 +406,13 @@ def iterations_figure(t: Theme, data: dict) -> Figure:
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     ax.set_xlabel(r"Discount $\gamma$")
-    ax.set_ylabel("Iterations to stop (log scale)")
+    ax.set_ylabel("Sweeps to stop (log scale)")
     fig.legend(
         [bound, Line2D([], [], color=t.series[0], lw=2.2, **marker)],
         [
             r"Bound: $2 + \log\,((1+\gamma)\,\|V_0 - V^\pi\|_\infty\,/\,\mathrm{tol})"
             r"\;/\;\log\,(1/\gamma)$",
-            r"Actual: iterations until $\|V_k - V_{k-1}\|_\infty < \mathrm{tol}$",
+            r"Actual: sweeps until $\|V_k - V_{k-1}\|_\infty < \mathrm{tol}$",
         ],
         loc="upper left",
         bbox_to_anchor=(0.005, 0.995),

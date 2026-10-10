@@ -234,25 +234,25 @@ Objectives:
 
 | § | Topic | Min |
 |---|---|---|
-| 1 | Inventory: what must you track? | 6 (predict 3) |
-| 2 | Returns, γ, MDP as arrays | 6 |
-| 3 | Bellman expectation equation (S&B Eq. 3.14); 2-state example by hand | 10 (chk 3) |
-| 4 | T^π is a γ-contraction in ‖·‖∞ (one line: ‖γP^π(V−V′)‖∞ ≤ γ‖V−V′‖∞); iteration bound; slider demo | 12 (demo 4) |
-| 5 | Optimality equation stated (S&B Eq. 3.19–3.20); bridge | 6 |
+| 1 | Inventory: what must you track? | 7 (predict 3) |
+| 2 | Returns, γ, MDP as arrays | 5 |
+| 3 | Bellman expectation equation (S&B Eq. 3.14); 2-state example by hand | 11 (chk 3) |
+| 4 | T^π is a γ-contraction in ‖·‖∞ (one line: ‖γP^π(V−V′)‖∞ ≤ γ‖V−V′‖∞); iteration bound; stopping rule; slider demo (the room predicts the guarantee first) | 11 (demo 4) |
+| 5 | Optimality equation stated (S&B Eq. 3.19–3.20); bridge | 6 (chk 2) |
 
-Total: 30 + 10. **Collapsed:** uniqueness via Banach; the stopping-rule proof.
+Total: 28 + 12. **Reference** (on the page, not read aloud): the worked reward example, the Poisson truncation, the gridworld rules and state table, why the inverse exists, uniqueness, the stopping-rule proof. **Collapsed:** the code for Exercises 1, 4, 5 and 6.1 ("open after Lab 1"); "After the lab: the shop's counts" (@fig-iterations).
 
 **Lab (core 52):**
 
 | # | Exercise | Writes | Checkpoint | Min |
 |---|---|---|---|---|
 | 1 | Discounted return | `discounted_return` | Exact on 3 fixtures | 5 |
-| 2 | Tiny cliff gridworld as arrays (index and move helpers provided) | `gridworld_arrays` (transition rule: cliff → start with −100; goal absorbs) | Equals the fixture; `validate()` | 8 |
-| 3a | Framing card for inventory | `inventory_spec` | State count; reward on 3 hand-worked cases | 5 |
-| 3b | Inventory MDP (demand pmf provided) | `inventory_arrays` | `validate()`; equals the fixture | 12 |
+| 2 | Tiny cliff gridworld as arrays (index and move helpers, and the goal and cliff branches, provided) | `gridworld_arrays` (transition rule: cliff → start with −100; goal absorbs) | Equals the fixture; `validate()` | 8 |
+| 3a | Framing card for inventory (an editable card cell) | `inventory_spec`, `period_reward` | State count; reward on hand-worked cases | 6 |
+| 3b | Inventory MDP (demand pmf provided) | `inventory_arrays` | `validate()`; equals the fixture | 9 |
 | 4 | Exact evaluation | `evaluate_exact` | Equals the fixture V | 5 |
-| 5 | Iterative evaluation (γ sweep and plot provided) | `evaluate_iterative → (V, k)` | k within the bound; error ≤ γ·tol/(1−γ) | 9 |
-| 6 | **Planted bug**: evaluator uses `P_pi.T` | Diagnose and fix | Bellman residual < tol | 8 |
+| 5 | Iterative evaluation (runs at several γ, and the plot against the bound, provided) | `evaluate_iterative → (V, k)` | k within the bound; error ≤ γ·tol/(1−γ) | 10 |
+| 6 | **Planted bug**: evaluator uses `P_pi.T` | `bellman_residual`, then fix `evaluate_suspect` | Residual on fixtures; fixed evaluator equals the fixture | 9 |
 
 - **Compare:** exact fixtures.
 - **Stretch:** T^π can expand in the unweighted 2-norm. Example: two states both moving to state 1 with γ = 0.9 give ‖γP‖₂ ≈ 1.27. Weighted by the stationary distribution μ it is again a γ-contraction (‖γP_π x‖_μ ≤ γ‖x‖_μ); Module 7 uses this as the key step for on-policy linear TD's stability, and the full convergence argument needs more conditions.

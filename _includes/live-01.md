@@ -2,11 +2,11 @@
 ::: {.live-plan}
 | Minutes | Section | In the room |
 |---|---|---|
-| 0–6 | 1. Inventory: what must you track? | [Predict: what must the state hold?](#predict-state) (3 min) |
-| 6–12 | 2. Returns, discounting and MDPs as arrays | — |
-| 12–22 | 3. The Bellman expectation equation | [Check yourself 3.1](#chk-bellman) (3 min) |
-| 22–34 | 4. Iterative evaluation and the contraction | [Demo: watch the contraction](#demo-contraction) (4 min) |
-| 34–40 | 5. The optimality equation, and the bridge to planning | — |
-| **40** | **Total** | **30 exposition + 10 activities** |
+| 0–7 | 1. Inventory: what must you track? | [Predict: what must the state hold?](#predict-state) (3 min) |
+| 7–12 | 2. Returns, discounting and MDPs as arrays | — |
+| 12–23 | 3. The Bellman expectation equation | [Check yourself 3.1](#chk-bellman) (3 min) |
+| 23–34 | 4. Iterative evaluation and the contraction | [Demo: predict the guarantee, then watch](#demo-contraction) (4 min) |
+| 34–40 | 5. The optimality equation, and the bridge to planning | [Check yourself 5.1](#chk-opt) (2 min) |
+| **40** | **Total** | **28 exposition + 12 activities** |
 : Briefing, 40 min {.agenda}
 :::

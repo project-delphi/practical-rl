@@ -220,7 +220,7 @@ modules:
         title: Iterative evaluation and the contraction
         minutes: 10
         writes: [evaluate_iterative]
-        predict_answer: "about 10 times as many (the count grows like 1/(1 − γ))"
+        predict_answer: "hundreds (140); about the same factor, near 10 (demo 116 → 1,198; shop 140 → 1,456)"
         explain_ref: "(iteration bound)"
       - n: 6
         title: "Planted bug: a wrong evaluator"

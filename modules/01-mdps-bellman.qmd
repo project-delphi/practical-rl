@@ -1,10 +1,10 @@
 ---
 title: "{{< var modules.m01.title >}}"
 live:
-  - {section: 1, minutes: 6, activities: [{block: predict-state, minutes: 3, label: "Predict: what must the state hold?"}]}
-  - {section: 2, minutes: 6}
-  - {section: 3, minutes: 10, activities: [{block: chk-bellman, minutes: 3, label: "Check yourself 3.1"}]}
-  - {section: 4, minutes: 12, activities: [{block: demo-contraction, minutes: 4, label: "Demo: predict the guarantee, then watch"}]}
+  - {section: 1, minutes: 7, activities: [{block: predict-state, minutes: 3, label: "Predict: what must the state hold?"}]}
+  - {section: 2, minutes: 5}
+  - {section: 3, minutes: 11, activities: [{block: chk-bellman, minutes: 3, label: "Check yourself 3.1"}]}
+  - {section: 4, minutes: 11, activities: [{block: demo-contraction, minutes: 4, label: "Demo: predict the guarantee, then watch"}]}
   - {section: 5, minutes: 6, activities: [{block: chk-opt, minutes: 2, label: "Check yourself 5.1"}]}
 ---
 

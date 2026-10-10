@@ -59,7 +59,8 @@ def test_written_pages_follow_the_template():
 
 def test_figures_have_alt_text():
     for qmd in ROOT.rglob("*.qmd"):
-        if "_site" in qmd.parts or ".claude" in qmd.parts:
+        parts = qmd.relative_to(ROOT).parts
+        if "_site" in parts or ".claude" in parts:
             continue
         for img in re.findall(r"!\[[^\]]*\]\([^)]*\)(\{[^}]*\})?", qmd.read_text()):
             assert "fig-alt=" in img, f"{qmd.name}: every figure needs fig-alt"
