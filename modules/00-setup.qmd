@@ -30,7 +30,7 @@ These minutes, like every minute count on this page, are a design budget, not a 
 
 **In this section:** [open the notebook]({{< var repo.colab_base >}}/00-setup.ipynb) on Colab's default CPU runtime, which it is designed for, and compare what it reports with your guesses.
 
-**The setup cell** installs the pinned `gymnasium` and this workshop's `prl` package. Then it prints a `Runtime:` line (platform, accelerator, CPU count, RAM and Python version), a `CPU:` line (the CPU model) and a `Packages:` line (each package's version).
+**The setup cell** installs the pinned `gymnasium` and this workshop's `prl` package on Colab. Then it prints a `Runtime:` line (platform, accelerator, CPU count, RAM and Python version), a `CPU:` line (the CPU model) and a `Packages:` line (each package's version).
 
 **Exercise 0** is provided code: `prl.runtime.detect()` prints the same summary and the CPU model. Run records store these facts, so every result says where it ran.
 
