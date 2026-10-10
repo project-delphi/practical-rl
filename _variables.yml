@@ -154,10 +154,33 @@ modules:
     stretch: null
     minutes: 20
     exercises:
-      - {n: 0, title: Runtime check, minutes: 5, writes: []}
-      - {n: 1, title: A random agent, minutes: 5, writes: [run_episode]}
-      - {n: 2, title: Seed bands, minutes: 5, writes: [returns_by_seed]}
-      - {n: 3, title: Your run record, minutes: 5, writes: []}
+      # predict_answer and explain_ref are linted only once status.briefing leaves placeholder.
+      # The explain_refs name the briefing's Gotchas; labs/src/00-setup.py's Explain cells must
+      # cite them verbatim before the status changes.
+      - n: 0
+        title: Runtime check
+        minutes: 5
+        writes: []
+        predict_answer: "No GPU on Colab's default runtime: the accelerator reads cpu. The CPU count is whatever the summary line shows (no Colab count is quoted without a record)."
+        explain_ref: 'Gotcha: "A T4 speeds up CartPole."'
+      - n: 1
+        title: A random agent
+        minutes: 5
+        writes: [run_episode]
+        predict_answer: "About 23: seat 0's 100 episodes averaged 22.64 (record 2026-10-10-local-00-setup-c68f53c0, local); other seats differ."
+        explain_ref: 'Gotcha: "A random agent is no baseline."'
+      - n: 2
+        title: Seed bands
+        minutes: 5
+        writes: [returns_by_seed]
+        predict_answer: "Closer than single episodes (a mean of 20 has about 1/sqrt(20) of one episode's standard deviation), but not equal; read the five printed means."
+        explain_ref: 'Gotcha: "One seed is enough to compare."'
+      - n: 3
+        title: Your run record
+        minutes: 5
+        writes: []
+        predict_answer: "platform (colab), env (colab-cpu or colab-t4), hardware.accel (cpu or cuda) and hardware.gpu"
+        explain_ref: 'Gotcha: "The run record shares my name or keys."'
     status: {briefing: placeholder, lab: draft}
 
   m01:
