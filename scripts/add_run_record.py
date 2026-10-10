@@ -36,13 +36,27 @@ def check(rec: dict, v: dict) -> list[str]:
     return problems
 
 
+def free_path(path: Path, text: str) -> Path:
+    """`path`, or `<stem>-2`, `-3`, ... when a different record already has that name.
+
+    Two runs on the same day, env and content (or two experiments with the same name) are
+    both evidence, so filing never overwrites a record. Filing the same record twice is a no-op.
+    """
+    candidate, n = path, 1
+    while candidate.exists() and candidate.read_text() != text:
+        n += 1
+        candidate = path.with_name(f"{path.stem}-{n}{path.suffix}")
+    return candidate
+
+
 def file_record(rec: dict, v: dict, *, dry_run: bool = False) -> Path:
     problems = check(rec, v)
     if problems:
         raise ValueError("; ".join(problems))
-    path = RUNS / record.record_filename(rec)
+    text = json.dumps(rec, indent=2, sort_keys=True) + "\n"
+    path = free_path(RUNS / record.record_filename(rec), text)
     if not dry_run:
-        path.write_text(json.dumps(rec, indent=2, sort_keys=True) + "\n")
+        path.write_text(text)
     return path
 
 
