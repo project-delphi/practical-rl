@@ -978,3 +978,17 @@ details.disclosure-tip {
     overflow-wrap: anywhere;
   }
 }
+
+// OJS demos: Quarto 1.10 leaves a "Copy to Clipboard" button beside OJS source that
+// echo: false hides. Hide the button with its hidden code.
+.code-copy-outer-scaffold:has(> .cell-code.hidden) > .code-copy-button {
+  display: none;
+}
+
+// Figures with no dark twin (filters/figures.lua adds .paper): keep them legible in dark
+// mode on a light card.
+img.paper {
+  background: #ffffff;
+  border-radius: 0.4rem;
+  padding: 0.4rem;
+}

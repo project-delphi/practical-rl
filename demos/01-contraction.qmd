@@ -9,16 +9,6 @@ Plot and Inputs come from Quarto's OJS runtime, which loads them from cdn.jsdeli
 (allow-listed for the module page in scripts/site_check_allow.yml).
 -->
 
-```{=html}
-<style>
-  /* Quarto 1.10 leaves a "Copy to Clipboard" button beside OJS source that echo: false
-     hides. Hide the button with its code. (Site-wide, this belongs in styles/prl.scss.) */
-  .code-copy-outer-scaffold:has(> .cell-code.hidden) > .code-copy-button {
-    display: none;
-  }
-</style>
-```
-
 **Predict first.** With γ = 0.9 and tol = 10⁻⁶, the evaluation below stops after a little over 100 iterations. If you move γ to 0.99, will it need about twice as many iterations, ten times as many, or a hundred times as many? And if you keep γ = 0.9 but make tol 100 times smaller? Write down both guesses, then use the sliders.
 
 The model has two states, 0 and 1, and a fixed policy π. From state 0 you stay or move to state 1 with probability 0.5 each, and the mean reward is 1. From state 1 you move to state 0 with probability 0.1 and stay with probability 0.9, and the mean reward is 0. Evaluation starts from V~0~ = 0 and applies T^π^ ([@eq-tpi]) until ‖V~k+1~ − V~k~‖~∞~ < tol ([@eq-stop]). The error is measured against the exact V^π^ from the 2 × 2 linear solve ([@eq-exact]).

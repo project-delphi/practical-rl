@@ -141,7 +141,7 @@ assert np.allclose(P.sum(axis=2), 1.0)   # sum over the LAST axis: each P[s, a, 
 
 The start, goal, cliff and rewards are those of Sutton and Barto's Cliff Walking [@sutton2018rl, Example 6.6]. Theirs is undiscounted; ours uses $\gamma$. Module 3 returns to it.
 
-![**What to notice:** the cliff runs along the bottom edge between the start S and the goal G. The shortest route hugs the cliff edge (13 moves). The other drawn route stays away from the edge and takes more moves. Which route a method prefers is a question for Module 3.](/images/01-cliff-gridworld.svg){#fig-cliff fig-alt="A grid of 4 rows and 12 columns. The start S is the bottom-left cell and the goal G is the bottom-right cell; the 10 cells between them are marked as the cliff. Two paths from S to G are drawn, one along the cliff edge and one farther away from it."}
+![**What to notice:** the edge route (solid) is four moves shorter than the safe route (dashed), 13 against 17, but one step down from it costs 100 and sends you back to S. Which route a method prefers is a question for Module 3.](/images/01-cliff-gridworld.svg){#fig-cliff fig-alt="A grid of 4 rows and 12 columns. The start S is bottom left and the goal G bottom right; the ten cells between them are the cliff. A dashed path climbs to the top row and crosses; a solid path runs one row above the cliff."}
 
 For example, in the 4 × 12 grid of @fig-cliff the start is state $3 \cdot 12 + 0 = 36$. Its four rows of the arrays are:
 
@@ -298,7 +298,7 @@ $$ {#eq-iteration-bound}
 
 The denominator carries the effect of $\gamma$. Since $\log(1/\gamma) \ge 1 - \gamma$, with near equality when $\gamma$ is close to 1, the count grows like the horizon $1/(1 - \gamma)$. Each factor of 10 in accuracy costs $\log 10 / \log(1/\gamma)$ sweeps: about 22 at $\gamma = 0.9$ and about 229 at $\gamma = 0.99$, some 10.5 times as many. The numerator can grow too: with $V_0 = 0$ it is $\lVert V^\pi \rVert_\infty$, which can be as large as $r_{\max}/(1-\gamma)$.
 
-![**What to notice:** the number of sweeps climbs steeply as $\gamma$ approaches 1, and the bound of @eq-iteration-bound (dashed) climbs with it. The shop of Lab 1 under the base-stock policy, $V_0 = 0$, tol $= 10^{-6}$. These are exact iteration counts from a deterministic computation, not timings.](/images/01-iterations-vs-gamma.svg){#fig-iterations fig-alt="A chart of the number of iterations of iterative policy evaluation against the discount gamma, from 0.5 to 0.99, for the shop under the base-stock policy. The count rises steeply as gamma nears 1, and a dashed line shows the bound from the contraction argument."}
+![**What to notice:** the number of sweeps grows roughly like $1/(1-\gamma)$, from 23 at $\gamma = 0.5$ to 1,456 at $\gamma = 0.99$, and every count stays under the dashed bound $2 + \log\big((1+\gamma)\lVert V_0 - V^\pi\rVert_\infty/\text{tol}\big)/\log(1/\gamma)$, which follows from @eq-iteration-bound. The shop of Lab 1 under the base-stock policy, $V_0 = 0$, tol $= 10^{-6}$. Exact counts from a deterministic computation (`scripts/make_figures_m01.py`), not timings.](/images/01-iterations-vs-gamma.svg){#fig-iterations fig-alt="A chart of the number of iterations of iterative policy evaluation against the discount gamma, from 0.5 to 0.99, for the shop under the base-stock policy. The count rises steeply as gamma nears 1, and a dashed line shows the bound from the contraction argument."}
 
 **The stopping rule.** While iterating you do not know $V^\pi$, so you cannot measure the error. You can measure the change from one sweep to the next. Stop when it falls below a tolerance $\mathrm{tol}$:
 
@@ -419,16 +419,16 @@ Module 1 evaluates a given policy; Module 2 finds the best one. Module 2 solves 
 
 ### Equations and where you implement them
 
-| Equation | Lab 1 |
-|---|---|
-| The shop's reward per period (section 1) | Exercise 3a: `period_reward`; `inventory_spec` gives the state and action counts |
-| Return (@eq-return) | Exercise 1: `discounted_return` |
-| An MDP as arrays `P[s, a, s']` and `R[s, a]` (section 2) | Exercise 2: `gridworld_arrays`; Exercise 3b: `inventory_arrays` |
-| Value and the Bellman expectation equation (@eq-vpi, @eq-bellman-v, @eq-bellman-matrix), solved exactly (@eq-exact) | Exercise 4: `evaluate_exact` |
-| Iterative evaluation (@eq-tpi, @eq-contraction, @eq-iteration-bound, @eq-stop) | Exercise 5: `evaluate_iterative`; the $\gamma$ sweep and plot are provided |
-| Bellman residual (@eq-residual) | Exercise 6: `bellman_residual`, then fix `evaluate_suspect` |
-| The contraction fails in the 2-norm (section 4) | Stretch |
-| Bellman optimality equation (@eq-bellman-opt) | Not implemented here; Module 2 |
+| Equation | Lab 1 | Name in the notebook |
+|---|---|---|
+| The shop's reward per period (section 1) | Exercise 3a: `period_reward`; `inventory_spec` gives the state and action counts | — |
+| Return (@eq-return) | Exercise 1: `discounted_return` | (return) |
+| An MDP as arrays `P[s, a, s']` and `R[s, a]` (section 2) | Exercise 2: `gridworld_arrays`; Exercise 3b: `inventory_arrays` | — |
+| Value and the Bellman expectation equation (@eq-vpi, @eq-bellman-v, @eq-bellman-matrix), solved exactly (@eq-exact) | Exercise 4: `evaluate_exact` | (Bellman, matrix form), (exact) |
+| Iterative evaluation (@eq-tpi, @eq-contraction, @eq-iteration-bound, @eq-stop) | Exercise 5: `evaluate_iterative`; the $\gamma$ sweep and plot are provided | (operator), (contraction), (stopping rule) |
+| Bellman residual (@eq-residual) | Exercise 6: `bellman_residual`, then fix `evaluate_suspect` | (residual) |
+| The contraction fails in the 2-norm (section 4) | Stretch | — |
+| Bellman optimality equation (@eq-bellman-opt) | Not implemented here; Module 2 | — |
 
 ## Gotchas and troubleshooting
 
