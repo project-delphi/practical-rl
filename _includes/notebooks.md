@@ -2,15 +2,15 @@
 ## Before Day 1
 
 ::: {.lab-list}
-- **[0 · Setup and hello RL](/modules/00-setup.qmd)** [Colab CPU]{.chip} [lab draft]{.chip} [readiness [of Lab 0]{.visually-hidden}](/readiness.qmd#m00){.chip}  
-  [Open [Lab 0]{.visually-hidden} in Colab [(opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb){.btn-quiet target="_blank" rel="noopener"} [Download [Lab 0]{.visually-hidden} .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/00-setup.ipynb){.btn-quiet}
+- **[0 · Setup and hello RL](/modules/00-setup.qmd)** [Colab CPU]{.chip} [self-paced · about 20 min]{.chip} [lab draft]{.chip} [readiness [of Lab 0]{.visually-hidden}](/readiness.qmd#m00){.chip}  
+  [Open in Colab[, Lab 0 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb){.btn-quiet target="_blank" rel="noopener"} [Download .ipynb[, Lab 0]{.visually-hidden}](https://github.com/project-delphi/practical-rl/raw/main/notebooks/00-setup.ipynb){.btn-quiet}
 :::
 
 ## Day 1 · From the Bellman equation to learning from experience
 
 ::: {.lab-list}
 - **[1 · MDPs, returns and the Bellman equation](/modules/01-mdps-bellman.qmd)** [Colab CPU]{.chip} [lab reviewed]{.chip} [readiness [of Lab 1]{.visually-hidden}](/readiness.qmd#m01){.chip}  
-  [Open [Lab 1]{.visually-hidden} in Colab [(opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb){.btn-quiet target="_blank" rel="noopener"} [Download [Lab 1]{.visually-hidden} .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/01-mdps-bellman.ipynb){.btn-quiet}
+  [Open in Colab[, Lab 1 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb){.btn-quiet target="_blank" rel="noopener"} [Download .ipynb[, Lab 1]{.visually-hidden}](https://github.com/project-delphi/practical-rl/raw/main/notebooks/01-mdps-bellman.ipynb){.btn-quiet}
 - **[2 · Planning: value iteration, policy iteration and model error](/modules/02-planning.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 2]{.visually-hidden}](/readiness.qmd#m02){.chip}  
   Not built yet.
 - **[3 · Model-free prediction and control](/modules/03-model-free.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 3]{.visually-hidden}](/readiness.qmd#m03){.chip}  

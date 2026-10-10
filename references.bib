@@ -29,7 +29,11 @@
                semi-gradient s9.3-9.4, s10.1-10.2, s11.1; Baird's counterexample = s11.2, Figure 11.1 (NOT a numbered Example;
                Example 11.1 is Tsitsiklis and Van Roy's); deadly triad s11.3; PG theorem s13.2 Eq. 13.5; REINFORCE s13.3 (Eq. 13.8);
                with baseline s13.4 (Eqs. 13.10-13.11); actor-critic s13.5.
-               CAVEAT: the https URL fails (self-signed certificate), so use http. The MIT Press page returned 403, so the series name is unconfirmed.}
+               CAVEAT: the https URL fails (self-signed certificate), so use http. The MIT Press page returned 403, so the series name is unconfirmed.
+               Also opened (academic director, Module 0, 2026-10-10, RLbook2020.pdf): s3.1 and Figure 3.1 (the agent-environment interaction);
+               s3.3 Eq. 3.7 (G_t = R_{t+1} + R_{t+2} + ... + R_T, the undiscounted return of an episodic task, T the final time step);
+               Example 3.4 Pole-Balancing (book p. 56): +1 for every time step on which failure did not occur, so the return is the number of
+               steps until failure. Module 0 cites these three.}
 }
 
 @book{lattimore2020bandit,
@@ -378,7 +382,10 @@
   url       = {https://proceedings.neurips.cc/paper/2021/hash/f514cec81cb148559cf475e7426eed5e-Abstract.html},
   annote    = {Verified 2026-10-09 via the official NeurIPS .bib and arXiv 2108.13264 v4. Cite: s4.1 stratified bootstrap CIs; s4.2 performance profiles;
                s4.3 IQM and optimality gap. CAVEAT: section numbers are from arXiv v4, not the camera-ready.
-               Its library, rliable, was archived on 2025-10-15, so prl.evaluate reimplements IQM and the stratified bootstrap.}
+               Its library, rliable, was archived on 2025-10-15, so prl.evaluate reimplements IQM and the stratified bootstrap.
+               Also opened (academic director, Module 0, 2026-10-10): the arXiv 2108.13264 v4 abstract page (revised 5 Jan 2022). Module 0 cites
+               only the abstract's argument: point estimates from a few runs ignore statistical uncertainty; it recommends interval estimates,
+               performance profiles and the interquartile mean.}
 }
 
 @article{patterson2024empirical,
@@ -829,7 +836,12 @@
   year      = {2025},
   doi       = {10.52202/085713-4916},
   annote    = {Verified 2026-10-09 via the NeurIPS 2025 proceedings BibTeX and arXiv 2407.17032 v4 (comment: accepted at NeurIPS D&B 2025).
-               Two names normalized from the proceedings BibTeX. CAVEAT: a snippet suggests the arXiv v4 PDF title says "Standardized"; not opened.}
+               Two names normalized from the proceedings BibTeX. CAVEAT: a snippet suggests the arXiv v4 PDF title says "Standardized"; not opened.
+               Opened the arXiv v4 PDF (dated 2 Nov 2025) on 2026-10-10 (academic director, Module 0). Its title reads "Gymnasium: A Standardized
+               Interface for Reinforcement Learning Environments" (OPEN_QUESTIONS B18); the title field above follows the proceedings BibTeX, which
+               was not re-opened. Cite (arXiv v4 numbering): s3 Library Structure (Env with observation_space, action_space, reset and step; spaces
+               provide sample); s4.2 Termination and Truncation (Figure 2; Eqs. 1-2 multiply the next-state value by (not terminated); truncation is
+               an end unrelated to the state, usually a step limit set by the TimeLimit wrapper).}
 }
 
 @article{raffin2021sb3,

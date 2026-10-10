@@ -8,7 +8,7 @@ Write an MDP as arrays, frame inventory control, and evaluate a policy exactly a
 :::
 
 ::: {.module-actions}
-[Open [Lab 1: MDPs, returns and the Bellman equation]{.visually-hidden} in Colab [(opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/01-mdps-bellman.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
+[Open in Colab[, Lab 1: MDPs, returns and the Bellman equation (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/01-mdps-bellman.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
 :::
 :::
 
@@ -45,5 +45,5 @@ In this module you will:
 ## Before you start {#before}
 
 - [Module 0 · Setup and hello RL](/modules/00-setup.qmd) and the [entry check](/prepare.qmd#entry-check).
-- A Google account (Colab's default CPU runtime is enough), or a local or AWS setup from [Setup](/setup.qmd).
+- A Google account (Colab's default CPU runtime is enough), or a local or AWS setup from the [Setup page](/setup.qmd).
 - No API keys or paid services.

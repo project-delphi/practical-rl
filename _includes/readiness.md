@@ -42,9 +42,10 @@
 
 ## Records by lab
 
-::: {.callout-note collapse="true" title="0 · Setup and hello RL: 3 record(s)"}
+::: {.callout-note collapse="true" title="0 · Setup and hello RL: 4 record(s)"}
+- `2026-10-10-local-00-setup-48b9f7d5.json`: 2026-10-10 · local · 14 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
 - `2026-10-10-local-00-setup-62d3bcb5.json`: 2026-10-10 · local · 16 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
-- `2026-10-10-local-00-setup-c68f53c0.json`: 2026-10-10 · local · 14 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
+- `2026-10-10-local-00-setup-c68f53c0.json`: 2026-10-10 · local · 14 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-09-local-00-setup-a99409cc.json`: 2026-10-09 · local · 15 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::
 

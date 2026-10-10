@@ -66,6 +66,11 @@ def capstone_times(v: dict[str, Any] | None = None) -> dict[str, tuple[str, str]
     return out
 
 
+def self_paced(mod: dict[str, Any]) -> bool:
+    """Pre-work (slot \"pre\"): read and run alone, before Day 1; no room, no 70-minute lab."""
+    return mod.get("slot") == "pre"
+
+
 def core_minutes(mod: dict[str, Any]) -> int:
     return sum(int(e["minutes"]) for e in mod.get("exercises", []))
 

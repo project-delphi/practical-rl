@@ -45,5 +45,5 @@ In this module you will:
 ## Before you start {#before}
 
 - [Module 12 · RL for language models: preferences, RLHF, DPO and GRPO](/modules/12-rl-for-language-models.qmd) and its lab: this module builds on what it left open.
-- A Google account (Colab's default CPU runtime is enough), or a local or AWS setup from [Setup](/setup.qmd).
+- A Google account (Colab's default CPU runtime is enough), or a local or AWS setup from the [Setup page](/setup.qmd).
 - No API keys or paid services.

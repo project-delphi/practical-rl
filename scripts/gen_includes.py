@@ -55,8 +55,12 @@ def page_href(m: dict[str, Any]) -> str:
     return f"/modules/{m['slug']}.qmd"
 
 
+def self_paced(m: dict[str, Any]) -> bool:
+    return variables.self_paced(m)
+
+
 def duration(m: dict[str, Any], v: dict[str, Any]) -> str:
-    if m["day"] == 0:
+    if self_paced(m):
         return f"{m.get('minutes', 20)} min, before Day 1"
     if m["n"] == 15:
         parts = " · ".join(f"{k} {mins}" for k, mins in v["clock"]["capstone_parts"])
@@ -65,8 +69,8 @@ def duration(m: dict[str, Any], v: dict[str, Any]) -> str:
 
 
 def clock_line(m: dict[str, Any], v: dict[str, Any]) -> str:
-    if m["day"] == 0:
-        return "Pre-work"
+    if self_paced(m):
+        return f"About {m.get('minutes', 20)} min · any time before Day 1"
     if m["n"] == 15:
         t = variables.capstone_times(v)
         return " · ".join(f"{k.capitalize()} {s}" for k, (s, _) in t.items())
@@ -102,10 +106,13 @@ def module_md(mid: str, v: dict[str, Any]) -> str:
         if m["exercises"]
         else f"{runtime} · per track"
     )
-    if m["day"] == 0:
-        lab_runtime = f"{runtime} · {m.get('minutes', 20)} min [estimate]{{.chip .chip-none}}"
+    if self_paced(m):
+        lab_runtime = (
+            f"{runtime} · about {m.get('minutes', 20)} min self-paced, with reading "
+            "[estimate]{.chip .chip-none}"
+        )
     day_link = "/prepare.qmd" if m["day"] == 0 else f"/day-{m['day']}.qmd"
-    slot = "Pre-work" if m["day"] == 0 else f"Slot {m['slot']}"
+    slot = "Self-paced" if self_paced(m) else f"Slot {m['slot']}"
     objectives = "\n".join(f"- {o}" for o in m["objectives"])
     prev = previous(mid, v)
     before = []
@@ -114,6 +121,8 @@ def module_md(mid: str, v: dict[str, Any]) -> str:
             f"- [Module {prev['n']} · {prev['title']}]({page_href(prev)}) and its lab: this module "
             "builds on what it left open."
         )
+    elif m["n"] == 0:
+        before.append("- The [entry check](/prepare.qmd#entry-check) is separate from this module.")
     elif m["n"] == 1:
         before.append(
             "- [Module 0 · Setup and hello RL](/modules/00-setup.qmd) and the "
@@ -130,7 +139,7 @@ def module_md(mid: str, v: dict[str, Any]) -> str:
     else:
         before.append(
             "- A Google account (Colab's default CPU runtime is enough), or a local or AWS setup "
-            "from [Setup](/setup.qmd)."
+            "from the [Setup page](/setup.qmd)."
         )
     before.append("- No API keys or paid services.")
     title_for_sr = f"Lab {m['n']}: {m['title']}"
@@ -142,7 +151,7 @@ def module_md(mid: str, v: dict[str, Any]) -> str:
         + f"::: {{.module-summary}}\n{m['summary']}\n:::\n\n"
         + "::: {.module-actions}\n"
         + (
-            f"[Open [{title_for_sr}]{{.visually-hidden}} in Colab [(opens in a new tab)]{{.visually-hidden}}]"
+            f"[Open in Colab[, {title_for_sr} (opens in a new tab)]{{.visually-hidden}}]"
             f'({colab_url(m, v)}){{.btn-colab target="_blank" rel="noopener"}} '
             f"[Download .ipynb]({download_url(m, v)}){{.btn-quiet}} "
             if has_notebook(m)
@@ -177,7 +186,12 @@ def lab_md(mid: str, v: dict[str, Any]) -> str:
         anchor = f"ex{e['n']}-head"
         title = e["title"]
         bug = " [Planted bug]{.chip .chip-stale}" if title.lower().startswith("planted bug") else ""
-        link = f"[{title}]({colab_url(m, v)}#scrollTo={anchor})" if has_notebook(m) else title
+        link = (
+            f"[{title} [(opens a fresh copy in a new tab)]{{.visually-hidden}}]"
+            f'({colab_url(m, v)}#scrollTo={anchor}){{target="_blank" rel="noopener"}}'
+            if has_notebook(m)
+            else title
+        )
         rows.append(f"| {e['n']} | {link}{bug} | {e['minutes']} |")
     stretch = ""
     if m.get("stretch"):
@@ -189,11 +203,22 @@ def lab_md(mid: str, v: dict[str, Any]) -> str:
         NOTICE
         + "## In the lab {#in-the-lab}\n\n"
         + "Each exercise you write is a `# TODO` cell with a folded Hint and Solution beneath it and a "
-        "checkpoint that passes or fails. Minutes include predicting and explaining.\n\n"
+        "checkpoint that passes or fails. "
+        + (
+            "Minutes include reading the matching section of this page, predicting and explaining. "
+            "Exercise names open a fresh copy of the notebook in a new tab; if it is already open, "
+            "use that tab.\n\n"
+            if self_paced(m)
+            else "Minutes include predicting and explaining.\n\n"
+        )
         + "::: {.lab-steps}\n"
         + "| # | Exercise | Min |\n|---|---|---|\n"
         + "\n".join(rows)
-        + f"\n| | **Core** | **{core} of 70** |\n:::"
+        + (
+            f"\n| | **Total** | **{core}** |\n:::"
+            if self_paced(m)
+            else f"\n| | **Core** | **{core} of 70** |\n:::"
+        )
         + stretch
         + "\n"
     )
@@ -251,12 +276,24 @@ def live_md(mid: str, v: dict[str, Any]) -> str:
         act += a_min
         t += mins
     extra = f" + {setup} setup" if setup else ""
+    if self_paced(m):  # pre-work: read a section, then do its exercise in the notebook
+        where, split, caption = (
+            "What you do",
+            f"{expo} reading + {act} in the notebook",
+            f"Self-paced, {t} min",
+        )
+    else:
+        where, split, caption = (
+            "In the room",
+            f"{expo} exposition + {act} activities",
+            "Briefing, 40 min",
+        )
     return (
         NOTICE
-        + "::: {.live-plan}\n| Minutes | Section | In the room |\n|---|---|---|\n"
+        + f"::: {{.live-plan}}\n| Minutes | Section | {where} |\n|---|---|---|\n"
         + "\n".join(rows)
-        + f"\n| **{t}** | **Total** | **{expo} exposition + {act} activities{extra}** |\n"
-        + ": Briefing, 40 min {.agenda}\n:::\n"
+        + f"\n| **{t}** | **Total** | **{split}{extra}** |\n"
+        + f": {caption} {{.agenda}}\n:::\n"
     )
 
 
@@ -272,7 +309,7 @@ def card(m: dict[str, Any], v: dict[str, Any]) -> str:
         f"{m['summary']}\n\n"
         f"[{runtime}]{{.chip}}{core_chip} "
         + (
-            f"[Open [Lab {m['n']}]{{.visually-hidden}} in Colab [(opens in a new tab)]{{.visually-hidden}}]"
+            f"[Open in Colab[, Lab {m['n']} (opens in a new tab)]{{.visually-hidden}}]"
             f'({colab_url(m, v)}){{.btn-quiet target="_blank" rel="noopener"}}'
             if has_notebook(m)
             else "[notebook not built yet]{.chip .chip-none}"
@@ -335,12 +372,18 @@ def notebooks_md(v: dict[str, Any]) -> str:
             runtime = "Colab T4" if v["runtimes"][m["runtime"]].get("gpu") else "Colab CPU"
             out.append(
                 f"- **[{m['n']} · {m['title']}]({page_href(m)})** "
-                f"[{runtime}]{{.chip}} [lab {m['status']['lab']}]{{.chip}} "
+                f"[{runtime}]{{.chip}} "
+                + (
+                    f"[self-paced · about {m.get('minutes', 20)} min]{{.chip}} "
+                    if self_paced(m)
+                    else ""
+                )
+                + f"[lab {m['status']['lab']}]{{.chip}} "
                 f"[readiness [of Lab {m['n']}]{{.visually-hidden}}](/readiness.qmd#{mid}){{.chip}}  \n"
                 + (
-                    f"  [Open [Lab {m['n']}]{{.visually-hidden}} in Colab [(opens in a new tab)]{{.visually-hidden}}]"
+                    f"  [Open in Colab[, Lab {m['n']} (opens in a new tab)]{{.visually-hidden}}]"
                     f'({colab_url(m, v)}){{.btn-quiet target="_blank" rel="noopener"}} '
-                    f"[Download [Lab {m['n']}]{{.visually-hidden}} .ipynb]({download_url(m, v)}){{.btn-quiet}}\n"
+                    f"[Download .ipynb[, Lab {m['n']}]{{.visually-hidden}}]({download_url(m, v)}){{.btn-quiet}}\n"
                     if has_notebook(m)
                     else "  Not built yet.\n"
                 )

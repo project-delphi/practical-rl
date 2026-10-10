@@ -85,3 +85,30 @@ def test_plot_helpers_draw():
     with pytest.raises(ValueError, match="Budgets differ"):
         plot.with_recorded(band, np.ones(5), x=np.arange(5), your_budget={"steps": 1}, ax=ax)
     plt.close(fig)
+
+
+def test_m00_run_episode_must_add_every_reward():
+    gym = pytest.importorskip("gymnasium")
+    assert gym  # the check builds CartPole itself
+
+    def correct(env, seed):
+        env.reset(seed=seed)
+        env.action_space.seed(seed)
+        total, done = 0.0, False
+        while not done:
+            _, r, terminated, truncated, _ = env.step(env.action_space.sample())
+            total, done = total + float(r), terminated or truncated
+        return total
+
+    def last_reward_only(env, seed):
+        env.reset(seed=seed)
+        env.action_space.seed(seed)
+        done = False
+        while not done:
+            _, r, terminated, truncated, _ = env.step(env.action_space.sample())
+            done = terminated or truncated
+        return float(r)
+
+    m00.check_run_episode(correct)
+    with pytest.raises(CheckFailed, match="must match"):
+        m00.check_run_episode(last_reward_only)
