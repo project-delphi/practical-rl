@@ -54,6 +54,7 @@ $prl-tokens: (
   "series-3": $brand-series-3,
   "series-4": $brand-series-4,
   "neutral": $brand-neutral,
+  "paper": $brand-paper,
 );
 
 @mixin prl-tokens {
@@ -988,7 +989,7 @@ details.disclosure-tip {
 // Figures with no dark twin (filters/figures.lua adds .paper): keep them legible in dark
 // mode on a light card.
 img.paper {
-  background: #ffffff;
+  background: var(--prl-paper);
   border-radius: 0.4rem;
   padding: 0.4rem;
 }

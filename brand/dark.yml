@@ -31,6 +31,7 @@ color:
     series-2: "#E0702F"
     series-3: "#22AE80"
     series-4: "#A9529E"
+    paper: "#eef2f6"  # card behind a figure with no dark twin (img.paper)
     neutral: "#8C98A5"
   background: "#12181f"
   foreground: text

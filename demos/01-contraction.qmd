@@ -78,7 +78,7 @@ contraction = {
 //| echo: false
 {
   const {rows, k, guarantee} = contraction;
-  const sup = (n) => String(n).replace(/[-0-9]/g, (ch) => "⁻⁰¹²³⁴⁵⁶⁷⁸⁹"["-0123456789".indexOf(ch)]);
+  const sup = (n) => String(n).replace(/[-0-9]/g, (ch) => "\u207B\u2070\u00B9\u00B2\u00B3\u2074\u2075\u2076\u2077\u2078\u2079"["-0123456789".indexOf(ch)]);
   const chart = Plot.plot({
     width,
     height: 320,

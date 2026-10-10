@@ -21,7 +21,7 @@ written its caption and alt text and added the lightbox link, so the figure keep
 number, one caption and one alt text: only the image inside it is doubled. The dark
 link gets its own lightbox gallery, so the lightbox never steps from one copy to the
 other. A local image without a twin gets the class `paper`, the hook for the light-card
-fallback in dark mode (styles/prl.scss has no .paper rule yet); tests/test_site_figures.py
+fallback in dark mode (img.paper in styles/prl.scss); tests/test_site_figures.py
 requires a twin for every images/*.svg unless it is listed there as theme-neutral.
 HTML pages only; slides are untouched.
 ]]
