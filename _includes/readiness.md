@@ -14,8 +14,8 @@
 ::: {.table-scroll .readiness-matrix}
 | Lab | Teach on Colab? | Designed for | On its designed runtime | Real path elsewhere | CI | Notes |
 |---|---|---|---|---|---|---|
-| []{#m00}[0 · Setup and hello RL](/modules/00-setup.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale} newest 2026-10-10 |
-| []{#m01}[1 · MDPs, returns and the Bellman equation](/modules/01-mdps-bellman.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale} newest 2026-10-10 |
+| []{#m00}[0 · Setup and hello RL](/modules/00-setup.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-10 | — | — |
+| []{#m01}[1 · MDPs, returns and the Bellman equation](/modules/01-mdps-bellman.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-10 | — | — |
 | []{#m02}[2 · Planning: value iteration, policy iteration and model error](/modules/02-planning.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m03}[3 · Model-free prediction and control](/modules/03-model-free.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m04}[4 · Bandits from first principles](/modules/04-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
@@ -42,12 +42,14 @@
 
 ## Records by lab
 
-::: {.callout-note collapse="true" title="0 · Setup and hello RL: 2 record(s)"}
+::: {.callout-note collapse="true" title="0 · Setup and hello RL: 3 record(s)"}
 - `2026-10-10-local-00-setup-62d3bcb5.json`: 2026-10-10 · local · 16 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
+- `2026-10-10-local-00-setup-c68f53c0.json`: 2026-10-10 · local · 14 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
 - `2026-10-09-local-00-setup-a99409cc.json`: 2026-10-09 · local · 15 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::
 
-::: {.callout-note collapse="true" title="1 · MDPs, returns and the Bellman equation: 2 record(s)"}
+::: {.callout-note collapse="true" title="1 · MDPs, returns and the Bellman equation: 3 record(s)"}
+- `2026-10-10-local-01-mdps-bellman-46f755bb.json`: 2026-10-10 · local · 2 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
 - `2026-10-10-local-01-mdps-bellman-984abc22.json`: 2026-10-10 · local · 0 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-09-local-01-mdps-bellman-5960c215.json`: 2026-10-09 · local · 0 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::

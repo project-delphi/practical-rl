@@ -1,0 +1,108 @@
+{
+  "badge_ref": "main",
+  "checkpoints": [
+    {
+      "exercise": 1,
+      "label": "1",
+      "pass": true,
+      "seconds": 0.003,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": "3a",
+      "label": "3a.1",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": "3a",
+      "label": "3a.2",
+      "pass": true,
+      "seconds": 0.002,
+      "whose": "reference"
+    },
+    {
+      "exercise": "3b",
+      "label": "3b",
+      "pass": true,
+      "seconds": 0.002,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5",
+      "pass": true,
+      "seconds": 0.005,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6.1",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6.2",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    }
+  ],
+  "colab_release": null,
+  "content_sha": "46f755bb0e1d3c70",
+  "date": "2026-10-10",
+  "env": "local",
+  "git_sha": null,
+  "hardware": {
+    "accel": "cpu",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "notebook",
+  "metrics": {},
+  "notebook": "01-mdps-bellman",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "torch": "2.14.1"
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "quick": false,
+  "quick_reason": "designed for colab-cpu; running full settings",
+  "schema": 1,
+  "scope": "notebook",
+  "seat": 0,
+  "seconds": 1.6,
+  "seeds": [],
+  "settings": {},
+  "shims": [],
+  "solutions_bound": true,
+  "source": "tool",
+  "status": "pass",
+  "test_doubles": [],
+  "torch_threads": null
+}
