@@ -105,7 +105,17 @@ class Lab:
                 return obj
             current = self._ns.get(name)
             if current is None or _is_standin(current):
+                print(
+                    f"Solution {n} stored. Run your `# TODO {n}` cell first, or run "
+                    f"lab.use_reference({n}) to continue with this solution."
+                )
                 return _standin(n, name)
+            if current is not obj and current is not self._s["refs"][n].get(name):
+                # Running this cell never replaces the participant's code; say so plainly.
+                print(
+                    f"Solution {n} stored, not used: your own `{name}` stays in place. "
+                    f"To continue with this solution instead, run lab.use_reference({n})."
+                )
             return current  # the participant's own definition (or a reference they chose)
 
         return decorate

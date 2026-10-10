@@ -424,6 +424,15 @@ def lint(built: dict[str, Any], v: dict[str, Any]) -> list[str]:
                             f"{m['slug']} exercise {n}: stubs may only define top-level functions/classes"
                         )
                         break
+            if (
+                cell["id"] == f"ex{n}-stub"
+                and "NotImplementedError" in cell.source
+                and f"lab.use_reference({n})" not in cell.source
+            ):
+                p.append(
+                    f"{m['slug']} exercise {n}: the stub's error must name lab.use_reference({n}), "
+                    "the way out for a stuck participant"
+                )
             if cell["id"] == f"ex{n}-sol" and f"@lab.solution({n})" not in cell.source:
                 p.append(f"{m['slug']} exercise {n}: solution must use @lab.solution({n})")
             if cell["id"].startswith(f"ex{n}-chk") and "lab.check(" not in cell.source:

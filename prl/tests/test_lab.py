@@ -96,3 +96,12 @@ def test_record_is_valid(monkeypatch):
     rec = lab.build_record()
     assert rec["status"] == "pass"
     assert record.validate(rec) == []
+
+
+def test_solution_cell_says_it_does_not_replace_code(monkeypatch, capsys):
+    ns, lab = new_ns(monkeypatch)
+    ns["double"] = lambda x: x + 2
+    reference_double.__name__ = "double"
+    lab.solution(1)(reference_double)
+    out = capsys.readouterr().out
+    assert "not used" in out and "lab.use_reference(1)" in out
