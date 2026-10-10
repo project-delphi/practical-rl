@@ -16,7 +16,8 @@ them; nothing on the site may claim a lab works on a runtime without a record.
    Colab output: `pbpaste | uv run python scripts/add_run_record.py --stdin`.
    The script validates the schema, rejects anything that looks like a
    credential, a private path or a username, checks `env` against
-   `_variables.yml`, and writes `runs/<date>-<env>-<notebook>-<sha8>.json`.
+   `_variables.yml`, and writes `runs/<date>-<env>-<notebook>-<sha8>.json`
+   (with `-2`, `-3`, ... if a different record already has that name; it never overwrites one).
 3. Commit it. The readiness page updates on the next build.
 
 ## What counts as "teaching-eligible"

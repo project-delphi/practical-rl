@@ -8,11 +8,15 @@ never from solver code shipped in this package.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from functools import cache
 from importlib import resources
 from typing import Any
 
 import numpy as np
+
+from .. import runtime
 
 
 class CheckFailed(AssertionError):
@@ -118,8 +122,84 @@ def assert_true(cond: bool, message: str) -> None:
         raise CheckFailed(message)
 
 
+@dataclass(frozen=True, eq=False)
+class StochasticCheck:
+    """A checkpoint whose outcome depends on the seed: a metric compared with a threshold.
+
+    Declare it once in prl/checks/mNN.py. It is used two ways:
+
+    - as the checkpoint: ``lab.check(n, mNN.check_x, fn)`` calls it, which computes
+      ``metric(fn, seed=self.seed, **budget)`` at the live or QUICK budget (from
+      ``runtime.settings``) and compares the value with that budget's threshold;
+    - by scripts/threshold_protocol.py, which computes the same metric over many seeds
+      for the reference solution and for every mutant of `functions`, and prints the
+      ``thresholds`` entry to paste here, with its provenance comment.
+
+    `metric` takes the participant's functions positionally, in the order of
+    `functions`, plus ``seed=`` and the budget's keys, and returns a float. It must take
+    all of its randomness from `seed`. It may raise CheckFailed for an answer that is
+    wrong whatever the seed (a wrong shape, say). `min_gap` is the smallest acceptable
+    distance, in the metric's units, between the solution and the strongest wrong
+    version. `thresholds` maps "live" and "quick" to (threshold, provenance).
+    """
+
+    ex: int | str
+    functions: str | tuple[str, ...]
+    metric: Callable[..., float]
+    live: Mapping[str, Any]
+    quick: Mapping[str, Any]
+    higher_is_better: bool
+    min_gap: float
+    what: str = "result"
+    designed: str = "colab-cpu"
+    seed: int = 0
+    thresholds: Mapping[str, tuple[float, str]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        names = (self.functions,) if isinstance(self.functions, str) else tuple(self.functions)
+        object.__setattr__(self, "functions", names)
+        object.__setattr__(self, "ex", str(self.ex))
+        if not names:
+            raise ValueError("a StochasticCheck needs at least one function name")
+        if not self.min_gap > 0:
+            raise ValueError("min_gap must be a positive number in the metric's units")
+        if set(self.live) != set(self.quick):
+            raise ValueError("live and quick budgets must have the same keys")
+        if "seed" in self.live:
+            raise ValueError("'seed' cannot be a budget key; the check passes it separately")
+        unknown = set(self.thresholds) - {"live", "quick"}
+        if unknown:
+            raise ValueError(f"thresholds keys must be 'live' or 'quick', not {sorted(unknown)}")
+
+    def settings(self) -> runtime.Settings:
+        """The budget this runtime uses: live, or QUICK (same keys, smaller numbers)."""
+        return runtime.settings(dict(self.live), dict(self.quick), designed=self.designed)
+
+    def measure(self, *fns: Any, seed: int, budget: Mapping[str, Any]) -> float:
+        """The metric of `fns` at one seed and budget (the protocol calls this too)."""
+        return float(self.metric(*fns, seed=seed, **budget))
+
+    def __call__(self, *fns: Any) -> None:
+        budget = self.settings()
+        if budget.source not in self.thresholds:
+            raise RuntimeError(
+                f"This checkpoint has no threshold for the {budget.source} budget yet. "
+                "(Authors: run scripts/threshold_protocol.py and paste its entry.)"
+            )
+        threshold, provenance = self.thresholds[budget.source]
+        value = self.measure(*fns, seed=self.seed, budget=budget)
+        assert_threshold(
+            value,
+            threshold,
+            provenance=provenance,
+            higher_is_better=self.higher_is_better,
+            what=self.what,
+        )
+
+
 __all__ = [
     "CheckFailed",
+    "StochasticCheck",
     "assert_close",
     "assert_shape",
     "assert_simplex",

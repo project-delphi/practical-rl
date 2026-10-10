@@ -1,0 +1,71 @@
+name: Colab-like notebook check
+description: >-
+  Builds a Colab-like environment from the freeze in ci/colab/ (Python 3.13 and Colab's torch,
+  numpy, scipy, ...) and runs one notebook in worked, learner and verify modes with PRL_QUICK=1.
+  Shared by ci.yml (every PR, pinned freeze) and health.yml (a bumped freeze). Check out the
+  repository first.
+
+inputs:
+  notebook:
+    description: Notebook name without .ipynb, for example 00-setup.
+    required: true
+  freeze-commit:
+    description: >-
+      Optional googlecolab/backend-info commit. When set, ci/colab/ is bumped to it first, so the
+      notebook runs on that freeze instead of the pinned one.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v10.2.0
+      with:
+        python-version: "3.13"
+        enable-cache: true
+    - name: Use the Colab freeze at the freeze-commit input (health.yml only)
+      if: inputs.freeze-commit != ''
+      shell: bash
+      env:
+        COMMIT: ${{ inputs.freeze-commit }}
+        GH_TOKEN: ${{ github.token }}
+      run: uv run --no-project --with pyyaml python scripts/colab_constraints.py bump --commit "$COMMIT"
+    - name: colab-sim settings (CI posing as Colab for the install path; QUICK budgets)
+      shell: bash
+      run: |
+        {
+          echo "PRL_PLATFORM=colab-sim"
+          echo "PRL_QUICK=1"
+          echo "MPLBACKEND=Agg"
+          echo "PRL_SPEC=$GITHUB_WORKSPACE/prl"
+        } >> "$GITHUB_ENV"
+    - name: Build a Colab-like environment (Colab's versions of torch, numpy, scipy, ...)
+      shell: bash
+      run: |
+        uv venv --seed --python 3.13 .colab
+        uv run --no-project --with pyyaml python scripts/colab_constraints.py sim-requirements --out sim.txt
+        uv pip install --python .colab/bin/python -r sim.txt \
+          --extra-index-url https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match
+    - name: Shadow older system copies on sys.path, as Ubuntu's dist-packages does on Colab
+      shell: bash
+      run: |
+        uv pip install --target .colab-system "typing_extensions==4.10.0"
+        uv pip install --target .colab-system --no-deps "numpy==2.1.0"
+        SP=$(.colab/bin/python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
+        echo "$GITHUB_WORKSPACE/.colab-system" > "$SP/zz-system-dist-packages.pth"
+        .colab/bin/python -c "import importlib.metadata as md; print(sorted({(d.metadata['Name'], d.version) for d in md.distributions() if d.metadata['Name'] in ('numpy', 'typing_extensions')}))"
+    - name: Worked mode (solutions bound; the setup cell installs prl the Colab way)
+      shell: bash
+      env:
+        NOTEBOOK: ${{ inputs.notebook }}
+      run: .colab/bin/python scripts/check_notebooks.py --mode worked "$NOTEBOOK"
+    - name: Learner mode (must stop at the first TODO)
+      shell: bash
+      env:
+        NOTEBOOK: ${{ inputs.notebook }}
+      run: .colab/bin/python scripts/check_notebooks.py --mode learner "$NOTEBOOK"
+    - name: Verify mode (every checkpoint rejects its stub and every mutant)
+      shell: bash
+      env:
+        NOTEBOOK: ${{ inputs.notebook }}
+      run: .colab/bin/python scripts/check_notebooks.py --mode verify "$NOTEBOOK"

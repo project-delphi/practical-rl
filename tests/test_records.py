@@ -23,3 +23,15 @@ def test_colab_env_requires_colab_platform():
     rec = {"kind": "notebook", "platform": "local", "env": "colab-cpu", "notebook": "00-setup"}
     problems = add_run_record.check(rec, variables.load())
     assert any("only runs on Colab" in p for p in problems)
+
+
+def test_filing_never_overwrites_a_different_record(tmp_path, monkeypatch):
+    monkeypatch.setattr(add_run_record, "RUNS", tmp_path)
+    v = variables.load()
+    rec = json.loads(committed()[-1].read_text())
+    first = add_run_record.file_record(rec, v)
+    assert add_run_record.file_record(rec, v) == first  # the same record again: a no-op
+    second = add_run_record.file_record({**rec, "seconds": rec["seconds"] + 1}, v)
+    third = add_run_record.file_record({**rec, "seconds": rec["seconds"] + 2}, v)
+    assert second.name == f"{first.stem}-2.json" and third.name == f"{first.stem}-3.json"
+    assert json.loads(first.read_text()) == rec

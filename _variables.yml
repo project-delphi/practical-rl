@@ -228,7 +228,7 @@ modules:
         writes: [bellman_residual, evaluate_suspect]
         predict_answer: "about 1e−14: the solve rounds, so not exactly 0"
         explain_ref: "(residual)"
-    status: {briefing: draft, lab: draft}
+    status: {briefing: reviewed, lab: reviewed}
 
   m02:
     n: 2

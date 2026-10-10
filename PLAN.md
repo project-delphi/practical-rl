@@ -10,7 +10,8 @@ A five-day, practical, first-principles reinforcement learning workshop by Genia
 | Language | Python only |
 | Spelling | American English |
 
-**Status: Phase 0 (research and plan), 2026-10-09.**
+**Status: Phase 2 done (golden Module 1, merged 2026-10-10); Phase 3 is next.** Phase 1's exit
+still lacks its two human Colab smoke runs (§13); their records are not filed.
 
 - The draft was reviewed by four persona agents (§11): academic director, pedagogy expert, technical expert and UI expert. Their findings are folded in.
 - Nothing in this file is a measurement. Every minute count is a design budget. It includes the time participants spend on the Predict → Run → Explain → Check rhythm. Phase 3 timed runs confirm it for compute, and a human pilot confirms it for people.
@@ -1026,7 +1027,7 @@ No algorithms. Dependencies: numpy, scipy, gymnasium, matplotlib. No torch.
 |---|---|
 | `runtime` | `detect()`: platform, accelerator, CPU model, n_cpu, RAM. `device()`. `quick(designed)` → (flag, reason). `settings(live, quick)`. `seed_everything()`. `print_versions()`. `test_double(...)`. `API`. |
 | `lab` | `init(notebook, content_sha, designed, api, ns=globals())` → `Lab`, with `.solution(n)`, `.solution_value()`, `.use_reference(n)`, `.check(n, fn, *objs, label)`, `.metric()`, `.summary()`, `.finish()`. State lives as plain dicts in `ns["__prl_lab__"]`, so rerunning `init` keeps the stored references and stubs, and reloading `prl` cannot break `isinstance`. `check` decides "whose code" by identity against the stored references. It catches `CheckFailed`, prints the help message, records the result, then re-raises. A record's `status` is "pass" only if every checkpoint was reached and passed. |
-| `checks` | `CheckFailed`, `assert_close/shape/simplex`, `assert_threshold(v, t, provenance)`, `mNN.check_*` (loading `_expected` fixtures) |
+| `checks` | `CheckFailed`, `assert_close/shape/simplex`, `assert_threshold(v, t, provenance)`, `StochasticCheck` (a seeded metric, its direction, live and QUICK budgets, a stated minimum gap and per-budget thresholds; it is both the checkpoint and the threshold protocol's input), `mNN.check_*` (loading `_expected` fixtures) |
 | `envs` | `TabularMDP(P, R, γ).validate()`, `CliffGridworld`, `RiverSwim`, `InventoryMDP`, `RecSim`, `Baird`, `register()`. Probe environments are *not* in `prl`: Module 9 participants write them (decided in Phase 1) |
 | `data` | `load(name)` (sha-checked), `LoggedBandit`, `Transitions`, `generate_logs()` |
 | `evaluate` | `run_seeds`, `bootstrap_ci`, `iqm` (`scipy.stats.trim_mean(x, 0.25)`), `stratified_bootstrap`, `compare(a, b, budget)` → A, B or tie plus a sentence, `rollout_returns`. Replaces rliable, which was archived 2025-10-15. |
@@ -1081,6 +1082,8 @@ No algorithms. Dependencies: numpy, scipy, gymnasium, matplotlib. No torch.
   - **Threshold:** the midpoint between the solution's 1st percentile and the 99th percentile of the strongest mutant (or random). The protocol requires a stated gap between the two.
   - **Platforms:** it runs in the colab-sim environment plus arm64.
   - **Output:** an experiment record. The checkpoint's provenance comment states N and the implied flake bound (the rule of three: with no failures in N, the upper bound is about 3/N).
+  - **Declaration:** a `StochasticCheck` in `prl/checks/mNN.py`. The wrong versions are the exercise's mutants of the checked function; random play is a mutant with `id="random"`. The solution is what the worked notebook binds before the exercise's run cell. The protocol fails when the gap is below `min_gap`, when any solution seed fails, or when any mutant seed passes. `--from-record` re-derives a threshold from its record.
+  - *Built 2026-10-10* and tested on a synthetic lab only; no real lab has a stochastic checkpoint yet. *Not built yet:* verify mode still reruns the mutants of every checkpoint on each CI run. It must skip the training-based ones before M8.
 
 ### `_variables.yml` (schema)
 | Key | Contents |
@@ -1141,6 +1144,7 @@ Each `modules.mNN` entry has:
   - macOS arm64;
   - a **ci-proxy** job (`taskset` to 2 cores, live budgets), recorded as `ci-proxy` and never counted as "designed";
   - the full UI matrix (WebKit, 200% zoom).
+  - *Built 2026-10-10:* the locked-environment run (Linux and macOS arm64, live budgets), the `backend-info` bump with colab-compat and colab-sim on the new freeze and a PR, and the `uv lock --upgrade` report. *Not built yet:* the M12 Hub path, ci-proxy and the full UI matrix. The colab-sim steps live in `.github/actions/colab-sim`, shared with `ci.yml`.
 
 ---
 

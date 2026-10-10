@@ -1,0 +1,284 @@
+name: Health
+
+# Weekly checks that are too slow or too broad for every PR (PLAN.md §7, CI). ci.yml stays the
+# PR gate; nothing here changes what it checks.
+#
+# Deferred (listed in the plan, not buildable or useful yet):
+#   - M12 Hub path: there is no M12 notebook yet.
+#   - ci-proxy (taskset to 2 cores, live budgets): M0 and M1 run in seconds; add it when a lab's live compute is worth timing.
+#   - Full UI matrix (WebKit, 200% zoom): scripts/site_check.py drives Chromium only; pages.yml runs it on every PR.
+
+on:
+  schedule:
+    - cron: "23 5 * * 1" # Mondays 05:23 UTC (off the hour, when scheduled runs queue less)
+  workflow_dispatch:
+    inputs:
+      freeze-commit:
+        description: To exercise the bump path, a googlecolab/backend-info commit to use instead of the newest
+        required: false
+        default: ""
+
+concurrency:
+  group: health-${{ github.ref }}
+  cancel-in-progress: false # a second run waits; never cut a bump PR off halfway
+
+permissions:
+  contents: read
+
+jobs:
+  notebooks:
+    name: List notebooks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: list
+        run: echo "matrix=$(cd notebooks && printf '%s\n' *.ipynb | sed 's/\.ipynb$//' | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------- locked environment
+  # uv.lock as committed (torch 2.14.1+cpu, numpy 2.5.3, ...), not Colab's freeze. Fixtures,
+  # thresholds and prl must hold in both. Python 3.13, as in .python-version. macOS arm64 runs
+  # the same checks as Linux: it is what most laptops run.
+
+  locked-tests:
+    name: Tests, locked environment (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Install the locked environment (default groups dev and cpu; CPU torch)
+        run: uv sync --locked
+      - name: Tests (prl, generators, notebook build, records, pages)
+        run: uv run --locked pytest
+
+  locked-notebooks:
+    name: Notebook ${{ matrix.notebook }} (locked, live, ${{ matrix.os }})
+    needs: notebooks
+    runs-on: ${{ matrix.os }}
+    # Two live passes (worked, verify) of a lab designed for <= 12 min of live compute on 2 vCPUs,
+    # plus the install. M0 and M1 need far less.
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        notebook: ${{ fromJson(needs.notebooks.outputs.matrix) }}
+    # Live budgets: PRL_QUICK is left unset on purpose. Every PR already runs QUICK in colab-sim,
+    # so this weekly run is the one place that executes the settings participants run, where the
+    # stochastic thresholds and fixtures were set. M0 and M1 take seconds live (local records in
+    # runs/). If a later lab nears the timeout, raise it for that lab; don't switch to QUICK.
+    # Nothing here is filed as a run record: CI times are not Colab times.
+    env:
+      MPLBACKEND: Agg
+      NOTEBOOK: ${{ matrix.notebook }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Install the locked environment (default groups dev and cpu; CPU torch)
+        run: uv sync --locked
+      - name: Worked mode (solutions bound)
+        run: uv run --locked python scripts/check_notebooks.py --mode worked "$NOTEBOOK"
+      - name: Learner mode (must stop at the first TODO)
+        run: uv run --locked python scripts/check_notebooks.py --mode learner "$NOTEBOOK"
+      - name: Verify mode (every checkpoint rejects its stub and every mutant)
+        run: uv run --locked python scripts/check_notebooks.py --mode verify "$NOTEBOOK"
+
+  # ---------------------------------------------------------------- Colab freeze bump
+  # bump compares googlecolab/backend-info's newest commit with ci/colab/. If a freeze file
+  # changed, colab-compat and colab-sim run on the new freeze (each job re-fetches that exact
+  # commit, so all of them test the same bytes) and bump-pr opens a PR. A person merges it.
+
+  bump:
+    name: Look for a newer Colab freeze
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      changed: ${{ steps.bump.outputs.changed }}
+      commit: ${{ steps.bump.outputs.commit }}
+      short: ${{ steps.bump.outputs.short }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - id: bump
+        name: Fetch the newest freeze and compare it with ci/colab/
+        env:
+          GH_TOKEN: ${{ github.token }} # API rate limit only; the upstream repo is public
+          COMMIT: ${{ inputs.freeze-commit }} # empty on the schedule: use the newest
+        run: |
+          args=(bump --report bump.md)
+          if [ -n "$COMMIT" ]; then args+=(--commit "$COMMIT"); fi
+          uv run --no-project --with pyyaml python scripts/colab_constraints.py "${args[@]}"
+          cat bump.md >> "$GITHUB_STEP_SUMMARY"
+
+  bump-compat:
+    name: colab-compat on the new freeze
+    needs: bump
+    if: needs.bump.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Use the new freeze
+        env:
+          COMMIT: ${{ needs.bump.outputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+        run: uv run --no-project --with pyyaml python scripts/colab_constraints.py bump --commit "$COMMIT"
+      - name: CPU runtime freeze
+        run: uv run --no-project --with pyyaml python scripts/colab_constraints.py compat --runtime cpu
+      - name: GPU runtime freeze
+        if: success() || failure()
+        run: uv run --no-project --with pyyaml python scripts/colab_constraints.py compat --runtime gpu
+
+  bump-colab-sim:
+    name: Notebook ${{ matrix.notebook }} (Colab-like, QUICK, new freeze)
+    needs: [bump, notebooks]
+    if: needs.bump.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        notebook: ${{ fromJson(needs.notebooks.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      # The same steps as ci.yml's colab-sim job, on the new freeze.
+      - uses: ./.github/actions/colab-sim
+        with:
+          notebook: ${{ matrix.notebook }}
+          freeze-commit: ${{ needs.bump.outputs.commit }}
+
+  # PRs and pushes made with GITHUB_TOKEN do not trigger other workflows, so ci.yml will not run
+  # on this PR by itself. That is why this workflow runs colab-compat and colab-sim on the new
+  # freeze itself and writes their results into the PR body. Before merging, a maintainer closes
+  # and reopens the PR, which runs ci.yml as that person. No PAT or GitHub App token: the repo
+  # holds no secrets. The repository setting "Allow GitHub Actions to create and approve pull
+  # requests" must be on; if it is off, the job pushes the branch, links it in the summary and fails.
+  bump-pr:
+    name: Open a PR with the new freeze
+    needs: [bump, bump-compat, bump-colab-sim]
+    if: ${{ !cancelled() && needs.bump.outputs.changed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the bump branch
+      pull-requests: write # open the PR or update its body
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      COMMIT: ${{ needs.bump.outputs.commit }}
+      SHORT: ${{ needs.bump.outputs.short }}
+      BRANCH: health/colab-freeze-${{ needs.bump.outputs.short }}
+      BASE: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Apply the new freeze and write the PR body
+        env:
+          COMPAT: ${{ needs.bump-compat.result }}
+          SIM: ${{ needs.bump-colab-sim.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          uv run --no-project --with pyyaml python scripts/colab_constraints.py bump --commit "$COMMIT" --report report.md
+          {
+            echo "Opened by health.yml ($EVENT run): $RUN_URL"
+            echo
+            echo "| Check on the new freeze | Result |"
+            echo "|---|---|"
+            echo "| colab-compat, CPU and GPU freezes | $COMPAT |"
+            echo "| colab-sim, every notebook (worked, learner, verify; QUICK) | $SIM |"
+            echo
+            echo "ci.yml has not run on this PR: PRs opened with GITHUB_TOKEN do not trigger workflows."
+            echo "Before merging, close and reopen this PR so ci.yml runs."
+            echo
+            cat report.md
+          } > body.md
+          cat body.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Push the branch and open the PR (or update its body)
+        run: |
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then
+            # Same upstream commit as an earlier run. Keep the branch: a person may have pushed to it.
+            echo "Branch $BRANCH exists; leaving it as it is."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git switch -c "$BRANCH"
+            git add ci/colab _variables.yml
+            git commit -m "Colab freeze: googlecolab/backend-info@$SHORT" \
+              -m "Opened by .github/workflows/health.yml; the PR body has the package diff and the checks."
+            git push origin "HEAD:refs/heads/$BRANCH"
+          fi
+          TITLE="Colab freeze: bump to googlecolab/backend-info@$SHORT"
+          STATE=$(gh pr list --head "$BRANCH" --state all --limit 1 --json state --jq '.[0].state // ""')
+          if [ "$STATE" = "OPEN" ]; then
+            gh pr edit "$BRANCH" --title "$TITLE" --body-file body.md
+          elif [ -n "$STATE" ]; then
+            # Closed unmerged means a person declined this freeze; don't reopen it every week.
+            echo "The PR for $BRANCH is $STATE; not opening another." | tee -a "$GITHUB_STEP_SUMMARY"
+          elif ! gh pr create --base "$BASE" --head "$BRANCH" --title "$TITLE" --body-file body.md; then
+            {
+              echo
+              echo "### The PR could not be opened"
+              echo "Open it by hand: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BASE...$BRANCH?expand=1"
+              echo "To let this job open it, turn on Settings > Actions > General >"
+              echo "\"Allow GitHub Actions to create and approve pull requests\"."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Could not open the PR for $BRANCH; see the job summary."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------- uv lock --upgrade
+  lock-upgrade:
+    name: uv lock --upgrade (report only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: What an upgraded lock would change (job summary; never fails)
+        run: |
+          set +e
+          uv lock --upgrade --dry-run > upgrade.txt 2>&1
+          code=$?
+          changes=$(grep -cE '^(Add|Update|Remove) ' upgrade.txt)
+          {
+            echo "## uv lock --upgrade (dry run; uv.lock is not changed)"
+            echo
+            if [ "$code" -ne 0 ]; then
+              echo "uv could not resolve an upgraded lock (exit code $code)."
+            else
+              echo "$changes package change(s) available."
+            fi
+            echo
+            echo '```'
+            cat upgrade.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat upgrade.txt
+          exit 0
