@@ -537,6 +537,19 @@ main.content table caption {
   white-space: nowrap;
 }
 
+// Exercise links open a fresh copy of the notebook in a new tab, so they carry the same
+// arrow as the buttons, with the same rule for its alternative text (see buttons above).
+// The arrow is inline: U+2197 never breaks away from the word before it.
+.lab-steps a[target="_blank"]::after {
+  content: "\2197" / " (opens in a new tab)";
+  margin-left: 0.2em;
+  font-weight: 400;
+}
+
+.lab-steps a[target="_blank"]:has(.visually-hidden)::after {
+  content: "\2197" / "";
+}
+
 .lab-steps tbody tr:last-child td,
 .live-plan tbody tr:last-child td {
   border-top: 2px solid var(--prl-border);
