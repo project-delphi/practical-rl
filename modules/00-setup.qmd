@@ -1,10 +1,10 @@
 ---
 title: "{{< var modules.m00.title >}}"
 live:
-  - {section: 1, minutes: 5, activities: [{block: do-ex0, minutes: 4, label: "In the lab: setup and Exercise 0"}]}
-  - {section: 2, minutes: 5, activities: [{block: do-ex1, minutes: 4, label: "In the lab: Exercise 1"}]}
-  - {section: 3, minutes: 5, activities: [{block: do-ex2, minutes: 4, label: "In the lab: Exercise 2"}]}
-  - {section: 4, minutes: 5, activities: [{block: do-ex3, minutes: 4, label: "In the lab: Exercise 3 and the last cell"}]}
+  - {section: 1, minutes: 5, activities: [{block: do-ex0, minutes: 3, label: "In the lab: setup and Exercise 0"}]}
+  - {section: 2, minutes: 5, activities: [{block: do-ex1, minutes: 3, label: "In the lab: Exercise 1"}]}
+  - {section: 3, minutes: 5, activities: [{block: do-ex2, minutes: 3, label: "In the lab: Exercise 2"}]}
+  - {section: 4, minutes: 5, activities: [{block: do-ex3, minutes: 3, label: "In the lab: Exercise 3 and the last cell"}]}
 ---
 
 {{< include /_includes/module-00.md >}}
