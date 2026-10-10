@@ -28,7 +28,7 @@ $$
 \text{sales} = \min(x + q,\ D), \qquad \text{left} = x + q - \text{sales}, \qquad \text{lost} = D - \text{sales}.
 $$
 
-The money for one period is the price of 4 per unit sold, minus the order cost (5 for placing any order, plus 2 per unit ordered), minus a holding cost of 0.2 per unit left on the shelf, minus a penalty of 1 per unit of lost demand:
+The money for one period is the price of 4 per unit sold, minus the order cost (5 if any units arrive, plus 2 per unit that arrives), minus a holding cost of 0.2 per unit left on the shelf, minus a penalty of 1 per unit of lost demand:
 
 $$
 \text{reward} = 4\,\text{sales} - \big(5\,[q > 0] + 2q\big) - 0.2\,\text{left} - 1 \cdot \text{lost},
