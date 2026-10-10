@@ -139,17 +139,34 @@ main.content a:not(.btn-colab):not(.btn-quiet):not(.chip):not(.anchorjs-link) {
   text-underline-offset: 0.18em;
 }
 
+// Code never takes a hyphen: on phones the table cells use hyphens: auto (below), and a
+// hyphen inside an identifier reads as a minus sign or part of the name.
 code,
 kbd,
 pre,
 samp {
   font-variant-ligatures: none;
+  -webkit-hyphens: none;
+  hyphens: none;
 }
 
 // Quarto gives inline code white-space: pre, which never wraps; a long span then scrolls
 // the page sideways on a phone. pre-wrap keeps the spaces and lets it wrap.
 :not(pre) > code {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+// Code blocks wrap (code-overflow: wrap). A wrapped line continues 2ch past its own
+// indent, so it never looks like a new line: Python indents in steps of 4, so no real
+// line starts there. styles/prl-head.html sets --prl-hang per line from its leading
+// spaces; without it, wrapped lines continue 2ch in. Each line is an inline-block span
+// (Pandoc), so text-indent applies to it; padding and indent add no characters, so
+// copying and selecting are unchanged. The padding narrows the line, so a long token
+// (np.linalg.solve(np.eye(S)) may break inside itself rather than scroll out of sight.
+div.sourceCode pre > code.sourceCode > span {
+  padding-left: var(--prl-hang, 2ch);
+  text-indent: calc(-1 * var(--prl-hang, 2ch));
   overflow-wrap: anywhere;
 }
 
@@ -185,6 +202,29 @@ samp {
 // Bootstrap draws a focus shadow on the toggler for any :focus; keep only :focus-visible.
 .navbar-toggler:focus:not(:focus-visible) {
   box-shadow: none;
+}
+
+// ---------------------------------------------------------------- skip link (styles/prl-skip.html)
+// The first Tab stop on every page. Bootstrap's .visually-hidden-focusable hides it until
+// it has focus; then it shows above the fixed navbar, with the page's focus ring.
+.prl-skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 1100;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--prl-border);
+  border-radius: 0.5rem;
+  background-color: var(--prl-bg);
+  color: var(--prl-link);
+  font-weight: 600;
+  text-decoration-line: underline;
+  text-underline-offset: 0.18em;
+}
+
+.prl-skip-link:hover,
+.prl-skip-link:focus {
+  color: var(--prl-link);
 }
 
 // ---------------------------------------------------------------- utilities
@@ -358,10 +398,11 @@ a.btn-quiet[target="_blank"]:has(.visually-hidden)::after {
   }
 }
 
+// No tabular figures here (see the tables section): the clock is one line, so there is
+// nothing to align, and it also holds words such as "Pre-work" and "Self-paced".
 .module-clock {
   display: block;
   color: var(--prl-muted);
-  font-variant-numeric: tabular-nums;
 }
 
 // ---------------------------------------------------------------- facts box (what)
@@ -463,7 +504,15 @@ a.btn-quiet[target="_blank"]:has(.visually-hidden)::after {
 }
 
 // ---------------------------------------------------------------- tables
-main.content table {
+// Tabular figures only in cells that hold numbers. Inter's tnum also widens the hyphen,
+// comma, period, colon and parentheses, so in prose it spaces out "Pre-work" or "2-norm".
+// Number columns: the lab table's # and Min, the live plan's Minutes, the schedule's Time.
+// A table of numbers on a page can opt in by sitting in a ::: {.numeric} div.
+.lab-steps td:first-child,
+.lab-steps td:last-child,
+.live-plan td:first-child,
+main.content table.schedule-clock td:first-child,
+.numeric td {
   font-variant-numeric: tabular-nums;
 }
 
@@ -490,6 +539,19 @@ main.content table caption {
   width: 5.5rem;
   text-align: right;
   white-space: nowrap;
+}
+
+// Exercise links open a fresh copy of the notebook in a new tab, so they carry the same
+// arrow as the buttons, with the same rule for its alternative text (see buttons above).
+// The arrow is inline: U+2197 never breaks away from the word before it.
+.lab-steps a[target="_blank"]::after {
+  content: "\2197" / " (opens in a new tab)";
+  margin-left: 0.2em;
+  font-weight: 400;
+}
+
+.lab-steps a[target="_blank"]:has(.visually-hidden)::after {
+  content: "\2197" / "";
 }
 
 .lab-steps tbody tr:last-child td,

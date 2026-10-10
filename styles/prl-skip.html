@@ -1,0 +1,11 @@
+<!-- Practical RL (styles/prl-skip.html, include-before-body): a skip link that is the first
+     Tab stop on every page and skips the navbar and the sidebar (WCAG 2.4.1). Styled in
+     styles/prl.scss. Quarto's website layout places this include inside <main>, after the
+     navigation, so the script moves the link to the top of <body> as the page is parsed. -->
+<a class="prl-skip-link visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
+<script>
+  (function () {
+    var link = document.querySelector(".prl-skip-link");
+    if (link) document.body.insertBefore(link, document.body.firstChild);
+  })();
+</script>
