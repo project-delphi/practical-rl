@@ -221,6 +221,8 @@ def test_no_wrong_version_is_refused(lab):
 def test_record_validates_and_rederives(lab, tmp_path, capsys):
     res = run(lab, make_check())
     rec = tp.build_record(res)
+    # A long CPU name, as GitHub's runners report: the output must not depend on the host.
+    rec["hardware"]["cpu"] = "AMD EPYC 7763 64-Core Processor"
     assert record.validate(rec) == []
     assert add_run_record.check(rec, variables.load()) == []
     assert rec["kind"] == "experiment" and rec["seeds"] == list(range(100))
@@ -234,7 +236,13 @@ def test_record_validates_and_rederives(lab, tmp_path, capsys):
     assert tp.main(["--from-record", str(path)]) == 0
     out = capsys.readouterr().out
     assert f'"quick": ({res.analysis.threshold!r}, "threshold protocol, 100 seeds: runs/' in out
-    assert "N = 100 seeds" in out and "3/N = 3.0%" in out
+    # The provenance comment wraps at a width, so read it as one line.
+    comment = " ".join(
+        line.strip().removeprefix("#").strip()
+        for line in out.splitlines()
+        if line.strip().startswith("#")
+    )
+    assert "N = 100 seeds" in comment and "3/N = 3.0%" in comment
 
 
 def test_cli_refuses_a_check_that_is_not_stochastic(capsys):
