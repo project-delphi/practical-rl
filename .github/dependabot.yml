@@ -1,0 +1,15 @@
+# GitHub Actions are pinned to commit SHAs with the release in a comment; Dependabot bumps
+# both. Python packages are not listed: their pins follow Colab's freeze (colab-compat), and
+# health.yml reports what `uv lock --upgrade` would change.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories: ["/", "/.github/actions/*"]
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "CI"
