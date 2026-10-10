@@ -14,14 +14,15 @@ Questions for [Module 1 · MDPs, returns and the Bellman equation](/modules/01-m
 
 ### Objective 1: encode a finite MDP as arrays and validate it
 
-[**1.1**]{#q1-1} In the 4 × 12 cliff gridworld (state = row · 12 + column, row 0 at the top; actions 0 up, 1 right, 2 down, 3 left), the start is the bottom-left cell. Give its state number, and for each of the four actions the nonzero entry of `P[start, a, :]` and the value `R[start, a]`.
+[**1.1**]{#q1-1} In the 4 × 12 cliff gridworld (state = row · 12 + column, row 0 at the top; start bottom-left, goal bottom-right, the cliff between them; actions 0 up, 1 right, 2 down, 3 left), take state 25. Which cell is it, and which action leads into the cliff? For each of the four actions, give the nonzero entry of `P[25, a, :]` and the value `R[25, a]`.
 
 ::: {.callout-tip collapse="true" title="Answer to 1.1"}
-The start is row 3, column 0: state $3 \cdot 12 + 0 = 36$.
+State 25 is row 2, column 1, since $25 = 2 \cdot 12 + 1$. It is the cell just above state 37, the first cliff cell, so down (action 2) leads into the cliff.
 
-- Up: `P[36, 0, 24] = 1`, `R[36, 0] = -1`.
-- Right: the move lands in the cliff, so it returns to the start: `P[36, 1, 36] = 1`, `R[36, 1] = -100`.
-- Down and left: the move would leave the grid, so you stay: `P[36, 2, 36] = P[36, 3, 36] = 1`, with reward $-1$ each.
+- Up: `P[25, 0, 13] = 1`, `R[25, 0] = -1`.
+- Right: `P[25, 1, 26] = 1`, `R[25, 1] = -1`.
+- Down: the move lands in the cliff, so it returns to the start, state 36: `P[25, 2, 36] = 1`, `R[25, 2] = -100`. No entry points to 37, because you are never *in* a cliff cell.
+- Left: `P[25, 3, 24] = 1`, `R[25, 3] = -1`.
 
 **Evidence:** Lab 1, checkpoint 2.
 :::
@@ -36,14 +37,12 @@ The start is row 3, column 0: state $3 \cdot 12 + 0 = 36$.
 
 ### Objective 2: frame inventory control as an MDP and justify the choices
 
-[**1.3**]{#q1-3} The lab's shop holds at most 10 units. How many states and actions does its MDP have? With the lab's prices (4 per sale; 5 per order plus 2 per unit; 0.2 per unit left over; 1 per unit of lost demand), what is the reward of a period that starts with 3 units, orders 4 and meets a demand of 5? And with a demand of 9?
+[**1.3**]{#q1-3} The lab's shop holds at most 10 units. Its prices: 4 per unit sold; 5 per delivery plus 2 per unit that arrives; 0.2 per unit left over; 1 per unit of lost demand. A period starts with 8 units, you order 5, and demand is 3. How many units arrive, and what is the period's reward?
 
 ::: {.callout-tip collapse="true" title="Answer to 1.3"}
-11 states (stock 0 to 10) and 11 actions (order 0 to 10; an order larger than $10 - x$ is cut to $10 - x$).
+The order is cut so the shelf never overflows: $q = \min(5,\ 10 - 8) = 2$ units arrive, and 10 are on the shelf. You sell 3, keep 7 and lose none. The order cost is charged on the 2 units that arrive, so the reward is $4 \cdot 3 - (5 + 2 \cdot 2) - 0.2 \cdot 7 - 0 = 12 - 9 - 1.4 = 1.6$.
 
-With 3 in stock and 4 ordered, 7 units are on the shelf. Demand 5: sell 5, keep 2, lose none. The reward is $4 \cdot 5 - (5 + 2 \cdot 4) - 0.2 \cdot 2 - 0 = 6.6$. Demand 9: sell 7, keep 0, lose 2. The reward is $28 - 13 - 0 - 2 = 13$.
-
-**Evidence:** Lab 1, checkpoints 3a.1 (counts) and 3a.2 (rewards on hand-worked cases).
+**Evidence:** Lab 1, checkpoint 3a.2 (rewards on hand-worked cases).
 :::
 
 [**1.4**]{#q1-4} Suppose orders take one full period to arrive. Is the stock on hand still a valid state? If not, what must you add, and why? Which of the lab's modeling choices is a judgment rather than a fact about the shop?
@@ -73,7 +72,7 @@ Iterating: $V_1 = r_\pi = (2, -1)$, with error 1 against the bound $0.5 \cdot 3 
 ::: {.callout-tip collapse="true" title="Answer to 1.6"}
 The iteration bound grows like $1/\log(1/\gamma)$: each factor of 10 in accuracy costs $\log 10 / \log(1/\gamma)$ sweeps, about 22 at $\gamma = 0.9$ and about 229 at $\gamma = 0.99$, some 10.5 times as many. The starting error $\lVert V^\pi \rVert_\infty$ can also grow with $\gamma$, so expect about ten times as many sweeps or more. The stopping rule guarantees an error of at most $\gamma\, \mathrm{tol}/(1 - \gamma)$: $9 \times 10^{-6}$ at $\gamma = 0.9$ and $9.9 \times 10^{-5}$ at $\gamma = 0.99$.
 
-**Evidence:** Lab 1, checkpoint 5, and the provided $\gamma$ sweep in Exercise 5.
+**Evidence:** Lab 1, checkpoint 5, and the provided runs at several values of $\gamma$ in Exercise 5.
 :::
 
 ### Objective 4: find a wrong evaluator from its Bellman residual
