@@ -93,11 +93,14 @@ website:
       - href: readiness.qmd
         text: Readiness
 
-# Lua filters (ui-expert): self-hosted KaTeX, <details> disclosure, scrollable table regions.
+# Lua filters (ui-expert): self-hosted KaTeX, <details> disclosure, scrollable table regions,
+# and light/dark figure pairs (after Quarto has numbered and captioned the figure).
 filters:
   - filters/katex.lua
   - filters/disclosure.lua
   - filters/scroll-regions.lua
+  - path: filters/figures.lua
+    at: post-render
 
 format:
   html:
