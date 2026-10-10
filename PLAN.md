@@ -1142,6 +1142,7 @@ Each `modules.mNN` entry has:
   - macOS arm64;
   - a **ci-proxy** job (`taskset` to 2 cores, live budgets), recorded as `ci-proxy` and never counted as "designed";
   - the full UI matrix (WebKit, 200% zoom).
+  - *Built 2026-10-10:* the locked-environment run (Linux and macOS arm64, live budgets), the `backend-info` bump with colab-compat and colab-sim on the new freeze and a PR, and the `uv lock --upgrade` report. *Not built yet:* the M12 Hub path, ci-proxy and the full UI matrix. The colab-sim steps live in `.github/actions/colab-sim`, shared with `ci.yml`.
 
 ---
 
