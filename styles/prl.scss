@@ -157,6 +157,15 @@ samp {
   overflow-wrap: anywhere;
 }
 
+// Code blocks wrap (code-overflow: wrap). A wrapped line continues 2ch in, so it never
+// looks like a new line: Python indents in steps of 4, so no real line starts at 2ch.
+// Each line is an inline-block span (Pandoc), so text-indent applies to it; padding and
+// indent add no characters, so copying and selecting are unchanged.
+div.sourceCode pre > code.sourceCode > span {
+  padding-left: 2ch;
+  text-indent: -2ch;
+}
+
 // ---------------------------------------------------------------- focus
 // One focus ring everywhere: outline plus offset, and a background-colored gap
 // (PLAN.md §8). !important beats Bootstrap's per-component focus shadows.
