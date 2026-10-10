@@ -200,6 +200,29 @@ div.sourceCode pre > code.sourceCode > span {
   box-shadow: none;
 }
 
+// ---------------------------------------------------------------- skip link (styles/prl-skip.html)
+// The first Tab stop on every page. Bootstrap's .visually-hidden-focusable hides it until
+// it has focus; then it shows above the fixed navbar, with the page's focus ring.
+.prl-skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 1100;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--prl-border);
+  border-radius: 0.5rem;
+  background-color: var(--prl-bg);
+  color: var(--prl-link);
+  font-weight: 600;
+  text-decoration-line: underline;
+  text-underline-offset: 0.18em;
+}
+
+.prl-skip-link:hover,
+.prl-skip-link:focus {
+  color: var(--prl-link);
+}
+
 // ---------------------------------------------------------------- utilities
 .visually-hidden:not(:focus):not(:active) {
   position: absolute !important;

@@ -108,6 +108,7 @@ format:
       light: [brand, styles/prl.scss]
       dark: [brand, styles/prl.scss]
     include-in-header: styles/prl-head.html
+    include-before-body: styles/prl-skip.html
     respect-user-color-scheme: true
     toc: true
     toc-depth: 3
