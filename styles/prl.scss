@@ -139,11 +139,15 @@ main.content a:not(.btn-colab):not(.btn-quiet):not(.chip):not(.anchorjs-link) {
   text-underline-offset: 0.18em;
 }
 
+// Code never takes a hyphen: on phones the table cells use hyphens: auto (below), and a
+// hyphen inside an identifier reads as a minus sign or part of the name.
 code,
 kbd,
 pre,
 samp {
   font-variant-ligatures: none;
+  -webkit-hyphens: none;
+  hyphens: none;
 }
 
 // Quarto gives inline code white-space: pre, which never wraps; a long span then scrolls
