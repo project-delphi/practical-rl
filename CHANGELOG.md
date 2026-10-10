@@ -18,8 +18,10 @@ All notable changes to this workshop. Dates are UTC.
   - `prl.checks.m01` with fixtures from `scripts/make_expected.py`; 28 mutants in `labs/mutants/m01.py`; a verify mode that must reject every stub and mutant.
   - Eight knowledge checks for Module 1. Technical, academic and pedagogy reviews applied.
 - `health.yml` (weekly): the locked-environment run on Linux and macOS arm64 with live budgets; `colab_constraints.py bump`, which refreshes the Colab freeze, runs colab-compat and colab-sim on it and opens a PR with their results; and a `uv lock --upgrade` report. The colab-sim steps moved to a composite action, with the same checks (2026-10-10).
+- `scripts/threshold_protocol.py` and `prl.checks.StochasticCheck`: thresholds for stochastic checkpoints, set from at least 100 (QUICK) or 20 (live) seeds of the solution and its mutants, and recorded as experiment records (2026-10-10).
 
 ### Fixed
 - Colab setup: one pin per package, so `pip` no longer fails with ResolutionImpossible on gymnasium 1.4.0 (2026-10-09).
 - A stuck participant is pointed to `lab.use_reference(N)` by the stubs and the solution cells (2026-10-09).
 - CI's test job reinstalled torch on every `uv run` despite its dev-only install; `UV_NO_SYNC=1` keeps it dev-only (2026-10-10).
+- `add_run_record.py` no longer overwrites a filed record that has the same file name; the new one gets `-2`, `-3`, ... (2026-10-10).
