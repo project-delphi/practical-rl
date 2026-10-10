@@ -228,7 +228,8 @@ print("checkpoints so far:", [(c["label"], c["pass"], c["whose"]) for c in rec["
 # The record holds no name, paths or keys, yet it says whose code each checkpoint ran. Which
 # of your checkpoints ran your code, and which ran the reference or provided code? On Colab
 # the last cell offers the record as a download: keep the file. Your instructor will tell you
-# where to send it. (Gotcha: "The run record shares my name or keys.")
+# where to send it; if you have not heard by Day 1, have it ready for the setup check that
+# opens Day 1. (Gotcha: "The run record shares my name or keys.")
 
 # %% role="ex3-chk"
 lab.check(3, m00.check_record, rec)

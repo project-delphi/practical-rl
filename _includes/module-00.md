@@ -43,6 +43,6 @@ In this module you will:
 
 ## Before you start {#before}
 
-- The [entry check](/prepare.qmd#entry-check) is separate from this module. Take it before or after.
-- A Google account (Colab's default CPU runtime is enough), or a local or AWS setup from [Setup](/setup.qmd).
+- The [entry check](/prepare.qmd#entry-check) is separate from this module.
+- A Google account (Colab's default CPU runtime is enough), or a local or AWS setup from the [Setup page](/setup.qmd).
 - No API keys or paid services.

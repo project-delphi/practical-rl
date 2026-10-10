@@ -122,10 +122,7 @@ def module_md(mid: str, v: dict[str, Any]) -> str:
             "builds on what it left open."
         )
     elif m["n"] == 0:
-        before.append(
-            "- The [entry check](/prepare.qmd#entry-check) is separate from this module. "
-            "Take it before or after."
-        )
+        before.append("- The [entry check](/prepare.qmd#entry-check) is separate from this module.")
     elif m["n"] == 1:
         before.append(
             "- [Module 0 · Setup and hello RL](/modules/00-setup.qmd) and the "
@@ -142,7 +139,7 @@ def module_md(mid: str, v: dict[str, Any]) -> str:
     else:
         before.append(
             "- A Google account (Colab's default CPU runtime is enough), or a local or AWS setup "
-            "from [Setup](/setup.qmd)."
+            "from the [Setup page](/setup.qmd)."
         )
     before.append("- No API keys or paid services.")
     title_for_sr = f"Lab {m['n']}: {m['title']}"
@@ -281,7 +278,7 @@ def live_md(mid: str, v: dict[str, Any]) -> str:
     extra = f" + {setup} setup" if setup else ""
     if self_paced(m):  # pre-work: read a section, then do its exercise in the notebook
         where, split, caption = (
-            "In the notebook",
+            "What you do",
             f"{expo} reading + {act} in the notebook",
             f"Self-paced, {t} min",
         )
