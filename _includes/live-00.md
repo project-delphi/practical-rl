@@ -2,10 +2,10 @@
 ::: {.live-plan}
 | Minutes | Section | What you do |
 |---|---|---|
-| 0–5 | 1. Open the notebook and check your runtime (Exercise 0) | [In the lab: setup and Exercise 0](#do-ex0) (4 min) |
-| 5–10 | 2. A random agent on CartPole (Exercise 1) | [In the lab: Exercise 1](#do-ex1) (4 min) |
-| 10–15 | 3. Seeds and spread (Exercise 2) | [In the lab: Exercise 2](#do-ex2) (4 min) |
-| 15–20 | 4. Your run record (Exercise 3) | [In the lab: Exercise 3 and the last cell](#do-ex3) (4 min) |
-| **20** | **Total** | **4 reading + 16 in the notebook** |
+| 0–5 | 1. Open the notebook and check your runtime (Exercise 0) | [In the lab: setup and Exercise 0](#do-ex0) (3 min) |
+| 5–10 | 2. A random agent on CartPole (Exercise 1) | [In the lab: Exercise 1](#do-ex1) (3 min) |
+| 10–15 | 3. Seeds and spread (Exercise 2) | [In the lab: Exercise 2](#do-ex2) (3 min) |
+| 15–20 | 4. Your run record (Exercise 3) | [In the lab: Exercise 3 and the last cell](#do-ex3) (3 min) |
+| **20** | **Total** | **8 reading + 12 in the notebook** |
 : Self-paced, 20 min {.agenda}
 :::
