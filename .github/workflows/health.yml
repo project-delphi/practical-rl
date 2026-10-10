@@ -12,6 +12,11 @@ on:
   schedule:
     - cron: "23 5 * * 1" # Mondays 05:23 UTC (off the hour, when scheduled runs queue less)
   workflow_dispatch:
+    inputs:
+      freeze-commit:
+        description: To exercise the bump path, a googlecolab/backend-info commit to use instead of the newest
+        required: false
+        default: ""
 
 concurrency:
   group: health-${{ github.ref }}
@@ -114,8 +119,11 @@ jobs:
         name: Fetch the newest freeze and compare it with ci/colab/
         env:
           GH_TOKEN: ${{ github.token }} # API rate limit only; the upstream repo is public
+          COMMIT: ${{ inputs.freeze-commit }} # empty on the schedule: use the newest
         run: |
-          uv run --no-project --with pyyaml python scripts/colab_constraints.py bump --report bump.md
+          args=(bump --report bump.md)
+          if [ -n "$COMMIT" ]; then args+=(--commit "$COMMIT"); fi
+          uv run --no-project --with pyyaml python scripts/colab_constraints.py "${args[@]}"
           cat bump.md >> "$GITHUB_STEP_SUMMARY"
 
   bump-compat:
@@ -192,10 +200,11 @@ jobs:
           COMPAT: ${{ needs.bump-compat.result }}
           SIM: ${{ needs.bump-colab-sim.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT: ${{ github.event_name }}
         run: |
           uv run --no-project --with pyyaml python scripts/colab_constraints.py bump --commit "$COMMIT" --report report.md
           {
-            echo "Opened by the weekly health job: $RUN_URL"
+            echo "Opened by health.yml ($EVENT run): $RUN_URL"
             echo
             echo "| Check on the new freeze | Result |"
             echo "|---|---|"
