@@ -394,10 +394,11 @@ a.btn-quiet[target="_blank"]:has(.visually-hidden)::after {
   }
 }
 
+// No tabular figures here (see the tables section): the clock is one line, so there is
+// nothing to align, and it also holds words such as "Pre-work" and "Self-paced".
 .module-clock {
   display: block;
   color: var(--prl-muted);
-  font-variant-numeric: tabular-nums;
 }
 
 // ---------------------------------------------------------------- facts box (what)
@@ -499,7 +500,15 @@ a.btn-quiet[target="_blank"]:has(.visually-hidden)::after {
 }
 
 // ---------------------------------------------------------------- tables
-main.content table {
+// Tabular figures only in cells that hold numbers. Inter's tnum also widens the hyphen,
+// comma, period, colon and parentheses, so in prose it spaces out "Pre-work" or "2-norm".
+// Number columns: the lab table's # and Min, the live plan's Minutes, the schedule's Time.
+// A table of numbers on a page can opt in by sitting in a ::: {.numeric} div.
+.lab-steps td:first-child,
+.lab-steps td:last-child,
+.live-plan td:first-child,
+main.content table.schedule-clock td:first-child,
+.numeric td {
   font-variant-numeric: tabular-nums;
 }
 
