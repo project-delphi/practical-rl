@@ -227,7 +227,7 @@ Objectives:
 **Objectives:**
 1. Encode a finite MDP as `P[s,a,s']` and `R[s,a]`, and validate it.
 2. Frame inventory control as an MDP (state, action, reward, γ) and justify the choices.
-3. Evaluate a policy exactly, and iteratively. Bound the iteration count: k ≥ log(‖V₀−V^π‖∞/ε)/log(1/γ). Stopping when ‖V_{k+1}−V_k‖∞ < tol guarantees ‖V_{k+1}−V^π‖∞ ≤ γ·tol/(1−γ).
+3. Evaluate a policy exactly, and iteratively. Bound the iteration count: k ≥ log(‖V₀−V^π‖∞/η)/log(1/γ). Stopping when ‖V_{k+1}−V_k‖∞ < tol guarantees ‖V_{k+1}−V^π‖∞ ≤ γ·tol/(1−γ).
 4. Find a wrong evaluator from its Bellman residual.
 
 **Briefing:**

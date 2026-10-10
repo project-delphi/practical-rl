@@ -9,9 +9,9 @@ Plot and Inputs come from Quarto's OJS runtime, which loads them from cdn.jsdeli
 (allow-listed for the module page in scripts/site_check_allow.yml).
 -->
 
-**Predict first.** With γ = 0.9 and tol = 10⁻⁶, the evaluation below stops after a little over 100 iterations. If you move γ to 0.99, will it need about twice as many iterations, ten times as many, or a hundred times as many? And if you keep γ = 0.9 but make tol 100 times smaller? Write down both guesses, then use the sliders.
+**Predict first, as a room.** Take γ = 0.99 and tol = 10⁻⁶. Is the guaranteed error 10⁻⁶, 10⁻⁵ or 10⁻⁴? Use [@eq-stop], agree on an answer, then move the γ slider to 0.99 and read the dotted line.
 
-The model has two states, 0 and 1, and a fixed policy π. From state 0 you stay or move to state 1 with probability 0.5 each, and the mean reward is 1. From state 1 you move to state 0 with probability 0.1 and stay with probability 0.9, and the mean reward is 0. Evaluation starts from V~0~ = 0 and applies T^π^ ([@eq-tpi]) until ‖V~k+1~ − V~k~‖~∞~ < tol ([@eq-stop]). The error is measured against the exact V^π^ from the 2 × 2 linear solve ([@eq-exact]).
+The model has two states, 0 and 1, and a fixed policy π. From state 0 you stay or move to state 1 with probability 0.5 each, and the mean reward is 1. From state 1 you move to state 0 with probability 0.1 and stay with probability 0.9, and the mean reward is 0. Evaluation starts from V~0~ = 0 and sweeps with T^π^ ([@eq-tpi]) until ‖V~k+1~ − V~k~‖~∞~ < tol ([@eq-stop]). The error is measured against the exact V^π^ from the 2 × 2 linear solve ([@eq-exact]).
 
 $$
 P_\pi = \begin{pmatrix} 0.5 & 0.5 \\ 0.1 & 0.9 \end{pmatrix}, \qquad
@@ -87,7 +87,7 @@ contraction = {
     marginRight: 16,
     marginBottom: 44,
     style: "font-family: inherit; font-size: 14px; color: var(--prl-text); background: transparent; --plot-background: var(--prl-bg);",
-    x: {label: "Iteration k", labelAnchor: "center", labelArrow: "none", domain: [0, k], nice: true},
+    x: {label: "Sweep k", labelAnchor: "center", labelArrow: "none", domain: [0, k], nice: true},
     y: {
       type: "log",
       domain: [1e-10, 1e2],
@@ -111,14 +111,14 @@ contraction = {
   chart.setAttribute("role", "img");
   chart.setAttribute(
     "aria-label",
-    `Error against iteration on a log scale, from 0 to ${k} iterations. The error and the bound both fall in straight lines; the run stops at iteration ${k}, below the guarantee line.`
+    `Error against sweep on a log scale, from 0 to ${k} sweeps. The error and the bound both fall in straight lines; the run stops at sweep ${k}, below the guarantee line.`
   );
   return chart;
 }
 ```
 
 ::: {#demo-contraction-readout .demo-readout aria-live="polite" style="font-weight:600; margin:0.5rem 0 1rem;"}
-The demo needs JavaScript. With it off: at γ = 0.9 and tol = 10⁻⁶, evaluation stops after 116 iterations.
+The demo needs JavaScript. With it off: at γ = 0.9 and tol = 10⁻⁶, evaluation stops after 116 sweeps.
 :::
 
 ```{ojs}
@@ -129,7 +129,7 @@ contractionReadout = {
   const {g, tol, vpi, k, error, guarantee} = contraction;
   const e = (x) => x.toExponential(1);
   const text =
-    `γ = ${g.toFixed(2)}, tol = ${e(tol)}. Stops after ${k} iterations; ` +
+    `γ = ${g.toFixed(2)}, tol = ${e(tol)}. Stops after ${k} sweeps; ` +
     `final error ≤ γ·tol/(1 − γ) = ${e(guarantee)}, and the actual final error is ${e(error)}. ` +
     `Exact values: ${vpi[0].toFixed(3)} in state 0, ${vpi[1].toFixed(3)} in state 1.`;
   const el = document.getElementById("demo-contraction-readout");
@@ -139,8 +139,9 @@ contractionReadout = {
 ```
 
 ::: {.callout-tip collapse="true" title="What to notice (open after you predict)"}
-- On the log axis both lines are straight: each iteration multiplies the error by about γ, as [@eq-iteration-bound] says. The error runs parallel to the bound, a little below it.
-- Going from γ = 0.9 to 0.99 takes about ten times as many iterations (116 to 1,198 at tol = 10⁻⁶): the count grows like 1/(1 − γ).
-- A tolerance 100 times smaller costs only a fixed number of extra iterations, about log(100)/log(1/γ): 44 at γ = 0.9 (43 in the run), 458 at γ = 0.99.
-- The run stops just under the dotted line γ·tol/(1 − γ) ([@eq-stop]). At γ = 0.99 that line is 99 × tol, so a small tol alone does not promise a small error.
+- The answer is about 10⁻⁴. By [@eq-stop] the guarantee is γ·tol/(1 − γ) = 0.99 × 10⁻⁶ / 0.01 = 9.9 × 10⁻⁵. The factor γ/(1 − γ) is 9 at γ = 0.9, 19 at 0.95 and 99 at 0.99, so a small tol alone does not promise a small error.
+- The run stops just under the dotted guarantee line. At γ = 0.99 and tol = 10⁻⁶ its actual error is 9.8 × 10⁻⁵: here the guarantee is nearly tight.
+- On the log axis both lines are straight: each sweep multiplies the error by about γ, as [@eq-iteration-bound] says. The error runs parallel to the bound, a little below it.
+- Move γ toward 1 and the number of sweeps grows like 1/(1 − γ). Exercise 5 measures how fast on the shop.
+- A tolerance 100 times smaller costs only a fixed number of extra sweeps, about log(100)/log(1/γ): 44 at γ = 0.9 (43 in the run).
 :::
