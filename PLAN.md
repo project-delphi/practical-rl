@@ -10,7 +10,8 @@ A five-day, practical, first-principles reinforcement learning workshop by Genia
 | Language | Python only |
 | Spelling | American English |
 
-**Status: Phase 0 (research and plan), 2026-10-09.**
+**Status: Phase 2 done (golden Module 1, merged 2026-10-10); Phase 3 is next.** Phase 1's exit
+still lacks its two human Colab smoke runs (§13); their records are not filed.
 
 - The draft was reviewed by four persona agents (§11): academic director, pedagogy expert, technical expert and UI expert. Their findings are folded in.
 - Nothing in this file is a measurement. Every minute count is a design budget. It includes the time participants spend on the Predict → Run → Explain → Check rhythm. Phase 3 timed runs confirm it for compute, and a human pilot confirms it for people.

@@ -9,11 +9,18 @@ Each entry gives our working default, who decides, and when. When an entry is re
 
 **Owners:** user (you), AD (academic director), PE (pedagogy expert), TE (technical expert), UI (UI expert), lead (the main session).
 
-Last updated 2026-10-09 (Phase 1).
+Last updated 2026-10-10 (after Phase 2).
+
+**Phase 1 merged without its two human Colab smoke runs** (00-setup on Colab CPU and one
+`DPOTrainer` step on a T4); their records are not filed. Everything due at "Phase 1 exit"
+(A12, A13, B1–B3, B22) is still open and waits on them.
 
 ---
 
 ## A. Departures from the brief (please confirm)
+
+R10 put the working defaults for A1–A8, A10, A12–A13 and C3–C5 into effect on 2026-10-09.
+They stay listed here until you confirm them.
 
 **A1. QUICK mode.** Owner: user. Needed by: Phase 1.
 - **Brief:** "Every lab detects a CPU-only runtime and shrinks itself."
@@ -120,8 +127,8 @@ Last updated 2026-10-09 (Phase 1).
 
 | # | Item | How it gets checked | Owner | When |
 |---|---|---|---|---|
-| B4 | Whether two figures in one figure div get treated as subfigures (light and dark SVG variants) | Phase 1 render | UI | Phase 1 |
-| B5 | Whether KaTeX can be self-hosted through Quarto's `html-math-method` object form | Phase 1 render | UI | Phase 1 |
+| B4 | ~~Whether two figures in one figure div get treated as subfigures~~ **Moot:** there is one figure per div; `filters/figures.lua` doubles only the image at post-render, so the figure keeps one number, caption and alt text (commit 67d2120) | — | — | — |
+| B5 | ~~KaTeX self-hosted through the `html-math-method` object form~~ **Resolved:** the object form pastes its URL into every page as is, so it breaks either subdirectory pages or `quarto preview`; `filters/katex.lua` registers the vendored copy as an HTML dependency instead (commit ac42420) | — | — | — |
 | B22 | TRL's Triton kernel on a T4 (compute capability 7.5; Triton officially supports 8.0+) | Human T4 smoke run: one `DPOTrainer` step. The fallback is the shim. | user / TE | Phase 1 exit |
 
 **AWS**

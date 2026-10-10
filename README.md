@@ -7,8 +7,10 @@ Participants write, run, debug and evaluate RL code all week: every algorithm is
 a few ideas, implemented from scratch, then compared with a maintained library or exact ground
 truth. Labs open in Google Colab and also run locally (uv) or on AWS.
 
-**Status:** under construction (Phase 1 of 5). See `PLAN.md` for the plan and
-the [readiness page](https://project-delphi.github.io/practical-rl/readiness.html) for what has
+**Status:** under construction. The scaffold (Phase 1) and the golden Module 1 (Phase 2) are
+merged; Phase 3 (the modules, day by day) is next. Phase 1's two Colab smoke runs are not filed
+yet, so no lab has a Colab record. See `PLAN.md` for the plan and the
+[readiness page](https://project-delphi.github.io/practical-rl/readiness.html) for what has
 actually run where.
 
 ## Repository
