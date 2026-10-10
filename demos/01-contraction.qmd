@@ -1,0 +1,156 @@
+<!--
+demos/01-contraction.qmd: the contraction demo for Module 1 (PLAN.md §8).
+modules/01-mdps-bellman.qmd includes this file (Quarto's include shortcode) inside a
+#demo-contraction .demo div, so it has no front matter and is never rendered on its own.
+It refers to the page's equations eq-tpi, eq-stop, eq-exact and eq-iteration-bound.
+Everything is computed in the browser; nothing is random and nothing moves by itself.
+Colors are the site's plot tokens, so the plot follows the light/dark theme. Observable
+Plot and Inputs come from Quarto's OJS runtime, which loads them from cdn.jsdelivr.net
+(allow-listed for the module page in scripts/site_check_allow.yml).
+-->
+
+```{=html}
+<style>
+  /* Quarto 1.10 leaves a "Copy to Clipboard" button beside OJS source that echo: false
+     hides. Hide the button with its code. (Site-wide, this belongs in styles/prl.scss.) */
+  .code-copy-outer-scaffold:has(> .cell-code.hidden) > .code-copy-button {
+    display: none;
+  }
+</style>
+```
+
+**Predict first.** With γ = 0.9 and tol = 10⁻⁶, the evaluation below stops after a little over 100 iterations. If you move γ to 0.99, will it need about twice as many iterations, ten times as many, or a hundred times as many? And if you keep γ = 0.9 but make tol 100 times smaller? Write down both guesses, then use the sliders.
+
+The model has two states, 0 and 1, and a fixed policy π. From state 0 you stay or move to state 1 with probability 0.5 each, and the mean reward is 1. From state 1 you move to state 0 with probability 0.1 and stay with probability 0.9, and the mean reward is 0. Evaluation starts from V~0~ = 0 and applies T^π^ ([@eq-tpi]) until ‖V~k+1~ − V~k~‖~∞~ < tol ([@eq-stop]). The error is measured against the exact V^π^ from the 2 × 2 linear solve ([@eq-exact]).
+
+$$
+P_\pi = \begin{pmatrix} 0.5 & 0.5 \\ 0.1 & 0.9 \end{pmatrix}, \qquad
+r_\pi = \begin{pmatrix} 1 \\ 0 \end{pmatrix}
+$$
+
+```{ojs}
+//| echo: false
+// Inputs.range ties its visible <label> to the number box; the slider gets the same name.
+function labeledRange(extent, options) {
+  const form = Inputs.range(extent, options);
+  form.querySelector("input[type=range]").setAttribute("aria-label", options.label);
+  return form;
+}
+```
+
+```{ojs}
+//| echo: false
+viewof gamma = labeledRange([0.5, 0.99], {value: 0.9, step: 0.01, label: "Discount γ"})
+```
+
+```{ojs}
+//| echo: false
+viewof logTol = labeledRange([-8, -2], {value: -6, step: 1, label: "log₁₀ of tol"})
+```
+
+```{ojs}
+//| echo: false
+// The two-state model and the run: exact V^pi, then iterative evaluation from V_0 = 0.
+contraction = {
+  const P = [[0.5, 0.5], [0.1, 0.9]];
+  const r = [1, 0];
+  const g = Math.round(gamma * 100) / 100; // the slider's value, without float dust
+  const tol = 10 ** logTol;
+  // V^pi = (I - g P)^-1 r, solved exactly for 2 x 2 (Cramer's rule)
+  const a = 1 - g * P[0][0], b = -g * P[0][1];
+  const c = -g * P[1][0], d = 1 - g * P[1][1];
+  const det = a * d - b * c;
+  const vpi = [(d * r[0] - b * r[1]) / det, (a * r[1] - c * r[0]) / det];
+  const start = Math.max(Math.abs(vpi[0]), Math.abs(vpi[1])); // ||V_0 - V^pi||, V_0 = 0
+  const rows = [{k: 0, error: start, bound: start}];
+  let v = [0, 0];
+  for (let k = 1; k <= 100000; k++) {
+    const next = [
+      r[0] + g * (P[0][0] * v[0] + P[0][1] * v[1]),
+      r[1] + g * (P[1][0] * v[0] + P[1][1] * v[1])
+    ];
+    const step = Math.max(Math.abs(next[0] - v[0]), Math.abs(next[1] - v[1]));
+    v = next;
+    const error = Math.max(Math.abs(v[0] - vpi[0]), Math.abs(v[1] - vpi[1]));
+    rows.push({k, error, bound: g ** k * start});
+    if (step < tol) {
+      return {g, tol, vpi, start, rows, k, error, guarantee: (g * tol) / (1 - g)};
+    }
+  }
+}
+```
+
+[[]{style="display:inline-block; width:2.25rem; vertical-align:middle; border-top:3px solid var(--prl-series-1);"} Error ‖V~k~ − V^π^‖~∞~]{.demo-key style="display:inline-block; margin-right:1.25rem;"}
+[[]{style="display:inline-block; width:2.25rem; vertical-align:middle; border-top:3px dashed var(--prl-series-2);"} Bound γ^k^ ‖V~0~ − V^π^‖~∞~ ([@eq-iteration-bound])]{.demo-key style="display:inline-block; margin-right:1.25rem;"}
+[[]{style="display:inline-block; width:2.25rem; vertical-align:middle; border-top:3px dotted var(--prl-neutral);"} Guarantee at the stop, γ·tol/(1 − γ)]{.demo-key style="display:inline-block;"}
+
+```{ojs}
+//| echo: false
+{
+  const {rows, k, guarantee} = contraction;
+  const sup = (n) => String(n).replace(/[-0-9]/g, (ch) => "⁻⁰¹²³⁴⁵⁶⁷⁸⁹"["-0123456789".indexOf(ch)]);
+  const chart = Plot.plot({
+    width,
+    height: 320,
+    marginTop: 34,
+    marginLeft: 56,
+    marginRight: 16,
+    marginBottom: 44,
+    style: "font-family: inherit; font-size: 14px; color: var(--prl-text); background: transparent; --plot-background: var(--prl-bg);",
+    x: {label: "Iteration k", labelAnchor: "center", labelArrow: "none", domain: [0, k], nice: true},
+    y: {
+      type: "log",
+      domain: [1e-10, 1e2],
+      ticks: [1e-10, 1e-8, 1e-6, 1e-4, 1e-2, 1, 1e2],
+      tickFormat: (t) => (t === 1 ? "1" : "10" + sup(Math.round(Math.log10(t)))),
+      label: "Error (log scale)",
+      labelArrow: "none",
+      grid: true
+    },
+    marks: [
+      Plot.ruleY([guarantee], {stroke: "var(--prl-neutral)", strokeWidth: 2.5, strokeDasharray: "2,5", strokeLinecap: "round"}),
+      Plot.line(rows, {x: "k", y: "bound", stroke: "var(--prl-series-2)", strokeWidth: 2.5, strokeDasharray: "9,6"}),
+      Plot.line(rows, {x: "k", y: "error", stroke: "var(--prl-series-1)", strokeWidth: 2.5}),
+      Plot.dot([rows[k]], {x: "k", y: "error", r: 6, fill: "var(--prl-series-1)", stroke: "var(--prl-bg)", strokeWidth: 2}),
+      Plot.text([rows[k]], {x: "k", y: "error", text: (d) => `stop: k = ${d.k}`, textAnchor: "end", dx: -10, dy: 16, fill: "currentColor", fontWeight: 600})
+    ]
+  });
+  // One name for the whole chart (the readout below carries the numbers). Plot also
+  // names its <g> groups, which ARIA does not allow on a role-less <g>.
+  for (const node of chart.querySelectorAll("[aria-label]")) node.removeAttribute("aria-label");
+  chart.setAttribute("role", "img");
+  chart.setAttribute(
+    "aria-label",
+    `Error against iteration on a log scale, from 0 to ${k} iterations. The error and the bound both fall in straight lines; the run stops at iteration ${k}, below the guarantee line.`
+  );
+  return chart;
+}
+```
+
+::: {#demo-contraction-readout .demo-readout aria-live="polite" style="font-weight:600; margin:0.5rem 0 1rem;"}
+The demo needs JavaScript. With it off: at γ = 0.9 and tol = 10⁻⁶, evaluation stops after 116 iterations.
+:::
+
+```{ojs}
+//| echo: false
+// Writes the sentence into the persistent aria-live region above, so a screen reader
+// announces each new result (a region re-created on every change is not announced).
+contractionReadout = {
+  const {g, tol, vpi, k, error, guarantee} = contraction;
+  const e = (x) => x.toExponential(1);
+  const text =
+    `γ = ${g.toFixed(2)}, tol = ${e(tol)}. Stops after ${k} iterations; ` +
+    `final error ≤ γ·tol/(1 − γ) = ${e(guarantee)}, and the actual final error is ${e(error)}. ` +
+    `Exact values: ${vpi[0].toFixed(3)} in state 0, ${vpi[1].toFixed(3)} in state 1.`;
+  const el = document.getElementById("demo-contraction-readout");
+  if (el) el.textContent = text;
+  return text;
+}
+```
+
+::: {.callout-tip collapse="true" title="What to notice (open after you predict)"}
+- On the log axis both lines are straight: each iteration multiplies the error by about γ, as [@eq-iteration-bound] says. The error runs parallel to the bound, a little below it.
+- Going from γ = 0.9 to 0.99 takes about ten times as many iterations (116 to 1,198 at tol = 10⁻⁶): the count grows like 1/(1 − γ).
+- A tolerance 100 times smaller costs only a fixed number of extra iterations, about log(100)/log(1/γ): 44 at γ = 0.9 (43 in the run), 458 at γ = 0.99.
+- The run stops just under the dotted line γ·tol/(1 − γ) ([@eq-stop]). At γ = 0.99 that line is 99 × tol, so a small tol alone does not promise a small error.
+:::
