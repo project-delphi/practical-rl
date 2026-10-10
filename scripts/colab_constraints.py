@@ -24,6 +24,8 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -200,7 +202,8 @@ def diff_versions(
 
 def update_variables(text: str, sha: str, python: str | None) -> str:
     """Point packages.colab in _variables.yml at the new commit and Python; keep the rest."""
-    text, n = re.subn(r"(?m)^(\s+backend_info_commit:\s*)\S+", rf"\g<1>{sha[:10]}", text)
+    # Quoted: an all-digit short SHA would otherwise load as a YAML number.
+    text, n = re.subn(r"(?m)^(\s+backend_info_commit:\s*)\S+", rf'\g<1>"{sha[:10]}"', text)
     if n != 1:
         raise ValueError(f"_variables.yml: expected one backend_info_commit line, found {n}")
     if python:
@@ -210,7 +213,7 @@ def update_variables(text: str, sha: str, python: str | None) -> str:
     return text
 
 
-def http_get(url: str) -> bytes:
+def http_get(url: str, attempts: int = 3) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "prl-colab-freeze-bump"})
     if url.startswith("https://api.github.com/"):
         req.add_header("Accept", "application/vnd.github+json")
@@ -218,8 +221,16 @@ def http_get(url: str) -> bytes:
         token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
         if token:  # only for the higher API rate limit; the upstream repo is public
             req.add_header("Authorization", f"Bearer {token}")
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return r.read()
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return r.read()
+        except (urllib.error.URLError, TimeoutError) as exc:
+            client_error = isinstance(exc, urllib.error.HTTPError) and exc.code < 500
+            if client_error or attempt == attempts - 1:
+                raise
+            time.sleep(10 * (attempt + 1))  # a network blip should not fail the weekly job
+    raise AssertionError("unreachable")
 
 
 def resolve_commit(get: Fetch, commit: str | None) -> tuple[str, str]:

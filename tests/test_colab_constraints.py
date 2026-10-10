@@ -81,7 +81,7 @@ def test_bump_rewrites_changed_files_commit_and_variables(repo):
     for name, blob in files.items():
         assert (repo / "colab" / name).read_bytes() == blob
     vars_after = (repo / "_variables.yml").read_text()
-    assert "backend_info_commit: 0123456789\n" in vars_after
+    assert 'backend_info_commit: "0123456789"\n' in vars_after
     assert 'python: "3.13.17"\n' in vars_after
     assert len(vars_after.splitlines()) == len(vars_before.splitlines())  # comments kept
     assert f"| numpy | {numpy} | 9.9.9 |" in res.report  # a package the labs use
@@ -125,3 +125,33 @@ def test_bump_never_moves_the_freeze_backwards(repo):
 def test_bump_rejects_a_commit_that_is_not_a_sha(repo):
     with pytest.raises(ValueError):
         cc.bump("main/../x", colab_dir=repo / "colab", get=_fake_upstream(NEW_SHA, NEW_DATE, {}))
+
+
+def test_http_get_retries_network_errors_but_not_client_errors(monkeypatch):
+    import io
+    import urllib.error
+
+    outcomes = [urllib.error.URLError("timed out"), TimeoutError(), io.BytesIO(b"ok")]
+    seen = []
+
+    def urlopen(req, timeout):
+        seen.append(req.full_url)
+        result = outcomes.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(cc.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(cc.time, "sleep", lambda s: None)
+    assert cc.http_get(f"{cc.RAW}/x/os-info.txt") == b"ok"
+    assert len(seen) == 3
+
+    def not_found(req, timeout):
+        seen.append(req.full_url)
+        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", None, None)
+
+    seen.clear()
+    monkeypatch.setattr(cc.urllib.request, "urlopen", not_found)
+    with pytest.raises(urllib.error.HTTPError):
+        cc.http_get(f"{cc.API}/commits/abcdef1")
+    assert len(seen) == 1
