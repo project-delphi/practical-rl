@@ -58,6 +58,17 @@
       }
     }
   }
+  // A wrapped code line continues 2ch past its own indent (styles/prl.scss). Leading
+  // spaces only, capped so a deep line still has room on a phone.
+  function hangCode() {
+    var lines = document.querySelectorAll("div.sourceCode pre > code.sourceCode > span");
+    for (var h = 0; h < lines.length; h++) {
+      var lead = /^ */.exec(lines[h].textContent)[0].length;
+      if (lead) lines[h].style.setProperty("--prl-hang", Math.min(lead, 8) + 2 + "ch");
+    }
+  }
+  document.addEventListener("DOMContentLoaded", hangCode);
+
   var pending;
   function later() {
     clearTimeout(pending);

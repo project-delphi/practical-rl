@@ -157,13 +157,17 @@ samp {
   overflow-wrap: anywhere;
 }
 
-// Code blocks wrap (code-overflow: wrap). A wrapped line continues 2ch in, so it never
-// looks like a new line: Python indents in steps of 4, so no real line starts at 2ch.
-// Each line is an inline-block span (Pandoc), so text-indent applies to it; padding and
-// indent add no characters, so copying and selecting are unchanged.
+// Code blocks wrap (code-overflow: wrap). A wrapped line continues 2ch past its own
+// indent, so it never looks like a new line: Python indents in steps of 4, so no real
+// line starts there. styles/prl-head.html sets --prl-hang per line from its leading
+// spaces; without it, wrapped lines continue 2ch in. Each line is an inline-block span
+// (Pandoc), so text-indent applies to it; padding and indent add no characters, so
+// copying and selecting are unchanged. The padding narrows the line, so a long token
+// (np.linalg.solve(np.eye(S)) may break inside itself rather than scroll out of sight.
 div.sourceCode pre > code.sourceCode > span {
-  padding-left: 2ch;
-  text-indent: -2ch;
+  padding-left: var(--prl-hang, 2ch);
+  text-indent: calc(-1 * var(--prl-hang, 2ch));
+  overflow-wrap: anywhere;
 }
 
 // ---------------------------------------------------------------- focus
