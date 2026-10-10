@@ -186,6 +186,31 @@ def m01_eval() -> bytes:
 FIXTURES = {"m01_returns": m01_returns, "m01_eval": m01_eval}
 
 
+def same_content(old: bytes, new: bytes) -> bool:
+    """True if two fixture files hold the same arrays.
+
+    Byte-identical files match. Otherwise keys, dtypes, shapes and every non-float value must
+    match exactly, and floats to 1e-12: LAPACK's linear solve differs in the last bits between
+    platforms (Accelerate on macOS, OpenBLAS on Linux), so a fixture written on one machine is
+    not byte-identical to the same fixture built on another.
+    """
+    if old == new:
+        return True
+    a, b = np.load(io.BytesIO(old)), np.load(io.BytesIO(new))
+    if sorted(a.files) != sorted(b.files):
+        return False
+    for key in a.files:
+        x, y = a[key], b[key]
+        if x.dtype != y.dtype or x.shape != y.shape:
+            return False
+        if np.issubdtype(x.dtype, np.floating):
+            if not np.allclose(x, y, rtol=1e-12, atol=1e-12):
+                return False
+        elif not np.array_equal(x, y):
+            return False
+    return True
+
+
 def main(argv: list[str]) -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     stale = []
@@ -193,7 +218,7 @@ def main(argv: list[str]) -> int:
         blob = build()
         path = OUT / f"{name}.npz"
         if "--check" in argv:
-            if not path.exists() or path.read_bytes() != blob:
+            if not path.exists() or not same_content(path.read_bytes(), blob):
                 stale.append(name)
         else:
             path.write_bytes(blob)
