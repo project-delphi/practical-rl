@@ -182,15 +182,52 @@ modules:
     testbeds: [CliffGridworld, InventoryMDP]
     compared_with: {kind: truth, what: "exact fixtures"}
     planted_bug: {what: "an evaluator that uses P_pi.T", diagnostic: "Bellman residual"}
-    stretch: "The infinity-norm contraction holds; the 2-norm one can fail"
+    stretch: "The max-norm contraction holds; the 2-norm one can fail"
     exercises:
-      - {n: 1, title: Discounted return, minutes: 5, writes: [discounted_return]}
-      - {n: 2, title: A tiny cliff gridworld as arrays, minutes: 8, writes: [gridworld_arrays]}
-      - {n: 3a, title: Framing card for inventory, minutes: 5, writes: [inventory_spec, period_reward]}
-      - {n: 3b, title: The inventory MDP, minutes: 12, writes: [inventory_arrays]}
-      - {n: 4, title: Exact evaluation, minutes: 5, writes: [evaluate_exact]}
-      - {n: 5, title: Iterative evaluation and the contraction, minutes: 9, writes: [evaluate_iterative]}
-      - {n: 6, title: "Planted bug: a wrong evaluator", minutes: 8, writes: [bellman_residual, evaluate_suspect]}
+      # predict_answer: the answer to the Predict prompt (for the pace sheet).
+      # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
+      - n: 1
+        title: Discounted return
+        minutes: 5
+        writes: [discounted_return]
+        predict_answer: "2.71"
+        explain_ref: 'Gotcha: "γ is a speed knob"'
+      - n: 2
+        title: A tiny cliff gridworld as arrays
+        minutes: 8
+        writes: [gridworld_arrays]
+        predict_answer: "12 states; exactly one nonzero per row (deterministic moves)"
+        explain_ref: 'Gotcha: "Rows or columns of P_π'
+      - n: 3a
+        title: Framing card for inventory
+        minutes: 6
+        writes: [inventory_spec, period_reward]
+        predict_answer: "−3.60, negative: 4·4 − (5 + 2·7) − 0.2·3"
+        explain_ref: 'Gotcha: "The reward is what I want."'
+      - n: 3b
+        title: The inventory MDP
+        minutes: 9
+        writes: [inventory_arrays]
+        predict_answer: "every stock from 0 to 7 (7 on the shelf, demand 0 to 10)"
+        explain_ref: "(matrix form)"
+      - n: 4
+        title: Exact evaluation
+        minutes: 5
+        writes: [evaluate_exact]
+        predict_answer: "exactly 7 lower: both open with 7 units, and stock 6 pays 5 + 2 to order one"
+        explain_ref: "(matrix form)"
+      - n: 5
+        title: Iterative evaluation and the contraction
+        minutes: 10
+        writes: [evaluate_iterative]
+        predict_answer: "about 10 times as many (the count grows like 1/(1 − γ))"
+        explain_ref: "(iteration bound)"
+      - n: 6
+        title: "Planted bug: a wrong evaluator"
+        minutes: 9
+        writes: [bellman_residual, evaluate_suspect]
+        predict_answer: "about 1e−14: the solve rounds, so not exactly 0"
+        explain_ref: "(residual)"
     status: {briefing: draft, lab: draft}
 
   m02:

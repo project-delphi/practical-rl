@@ -267,7 +267,7 @@ def check_bellman_residual(fn: Callable[..., float]) -> None:
             want,
             atol=1e-9,
             what="bellman_residual",
-            hint="The residual is max over states of |r_pi + gamma P_pi V - V| (the infinity norm).",
+            hint="The residual is max over states of |r_pi + gamma P_pi V - V| (the max norm).",
         )
 
 
@@ -306,8 +306,8 @@ def check_operator_gains(fn: Callable[..., tuple]) -> None:
         inf_gain,
         0.9,
         atol=1e-9,
-        what="infinity-norm gain",
-        hint="The infinity-norm of a matrix is its largest absolute row sum.",
+        what="max-norm gain",
+        hint="The max-norm gain of a matrix is its largest absolute row sum.",
     )
     assert_close(
         two_gain,

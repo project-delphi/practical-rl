@@ -57,3 +57,14 @@ def test_lint_catches_missing_checkpoint(tmp_path):
     target.write_text(cut)
     problems = bn.lint(bn.build(target, v)[1], v)
     assert any("missing a chk cell" in p for p in problems)
+
+
+def test_lint_requires_predict_answer_and_cited_explain_ref(tmp_path):
+    v = variables.load()
+    src = (ROOT / "labs" / "src" / "01-mdps-bellman.py").read_text()
+    target = tmp_path / "01-mdps-bellman.py"
+    target.write_text(src.replace('(Gotcha: "γ is a speed knob")', "(no citation)"))
+    del v["modules"]["m01"]["exercises"][1]["predict_answer"]  # exercise 2
+    problems = bn.lint(bn.build(target, v)[1], v)
+    assert any("exercise 1: the Explain does not cite" in p for p in problems)
+    assert any("exercise 2: _variables.yml needs a predict_answer" in p for p in problems)

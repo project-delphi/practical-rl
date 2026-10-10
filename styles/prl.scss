@@ -424,6 +424,30 @@ a.btn-quiet[target="_blank"]:has(.visually-hidden)::after {
   }
 }
 
+// Reference material in a briefing (`::: {.reference}`): kept on the page for reading, not
+// covered aloud, and left out of the live plan (PLAN.md §4). The label is visible text for
+// sighted readers and screen readers alike.
+.reference {
+  margin: 1rem 0 1.5rem;
+  padding: 0.25rem 0 0.25rem 1rem;
+  border-left: 3px solid var(--prl-border-subtle);
+
+  &::before {
+    content: "For reference";
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--prl-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+}
+
 .challenge {
   margin: 1rem 0 1.5rem;
   padding: 0.75rem 1rem;

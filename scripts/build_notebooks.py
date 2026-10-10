@@ -456,6 +456,23 @@ def lint(built: dict[str, Any], v: dict[str, Any]) -> list[str]:
                 p.append(f"{m['slug']} exercise {n}: solution must use @lab.solution({n})")
             if cell["id"].startswith(f"ex{n}-chk") and "lab.check(" not in cell.source:
                 p.append(f"{m['slug']} exercise {n}: checkpoint must call lab.check(...)")
+        # PLAN §3.1: the Predict's answer goes on the pace sheet, and the Explain cites an
+        # equation name or a Gotcha of the briefing. A module whose briefing is still a
+        # placeholder (M0, pre-work) has nothing to cite yet.
+        if m["status"]["briefing"] != "placeholder":
+            e = exercises[n]
+            if not str(e.get("predict_answer", "")).strip():
+                p.append(f"{m['slug']} exercise {n}: _variables.yml needs a predict_answer")
+            ref = str(e.get("explain_ref", "")).strip()
+            explain = " ".join(
+                " ".join(c.source.split()) for c in nb.cells if c["id"] == f"ex{n}-explain"
+            )
+            if not ref:
+                p.append(f"{m['slug']} exercise {n}: _variables.yml needs an explain_ref")
+            elif " ".join(ref.split()) not in explain:
+                p.append(
+                    f"{m['slug']} exercise {n}: the Explain does not cite its explain_ref {ref!r}"
+                )
     for cell in nb.cells:
         if cell.cell_type == "markdown" and "generated" not in cell.metadata.get("tags", []):
             if re.search(r"@eq-|^:::|\{\{<", cell.source, re.M):

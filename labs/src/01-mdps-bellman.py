@@ -6,11 +6,12 @@
 
 # %% [markdown]
 # In this lab you write two Markov decision processes (MDPs) as arrays, then evaluate a
-# policy in them twice: exactly, with one linear solve, and by iteration, watching the
-# discount set the speed. You finish by finding a bug in someone else's evaluator with a
-# check that needs no reference answer: its Bellman residual.
+# policy in them twice: exactly, with one linear solve, and by iteration, watching how the
+# discount sets the number of sweeps. You finish by finding a bug in someone else's evaluator
+# with a check that needs no reference answer: its Bellman residual.
 #
-# The briefing's equations are named in brackets, for example (return) or (exact).
+# The briefing's equations are named in brackets, for example (return) or (exact). Its table
+# "Equations and where you implement them" gives each name's equation number.
 
 # %%
 import matplotlib.pyplot as plt
@@ -50,7 +51,8 @@ def discounted_return(rewards, gamma):
 
 
 # %% [markdown] role="ex1-hint"
-# Loop backward: `g = r + gamma * g` processes the list from the end and needs no powers.
+# Use G_t = r_t + γ G_{t+1} (return). After the last reward G is 0. Which end of the list do
+# you start from?
 
 
 # %% role="ex1-sol"
@@ -68,9 +70,9 @@ print(discounted_return([1, 1, 1], 0.9))
 print(discounted_return([0, 0, 10], 0.5))
 
 # %% [markdown] role="ex1-explain"
-# Did you get 2.71 and 2.5? The second case gives a large reward late: what does a small γ
-# do to it? A γ close to 1 means the agent cares about the long run; γ defines what is
-# valued, it is not a speed setting.
+# Did you get 2.71 and 2.5? In the second case the only reward comes late: what does a small
+# γ do to it? γ decides how much the future counts. It is part of the objective, not a speed
+# setting (Gotcha: "γ is a speed knob").
 
 # %% role="ex1-chk"
 lab.check(1, m01.check_discounted_return, discounted_return)
@@ -82,7 +84,7 @@ lab.check(1, m01.check_discounted_return, discounted_return)
 #
 # The rules, which your arrays must encode exactly:
 #
-# - every move costs −1; moving into a wall leaves you where you are;
+# - every move costs −1; a move off the grid leaves you where you are;
 # - moving into the cliff costs −100 and puts you back at the start;
 # - the goal is absorbing: every action keeps you there with reward 0;
 # - you can never be *in* a cliff cell; to keep the arrays simple, a cliff cell's row says
@@ -100,7 +102,7 @@ def index(r, c, cols):
 
 
 def move(r, c, a, rows, cols):
-    """The cell action a leads to from (r, c), staying put at the walls."""
+    """The cell action a leads to from (r, c); a move off the grid stays put."""
     dr, dc = {UP: (-1, 0), RIGHT: (0, 1), DOWN: (1, 0), LEFT: (0, -1)}[a]
     return min(max(r + dr, 0), rows - 1), min(max(c + dc, 0), cols - 1)
 
@@ -120,18 +122,22 @@ def gridworld_arrays(rows, cols):
     for s in range(S):
         r, c = divmod(s, cols)
         for a in range(A):
-            # TODO 2: set one entry of P[s, a, :] to 1 and set R[s, a], following the rules:
-            # goal -> stay, reward 0; cliff cell -> start, reward 0;
-            # otherwise move(r, c, a, rows, cols): into the cliff -> start with -100, else -1.
-            raise NotImplementedError(
-                "TODO 2: fill P and R, or run lab.use_reference(2) to continue with the solution"
-            )
+            if s == goal:
+                P[s, a, goal] = 1.0  # the goal absorbs, reward 0
+            elif s in cliff:
+                P[s, a, start] = 1.0  # never occupied: send it to the start, reward 0
+            else:
+                # TODO 2: where does action a lead? Into the cliff: back to the start with
+                # reward -100. Anywhere else: that cell, with reward -1.
+                raise NotImplementedError(
+                    "TODO 2: fill P and R, or run lab.use_reference(2) to continue with the solution"
+                )
     return P, R
 
 
 # %% [markdown] role="ex2-hint"
-# Handle the two special states first (`if s == goal: ...` and `elif s in cliff: ...`), then
-# compute `s2 = index(*move(r, c, a, rows, cols), cols)` and check whether `s2` is in the cliff.
+# `s2 = index(*move(r, c, a, rows, cols), cols)` is the cell action `a` leads to. If `s2` is a
+# cliff cell, the move goes to `start` instead and costs −100.
 
 
 # %% role="ex2-sol"
@@ -172,6 +178,8 @@ print("validate(): rows sum to 1 and the goal absorbs.")
 # %% [markdown] role="ex2-explain"
 # Twelve states, one nonzero per row: this world is deterministic. Read the printed rewards:
 # which cell's "move right" costs −100, and why do the goal and the two cliff cells show 0?
+# `P_grid.sum(axis=2)` is all ones; `P_grid.sum(axis=0)` is not. Which axis is the next
+# state? (Gotcha: "Rows or columns of P_π, it makes no difference.")
 
 # %% role="ex2-chk"
 lab.check(2, m01.check_gridworld_arrays, gridworld_arrays)
@@ -183,21 +191,28 @@ lab.check(2, m01.check_gridworld_arrays, gridworld_arrays)
 # Poisson with mean 4 (demand of 10 or more counts as 10). You sell what you can; unmet
 # demand is lost. Money: you earn 4 per unit sold, pay 2 per unit delivered plus a fixed 5
 # whenever any units are delivered (an order the cap cuts to 0 costs nothing),
-# pay 0.2 per unit left on the shelf overnight, and lose 1 of goodwill per customer turned
-# away. The discount is γ = 0.95 per day.
+# pay 0.2 per unit left on the shelf overnight, and take a penalty of 1 per unit of demand
+# you cannot meet. The discount is γ = 0.95 per day.
 #
-# Before you write arrays, write the framing card: what is a state, what is an action, what
-# is the reward?
+# Before you write code, fill in the framing card below.
+
+# %% [markdown]
+# **Your framing card.** Double-click this cell to edit it.
+#
+# - State: …
+# - Action: …
+# - Reward: …
+# - γ: …
+# - One judgment call you made, and why: …
 
 # %% [markdown] role="ex3a-predict"
-# Is today's stock enough to predict the future, or does the state also need yesterday's
-# demand? Write one sentence why.
+# Stock 0, order 7, demand 4: what is the day's reward? Positive or negative?
 
 
 # %% role="ex3a-stub"
 def inventory_spec(capacity):
     """The framing card's counts: {'n_states': ..., 'n_actions': ...}."""
-    # TODO 3a (part 1): states are stock levels 0..capacity; actions are order sizes.
+    # TODO 3a (part 1): the counts from your framing card.
     raise NotImplementedError(
         "TODO 3a: write inventory_spec, or run lab.use_reference('3a') to continue with the solution"
     )
@@ -216,9 +231,9 @@ def period_reward(stock, order, demand, p):
 
 
 # %% [markdown] role="ex3a-hint"
-# With `q = min(order, p["capacity"] - stock)`, `y = stock + q`, `sales = min(y, demand)` and
-# `left = y - sales`, the reward is `price * sales - (fixed_cost if q > 0 else 0) - unit_cost * q
-# - holding_cost * left - lost_sales_penalty * (demand - sales)`.
+# Cap first: `q = min(order, p["capacity"] - stock)`. Then count the units sold, left and
+# lost. The fixed cost applies only if `q > 0`; the unit cost is paid on `q`. Check: stock 3,
+# order 4, demand 5 gives 6.6.
 
 
 # %% role="ex3a-sol"
@@ -253,11 +268,11 @@ for stock, order, demand in [(0, 7, 4), (3, 0, 5), (6, 1, 2)]:
     )
 
 # %% [markdown] role="ex3a-explain"
-# Demand is drawn fresh each day, independent of the past, so today's stock and today's
-# order are all the future depends on: the state is Markov. The first case's reward is
-# negative (−3.60) even though restocking an empty shelf pays off later: one day's reward is
-# not the value of a decision. That gap
-# is what the Bellman equation closes.
+# The first case loses 3.60, even though restocking an empty shelf pays off on later days:
+# one day's reward is not the value of a decision. Demand is drawn fresh each day,
+# independent of the past, so today's stock and order are all the future depends on: the
+# state is Markov. Which line of your framing card is a judgment call rather than a fact?
+# (Gotcha: "The reward is what I want.")
 
 # %% role="ex3a-chk1"
 lab.check("3a", m01.check_inventory_spec, inventory_spec, label="3a.1")
@@ -325,19 +340,20 @@ plt.show()
 
 # %% [markdown] role="ex3b-explain"
 # Starting empty, the best order for *today alone* is 4 units (−1.06), yet the shop must
-# keep stock for tomorrow too. Why can't we pick orders by one-day reward? What would we
-# need to know about tomorrow?
+# keep stock for tomorrow too. Why can't we pick orders by one-day reward? In Exercise 4,
+# which term of (matrix form) carries tomorrow?
 
 # %% role="ex3b-chk"
 lab.check("3b", m01.check_inventory_arrays, inventory_arrays)
 
 # %% [markdown] role="ex4-head"
 # A **policy** π here is an (S, A) matrix of action probabilities. For a fixed policy the
-# Bellman equation is linear, V = r_π + γ P_π V (Bellman, matrix form), so one solve gives
+# Bellman equation is linear, V = r_π + γ P_π V (matrix form), so one solve gives
 # V^π = (I − γ P_π)⁻¹ r_π (exact). Below, the "order up to 7" policy orders max(0, 7 − stock).
 
 # %% [markdown] role="ex4-predict"
-# Under "order up to 7", is V(6) much smaller than V(7), or about the same? Why?
+# Under "order up to 7", how much lower is V(6) than V(7)? (After ordering, how many units
+# does the shop open with?)
 
 
 # %% role="ex4-stub"
@@ -350,8 +366,9 @@ def evaluate_exact(P, R, gamma, pi):
 
 
 # %% [markdown] role="ex4-hint"
-# `P_pi = np.einsum("sa,sat->st", pi, P)` and `r_pi = (pi * R).sum(axis=1)`. Then
-# `np.linalg.solve(np.eye(S) - gamma * P_pi, r_pi)`; there is no need to form the inverse.
+# `r_pi[s]` is a row sum of `pi[s, a] * R[s, a]`. `P_pi[s, s2]` sums `pi[s, a] * P[s, a, s2]`
+# over `a` (a loop over `a`, or `np.einsum`). Solve the system with `np.linalg.solve` rather
+# than forming an inverse.
 
 
 # %% role="ex4-sol"
@@ -385,11 +402,10 @@ print("3x4 gridworld, uniform random policy, gamma 0.9 (rows as on the grid):")
 print(np.round(V_grid.reshape(3, 4), 2))
 
 # %% [markdown] role="ex4-explain"
-# V rises with stock. Below 7 each extra unit is worth exactly 2, the unit cost it saves,
-# because after ordering the shelf holds 7 either way. Between 6 and 7 the jump is exactly 7:
-# at 6 the policy orders one unit, paying the fixed 5 plus 2; at 7 it orders nothing, and from
-# then on the two futures are identical. What does that suggest about this policy at stock 6?
-# (In the gridworld, random play from the start is very costly: why?)
+# From stock 6 and from stock 7 the shop opens with 7 units, so rows 6 and 7 of P_π are
+# equal, and (matrix form) gives V(7) − V(6) = r_π(7) − r_π(6) = 5 + 2 = 7. Why do stocks 0
+# to 6 differ by exactly 2? Is one unit at stock 6 really worth 7? Module 2 answers. (In the
+# gridworld, random play from the start is very costly: why?)
 
 # %% role="ex4-chk"
 lab.check(4, m01.check_evaluate_exact, evaluate_exact)
@@ -397,8 +413,11 @@ lab.check(4, m01.check_evaluate_exact, evaluate_exact)
 # %% [markdown] role="ex5-head"
 # Iterative evaluation applies T^π V = r_π + γ P_π V (operator) again and again from V = 0.
 # Because T^π is a γ-contraction in the max norm (contraction; the briefing's ∞-norm), the
-# error shrinks by at least a factor γ per sweep, and stopping when max |V_new − V| < tol guarantees an error of at most
-# γ·tol / (1 − γ) (stopping rule).
+# error shrinks by at least a factor γ per sweep. From V = 0, after k sweeps the error is at
+# most γ^k max_s |V^π(s)|, so reaching an error η takes about
+# log(max_s |V^π(s)| / η) / log(1/γ) sweeps (iteration bound). While iterating you cannot
+# measure the error, only the change: stopping when max |V_new − V| < tol guarantees an
+# error of at most γ·tol / (1 − γ) (stopping rule).
 
 # %% [markdown] role="ex5-predict"
 # Going from γ = 0.9 to γ = 0.99, how many times more sweeps do you need to reach
@@ -419,9 +438,8 @@ def evaluate_iterative(P, R, gamma, pi, tol):
 
 
 # %% [markdown] role="ex5-hint"
-# Inside a `while True:` loop, compute `V_new`, increment `k`, and `return V_new, k` as soon as
-# `np.max(np.abs(V_new - V)) < tol`; otherwise set `V = V_new`. If the cell never finishes,
-# you probably forgot `V = V_new` (interrupt it with the stop button).
+# Keep the old `V`, a `V_new` and a counter, and test the stopping rule after each sweep. If
+# the cell never finishes, stop it with the stop button, then check that `V` moves forward.
 
 
 # %% role="ex5-sol"
@@ -441,30 +459,36 @@ def evaluate_iterative(P, R, gamma, pi, tol):
 
 # %% role="ex5-run"
 gammas = [0.5, 0.7, 0.9, 0.95, 0.99]
-counts, errors = [], []
+tol = 1e-6
+counts, bounds = [], []
 for g in gammas:
-    V_it, k = evaluate_iterative(P_inv, R_inv, g, pi7, 1e-6)
-    err = np.max(np.abs(V_it - evaluate_exact(P_inv, R_inv, g, pi7)))
+    V_it, k = evaluate_iterative(P_inv, R_inv, g, pi7, tol)
+    V_ex = evaluate_exact(P_inv, R_inv, g, pi7)
+    err = np.max(np.abs(V_it - V_ex))
+    guarantee = g * tol / (1 - g)  # (stopping rule)
+    # (iteration bound) with eta = tol / (1 + gamma), plus the sweep that passes the test
+    bounds.append(2 + np.log((1 + g) * np.max(np.abs(V_ex)) / tol) / np.log(1 / g))
     counts.append(k)
-    errors.append(err)
-    bound = g * 1e-6 / (1 - g)
     print(
-        f"gamma {g}: {k:5d} sweeps, error {err:.3e} = {err / bound:.3f} x the guarantee {bound:.3e}"
+        f"gamma {g}: {k:5d} sweeps (bound {bounds[-1]:7.1f}), error {err:.3e}"
+        f" = {err / guarantee:.3f} x the guarantee {guarantee:.3e}"
     )
+horizon = [1 / (1 - g) for g in gammas]
 fig, ax = plt.subplots()
-ax.plot([1 / (1 - g) for g in gammas], counts, marker="o")
+ax.plot(horizon, counts, marker="o", label="your sweeps")
+ax.plot(horizon, bounds, linestyle="--", label="(iteration bound)")
 ax.set(
     xlabel="effective horizon 1 / (1 - gamma)",
     ylabel="sweeps to tol = 1e-6",
-    title="Iterations grow with the horizon",
+    title="Sweeps grow with the horizon",
 )
+ax.legend()
 plt.show()
 
 # %% [markdown] role="ex5-explain"
-# From γ = 0.9 to 0.99 the count grows about tenfold, close to linear in 1 / (1 − γ). Use the
-# briefing's iteration bound to explain why: how many factors of γ does it take to shrink an
-# error by a factor of 10⁶? Notice also that the error is almost exactly the guarantee
-# γ·tol / (1 − γ): here the bound is nearly tight, so a small change is not a small error.
+# At γ = 0.99 the change fell below tol, yet your error is about 98 × tol. Which Gotcha is
+# that? Then use (iteration bound): how many factors of γ shrink an error by 10⁻⁶ at γ = 0.9,
+# and how many at γ = 0.99?
 
 # %% role="ex5-chk"
 lab.check(5, m01.check_evaluate_iterative, evaluate_iterative)
@@ -475,15 +499,10 @@ lab.check(5, m01.check_evaluate_iterative, evaluate_iterative)
 # with. A value function can always be tested with its **Bellman residual**,
 # max |T^π V − V| (residual): exactly zero at V^π, and not zero anywhere else. It needs no
 # reference. Write the residual, use it as the diagnostic, then fix the bug.
-#
-# **Diagnostics for this lab.** An exact evaluator's residual is near machine precision
-# (about 1e−14 here; it depends on your machine). An iterative one that stopped at tol has a
-# residual below γ·tol. A residual far above these means V does not satisfy the Bellman
-# equation of the P, R and π you passed, however plausible the values look. It cannot tell
-# you whether P and R describe the right problem; the checkpoints of Exercises 2 and 3 do.
 
 # %% [markdown] role="ex6-predict"
-# If V is exactly V^π, what is its Bellman residual? What would a residual of 5 tell you?
+# What residual will `V7`, your exact answer from Exercise 4, have: exactly 0, about 1e−14,
+# or about 1e−6? Why not exactly 0?
 
 
 # %% role="ex6-stub"
@@ -500,6 +519,7 @@ def evaluate_suspect(P, R, gamma, pi):
     P_pi = np.einsum("sa,sat->st", pi, P)
     r_pi = (pi * R).sum(axis=1)
     # TODO 6 (part 2): once your residual shows the problem, fix the one wrong line below.
+    # After fixing it, rerun this cell and the run cell.
     return np.linalg.solve(np.eye(len(r_pi)) - gamma * P_pi.T, r_pi)
 
 
@@ -533,11 +553,18 @@ print("residual of evaluate_suspect:", bellman_residual(P_inv, R_inv, g, pi7, V_
 print("residual of evaluate_exact:  ", bellman_residual(P_inv, R_inv, g, pi7, V7))
 
 # %% [markdown] role="ex6-explain"
-# Before your fix, the suspect's residual was large. When would this bug be invisible, with a
-# residual of zero? (Hint: when is P_π equal to its transpose? Is that the only case?) A zero
-# residual means the output is V^π for *this* MDP, not that the code is right, so test
-# evaluators on an MDP whose P_π is not symmetric. A residual check costs about one sweep and
-# needs no reference answer; run it on every evaluator you write.
+# Before your fix, the suspect's (residual) was far above 1. When would this bug be
+# invisible, with a residual of zero? (Hint: when is P_π equal to its transpose? Is that the
+# only case?) A zero residual means the output is V^π for *this* MDP, not that the code is
+# right, so test evaluators on an MDP whose P_π is not symmetric.
+#
+# **Diagnostics for this lab.** An exact evaluator's residual is near machine precision
+# (about 1e−14 here; it depends on your machine). An iterative one that stopped at tol has a
+# residual below γ·tol. A residual far above these means V does not satisfy the Bellman
+# equation for the P, R and π you passed: the evaluator is wrong, however plausible the
+# values look. The residual cannot tell you whether P and R describe the right problem;
+# `validate()` and the checkpoints of Exercises 2 and 3 do. A residual check costs about one
+# sweep and needs no reference answer: run it on every evaluator you write.
 
 # %% role="ex6-chk1"
 lab.check(6, m01.check_bellman_residual, bellman_residual, label="6.1")
