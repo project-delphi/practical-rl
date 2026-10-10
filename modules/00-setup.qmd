@@ -9,16 +9,14 @@ live:
 
 {{< include /_includes/module-00.md >}}
 
-**How to use this page.** This is self-paced pre-work. Its 20 minutes, and the minutes in its tables, are a design budget, not a measurement. Start the install first, and read while it runs:
+**How to use this page.**
 
-1. **Guess first.** Before you open the notebook, write down two guesses: does Colab's default runtime have a GPU, and how many CPU cores does it have? They are Exercise 0's Predict. The setup cell prints the answers, so write them before it runs.
-2. **Open the notebook** with **Open in Colab** at the top of this page. Keep working in the tab it opens.
-3. **Run the setup cell**, titled **Setup: run this cell first**. If Colab warns that the notebook was not authored by Google, choose **Run anyway**. Leave its three boxes as they are: `PRL_REF` as filled in, `WORKED` unchecked and `SEED` at 0. Change `SEED` only if your instructor gives you a seat number. Checking `WORKED` would run every Solution in place of your code. On Colab the cell installs packages. Read sections 1 and 2 below while it runs. No Colab install has been timed yet; if it is still running after 5 minutes, see [Troubleshooting](#troubleshooting).
-4. **Run the next cell.** It starts the lab harness and prints one status line, which you can ignore.
-5. **Run the cells in order**, from the top. Each numbered section below matches one exercise: read the section (about a minute), do the exercise, then open the folded answers under **Check yourself**. The "For reference" blocks at the end of sections are optional.
-6. **Keep your code.** If Colab's **File** menu offers **Save a copy in Drive**, use it.
+1. **Guess first.** Write down: does Colab's default runtime have a GPU, and how many CPU cores? The setup cell prints both.
+2. **Start the install.** In the notebook (**Open in Colab**, above), run the setup cell without changing its boxes. If Colab warns that the notebook was not authored by Google, choose **Run anyway**.
+3. **Read sections 1 and 2 while it installs.** Then read each section, do its exercise and open its folded answers. "For reference" blocks are optional.
+4. **Keep your code**, with **File → Save a copy in Drive** if Colab offers it.
 
-If a cell prints an error or a message you do not expect, see [Troubleshooting](#troubleshooting). It follows the order in which the notebook runs.
+If setup runs past 5 minutes, or anything else goes wrong, see [Troubleshooting](#troubleshooting).
 
 {{< include /_includes/lab-00.md >}}
 
@@ -26,27 +24,27 @@ If a cell prints an error or a message you do not expect, see [Troubleshooting](
 
 {{< include /_includes/live-00.md >}}
 
+These minutes, like every minute count on this page, are a design budget, not a measurement.
+
 ## 1. Open the notebook and check your runtime (Exercise 0)
 
-**In this section:** open the notebook on Colab's CPU runtime, read what its setup cell and Exercise 0 report about the runtime, and compare with your guesses.
+**In this section:** [open the notebook]({{< var repo.colab_base >}}/00-setup.ipynb) on Colab's default CPU runtime, which it is designed for, and compare what it reports with your guesses.
 
-Use **Open in Colab** at the top of this page, or [open the notebook in Colab]({{< var repo.colab_base >}}/00-setup.ipynb) from here. Both open the same notebook. Colab starts on its default CPU runtime, the one this notebook is designed for. Other run paths are on the [Setup page](/setup.qmd).
+**The setup cell** installs the pinned `gymnasium` and this workshop's `prl` package. Then it prints a `Runtime:` line (platform, accelerator, CPU count, RAM and Python version), a `CPU:` line (the CPU model) and a `Packages:` line (each package's version).
 
-**The setup cell** runs first. On Colab it installs the pinned `gymnasium` and this workshop's `prl` package, and it tries to keep every package Colab already has. Run locally, it checks the versions instead. Near the end it prints a `Runtime:` line (the platform, accelerator, CPU count, RAM and Python version), a `CPU:` line (the CPU model) and a `Packages:` line (the version of each package). The [Colab steps on the Setup page](/setup.qmd#colab) say more.
-
-**Exercise 0** is provided code. `prl.runtime.detect()` prints the same runtime summary, then the CPU model. Every run record stores these facts, so a result always says where it came from. The cell after Exercise 0 measures the runtime's speed. You only run it.
+**Exercise 0** is provided code: `prl.runtime.detect()` prints the same summary and the CPU model. Run records store these facts, so every result says where it ran.
 
 ::: {#do-ex0 .callout-note appearance="simple"}
-**In the lab.** Run the setup cell, then the harness cell. Then do **Exercise 0**. There is no code to write. Its Predict asks for the two guesses you already wrote: run the cell and compare. Checkpoint 0 checks that the platform, accelerator, CPU model, CPU count and Python version are present, and that the platform is one it knows. Then run the speed cell.
+**In the lab.** Run the setup cell, then the harness cell. **Exercise 0** has no code to write: its Predict is your two guesses, so run it and compare. Checkpoint 0 checks that the runtime facts are present. Then run the speed cell.
 :::
 
 ::: {#chk-runtime .self-check}
-**Check yourself 1.1** (after Exercise 0). On Colab's default runtime, what does the summary line show as the accelerator? What would it show on a GPU runtime? Which line of the setup cell's output gives the package versions, and does it list `gymnasium`?
+**Check yourself 1.1** (after Exercise 0). What accelerator does the summary line show on Colab's default runtime, and on a GPU runtime? Which setup line gives the package versions, and does it list `gymnasium`?
 
 ::: {.callout-tip collapse="true" title="Answer to 1.1"}
-`cpu`, and no GPU is named. A GPU runtime shows `cuda`, then `GPU` and the GPU's name. The CPU count is whatever your line shows. This page quotes no Colab count: a number appears on this site only when a run record backs it. Run locally on a Mac with Apple silicon, the line can also show `cpu`, while the run record can show `mps` (see 4.1).
+`cpu`, and no GPU is named. A GPU runtime shows `cuda`, then `GPU` and the GPU's name. Your CPU count is whatever your line shows. This site quotes no Colab count until a run record backs one.
 
-The versions are on the setup cell's `Packages:` line. It should list `gymnasium 1.4.0`, the version this notebook pins. If `gymnasium` is missing from that line or shows another version, setup did not finish: see [Troubleshooting](#troubleshooting).
+The `Packages:` line should list `gymnasium 1.4.0`, the version this notebook pins. If it does not, setup did not finish: see [Troubleshooting](#troubleshooting).
 :::
 :::
 
@@ -54,11 +52,15 @@ The versions are on the setup cell's `Packages:` line. It should list `gymnasium
 **Check yourself 1.2** (after Exercise 0). Which part of a lab could a T4 GPU speed up, and which part could it not?
 
 ::: {.callout-tip collapse="true" title="Answer to 1.2"}
-We expect a T4 could speed up only network arithmetic, the forward and backward passes, and only when the code puts the network and its data on the GPU. It could not speed up CartPole's physics, which is NumPy arithmetic on the CPU, or the Python code around it that resets, steps and stores results. This notebook's speed cell keeps its network on the CPU on every runtime, so it measures no GPU speed-up at all. This week's networks are small, so we expect stepping the environment to set the pace. These are expectations, not measurements, until timed runs on both runtimes are recorded. See the Gotcha "A T4 speeds up CartPole."
+We expect a T4 could speed up only network arithmetic, the forward and backward passes, and only when the code puts the network and its data on the GPU. It could not speed up CartPole's physics, which is NumPy on the CPU, or the Python loop that steps the environment. That is an expectation, not a measurement: see the Gotcha "A T4 speeds up CartPole."
 :::
 :::
 
 ::: {.reference}
+**The first two cells.** On Colab the setup cell installs only what this notebook adds, and it tries to keep every package Colab already has. Run locally, it checks the versions instead. The [Colab steps on the Setup page](/setup.qmd#colab) say more. Leave its three boxes as they are: `PRL_REF` as filled in, `WORKED` unchecked and `SEED` at 0. Change `SEED` only if your instructor gives you a seat number. Checking `WORKED` would run every Solution in place of your code. The next cell starts the lab harness and prints one status line, which you can ignore.
+
+**Checkpoint 0** checks that the platform, accelerator, CPU model, CPU count and Python version are present, and that the platform is one it knows.
+
 **What the speed cell measures.** Each part is set to run for 5 seconds. First it steps `CartPole-v1` with random actions, starting a new episode whenever one ends, and counts environment steps per second. Then, if PyTorch is installed, it trains a small network (two hidden layers of 64 units, Adam) on one fixed batch of 64 random inputs and counts gradient updates per second. That network runs on the CPU on every runtime, GPU or not. The cell also records how many threads PyTorch uses. All three numbers go into your run record.
 
 This page quotes no speed numbers. A number appears on this site only when a run record backs it, and the [readiness page](/readiness.qmd) lists the records.
