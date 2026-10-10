@@ -154,9 +154,8 @@ modules:
     stretch: null
     minutes: 20
     exercises:
-      # predict_answer and explain_ref are linted only once status.briefing leaves placeholder.
-      # The explain_refs name the briefing's Gotchas; labs/src/00-setup.py's Explain cells must
-      # cite them verbatim before the status changes.
+      # The explain_refs name the briefing's Gotchas; labs/src/00-setup.py's Explain cells cite
+      # them verbatim (the build lints it).
       - n: 0
         title: Runtime check
         minutes: 5
@@ -181,7 +180,7 @@ modules:
         writes: []
         predict_answer: "platform (colab), env (colab-cpu or colab-t4), hardware.accel (cpu or cuda) and hardware.gpu"
         explain_ref: 'Gotcha: "The run record shares my name or keys."'
-    status: {briefing: placeholder, lab: draft}
+    status: {briefing: draft, lab: draft}
 
   m01:
     n: 1

@@ -23,8 +23,9 @@ print("CPU model:", rt.cpu)
 
 # %% [markdown] role="ex0-explain"
 # Compare with your prediction. Almost every lab this week is designed for a **CPU** runtime:
-# the networks are small, so speed is limited by stepping the environment, not by matrix
-# arithmetic. Only the Module 12 stretch and one capstone option are designed for a T4 GPU.
+# the networks are small, so we expect speed to be limited by stepping the environment, not
+# by matrix arithmetic (Phase 3 measures it). Only the Module 12 stretch and one capstone
+# option are designed for a T4 GPU. (Gotcha: "A T4 speeds up CartPole.")
 
 # %% role="ex0-chk"
 from prl.checks import m00
@@ -136,7 +137,7 @@ print(
 
 # %% [markdown] role="ex1-explain"
 # How close was your guess? Why does random play end so quickly, and why do some episodes
-# last much longer than others?
+# last much longer than others? (Gotcha: "A random agent is no baseline.")
 
 # %% role="ex1-chk"
 lab.check(1, m00.check_run_episode, run_episode)
@@ -201,6 +202,7 @@ lab.metric("random_mean_return", round(float(by_seed.mean()), 2))
 # %% [markdown] role="ex2-explain"
 # How far apart are the per-seed means? Suppose someone reported "my agent scores 25, the
 # random agent scores 22" from one seed each. What would you ask them?
+# (Gotcha: "One seed is enough to compare.")
 
 # %% role="ex2-chk"
 lab.check(2, m00.check_returns_by_seed, returns_by_seed)
@@ -222,6 +224,7 @@ print("checkpoints so far:", [(c["label"], c["pass"]) for c in rec["checkpoints"
 # %% [markdown] role="ex3-explain"
 # The record never includes your name, paths or keys. On Colab the last cell offers it as a
 # download; send it to your instructor if they ask for setup evidence.
+# (Gotcha: "The run record shares my name or keys.")
 
 # %% role="ex3-chk"
 lab.check(3, m00.check_record, rec)
