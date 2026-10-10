@@ -22,6 +22,24 @@
     while (opened.length) opened.pop().open = false;
   });
 
+  // Citation and cross-reference popups (Quarto's tippy.js), WCAG 1.4.13. Escape closes
+  // every open popup without moving the pointer or the focus. Links inside a popup leave
+  // the Tab order: each repeats a target the page already has (the reference list, the
+  // figure), and focus that went into a popup left it open after focus moved on.
+  // tippy.js loads before this file, so these defaults reach every popup Quarto makes.
+  if (window.tippy && window.tippy.setDefaultProps) {
+    var untab = function (instance) {
+      var inner = instance.popper.querySelectorAll(
+        "a[href], button, input, select, textarea, summary, [tabindex]"
+      );
+      for (var n = 0; n < inner.length; n++) inner[n].setAttribute("tabindex", "-1");
+    };
+    window.tippy.setDefaultProps({ onMount: untab, onAfterUpdate: untab });
+  }
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && window.tippy && window.tippy.hideAll) window.tippy.hideAll();
+  });
+
   // A table wrapper that scrolls sideways (filters/scroll-regions.lua) becomes a
   // named, focusable region so the keyboard can scroll it; one that fits does not
   // add a tab stop.
