@@ -44,9 +44,9 @@ NB_DIR = ROOT / "notebooks"
 MUTANTS = ROOT / "labs" / "mutants"
 
 
-def load_mutants(module: str) -> list[dict]:
+def load_mutants(module: str, directory: Path | None = None) -> list[dict]:
     """Mutants declared with @mutant(ex=..., replaces=..., id=..., why=...) in labs/mutants/<module>.py."""
-    path = MUTANTS / f"{module}.py"
+    path = (directory or MUTANTS) / f"{module}.py"
     if not path.exists():
         return []
     tree = ast.parse(path.read_text())
