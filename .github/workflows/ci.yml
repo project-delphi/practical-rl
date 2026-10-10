@@ -113,3 +113,5 @@ jobs:
         run: .colab/bin/python scripts/check_notebooks.py --mode worked ${{ matrix.notebook }}
       - name: Learner mode (must stop at the first TODO)
         run: .colab/bin/python scripts/check_notebooks.py --mode learner ${{ matrix.notebook }}
+      - name: Verify mode (every checkpoint rejects its stub and every mutant)
+        run: .colab/bin/python scripts/check_notebooks.py --mode verify ${{ matrix.notebook }}

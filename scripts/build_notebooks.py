@@ -327,6 +327,21 @@ def build(path: Path, v: dict[str, Any]) -> tuple[str, dict[str, Any]]:
             out_cells.append(new)
             continue
         # plain cells, includes and stretch cells
+        if role == "stretch-sol" and cell.cell_type == "code":
+            code_for_sha.append((role, src))
+            names = re.findall(r"^(?:def|class)\s+([A-Za-z_]\w*)", src, re.M)
+            title = (
+                f"#@title Stretch solution · {', '.join(names) or 'reference'} (open after trying) "
+                '{ display-mode: "form" }\n'
+            )
+            new = nbformat.v4.new_code_cell(
+                title + src,
+                metadata={**meta, "cellView": "form", "jupyter": {"source_hidden": True}},
+            )
+            new["id"] = role
+            seen_ids.add(role)
+            out_cells.append(new)
+            continue
         if role.startswith("shared-") or role.startswith("stretch"):
             cid = role if role not in seen_ids else f"{role}-{auto}"
         elif role:
@@ -427,13 +442,15 @@ def lint(built: dict[str, Any], v: dict[str, Any]) -> list[str]:
             if (
                 cell["id"] == f"ex{n}-stub"
                 and "NotImplementedError" in cell.source
-                and f"lab.use_reference({n})" not in cell.source
+                and not re.search(rf"lab\.use_reference\(['\"]?{n}['\"]?\)", cell.source)
             ):
                 p.append(
                     f"{m['slug']} exercise {n}: the stub's error must name lab.use_reference({n}), "
                     "the way out for a stuck participant"
                 )
-            if cell["id"] == f"ex{n}-sol" and f"@lab.solution({n})" not in cell.source:
+            if cell["id"] == f"ex{n}-sol" and not re.search(
+                rf"@lab\.solution\(['\"]?{n}['\"]?\)", cell.source
+            ):
                 p.append(f"{m['slug']} exercise {n}: solution must use @lab.solution({n})")
             if cell["id"].startswith(f"ex{n}-chk") and "lab.check(" not in cell.source:
                 p.append(f"{m['slug']} exercise {n}: checkpoint must call lab.check(...)")

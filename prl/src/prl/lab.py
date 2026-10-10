@@ -24,6 +24,7 @@ from . import API, __version__, record, runtime
 from .checks import CheckFailed
 
 _STATE_KEY = "__prl_lab__"
+_MISSING = object()
 _STANDIN = "__prl_standin__"
 
 
@@ -170,10 +171,25 @@ class Lab:
             error = exc
         except NotImplementedError as exc:
             error = CheckFailed(str(exc) or f"Exercise {n} is not written yet.")
+            error.__cause__ = exc
         except Exception as exc:  # noqa: BLE001 - report any crash as a failed checkpoint
             error = CheckFailed(f"Your code raised {type(exc).__name__}: {exc}")
             error.__cause__ = exc
         seconds = round(time.perf_counter() - start, 3)
+        mutant = self._s.get("mutant")
+        if mutant is not None:
+            cause = error.__cause__ if error is not None and error.__cause__ else None
+            mutant["results"].append(
+                {
+                    "label": label,
+                    "rejected": error is not None,
+                    "error_type": type(cause).__name__
+                    if cause is not None
+                    else ("CheckFailed" if error is not None else None),
+                    "message": str(error)[:200] if error is not None else "",
+                }
+            )
+            return
         result = {
             "label": label,
             "exercise": n,
@@ -191,6 +207,47 @@ class Lab:
         if whose != "reference":
             print(f"  Stuck? Open the Hint, then the Solution, or run lab.use_reference({n}).")
         raise error
+
+    # -- mutants (used by scripts/check_notebooks.py --mode verify) -------------
+    def _mutant_begin(
+        self, n: int, mutant_id: str, sources: dict[str, str], *, stub: bool = False
+    ) -> None:
+        """Swap in a wrong version of exercise n's functions; checks then record, not raise."""
+        saved = {name: self._ns.get(name, _MISSING) for name in sources}
+        for name, src in sources.items():
+            exec(compile(src, f"<mutant {mutant_id}>", "exec"), self._ns)  # noqa: S102
+            if name not in self._ns:
+                raise RuntimeError(f"mutant {mutant_id} does not define {name}")
+        self._s["mutant"] = {"n": n, "id": mutant_id, "stub": stub, "saved": saved, "results": []}
+
+    def _mutant_end(self, n: int) -> None:
+        """Restore the real functions; fail unless every checkpoint rejected the mutant."""
+        mutant = self._s.pop("mutant")
+        for name, obj in mutant["saved"].items():
+            if obj is _MISSING:
+                self._ns.pop(name, None)
+            else:
+                self._ns[name] = obj
+        results = mutant["results"]
+        allowed = {"CheckFailed", "AssertionError"} | (
+            {"NotImplementedError"} if mutant["stub"] else set()
+        )
+        problems = []
+        if not results:
+            problems.append("no checkpoint ran")
+        for r in results:
+            if not r["rejected"]:
+                problems.append(f"checkpoint {r['label']} PASSED")
+            elif r["error_type"] not in allowed:
+                problems.append(
+                    f"checkpoint {r['label']} failed with {r['error_type']}, not a check: {r['message']}"
+                )
+        kind = "stub" if mutant["stub"] else "mutant"
+        if problems:
+            raise AssertionError(
+                f"Exercise {n} {kind} {mutant['id']!r} was not rejected: " + "; ".join(problems)
+            )
+        print(f"✓ exercise {n}: {kind} {mutant['id']!r} rejected by {len(results)} checkpoint(s)")
 
     # -- metrics and records --------------------------------------------------
     def metric(self, key: str, value: Any) -> None:
@@ -372,4 +429,18 @@ def init(
     return lab
 
 
-__all__ = ["APIVersionError", "CheckFailed", "Lab", "init"]
+def mutant(*, ex: int | str, replaces: str, id: str, why: str):  # noqa: A002
+    """Mark a deliberately wrong version of an exercise function (labs/mutants/mNN.py).
+
+    scripts/check_notebooks.py --mode verify swaps each mutant in and requires every
+    checkpoint of that exercise to reject it.
+    """
+
+    def mark(fn: Callable[..., Any]) -> Callable[..., Any]:
+        fn.__prl_mutant__ = {"ex": str(ex), "replaces": replaces, "id": id, "why": why}  # type: ignore[attr-defined]
+        return fn
+
+    return mark
+
+
+__all__ = ["APIVersionError", "CheckFailed", "Lab", "init", "mutant"]

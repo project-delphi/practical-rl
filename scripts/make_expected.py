@@ -56,7 +56,96 @@ def m01_returns() -> bytes:
     return _save("m01_returns", rewards=rewards, lengths=lengths, gammas=gammas, returns=answers)
 
 
-FIXTURES = {"m01_returns": m01_returns}
+# Module 1 lab parameters (also printed in the notebook; see the Module 1 contract).
+M01_INVENTORY = dict(
+    capacity=10,
+    demand_mean=4.0,
+    max_demand=10,
+    price=4.0,
+    unit_cost=2.0,
+    fixed_cost=5.0,
+    holding_cost=0.2,
+    lost_sales_penalty=1.0,
+    gamma=0.95,
+)
+
+
+def _policy_eval(P, R, gamma, pi):
+    """Exact V^pi by linear solve (fixture code; never shipped in prl)."""
+    S = P.shape[0]
+    P_pi = np.einsum("sa,sat->st", pi, P)
+    r_pi = (pi * R).sum(axis=1)
+    return np.linalg.solve(np.eye(S) - gamma * P_pi, r_pi), P_pi, r_pi
+
+
+def _iterate(P_pi, r_pi, gamma, tol):
+    V = np.zeros_like(r_pi)
+    k = 0
+    while True:
+        V_new = r_pi + gamma * P_pi @ V
+        k += 1
+        if np.max(np.abs(V_new - V)) < tol:
+            return V_new, k
+        V = V_new
+
+
+def m01_eval() -> bytes:
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import CliffGridworld, InventoryMDP
+
+    out: dict[str, np.ndarray] = {}
+    # Case "grid": 3x4 cliff gridworld, uniform random policy, gamma 0.9.
+    g = CliffGridworld(3, 4, gamma=0.9)
+    pi_g = np.full((g.n_states, 4), 0.25)
+    V_g, _, _ = _policy_eval(g.P, g.R, 0.9, pi_g)
+    out.update(grid_P=g.P, grid_R=g.R, grid_pi=pi_g, grid_gamma=np.array(0.9), grid_V=V_g)
+    # Case "inv": the lab's inventory MDP, base-stock policy "order up to 7".
+    inv = InventoryMDP(**M01_INVENTORY)
+    pi_i = np.zeros((inv.n_states, inv.n_actions))
+    for s in range(inv.n_states):
+        pi_i[s, max(0, 7 - s)] = 1.0
+    V_i, _, _ = _policy_eval(inv.P, inv.R, 0.95, pi_i)
+    out.update(inv_pi=pi_i, inv_V=V_i)
+    # Case "rand": a seeded random MDP (5 states, 3 actions) and a stochastic policy.
+    rng = np.random.default_rng(20261009)
+    P = rng.dirichlet(np.ones(5), size=(5, 3))
+    R = rng.normal(size=(5, 3))
+    pi = rng.dirichlet(np.ones(3), size=5)
+    gammas = np.array([0.5, 0.9, 0.99])
+    out.update(rand_P=P, rand_R=R, rand_pi=pi, gammas=gammas)
+    Vs, ks = [], []
+    for gm in gammas:
+        V, P_pi, r_pi = _policy_eval(P, R, gm, pi)
+        Vs.append(V)
+        ks.append(_iterate(P_pi, r_pi, gm, 1e-6)[1])
+    out.update(rand_V=np.array(Vs), rand_k=np.array(ks, dtype=np.int64), tol=np.array(1e-6))
+    # Bellman residual cases: V^pi plus known perturbations, gamma 0.9.
+    V9, P_pi9, r_pi9 = _policy_eval(P, R, 0.9, pi)
+    deltas = np.array([np.zeros(5), np.full(5, 1.0), rng.normal(size=5)])
+    Vtest = V9 + deltas
+    resid = np.array([np.max(np.abs(r_pi9 + 0.9 * P_pi9 @ v - v)) for v in Vtest])
+    out.update(res_V=Vtest, res_expected=resid)
+    # Period rewards: (stock, order, demand) -> reward, with the lab parameters.
+    p = M01_INVENTORY
+    cases = np.array([[0, 7, 4], [3, 0, 5], [6, 1, 2], [9, 5, 10], [10, 0, 0]], dtype=np.int64)
+    rewards = []
+    for stock, order, demand in cases:
+        q = min(order, p["capacity"] - stock)
+        y = stock + q
+        sales = min(y, demand)
+        left = y - sales
+        cost = (p["fixed_cost"] if q > 0 else 0.0) + p["unit_cost"] * q
+        rewards.append(
+            p["price"] * sales
+            - cost
+            - p["holding_cost"] * left
+            - p["lost_sales_penalty"] * (demand - sales)
+        )
+    out.update(reward_cases=cases, reward_expected=np.array(rewards))
+    return _save("m01_eval", **out)
+
+
+FIXTURES = {"m01_returns": m01_returns, "m01_eval": m01_eval}
 
 
 def main(argv: list[str]) -> int:
