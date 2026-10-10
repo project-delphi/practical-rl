@@ -10,5 +10,5 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 | 1 | [A random agent](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb#scrollTo=ex1-head) | 5 |
 | 2 | [Seed bands](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb#scrollTo=ex2-head) | 5 |
 | 3 | [Your run record](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb#scrollTo=ex3-head) | 5 |
-| | **Core** | **20 of 70** |
+| | **Total** | **20** |
 :::

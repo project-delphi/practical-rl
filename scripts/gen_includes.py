@@ -166,6 +166,11 @@ def module_md(mid: str, v: dict[str, Any]) -> str:
     )
 
 
+def self_paced(m: dict[str, Any]) -> bool:
+    """Pre-work (slot "pre"): no room, no 70-minute lab slot."""
+    return m.get("slot") == "pre"
+
+
 def lab_md(mid: str, v: dict[str, Any]) -> str:
     m = v["modules"][mid]
     ex = m.get("exercises", [])
@@ -193,7 +198,11 @@ def lab_md(mid: str, v: dict[str, Any]) -> str:
         + "::: {.lab-steps}\n"
         + "| # | Exercise | Min |\n|---|---|---|\n"
         + "\n".join(rows)
-        + f"\n| | **Core** | **{core} of 70** |\n:::"
+        + (
+            f"\n| | **Total** | **{core}** |\n:::"
+            if self_paced(m)
+            else f"\n| | **Core** | **{core} of 70** |\n:::"
+        )
         + stretch
         + "\n"
     )
@@ -251,12 +260,24 @@ def live_md(mid: str, v: dict[str, Any]) -> str:
         act += a_min
         t += mins
     extra = f" + {setup} setup" if setup else ""
+    if self_paced(m):  # pre-work: read a section, then do its exercise in the notebook
+        where, split, caption = (
+            "In the notebook",
+            f"{expo} reading + {act} in the notebook",
+            f"Self-paced, {t} min",
+        )
+    else:
+        where, split, caption = (
+            "In the room",
+            f"{expo} exposition + {act} activities",
+            "Briefing, 40 min",
+        )
     return (
         NOTICE
-        + "::: {.live-plan}\n| Minutes | Section | In the room |\n|---|---|---|\n"
+        + f"::: {{.live-plan}}\n| Minutes | Section | {where} |\n|---|---|---|\n"
         + "\n".join(rows)
-        + f"\n| **{t}** | **Total** | **{expo} exposition + {act} activities{extra}** |\n"
-        + ": Briefing, 40 min {.agenda}\n:::\n"
+        + f"\n| **{t}** | **Total** | **{split}{extra}** |\n"
+        + f": {caption} {{.agenda}}\n:::\n"
     )
 
 
