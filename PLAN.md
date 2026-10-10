@@ -264,7 +264,7 @@ Total: 30 + 10. **Collapsed:** uniqueness via Banach; the stopping-rule proof.
 
 **Objectives:**
 1. Implement value iteration (VI) and policy iteration (PI), and compare their iteration counts.
-2. Extract a greedy policy. Check that if ‖Q−Q*‖∞ ≤ ε, the greedy policy loses at most 2γε/(1−γ). The lemma number will be cited only after it has been opened.
+2. Extract a greedy policy. Check that if ‖Q−Q*‖∞ ≤ ε, the greedy policy loses at most 2ε/(1−γ) (AJKS V3, Lemma 1.11; opened by the academic director on 2026-10-10).
 3. Estimate a model from samples. Measure the true loss of the policy planned in it as the data shrinks, over 5 seeds.
 4. State the simulation lemma (AJKS V3 Lemma 2.2, in identity form). With rewards in [0,1] and ε_P = max‖P(·|s,a)−P̂(·|s,a)‖₁, every policy's value error is at most γε_P/(1−γ)², and the planned policy loses at most 2γε_P/(1−γ)².
 

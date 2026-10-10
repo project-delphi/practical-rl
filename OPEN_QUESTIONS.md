@@ -139,7 +139,7 @@ Last updated 2026-10-09 (Phase 1).
 |---|---|---|---|---|
 | B8 | Kakade & Langford 2002, performance-difference lemma. "Lemma 6.1" was inferred from the LaTeX source. | Cite "§6" until the published PDF is read | AD | Phase 3 (Day 4) |
 | B9 | Kearns & Singh 2002, the simulation lemma's number in the journal version | Cite AJKS V3 Lemma 2.2 instead | AD | Phase 2 |
-| B23 | The AJKS lemma for the greedy-policy loss 2γε/(1−γ) | Open V3 and locate it | AD | Phase 2 |
+| B23 | ~~The greedy-policy loss lemma~~ **Resolved:** AJKS V3 Lemma 1.11 gives V^{π_Q} ≥ V* − 2‖Q − Q*‖∞/(1 − γ) (no γ in the numerator); PLAN Module 2 corrected | — | — | — |
 | B24 | Azar et al. 2024 §4.2, the exact statement about deterministic preferences (we say DPO pushes π(y_l) → 0) | Re-read §4.2 before quoting | AD | Phase 3 (Day 4) |
 
 **Citations: RiverSwim and SARSA**
