@@ -100,7 +100,9 @@ def run_episode(env, seed):
     # TODO 1: reset the environment with `seed`, seed its action space too, then step with
     # env.action_space.sample() until the episode is terminated or truncated.
     # Add up the rewards and return the total.
-    raise NotImplementedError("TODO 1: write run_episode")
+    raise NotImplementedError(
+        "TODO 1: write run_episode, or run lab.use_reference(1) to continue with the solution"
+    )
 
 
 # %% [markdown] role="ex1-hint"
@@ -155,7 +157,9 @@ def returns_by_seed(n_seeds, n_episodes, base_seed):
     Seed s uses episode seeds base_seed + 100 * s + i for i in range(n_episodes).
     """
     # TODO 2: call run_episode for each seed and episode; return a NumPy array.
-    raise NotImplementedError("TODO 2: write returns_by_seed")
+    raise NotImplementedError(
+        "TODO 2: write returns_by_seed, or run lab.use_reference(2) to continue with the solution"
+    )
 
 
 # %% [markdown] role="ex2-hint"

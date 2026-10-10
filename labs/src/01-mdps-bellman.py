@@ -19,7 +19,9 @@
 def discounted_return(rewards, gamma):
     """Return G_0 = r_1 + gamma r_2 + gamma^2 r_3 + ... for a list of rewards."""
     # TODO 1: the first reward is not discounted; each later one is discounted once more.
-    raise NotImplementedError("TODO 1: write discounted_return")
+    raise NotImplementedError(
+        "TODO 1: write discounted_return, or run lab.use_reference(1) to continue with the solution"
+    )
 
 
 # %% [markdown] role="ex1-hint"
