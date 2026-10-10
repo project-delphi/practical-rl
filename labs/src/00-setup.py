@@ -11,8 +11,9 @@
 # every run record stores it, so a result always says where it came from.
 
 # %% [markdown] role="ex0-predict"
-# Before you run the next cell, write down: does this runtime have a GPU? How many CPU cores
-# do you expect it to have?
+# The setup cell above already printed a `Runtime:` line. The briefing page asks for your
+# guesses before you run it. If you have not written them yet, do it now without reading that
+# line: does this runtime have a GPU? How many CPU cores does it have?
 
 # %% role="ex0-run"
 import prl.runtime
@@ -22,10 +23,9 @@ print(rt.summary())
 print("CPU model:", rt.cpu)
 
 # %% [markdown] role="ex0-explain"
-# Compare with your prediction. Almost every lab this week is designed for a **CPU** runtime:
-# the networks are small, so we expect speed to be limited by stepping the environment, not
-# by matrix arithmetic (Phase 3 measures it). Only the Module 12 stretch and one capstone
-# option are designed for a T4 GPU. (Gotcha: "A T4 speeds up CartPole.")
+# Compare with your guesses. This week's networks are small, and CartPole's physics runs on
+# the CPU on every runtime. Which part of a lab could a T4 speed up, and which part could it
+# not? (Gotcha: "A T4 speeds up CartPole.")
 
 # %% role="ex0-chk"
 from prl.checks import m00
@@ -88,10 +88,10 @@ except ImportError:
 
 # %% [markdown] role="ex1-head"
 # A random agent picks every action uniformly at random. It is the floor every method this
-# week must beat, and checkpoints often ask for "at least 3x random".
+# week must beat, and several later checkpoints are designed to ask for "at least 3x random".
 
 # %% [markdown] role="ex1-predict"
-# CartPole-v1 pays +1 for every step the pole stays up, and stops at 500 steps. What average
+# CartPole-v1 pays +1 for every step, including the last, and stops at 500 steps. What average
 # return do you expect from a random agent? Write a number.
 
 
@@ -137,7 +137,9 @@ print(
 
 # %% [markdown] role="ex1-explain"
 # How close was your guess? Why does random play end so quickly, and why do some episodes
-# last much longer than others? (Gotcha: "A random agent is no baseline.")
+# last much longer than others? Later checkpoints are designed to ask a trained agent for at
+# least 3 times the random return: what return is that, from your mean?
+# (Gotcha: "A random agent is no baseline.")
 
 # %% role="ex1-chk"
 lab.check(1, m00.check_run_episode, run_episode)
@@ -198,6 +200,7 @@ seed_means = by_seed.mean(axis=1)
 print("Per-seed mean returns:", np.round(seed_means, 1))
 lab.seeds([SEED * 1000 + 100 * s for s in range(5)])
 lab.metric("random_mean_return", round(float(by_seed.mean()), 2))
+lab.metric("seed_means", [round(float(m), 2) for m in seed_means])
 
 # %% [markdown] role="ex2-explain"
 # How far apart are the per-seed means? Suppose someone reported "my agent scores 25, the
@@ -219,12 +222,13 @@ rec = lab.build_record()
 print(
     "platform:", rec["platform"], "| env:", rec["env"], "| accelerator:", rec["hardware"]["accel"]
 )
-print("checkpoints so far:", [(c["label"], c["pass"]) for c in rec["checkpoints"]])
+print("checkpoints so far:", [(c["label"], c["pass"], c["whose"]) for c in rec["checkpoints"]])
 
 # %% [markdown] role="ex3-explain"
-# The record never includes your name, paths or keys. On Colab the last cell offers it as a
-# download; send it to your instructor if they ask for setup evidence.
-# (Gotcha: "The run record shares my name or keys.")
+# The record holds no name, paths or keys, yet it says whose code each checkpoint ran. Which
+# of your checkpoints ran your code, and which ran the reference or provided code? On Colab
+# the last cell offers the record as a download: keep the file. Your instructor will tell you
+# where to send it. (Gotcha: "The run record shares my name or keys.")
 
 # %% role="ex3-chk"
 lab.check(3, m00.check_record, rec)

@@ -137,7 +137,7 @@ modules:
     slot: pre
     level: 100
     title: Setup and hello RL
-    summary: Check your run path, take the entry check, and run a random agent on CartPole with seed bands.
+    summary: Check your run path and run a random agent on CartPole with seed bands.
     question: Is my environment ready, and what does a baseline look like?
     where_we_are: Before Day 1.
     objectives:
@@ -166,13 +166,13 @@ modules:
         title: A random agent
         minutes: 5
         writes: [run_episode]
-        predict_answer: "About 23: seat 0's 100 episodes averaged 22.64 (record 2026-10-10-local-00-setup-c68f53c0, local); other seats differ."
+        predict_answer: "About 23: seat 0's 100 episodes averaged 22.64 (record 2026-10-10-local-00-setup-48b9f7d5, local); other seats differ. Exercise 1 prints a 20-episode mean, so expect a nearby number."
         explain_ref: 'Gotcha: "A random agent is no baseline."'
       - n: 2
         title: Seed bands
         minutes: 5
         writes: [returns_by_seed]
-        predict_answer: "Closer than single episodes (a mean of 20 has about 1/sqrt(20) of one episode's standard deviation), but not equal; read the five printed means."
+        predict_answer: "Not within 1 point. In record 2026-10-10-local-00-setup-48b9f7d5 (seat 0, local, not Colab) the five means ran from 19.9 to 27.65; read your own five printed means."
         explain_ref: 'Gotcha: "One seed is enough to compare."'
       - n: 3
         title: Your run record
