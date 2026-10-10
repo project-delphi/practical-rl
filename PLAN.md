@@ -255,7 +255,7 @@ Total: 30 + 10. **Collapsed:** uniqueness via Banach; the stopping-rule proof.
 | 6 | **Planted bug**: evaluator uses `P_pi.T` | Diagnose and fix | Bellman residual < tol | 8 |
 
 - **Compare:** exact fixtures.
-- **Stretch:** T^π can expand in the unweighted 2-norm. Example: two states both moving to state 1 with γ = 0.9 give ‖γP‖₂ ≈ 1.27. It contracts in the stationary-weighted norm, which is why on-policy linear TD converges (M7).
+- **Stretch:** T^π can expand in the unweighted 2-norm. Example: two states both moving to state 1 with γ = 0.9 give ‖γP‖₂ ≈ 1.27. Weighted by the stationary distribution μ it is again a γ-contraction (‖γP_π x‖_μ ≤ γ‖x‖_μ); Module 7 uses this as the key step for on-policy linear TD's stability, and the full convergence argument needs more conditions.
 
 #### M2 · Planning: value iteration, policy iteration and model error (B, level 200, Colab CPU, S3)
 

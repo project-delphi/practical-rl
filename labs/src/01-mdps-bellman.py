@@ -7,8 +7,8 @@
 # %% [markdown]
 # In this lab you write two Markov decision processes (MDPs) as arrays, then evaluate a
 # policy in them twice: exactly, with one linear solve, and by iteration, watching the
-# discount set the speed. You finish by finding a bug in someone else's evaluator using the
-# one number that never lies about a value function: its Bellman residual.
+# discount set the speed. You finish by finding a bug in someone else's evaluator with a
+# check that needs no reference answer: its Bellman residual.
 #
 # The briefing's equations are named in brackets, for example (return) or (exact).
 
@@ -33,7 +33,7 @@ INVENTORY = dict(
 )
 
 # %% [markdown] role="ex1-head"
-# The **return** is what every method this week estimates or maximizes: the discounted sum
+# The **return** is what almost every method this week estimates or maximizes: the discounted sum
 # of the rewards from now on, G_0 = r_0 + γ r_1 + γ² r_2 + … (return).
 
 # %% [markdown] role="ex1-predict"
@@ -171,7 +171,7 @@ print("validate(): rows sum to 1 and the goal absorbs.")
 
 # %% [markdown] role="ex2-explain"
 # Twelve states, one nonzero per row: this world is deterministic. Read the printed rewards:
-# which cell's "move right" costs −100, and why does the goal's row show 0?
+# which cell's "move right" costs −100, and why do the goal and the two cliff cells show 0?
 
 # %% role="ex2-chk"
 lab.check(2, m01.check_gridworld_arrays, gridworld_arrays)
@@ -180,8 +180,9 @@ lab.check(2, m01.check_gridworld_arrays, gridworld_arrays)
 # **Inventory control, a real-shaped problem.** A shop stocks one product and can hold at
 # most 10 units. Each morning you see the stock, place an order that arrives at once
 # (capped so stock never exceeds capacity), then customers arrive: demand is random,
-# Poisson with mean 4 (truncated at 10). You sell what you can; unmet demand is lost.
-# Money: you earn 4 per unit sold, pay 2 per unit ordered plus a fixed 5 for any order,
+# Poisson with mean 4 (demand of 10 or more counts as 10). You sell what you can; unmet
+# demand is lost. Money: you earn 4 per unit sold, pay 2 per unit delivered plus a fixed 5
+# whenever any units are delivered (an order the cap cuts to 0 costs nothing),
 # pay 0.2 per unit left on the shelf overnight, and lose 1 of goodwill per customer turned
 # away. The discount is γ = 0.95 per day.
 #
@@ -205,7 +206,8 @@ def inventory_spec(capacity):
 def period_reward(stock, order, demand, p):
     """One day's reward: revenue - ordering cost - holding cost - lost-sales penalty.
 
-    Orders are capped so that stock + order <= p['capacity'].
+    Orders are capped so that stock + order <= p['capacity'], and costs are charged on the
+    capped order q = min(order, capacity - stock).
     """
     # TODO 3a (part 2): cap the order, sell min(stock + order, demand), then add up the money.
     raise NotImplementedError(
@@ -251,9 +253,10 @@ for stock, order, demand in [(0, 7, 4), (3, 0, 5), (6, 1, 2)]:
     )
 
 # %% [markdown] role="ex3a-explain"
-# Demand is drawn fresh each day, independent of the past, so today's stock is all the
-# future depends on: the state is Markov. The first case's reward is negative (−3.60) even
-# though ordering 7 is sensible: one day's reward is not the value of a decision. That gap
+# Demand is drawn fresh each day, independent of the past, so today's stock and today's
+# order are all the future depends on: the state is Markov. The first case's reward is
+# negative (−3.60) even though restocking an empty shelf pays off later: one day's reward is
+# not the value of a decision. That gap
 # is what the Bellman equation closes.
 
 # %% role="ex3a-chk1"
@@ -348,7 +351,7 @@ def evaluate_exact(P, R, gamma, pi):
 
 # %% [markdown] role="ex4-hint"
 # `P_pi = np.einsum("sa,sat->st", pi, P)` and `r_pi = (pi * R).sum(axis=1)`. Then
-# `np.linalg.solve(np.eye(S) - gamma * P_pi, r_pi)`; never invert the matrix explicitly.
+# `np.linalg.solve(np.eye(S) - gamma * P_pi, r_pi)`; there is no need to form the inverse.
 
 
 # %% role="ex4-sol"
@@ -377,23 +380,28 @@ fig, ax = plt.subplots()
 ax.plot(range(len(V7)), V7, marker="o")
 ax.set(xlabel="stock", ylabel="V^pi(stock)", title='Value of "order up to 7"')
 plt.show()
+V_grid = evaluate_exact(P_grid, R_grid, 0.9, np.full((12, 4), 0.25))
+print("3x4 gridworld, uniform random policy, gamma 0.9 (rows as on the grid):")
+print(np.round(V_grid.reshape(3, 4), 2))
 
 # %% [markdown] role="ex4-explain"
-# V rises with stock, and jumps by about 7 between stock 6 and 7. At 6 the policy still
-# orders one unit, paying the fixed 5 plus 2 for the unit; at 7 it orders nothing. What does
-# that suggest about this policy at stock 6?
+# V rises with stock. Below 7 each extra unit is worth exactly 2, the unit cost it saves,
+# because after ordering the shelf holds 7 either way. Between 6 and 7 the jump is exactly 7:
+# at 6 the policy orders one unit, paying the fixed 5 plus 2; at 7 it orders nothing, and from
+# then on the two futures are identical. What does that suggest about this policy at stock 6?
+# (In the gridworld, random play from the start is very costly: why?)
 
 # %% role="ex4-chk"
 lab.check(4, m01.check_evaluate_exact, evaluate_exact)
 
 # %% [markdown] role="ex5-head"
 # Iterative evaluation applies T^π V = r_π + γ P_π V (operator) again and again from V = 0.
-# Because T^π is a γ-contraction in the max norm (contraction), the error shrinks by at
-# least γ per step, and stopping when max |V_new − V| < tol guarantees an error of at most
+# Because T^π is a γ-contraction in the max norm (contraction; the briefing's ∞-norm), the
+# error shrinks by at least a factor γ per sweep, and stopping when max |V_new − V| < tol guarantees an error of at most
 # γ·tol / (1 − γ) (stopping rule).
 
 # %% [markdown] role="ex5-predict"
-# Going from γ = 0.9 to γ = 0.99, how many times more updates do you need to reach
+# Going from γ = 0.9 to γ = 0.99, how many times more sweeps do you need to reach
 # tol = 1e−6? Write a number.
 
 
@@ -402,7 +410,7 @@ def evaluate_iterative(P, R, gamma, pi, tol):
     """Repeat V <- r_pi + gamma P_pi V from V = 0 until max|V_new - V| < tol.
 
     Build all of V_new from the old V (not in place, state by state).
-    Returns (V_new, k), where k counts the updates.
+    Returns (V_new, k), where k counts the sweeps (applications of T^pi).
     """
     # TODO 5: build P_pi and r_pi once, then loop.
     raise NotImplementedError(
@@ -441,13 +449,13 @@ for g in gammas:
     errors.append(err)
     bound = g * 1e-6 / (1 - g)
     print(
-        f"gamma {g}: {k:5d} updates, error {err:.3e} = {err / bound:.2f} x the guarantee {bound:.3e}"
+        f"gamma {g}: {k:5d} sweeps, error {err:.3e} = {err / bound:.3f} x the guarantee {bound:.3e}"
     )
 fig, ax = plt.subplots()
 ax.plot([1 / (1 - g) for g in gammas], counts, marker="o")
 ax.set(
     xlabel="effective horizon 1 / (1 - gamma)",
-    ylabel="updates to tol = 1e-6",
+    ylabel="sweeps to tol = 1e-6",
     title="Iterations grow with the horizon",
 )
 plt.show()
@@ -455,7 +463,8 @@ plt.show()
 # %% [markdown] role="ex5-explain"
 # From γ = 0.9 to 0.99 the count grows about tenfold, close to linear in 1 / (1 − γ). Use the
 # briefing's iteration bound to explain why: how many factors of γ does it take to shrink an
-# error by 10⁻⁶?
+# error by a factor of 10⁶? Notice also that the error is almost exactly the guarantee
+# γ·tol / (1 − γ): here the bound is nearly tight, so a small change is not a small error.
 
 # %% role="ex5-chk"
 lab.check(5, m01.check_evaluate_iterative, evaluate_iterative)
@@ -467,9 +476,11 @@ lab.check(5, m01.check_evaluate_iterative, evaluate_iterative)
 # max |T^π V − V| (residual): exactly zero at V^π, and not zero anywhere else. It needs no
 # reference. Write the residual, use it as the diagnostic, then fix the bug.
 #
-# **Diagnostics for this lab.** A healthy evaluator has a residual near machine precision
-# (about 1e−14 here); an iterative one, about tol. A residual of order 1 or more means the
-# arrays or the evaluator are wrong, however plausible the values look.
+# **Diagnostics for this lab.** An exact evaluator's residual is near machine precision
+# (about 1e−14 here; it depends on your machine). An iterative one that stopped at tol has a
+# residual below γ·tol. A residual far above these means V does not satisfy the Bellman
+# equation of the P, R and π you passed, however plausible the values look. It cannot tell
+# you whether P and R describe the right problem; the checkpoints of Exercises 2 and 3 do.
 
 # %% [markdown] role="ex6-predict"
 # If V is exactly V^π, what is its Bellman residual? What would a residual of 5 tell you?
@@ -523,8 +534,10 @@ print("residual of evaluate_exact:  ", bellman_residual(P_inv, R_inv, g, pi7, V7
 
 # %% [markdown] role="ex6-explain"
 # Before your fix, the suspect's residual was large. When would this bug be invisible, with a
-# residual of zero? (Hint: when is P_π equal to its transpose?) A residual check costs one
-# matrix-vector product and needs no reference answer; run it on every evaluator you write.
+# residual of zero? (Hint: when is P_π equal to its transpose? Is that the only case?) A zero
+# residual means the output is V^π for *this* MDP, not that the code is right, so test
+# evaluators on an MDP whose P_π is not symmetric. A residual check costs about one sweep and
+# needs no reference answer; run it on every evaluator you write.
 
 # %% role="ex6-chk1"
 lab.check(6, m01.check_bellman_residual, bellman_residual, label="6.1")
@@ -533,12 +546,16 @@ lab.check(6, m01.check_bellman_residual, bellman_residual, label="6.1")
 lab.check(6, m01.check_evaluate_suspect, evaluate_suspect, label="6.2")
 
 # %% [markdown] role="stretch"
-# **Contraction depends on the norm.** T^π shrinks distances by γ in the max norm, because
+# **Contraction depends on the norm.** T^π shrinks distances by at least a factor γ in the
+# max norm, because
 # each row of P_π is a probability vector. In the ordinary Euclidean (2-) norm it can
 # stretch them. Take two states that both move to state 1: P_π = [[0, 1], [0, 1]] with
 # γ = 0.9. Write `operator_gains(P_pi, gamma)` returning the max-norm and 2-norm "gain" of
-# γ P_π, and see which one exceeds 1. (It contracts again in a norm weighted by the
-# stationary distribution, which is why on-policy linear TD converges in Module 7.)
+# γ P_π, and see which one exceeds 1. (Weight each state by its stationary probability μ(s),
+# the long-run fraction of time π spends there, and γ P_π is again a γ-contraction:
+# ‖γ P_π x‖_μ ≤ γ ‖x‖_μ. Module 7 uses this as the key step in showing that on-policy linear
+# TD is stable; the full convergence argument needs more conditions. Here μ = (0, 1), so
+# this weighted norm ignores state 0.)
 
 
 # %% role="stretch-stub"

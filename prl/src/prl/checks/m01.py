@@ -152,7 +152,7 @@ def check_inventory_arrays(fn: Callable[..., tuple]) -> None:
             ref.P,
             atol=1e-9,
             what="P",
-            hint="After ordering, stock is y = s + q; next stock is y - min(y, demand).",
+            hint="With q = min(a, capacity - s), after ordering stock is y = s + q; next stock is y - min(y, demand).",
         )
         assert_close(
             R,
@@ -208,7 +208,7 @@ def check_evaluate_iterative(fn: Callable[..., tuple]) -> None:
         (rand, float(g), V, int(k), 1.0, "the random MDP")
         for g, V, k in zip(fx["gammas"], fx["rand_V"], fx["rand_k"], strict=True)
     ]
-    # Negated rewards: V^pi flips sign (it is linear in r) and the iterates decrease,
+    # Negated rewards: V^pi flips sign (it is linear in r) and the changes flip sign too,
     # which catches a stopping test that forgets abs().
     cases.append(
         (
@@ -220,8 +220,8 @@ def check_evaluate_iterative(fn: Callable[..., tuple]) -> None:
             "the random MDP with negated rewards",
         )
     )
-    # The gridworld: the goal's change is 0 while every other change is negative, which
-    # catches stopping on the smallest or the average change.
+    # The gridworld: some states' changes are 0 (the goal, the cliff cells at first) while the
+    # rest are negative, which catches stopping on the smallest or the average change.
     cases.append(
         (grid, float(fx["grid_gamma"]), fx["grid_V"], int(fx["grid_k"]), 1.0, "the 3x4 gridworld")
     )
@@ -235,24 +235,24 @@ def check_evaluate_iterative(fn: Callable[..., tuple]) -> None:
         if err > bound * (1 + 1e-6) + 1e-12:
             raise CheckFailed(
                 f"On {name} with gamma={gamma}, your V is {err:.3g} from V^pi, but stopping "
-                f"when max|V_new - V| < tol guarantees at most {bound:.3g}. Check the stopping rule."
+                f"when max|V_new - V| < tol guarantees at most {bound:.3g}. Check the stopping rule, and the sweep itself: it must be r_pi + gamma * P_pi @ V, with the same P_pi and r_pi as your evaluate_exact."
             )
         try:
             k_int = int(k)
         except (TypeError, ValueError):
             raise CheckFailed(
-                f"k should be a whole number of updates; you returned {k!r}."
+                f"k should be a whole number of sweeps; you returned {k!r}."
             ) from None
         if k_int != k:
-            raise CheckFailed(f"k should be a whole number of updates; you returned {k!r}.")
+            raise CheckFailed(f"k should be a whole number of sweeps; you returned {k!r}.")
         if abs(k_int - k_ref) > 1:
             msg = (
                 f"On {name} with gamma={gamma} and tol={tol:g}, starting from V = 0, the reference "
-                f"takes {k_ref} updates; you report k = {k_int}. Count one per application of T^pi."
+                f"takes {k_ref} sweeps; you report k = {k_int}. Count one per application of T^pi."
             )
             if k_int < k_ref - 1:
                 msg += (
-                    " Fewer updates usually means V was updated in place, state by state: build all "
+                    " Fewer sweeps usually means V was updated in place, state by state: build all "
                     "of V_new from the old V."
                 )
             raise CheckFailed(msg)
