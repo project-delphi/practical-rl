@@ -10,7 +10,7 @@ algebra and calculus, PyTorch, and Python with NumPy. If you miss two or more qu
 area, the check links to specific free reading for that area.
 
 ::: {.callout-note}
-The entry check is written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+The entry check is not published yet. Until it is, go on to step 2.
 :::
 
 ## 2. Set up one run path {#setup}

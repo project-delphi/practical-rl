@@ -69,4 +69,4 @@ The [readiness page](/readiness.qmd) says what has run where.
 ## Check your setup {#check}
 
 Run [Module 0](/modules/00-setup.qmd). Its checkpoints confirm the runtime, and its last cell
-prints a **run record** you can send to your instructor.
+prints a **run record**. Keep it; your instructor will say where to send it.

@@ -114,6 +114,11 @@ def module_md(mid: str, v: dict[str, Any]) -> str:
             f"- [Module {prev['n']} · {prev['title']}]({page_href(prev)}) and its lab: this module "
             "builds on what it left open."
         )
+    elif m["n"] == 0:
+        before.append(
+            "- The [entry check](/prepare.qmd#entry-check) is separate from this module. "
+            "Take it before or after."
+        )
     elif m["n"] == 1:
         before.append(
             "- [Module 0 · Setup and hello RL](/modules/00-setup.qmd) and the "

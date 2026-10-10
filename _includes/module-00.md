@@ -4,7 +4,7 @@
 [Pre-work]{.module-clock}
 
 ::: {.module-summary}
-Check your run path, take the entry check, and run a random agent on CartPole with seed bands.
+Check your run path and run a random agent on CartPole with seed bands.
 :::
 
 ::: {.module-actions}
@@ -43,6 +43,6 @@ In this module you will:
 
 ## Before you start {#before}
 
-- The [entry check](/prepare.qmd#entry-check), to see which areas to brush up.
+- The [entry check](/prepare.qmd#entry-check) is separate from this module. Take it before or after.
 - A Google account (Colab's default CPU runtime is enough), or a local or AWS setup from [Setup](/setup.qmd).
 - No API keys or paid services.
