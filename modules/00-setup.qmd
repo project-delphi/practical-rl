@@ -1,13 +1,24 @@
 ---
 title: "{{< var modules.m00.title >}}"
 live:
-  - {section: 1, minutes: 5, activities: [{block: do-ex0, minutes: 4, label: "Notebook: setup and Exercise 0"}]}
-  - {section: 2, minutes: 5, activities: [{block: do-ex1, minutes: 4, label: "Notebook: Exercise 1"}]}
-  - {section: 3, minutes: 5, activities: [{block: do-ex2, minutes: 4, label: "Notebook: Exercise 2"}]}
-  - {section: 4, minutes: 5, activities: [{block: do-ex3, minutes: 4, label: "Notebook: Exercise 3 and the last cell"}]}
+  - {section: 1, minutes: 5, activities: [{block: do-ex0, minutes: 4, label: "In the lab: setup and Exercise 0"}]}
+  - {section: 2, minutes: 5, activities: [{block: do-ex1, minutes: 4, label: "In the lab: Exercise 1"}]}
+  - {section: 3, minutes: 5, activities: [{block: do-ex2, minutes: 4, label: "In the lab: Exercise 2"}]}
+  - {section: 4, minutes: 5, activities: [{block: do-ex3, minutes: 4, label: "In the lab: Exercise 3 and the last cell"}]}
 ---
 
 {{< include /_includes/module-00.md >}}
+
+**How to use this page.** This is self-paced pre-work. Its 20 minutes, and the minutes in its tables, are a design budget, not a measurement. Start the install first, and read while it runs:
+
+1. **Guess first.** Before you open the notebook, write down two guesses: does Colab's default runtime have a GPU, and how many CPU cores does it have? They are Exercise 0's Predict. The setup cell prints the answers, so write them before it runs.
+2. **Open the notebook** with **Open in Colab** at the top of this page. Keep working in the tab it opens.
+3. **Run the setup cell**, titled **Setup: run this cell first**. If Colab warns that the notebook was not authored by Google, choose **Run anyway**. Leave its three boxes as they are: `PRL_REF` as filled in, `WORKED` unchecked and `SEED` at 0. Change `SEED` only if your instructor gives you a seat number. Checking `WORKED` would run every Solution in place of your code. On Colab the cell installs packages. Read sections 1 and 2 below while it runs. No Colab install has been timed yet; if it is still running after 5 minutes, see [Troubleshooting](#troubleshooting).
+4. **Run the next cell.** It starts the lab harness and prints one status line, which you can ignore.
+5. **Run the cells in order**, from the top. Each numbered section below matches one exercise: read the section (about a minute), do the exercise, then open the folded answers under **Check yourself**. The "For reference" blocks at the end of sections are optional.
+6. **Keep your code.** If Colab's **File** menu offers **Save a copy in Drive**, use it.
+
+If a cell prints an error or a message you do not expect, see [Troubleshooting](#troubleshooting). It follows the order in which the notebook runs.
 
 {{< include /_includes/lab-00.md >}}
 
@@ -15,37 +26,45 @@ live:
 
 {{< include /_includes/live-00.md >}}
 
-**How to use this page.** This is self-paced pre-work. Its 20 minutes are a design budget, not a measurement. Keep the page open beside the notebook. Each numbered section matches one exercise: read the section (about a minute), do the exercise in the notebook, then open the folded answer under **Check yourself**. The "For reference" blocks are optional.
+## 1. Open the notebook and check your runtime (Exercise 0)
 
-## 1. Open the notebook and check your runtime
+**In this section:** open the notebook on Colab's CPU runtime, read what its setup cell and Exercise 0 report about the runtime, and compare with your guesses.
 
-**In this section:** open the notebook on Colab's CPU runtime, run its setup cell, and read what the runtime reports about itself.
+Use **Open in Colab** at the top of this page, or [open the notebook in Colab]({{< var repo.colab_base >}}/00-setup.ipynb) from here. Both open the same notebook. Colab starts on its default CPU runtime, the one this notebook is designed for. Other run paths are on the [Setup page](/setup.qmd).
 
-Use **Open in Colab** at the top of this page, and keep working in the tab it opens. Colab starts on its default CPU runtime, the one this notebook is designed for. Other run paths are on [Setup](/setup.qmd).
+**The setup cell** runs first. On Colab it installs the pinned `gymnasium` and this workshop's `prl` package, and it tries to keep every package Colab already has. Run locally, it checks the versions instead. Near the end it prints a `Runtime:` line (the platform, accelerator, CPU count, RAM and Python version), a `CPU:` line (the CPU model) and a `Packages:` line (the version of each package). The [Colab steps on the Setup page](/setup.qmd#colab) say more.
 
-Run the **Setup** cell first. The [Colab steps on Setup](/setup.qmd#colab) say what it does. Leave its `SEED` box at 0 unless your instructor gives you a seat number.
+**Exercise 0** is provided code. `prl.runtime.detect()` prints the same runtime summary, then the CPU model. Every run record stores these facts, so a result always says where it came from. The cell after Exercise 0 measures the runtime's speed. You only run it.
 
-**Exercise 0** is provided code. `prl.runtime.detect()` prints the platform, accelerator, CPU count, RAM and Python version, then the CPU model. Every run record stores these facts, so a result always says where it came from. The cell after Exercise 0 measures the runtime's speed. You only run it.
+::: {#do-ex0 .callout-note appearance="simple"}
+**In the lab.** Run the setup cell, then the harness cell. Then do **Exercise 0**. There is no code to write. Its Predict asks for the two guesses you already wrote: run the cell and compare. Checkpoint 0 checks that the platform, accelerator, CPU model, CPU count and Python version are present, and that the platform is one it knows. Then run the speed cell.
+:::
+
+::: {#chk-runtime .self-check}
+**Check yourself 1.1** (after Exercise 0). On Colab's default runtime, what does the summary line show as the accelerator? What would it show on a GPU runtime? Which line of the setup cell's output gives the package versions, and does it list `gymnasium`?
+
+::: {.callout-tip collapse="true" title="Answer to 1.1"}
+`cpu`, and no GPU is named. A GPU runtime shows `cuda`, then `GPU` and the GPU's name. The CPU count is whatever your line shows. This page quotes no Colab count: a number appears on this site only when a run record backs it. Run locally on a Mac with Apple silicon, the line can also show `cpu`, while the run record can show `mps` (see 4.1).
+
+The versions are on the setup cell's `Packages:` line. It should list `gymnasium 1.4.0`, the version this notebook pins. If `gymnasium` is missing from that line or shows another version, setup did not finish: see [Troubleshooting](#troubleshooting).
+:::
+:::
+
+::: {#chk-t4 .self-check}
+**Check yourself 1.2** (after Exercise 0). Which part of a lab could a T4 GPU speed up, and which part could it not?
+
+::: {.callout-tip collapse="true" title="Answer to 1.2"}
+We expect a T4 could speed up only network arithmetic, the forward and backward passes, and only when the code puts the network and its data on the GPU. It could not speed up CartPole's physics, which is NumPy arithmetic on the CPU, or the Python code around it that resets, steps and stores results. This notebook's speed cell keeps its network on the CPU on every runtime, so it measures no GPU speed-up at all. This week's networks are small, so we expect stepping the environment to set the pace. These are expectations, not measurements, until timed runs on both runtimes are recorded. See the Gotcha "A T4 speeds up CartPole."
+:::
+:::
 
 ::: {.reference}
-**What the speed cell measures.** Each part runs for 5 seconds. First it steps `CartPole-v1` with random actions, starting a new episode whenever one ends, and counts environment steps per second. Then, if PyTorch is installed, it trains a small network (two hidden layers of 64 units, Adam) on one fixed batch of 64 random inputs and counts gradient updates per second. That network runs on the CPU on every runtime, GPU or not. The cell also records how many threads PyTorch uses. All three numbers go into your run record.
+**What the speed cell measures.** Each part is set to run for 5 seconds. First it steps `CartPole-v1` with random actions, starting a new episode whenever one ends, and counts environment steps per second. Then, if PyTorch is installed, it trains a small network (two hidden layers of 64 units, Adam) on one fixed batch of 64 random inputs and counts gradient updates per second. That network runs on the CPU on every runtime, GPU or not. The cell also records how many threads PyTorch uses. All three numbers go into your run record.
 
 This page quotes no speed numbers. A number appears on this site only when a run record backs it, and the [readiness page](/readiness.qmd) lists the records.
 :::
 
-::: {#do-ex0 .callout-note appearance="simple"}
-**In the lab.** Run the setup cell. Then do **Exercise 0**: write your Predict, run the cell, and compare. There is nothing to write. Checkpoint 0 checks that the platform, accelerator, CPU model, CPU count and Python version are present, and that the platform is one it knows. Then run the speed cell.
-:::
-
-::: {#chk-runtime .self-check}
-**Check yourself 1.1** (after Exercise 0). On Colab's default runtime, what does the summary line show as the accelerator? What would it show on a GPU runtime?
-
-::: {.callout-tip collapse="true" title="Answer to 1.1"}
-`cpu`, and no GPU is named. A GPU runtime shows `cuda`, followed by the GPU's name. The CPU count is whatever your line shows. This page quotes no Colab count: a number appears on this site only when a run record backs it.
-:::
-:::
-
-## 2. A random agent on CartPole
+## 2. A random agent on CartPole (Exercise 1)
 
 **In this section:** see how an agent and an environment take turns, play CartPole with random actions, and read the return.
 
@@ -64,14 +83,8 @@ obs, reward, terminated, truncated, info = env.step(action)
 
 **Seed both sources of chance.** `env.reset(seed=seed)` fixes the random start state, and `env.action_space.seed(seed)` fixes the random actions. With both, the same seed replays the same episode.
 
-::: {.reference}
-**Where the numbers come from.** The reward, the 12° limit, the track (the cart's center may move at most 2.4 units from the middle) and the random start state (each of four numbers uniform in (−0.05, 0.05)) are in the docstring and code of `CartPoleEnv` in Gymnasium 1.4.0, the version the notebook pins (`gymnasium/envs/classic_control/cartpole.py`). The 500-step limit is set where `CartPole-v1` is registered. Sutton and Barto draw the agent–environment loop as their Figure 3.1. They describe pole balancing as an episodic task with +1 for every step on which the pole has not fallen, so the return is the number of steps until failure [@sutton2018rl, §3.3, Example 3.4]. Gymnasium also pays +1 on the step where the pole falls, so the smallest possible return is 1.
-
-**Two flags, not one.** *Terminated* means the episode reached an end state: here, the pole fell or the cart left the track. *Truncated* means it was cut off for a reason unrelated to the state, usually a step limit [@towers2025gymnasium, §4.2]. In this notebook both mean "stop". From Module 3 on, the difference matters: a learning target adds the value of the next state after a truncation, but not after a termination [@towers2025gymnasium, §4.2, Eqs. 1–2].
-:::
-
 ::: {#do-ex1 .callout-note appearance="simple"}
-**In the lab.** **Exercise 1** is `run_episode(env, seed)`. Reset and seed as above, step with `env.action_space.sample()` until the episode is terminated or truncated, and return the sum of the rewards. The run cell plays 20 episodes and prints their mean, minimum and maximum. Checkpoint 1 runs your function with seeds 0 to 4. It checks that every return is between 1 and 500, and that the same seed gives the same return.
+**In the lab.** **Exercise 1** is `run_episode(env, seed)`. Reset and seed as above, step with `env.action_space.sample()` until the episode is terminated or truncated, and return the sum of the rewards. The run cell plays 20 episodes and prints their mean, minimum and maximum. Checkpoint 1 runs your function with seeds 0 to 4. It checks that each return equals the number of steps that episode took, that every return is between 1 and 500, and that the same seed gives the same return.
 :::
 
 ::: {#chk-random .self-check}
@@ -80,57 +93,54 @@ obs, reward, terminated, truncated, info = env.step(action)
 ::: {.callout-tip collapse="true" title="Answer to 2.1"}
 An upright pole is unstable: any tilt grows unless the cart moves under it. A random agent pushes left or right with equal probability, whatever the pole is doing. It does not correct the tilt, so the pole soon passes 12°. Episode lengths vary because the start state and the sequence of pushes are random. Some sequences happen to keep the pole up longer.
 
-For scale: in one local run on a laptop, not on Colab (record `2026-10-10-local-00-setup-c68f53c0`, seat 0, Gymnasium 1.4.0), the 100 episodes of Exercise 2 averaged a return of 22.64. Other seats use other seeds, so their means differ.
+For scale: in one local run on a laptop, not on Colab (record `2026-10-10-local-00-setup-48b9f7d5`, seat 0, Gymnasium 1.4.0), the 100 episodes of Exercise 2 averaged a return of 22.64. If you changed `SEED`, your numbers differ.
+
+The Explain asks for 3 times your printed mean, because several later checkpoints are designed to ask a trained agent for at least 3 times the random return. For that record's 22.64, 3 times is about 68.
 :::
 :::
 
-## 3. Seeds and spread
+::: {.reference}
+**Where the numbers come from.** The reward, the 12° limit, the track (the cart's center may move at most 2.4 units from the middle) and the random start state (each of four numbers uniform in (−0.05, 0.05)) are in the docstring and code of `CartPoleEnv` in Gymnasium 1.4.0, the version the notebook pins (`gymnasium/envs/classic_control/cartpole.py`). The 500-step limit is set where `CartPole-v1` is registered. Sutton and Barto draw the agent–environment loop as their Figure 3.1. They describe pole balancing as an episodic task with +1 for every step on which the pole has not fallen, so the return is the number of steps until failure [@sutton2018rl, §3.3, Example 3.4]. Gymnasium also pays +1 on the step where the pole falls, so the smallest possible return is 1.
+
+**Two flags, not one.** *Terminated* means the episode reached an end state: here, the pole fell or the cart left the track. *Truncated* means it was cut off for a reason unrelated to the state, usually a step limit [@towers2025gymnasium, §4.2]. In this notebook both mean "stop". From Module 3 on, the difference matters: a learning target adds the value of the next state after a truncation, but not after a termination [@towers2025gymnasium, §4.2, Eqs. 1–2].
+:::
+
+## 3. Seeds and spread (Exercise 2)
 
 **In this section:** run five seeds, plot their spread as a band, and see why one seed cannot rank two methods.
 
 A *seed* fixes every random number in a run: here, the start states and the actions. One seed gives one draw. Change the seed and the result changes, even though the method did not.
 
-**How far apart will the seeds be?** Each seed's mean averages 20 episodes, and episodes with different seeds behave as independent draws. So the mean's standard deviation is one episode's standard deviation divided by $\sqrt{20} \approx 4.5$. Expect the five seed means to sit much closer together than single episodes do, but not to agree exactly. For the same reason, the band in the plot tends to narrow as episodes accumulate.
+**The plot.** At each episode count from 1 to 20, the line is the mean of the five seeds' running means. The shaded *seed band* spans the lowest seed to the highest. The legend states the budget, `5 seeds x 20 episodes`.
 
-**The plot.** At each episode count from 1 to 20, the line is the mean of the five seeds' running means. The shaded *seed band* spans the lowest seed to the highest. The legend states the budget: 5 seeds × 20 episodes.
-
-**This week's rule.** Every comparison states its budget. With fewer than 5 seeds per side it shows every seed, and one seed per side is "single seed, not a ranking".
-
-::: {.reference}
-**The comparison rule in full.** With fewer than 5 seeds per side, show every seed, and call overlapping ranges a tie. With 5 or more, report the interquartile mean with a bootstrap interval (Module 9). With one seed per side, say "single seed, not a ranking". State the budget: steps or episodes, seeds, wall-clock time and hardware.
-:::
+**The rule for this workshop.** Every comparison states its budget. With fewer than 5 seeds per side it shows every seed, and one seed per side is "single seed, not a ranking".
 
 ::: {#do-ex2 .callout-note appearance="simple"}
-**In the lab.** **Exercise 2** is `returns_by_seed(n_seeds, n_episodes, base_seed)`. It calls your `run_episode` and returns an array of shape `(n_seeds, n_episodes)`. Seed `s` uses the episode seeds `base_seed + 100 * s + i`. The run cell draws the plot and prints the five per-seed means. Checkpoint 2 checks the shape, and that the seeds did not all give the same returns.
+**In the lab.** **Exercise 2** is `returns_by_seed(n_seeds, n_episodes, base_seed)`. It calls your `run_episode` and returns a NumPy array of shape `(n_seeds, n_episodes)`. Seed `s` uses the episode seeds `base_seed + 100 * s + i`. The run cell draws the plot and prints the five per-seed means. Checkpoint 2 checks the shape, and that the seeds did not all give the same returns.
 :::
 
 ::: {#chk-seeds .self-check}
 **Check yourself 3.1** (after Exercise 2). Someone reports "my agent scores 25, the random agent scores 22", from one seed each. What would you ask them?
 
 ::: {.callout-tip collapse="true" title="Answer to 3.1"}
-How many seeds did each side get, and what did each seed score? With one seed per side, this is a single seed, not a ranking. Compare the gap of 3 with the spread of your own five per-seed means. If one method's seeds can differ by that much, a 3-point gap shows nothing yet. Ask for at least 3 seeds per side, every seed shown, and the budget: episodes or steps, and the hardware.
+How many seeds did each side get, and what did each seed score? With one seed per side, this is a single seed, not a ranking. Compare the gap of 3 with the spread of your own five per-seed means. In record `2026-10-10-local-00-setup-48b9f7d5` (seat 0, run locally on a laptop, not on Colab), the same random agent's five per-seed means ran from 19.9 to 27.65. They did not agree to within 1 point, or even to within 5. A 3-point gap is smaller than the spread of one method's own seeds, so it shows nothing yet. Ask for at least 3 seeds per side, every seed shown, and the budget: episodes or steps, and the hardware.
+
+Why do seeds disagree after 20 episodes each? If the episodes behave as independent draws, a mean of 20 episodes has a standard deviation equal to one episode's divided by $\sqrt{20} \approx 4.5$. So per-seed means sit much closer together than single episodes do, but they do not agree. For the same reason, the band in your plot tends to narrow from left to right.
 :::
 :::
 
-## 4. Your run record
+::: {.reference}
+**The comparison rule in full.** With fewer than 5 seeds per side, show every seed, and call overlapping ranges a tie. With 5 or more, report the interquartile mean with a bootstrap interval (Module 9). With one seed per side, say "single seed, not a ranking". State the budget: steps or episodes, seeds, wall-clock time and hardware.
+:::
 
-**In this section:** read what a run record holds, check that yours is valid, and send it.
+## 4. Your run record (Exercise 3)
+
+**In this section:** read what a run record holds, check that yours is valid, and save it.
 
 A *run record* is a small JSON file. It says what ran, where, with which versions, which checkpoints passed, and whose code each one ran. This site counts a lab as run only when a record shows it: the [readiness page](/readiness.qmd) is built from records alone. A record holds no name. Checkpoint 3 fails if anything in it looks like a credential, or like a file path with a user name in it.
 
-::: {.reference}
-**What a record holds.**
-
-- **What ran:** the notebook, a hash of its code, and the `prl` version.
-- **Where:** the platform and runtime, the CPU, CPU count, RAM, accelerator and GPU, and the Python and package versions.
-- **How:** your `SEED`, the seeds used, and the budget settings.
-- **Results:** each checkpoint, whether it passed and whose code it ran (yours, the reference solution, or provided code), the speed numbers, and the random agent's mean return.
-
-Checkpoint 3 checks that every required field is present with the right type, that the platform is known, that the date is not in the future, and that nothing looks like a credential or a private path.
-:::
-
 ::: {#do-ex3 .callout-note appearance="simple"}
-**In the lab.** **Exercise 3** builds the record so far and prints a few of its fields. There is nothing to write. Checkpoint 3 validates the record. Then run the **last cell**. It prints a summary of your checkpoints, then the full record between the lines `----- BEGIN PRL RUN RECORD -----` and `----- END PRL RUN RECORD -----`. On Colab it also offers the record as a file to download; run locally, it saves the file in `runs/inbox/`. Send the file to your instructor if they ask for setup evidence.
+**In the lab.** **Exercise 3** builds the record so far and prints a few of its fields, including `whose` for each checkpoint. There is no code to write. Checkpoint 3 validates the record. Then run the **last cell**. It prints a summary of your checkpoints, then the full record between the lines `----- BEGIN PRL RUN RECORD -----` and `----- END PRL RUN RECORD -----`. On Colab it also offers the record as a file to download; run locally, it saves the file in `runs/inbox/`. Keep the file. Your instructor will tell you where to send it. If you have not heard by Day 1, have it ready for the setup check that opens Day 1.
 :::
 
 ::: {#chk-record .self-check}
@@ -138,17 +148,46 @@ Checkpoint 3 checks that every required field is present with the right type, th
 
 ::: {.callout-tip collapse="true" title="Answer to 4.1"}
 `platform` is `colab`, and `colab_release` is filled in only on Colab. `env` is `colab-cpu` or `colab-t4`. `hardware.accel` is `cpu` or `cuda`, and `hardware.gpu` names the GPU, if there is one. On this notebook's designed runtime you should see `colab`, `colab-cpu` and `cpu`.
+
+Run locally on a Mac with Apple silicon, `hardware.accel` can read `mps`, as in record `2026-10-10-local-00-setup-48b9f7d5`. That says PyTorch can use the Mac's GPU, not that this notebook used it: everything here runs on the CPU. Exercise 0 can show `cpu` on the same Mac, because `detect()` asks PyTorch about a GPU only after a cell has imported PyTorch, and the speed cell is the first cell that does.
 :::
+:::
+
+::: {#chk-whose .self-check}
+**Check yourself 4.2** (after Exercise 3). Exercise 3 prints a `whose` value for each checkpoint. What does each value tell a reader? Why do checkpoints 0 and 3 never show `yours`?
+
+::: {.callout-tip collapse="true" title="Answer to 4.2"}
+`whose` says whose code the checkpoint ran.
+
+- `yours`: the function from your `# TODO` cell.
+- `reference`: the Solution's function, after you ran `lab.use_reference(N)` (or with the setup cell's `WORKED` box checked).
+- `provided`: code that came with the notebook. Exercises 0 and 3 have no code to write, so checkpoints 0 and 3 test provided code and always show `provided`.
+- `mixed`: an exercise that writes several functions, some yours and some the reference. Each Module 0 exercise writes at most one function, so you will not see it here.
+- `not written`: the name still held the harness's placeholder, because the Solution cell ran before your `# TODO` cell.
+
+Using the reference is allowed. The record does not hide it; it says so.
+:::
+:::
+
+::: {.reference}
+**What a record holds.**
+
+- **What ran:** the notebook, a hash of its code, and the `prl` version.
+- **Where:** the platform and runtime, the CPU, CPU count, RAM, accelerator and GPU, and the Python and package versions.
+- **How:** your `SEED`, the seeds used, and the budget settings.
+- **Results:** each checkpoint, whether it passed and whose code it ran (yours, the reference solution, or provided code), the speed numbers, the random agent's mean return, and the five per-seed means.
+
+Checkpoint 3 checks that every required field is present with the right type, that the platform is known, that the date is not in the future, and that nothing looks like a credential or a private path.
 :::
 
 ## Summary
 
 - Module 0 checks one run path from end to end: the setup cell, the runtime's facts, a speed measurement, two short functions and a run record.
-- Almost every lab is designed for Colab's CPU runtime. `prl.runtime.detect()` reports the platform, accelerator, CPUs, RAM and Python version, and every run record stores them.
+- Almost every lab is designed for Colab's CPU runtime. `prl.runtime.detect()` reports the platform, accelerator, CPUs, RAM and Python version, and every run record stores them. The setup cell's `Packages:` line gives the versions.
 - An agent and an environment take turns. `reset` starts an episode. `step` returns the observation, the reward and two flags, *terminated* and *truncated*.
 - In CartPole-v1 every step pays +1, so an episode's return is its length, from 1 to 500. A random agent is the floor that later methods must beat.
-- One seed is one draw. A mean of 20 episodes has a standard deviation about $\sqrt{20} \approx 4.5$ times smaller than one episode's, but seeds still disagree. With few seeds, show every seed. Always state the budget.
-- A run record says what ran, where, and with what result. It holds no name. The readiness page is built from records only.
+- One seed is one draw. If episodes are independent draws, a mean of 20 has a standard deviation about $\sqrt{20} \approx 4.5$ times smaller than one episode's, but seeds still disagree: in one local record, five seeds of the same random agent averaged from 19.9 to 27.65. With few seeds, show every seed. Always state the budget.
+- A run record says what ran, where, whose code each checkpoint ran, and with what result. It holds no name. Keep yours: your instructor will tell you where to send it.
 
 ### Equations and where you implement them
 
@@ -159,26 +198,47 @@ This module has no new equations. The table maps each quantity to the code that 
 | The runtime's facts (section 1) | Exercise 0: provided, `prl.runtime.detect()` | `rt` |
 | CartPole steps and network updates per second (section 1) | The provided cell after Exercise 0 | `cartpole_env_steps_per_s`, `mlp_updates_per_s` (in the record) |
 | The return of one episode, the sum of its rewards (section 2) | Exercise 1: `run_episode` | `returns` |
-| Returns over seeds, and the seed band (section 3) | Exercise 2: `returns_by_seed`; the plot is provided | `by_seed`, `seed_means` |
+| Returns over seeds, and the seed band (section 3) | Exercise 2: `returns_by_seed`; the plot is provided | `by_seed`, `seed_means` (also in the record) |
 | The run record (section 4) | Exercise 3: provided; then the last cell, `lab.finish()` | `rec` |
 
 ## Gotchas and troubleshooting
 
+### Gotchas {#gotchas}
+
 - **"A T4 speeds up CartPole."** We expect it does not, for this week's labs. CartPole's physics is a few lines of NumPy arithmetic on a single state, computed on the CPU; a GPU takes no part in it. The labs' networks are small, so we expect stepping the environment, not network arithmetic, to set the pace. This stays an expectation until timed runs on both runtimes are recorded; the [readiness page](/readiness.qmd) shows which records exist. The notebook's speed cell cannot settle it, because it trains its network on the CPU on every runtime. Use the CPU runtime: almost every lab is designed for it, and Colab does not guarantee a free T4.
 - **"A random agent is no baseline."** It is the floor. Several later checkpoints that train an agent are designed to ask for at least 3 times the random agent's return (in Modules 7, 8 and 10), with thresholds that random play fails. If a trained agent does not clearly beat random, look for a bug before you tune anything.
 - **"One seed is enough to compare."** One seed is one draw. Your five random-agent seeds disagree, and the method is identical. With fewer than 5 seeds per side, show every seed and call overlapping ranges a tie. Always state the budget. One seed per side is "single seed, not a ranking".
-- **"The run record shares my name or keys."** It holds runtime facts, versions, checkpoint results, seeds and a few numbers. Checkpoint 3 fails if anything in it looks like a credential or a file path with a user name in it.
-- **"`NotImplementedError`."** The function still raises its TODO: you have not written it yet, or you have not run the cell that holds your code. Write the TODO and run its cell. To move on without it, run `lab.use_reference(1)` (or `2`), and the notebook continues with the reference solution; the exercise's solution cell must have run once. Running a solution cell alone does not replace your function.
-- **"Checkpoint 1 says the same seed gave different returns."** Seed the actions as well as the start: call `env.action_space.seed(seed)` after `env.reset(seed=seed)`.
-- **"Checkpoint 1 says the returns must lie in [1, 500]."** Add the reward of every step, including the last, and stop as soon as `terminated` or `truncated` is true.
-- **"Checkpoint 2 says every seed gave identical returns."** Give each episode its own seed, `base_seed + 100 * s + i`. If you did, check that `run_episode` returns the sum of the rewards and not the last reward, which is always 1.
-- **"An exercise link opened a fresh notebook."** Each link under "In the lab" opens the notebook from GitHub in a new tab, so that copy does not hold your code. Go back to the tab you started in. Whether Colab scrolls to the linked exercise is not yet confirmed. If it opens at the top, scroll to the exercise's heading.
-- **"No file downloaded."** Your browser may have blocked the download. Copy everything between the BEGIN and END lines of the last cell's output into a file whose name ends in `.json`, and send that.
-- **"The setup cell asks me to restart, or stops with 'Setup failed'."** For a restart, follow the [Colab steps on Setup](/setup.qmd#colab). "Setup failed" means Colab's packages changed: tell your instructor, and include the cell's output.
+- **"The run record shares my name or keys."** It holds runtime facts, versions, checkpoint results, seeds and a few numbers. It does say whose code each checkpoint ran, but not who you are. Checkpoint 3 fails if anything in it looks like a credential or a file path with a user name in it.
+- **"Running the Solution cell replaces my function."** It does not, unless the setup cell's `WORKED` box is checked. A Solution cell stores the reference and leaves your code in place. To continue with the reference, run `lab.use_reference(N)`; the steps are under [Troubleshooting](#troubleshooting). Using the reference is allowed, and the checkpoint and the record say so.
+
+### Troubleshooting {#troubleshooting}
+
+The entries follow the order in which the notebook runs.
+
+- **The setup cell is still running after 5 minutes.** On Colab the cell hides the installer's output, so a silent cell is normal while it installs. Five minutes is our cutoff, not a measured install time: no Colab install has been timed yet. Stop the cell and run it once more. If it stalls again, send your instructor a note of how long it ran, or come to the optional setup clinic, {{< var clock.blocks.1.start >}}–{{< var clock.blocks.1.end >}} on [Day 1](/day-1.qmd).
+- **The setup cell prints "Keeping every preinstalled package was not possible; keeping the core ones (…) and retrying."** This is not an error. The cell retries while it protects only the large packages Colab ships, such as PyTorch and NumPy. If it goes on to print the `Packages:` line, setup worked.
+- **The setup cell asks you to restart: "A package that was already imported changed version: Runtime → Restart session, then run this cell again."** Do what it says: use **Runtime → Restart session**, run the setup cell again, then the harness cell, and go on in order. A restart clears every variable. If this happens on your first run, no exercise has run yet, so nothing is lost.
+- **The setup cell stops with "Setup failed: the runtime's packages changed. Tell the instructor."** The cell could not install this notebook's packages beside Colab's own, even when it protected only the large ones. Copy the cell's output. Send it to your instructor, or bring it to the optional setup clinic, {{< var clock.blocks.1.start >}}–{{< var clock.blocks.1.end >}} on [Day 1](/day-1.qmd).
+- **Run locally, the setup cell prints "Warning: this lab expects gymnasium 1.4.0, found …".** Run `uv sync --group notebooks` in the repository, as the warning says. Then restart the kernel and run the setup cell again. The local steps are on the [Setup page](/setup.qmd#local).
+- **`NameError: name 'lab' is not defined`, or the same for `gym`, `np`, `env` or `m00`.** A cell needs a name that an earlier cell defines, and that cell has not run in this session. This happens after a restart, after the session disconnects (Colab may disconnect a session left idle), or when you start from a link partway down the notebook. `lab` comes from the harness cell, `m00` from checkpoint 0's cell, `gym` from the speed cell, and `np` and `env` from Exercise 1's Run cell. Run every cell from the top, in order, down to where you were, including your own `# TODO` cells.
+- **An exercise link opened a fresh notebook.** The exercise names in the [In the lab](#in-the-lab) table open the notebook from GitHub in a new tab, so that copy does not hold your code. Go back to the tab you started in. Whether Colab scrolls to the linked exercise is not yet confirmed. If it opens at the top, scroll to the exercise's heading.
+- **`NotImplementedError: TODO 1: write run_episode, …` in the Run cell, or "Checkpoint 1 failed: TODO 1: …" (or the same for 2).** The function still raises its TODO: you have not written it yet, or you have not run its cell since you wrote it. Write the TODO, run its cell, then rerun the Run cell and the checkpoint. If the message says instead that `run_episode` "is not written yet", the Solution cell ran before your `# TODO` cell: run your `# TODO` cell.
+- **You want to continue with the reference solution.** That is allowed, and the checkpoint and the record will say so.
+  1. Run the exercise's Solution cell; its title starts with **Solution 1**. You do not need to open it. The first time, it prints a line that starts "Solution 1 stored".
+  2. Add a new code cell below it, type `lab.use_reference(1)`, and run it. It prints "Exercise 1: now using the REFERENCE for `run_episode`. Checkpoints will say so."
+  3. Rerun the exercise's Run cell, then its checkpoint. The checkpoint reports that it passed "(on the REFERENCE solution)".
+
+  For Exercise 2, use **Solution 2** and `lab.use_reference(2)`. If `lab.use_reference` stops with `KeyError: 'No reference stored for exercise 1. Run its solution cell first.'` (or exercise 2), do step 1 first.
+- **Checkpoint 1 says "Seed N: your episode took S steps but returned R. CartPole-v1 pays +1 per step, so they must match …"** (N, S and R are numbers from your run). Your function returned something other than the sum of every step's reward. Keep a running total, add each step's reward to it inside the loop, including the step that ends the episode, and return the total after the loop. Returning `reward` returns only the last step's reward, which is always 1.
+- **Checkpoint 1 says "CartPole-v1 returns must lie in [1, 500]".** Stop as soon as `terminated` or `truncated` is true. A return above 500 means the loop ignored `truncated`. A return of 0 means the loop never took a step.
+- **Checkpoint 1 says "The same seed gave different returns."** Seed the actions as well as the start: call `env.action_space.seed(seed)` after `env.reset(seed=seed)`.
+- **Exercise 2's Run cell stops with `AttributeError: 'list' object has no attribute 'mean'`.** Your `returns_by_seed` returned a Python list. The plot may still appear, because NumPy converts the list to draw it, but `by_seed.mean(axis=1)` needs an array. Wrap your nested list in `np.array(...)` and return that, as the docstring asks.
+- **Checkpoint 2 says "Every seed gave identical returns."** Give each episode its own seed, `base_seed + 100 * s + i`. If you did, check that `run_episode` returns the sum of the rewards and not the last reward, which is always 1.
+- **No file downloaded.** Your browser may have blocked the download, or the last cell printed "(Could not offer a download: …)". Copy everything between the BEGIN and END lines of the last cell's output into a file whose name ends in `.json`, and keep that file.
 
 ## Next steps
 
-[Module 1](/modules/01-mdps-bellman.qmd) opens Day 1. It leaves CartPole for a shop with 11 states and a small cliff gridworld, where every value can be computed exactly. CartPole returns on Day 3. The [entry check](/prepare.qmd#entry-check) on Start here is separate from this notebook; take it to see which areas to brush up before Day 1.
+[Module 1](/modules/01-mdps-bellman.qmd) opens Day 1. It leaves CartPole for a shop with 11 states and a small cliff gridworld, where every value can be computed exactly. CartPole returns on Day 3. The [entry check](/prepare.qmd#entry-check) on the Start here page is separate from this notebook. It is not published yet; once it is, it shows which areas to brush up before Day 1.
 
 ## Further reading
 
