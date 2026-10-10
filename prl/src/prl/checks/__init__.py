@@ -21,7 +21,7 @@ class CheckFailed(AssertionError):
 
 def expected(name: str) -> dict[str, np.ndarray]:
     """Load the fixture prl/_expected/<name>.npz as a dict of arrays."""
-    return dict(_load_expected(name))
+    return {k: v.copy() for k, v in _load_expected(name)}  # copies: a check must not see edits
 
 
 @cache
@@ -61,7 +61,18 @@ def assert_close(
         raise CheckFailed(f"{what} contains NaN or infinity.")
     if not np.allclose(a, e, atol=atol, rtol=rtol):
         diff = np.max(np.abs(a - e))
-        msg = f"{what} is off by up to {diff:.3g} (tolerance {atol:g}). Expected {_fmt(e)}, got {_fmt(a)}."
+        if a.size > 8:
+            i = np.unravel_index(np.argmax(np.abs(a - e)), a.shape)
+            where = ", ".join(map(str, i))
+            msg = (
+                f"{what} is off by up to {diff:.3g} (tolerance {atol:g} + {rtol:g} x |expected|). "
+                f"Worst entry: {what}[{where}] should be {e[i]:.6g}, got {a[i]:.6g}."
+            )
+        else:
+            msg = (
+                f"{what} is off by up to {diff:.3g} (tolerance {atol:g} + {rtol:g} x |expected|). "
+                f"Expected {_fmt(e)}, got {_fmt(a)}."
+            )
         if hint:
             msg += f" Hint: {hint}"
         raise CheckFailed(msg)

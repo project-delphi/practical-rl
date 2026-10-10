@@ -32,7 +32,7 @@ INVENTORY = dict(
 
 
 def _two(out: Any, what: str) -> tuple[np.ndarray, np.ndarray]:
-    if not isinstance(out, tuple) or len(out) != 2:
+    if not isinstance(out, (tuple, list)) or len(out) != 2:
         raise CheckFailed(f"{what} should return a pair (P, R).")
     return np.asarray(out[0], dtype=float), np.asarray(out[1], dtype=float)
 
@@ -110,17 +110,27 @@ def check_inventory_spec(fn: Callable[[int], dict]) -> None:
 
 def check_period_reward(fn: Callable[..., float]) -> None:
     fx = expected("m01_eval")
-    p = dict(INVENTORY)
-    for (stock, order, demand), want in zip(fx["reward_cases"], fx["reward_expected"], strict=True):
-        got = fn(int(stock), int(order), int(demand), p)
-        assert_close(
-            got,
-            want,
-            atol=1e-9,
-            what=f"period_reward(stock={stock}, order={order}, demand={demand})",
-            hint="Revenue counts only units sold; you pay the fixed cost only if you order; "
-            "orders are capped so stock never exceeds capacity.",
-        )
+    p2 = dict(
+        INVENTORY, **{str(k): float(v) for k, v in zip(fx["p2_keys"], fx["p2_values"], strict=True)}
+    )
+    p2["capacity"] = int(p2["capacity"])
+    sets = [
+        (dict(INVENTORY), fx["reward_cases"], fx["reward_expected"], "the lab's numbers"),
+        (p2, fx["reward2_cases"], fx["reward2_expected"], "different prices (capacity 6)"),
+    ]
+    for p, cases, answers, label in sets:
+        for (stock, order, demand), want in zip(cases, answers, strict=True):
+            got = fn(int(stock), int(order), int(demand), dict(p))
+            if got is None:
+                raise CheckFailed("period_reward returned None. Did you forget `return`?")
+            assert_close(
+                got,
+                want,
+                atol=1e-9,
+                what=f"period_reward(stock={stock}, order={order}, demand={demand}) with {label}",
+                hint="Use the prices in p, not fixed numbers. Revenue counts units sold; the "
+                "fixed cost is due only if the capped order is positive.",
+            )
 
 
 def check_inventory_arrays(fn: Callable[..., tuple]) -> None:
@@ -192,27 +202,60 @@ def check_evaluate_exact(fn: Callable[..., np.ndarray]) -> None:
 def check_evaluate_iterative(fn: Callable[..., tuple]) -> None:
     fx = expected("m01_eval")
     tol = float(fx["tol"])
-    cases = list(zip(fx["gammas"], fx["rand_V"], fx["rand_k"], [1.0] * 3, strict=True))
-    # The same MDP with rewards negated: V^pi flips sign (it is linear in r) and the iterates
-    # now decrease, which catches a stopping test that forgets abs().
-    cases += [(fx["gammas"][1], -fx["rand_V"][1], fx["rand_k"][1], -1.0)]
-    for gamma, V_exact, k_ref, sign in cases:
-        out = fn(fx["rand_P"], sign * fx["rand_R"], float(gamma), fx["rand_pi"], tol)
-        if not isinstance(out, tuple) or len(out) != 2:
+    rand = (fx["rand_P"], fx["rand_R"], fx["rand_pi"])
+    grid = (fx["grid_P"], fx["grid_R"], fx["grid_pi"])
+    cases = [
+        (rand, float(g), V, int(k), 1.0, "the random MDP")
+        for g, V, k in zip(fx["gammas"], fx["rand_V"], fx["rand_k"], strict=True)
+    ]
+    # Negated rewards: V^pi flips sign (it is linear in r) and the iterates decrease,
+    # which catches a stopping test that forgets abs().
+    cases.append(
+        (
+            rand,
+            float(fx["gammas"][1]),
+            -fx["rand_V"][1],
+            int(fx["rand_k"][1]),
+            -1.0,
+            "the random MDP with negated rewards",
+        )
+    )
+    # The gridworld: the goal's change is 0 while every other change is negative, which
+    # catches stopping on the smallest or the average change.
+    cases.append(
+        (grid, float(fx["grid_gamma"]), fx["grid_V"], int(fx["grid_k"]), 1.0, "the 3x4 gridworld")
+    )
+    for (P, R, pi), gamma, V_exact, k_ref, sign, name in cases:
+        out = fn(P, sign * R, gamma, pi, tol)
+        if not isinstance(out, (tuple, list)) or len(out) != 2:
             raise CheckFailed("evaluate_iterative should return a pair (V, k).")
         V, k = np.asarray(out[0], dtype=float), out[1]
         err = float(np.max(np.abs(V - V_exact)))
         bound = gamma * tol / (1 - gamma)
         if err > bound * (1 + 1e-6) + 1e-12:
             raise CheckFailed(
-                f"With gamma={gamma}, your V is {err:.3g} from V^pi, but stopping when "
-                f"max|V_(k+1) - V_k| < tol guarantees at most {bound:.3g}. Check the stopping rule."
+                f"On {name} with gamma={gamma}, your V is {err:.3g} from V^pi, but stopping "
+                f"when max|V_new - V| < tol guarantees at most {bound:.3g}. Check the stopping rule."
             )
-        if not isinstance(k, (int, np.integer)) or abs(int(k) - int(k_ref)) > 1:
+        try:
+            k_int = int(k)
+        except (TypeError, ValueError):
             raise CheckFailed(
-                f"With gamma={gamma} and tol={tol:g}, starting from V = 0, the reference takes "
-                f"{int(k_ref)} updates; you report k = {k}. Count one per application of T^pi."
+                f"k should be a whole number of updates; you returned {k!r}."
+            ) from None
+        if k_int != k:
+            raise CheckFailed(f"k should be a whole number of updates; you returned {k!r}.")
+        if abs(k_int - k_ref) > 1:
+            msg = (
+                f"On {name} with gamma={gamma} and tol={tol:g}, starting from V = 0, the reference "
+                f"takes {k_ref} updates; you report k = {k_int}. Count one per application of T^pi."
             )
+            if k_int < k_ref - 1:
+                msg += (
+                    " Fewer updates usually means V was updated in place, state by state: build all "
+                    "of V_new from the old V."
+                )
+            raise CheckFailed(msg)
 
 
 def check_bellman_residual(fn: Callable[..., float]) -> None:
@@ -230,14 +273,29 @@ def check_bellman_residual(fn: Callable[..., float]) -> None:
 
 def check_evaluate_suspect(fn: Callable[..., np.ndarray]) -> None:
     fx = expected("m01_eval")
-    got = fn(fx["rand_P"], fx["rand_R"], 0.9, fx["rand_pi"])
-    V, _ = fx["rand_V"][1], None
-    if np.allclose(got, V, atol=1e-8):
-        return
-    raise CheckFailed(
-        "The repaired evaluator still disagrees with V^pi (largest error "
-        f"{np.max(np.abs(np.asarray(got) - V)):.3g}). Compute its Bellman residual: which line builds P_pi?"
-    )
+    cases = [
+        ("the random MDP", fx["rand_P"], fx["rand_R"], 0.9, fx["rand_pi"], fx["rand_V"][1]),
+        (
+            "the 3x4 gridworld",
+            fx["grid_P"],
+            fx["grid_R"],
+            float(fx["grid_gamma"]),
+            fx["grid_pi"],
+            fx["grid_V"],
+        ),
+    ]
+    for name, P, R, gamma, pi, V in cases:
+        got = fn(P, R, gamma, pi)
+        if got is None:
+            raise CheckFailed("evaluate_suspect returned None. Did you forget `return`?")
+        assert_close(
+            got,
+            V,
+            atol=1e-8,
+            rtol=1e-8,
+            what=f"the repaired V for {name}",
+            hint="Compute its Bellman residual: which way does P_pi enter the solve?",
+        )
 
 
 def check_operator_gains(fn: Callable[..., tuple]) -> None:

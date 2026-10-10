@@ -144,11 +144,16 @@ def inventory_arrays(capacity, pmf, p):  # noqa: F811
     return P, R
 
 
-@mutant(ex=4, replaces="evaluate_exact", id="no-discount", why="drops gamma from the solve")
+@mutant(
+    ex=4,
+    replaces="evaluate_exact",
+    id="P_pi-T",
+    why="averages V over the wrong index (P_pi transposed)",
+)
 def evaluate_exact(P, R, gamma, pi):
     P_pi = np.einsum("sa,sat->st", pi, P)
     r_pi = (pi * R).sum(axis=1)
-    return np.linalg.lstsq(np.eye(len(r_pi)) - 0.999999 * P_pi, r_pi, rcond=None)[0]
+    return np.linalg.solve(np.eye(len(r_pi)) - gamma * P_pi.T, r_pi)
 
 
 @mutant(
@@ -212,3 +217,178 @@ def evaluate_suspect(P, R, gamma, pi):
     P_pi = np.einsum("sa,sat->st", pi, P)
     r_pi = (pi * R).sum(axis=1)
     return np.linalg.solve(np.eye(len(r_pi)) - gamma * P_pi.T, r_pi)
+
+
+# ---- added after the technical review: mistakes the first checks missed -----------------
+
+
+@mutant(
+    ex="3a",
+    replaces="period_reward",
+    id="fixed-cost-on-request",
+    why="charges the fixed cost when an order is requested but capped to 0",
+)
+def period_reward(stock, order, demand, p):  # noqa: F811
+    q = min(order, p["capacity"] - stock)
+    y = stock + q
+    s = min(y, demand)
+    cost = (p["fixed_cost"] if order > 0 else 0.0) + p["unit_cost"] * q
+    return (
+        p["price"] * s - cost - p["holding_cost"] * (y - s) - p["lost_sales_penalty"] * (demand - s)
+    )
+
+
+@mutant(ex="3a", replaces="period_reward", id="hardcoded-prices", why="ignores the prices in p")
+def period_reward(stock, order, demand, p):  # noqa: F811
+    q = min(order, p["capacity"] - stock)
+    y = stock + q
+    s = min(y, demand)
+    return 4 * s - (5 * (q > 0) + 2 * q) - 0.2 * (y - s) - (demand - s)
+
+
+@mutant(
+    ex=5, replaces="evaluate_iterative", id="min-abs", why="stops when the smallest change is small"
+)
+def evaluate_iterative(P, R, gamma, pi, tol):  # noqa: F811
+    P_pi = np.einsum("sa,sat->st", pi, P)
+    r_pi = (pi * R).sum(axis=1)
+    V, k = np.zeros(len(r_pi)), 0
+    while True:
+        V_new = r_pi + gamma * P_pi @ V
+        k += 1
+        if np.min(np.abs(V_new - V)) < tol:
+            return V_new, k
+        V = V_new
+
+
+@mutant(
+    ex=5, replaces="evaluate_iterative", id="mean-abs", why="stops when the average change is small"
+)
+def evaluate_iterative(P, R, gamma, pi, tol):  # noqa: F811
+    P_pi = np.einsum("sa,sat->st", pi, P)
+    r_pi = (pi * R).sum(axis=1)
+    V, k = np.zeros(len(r_pi)), 0
+    while True:
+        V_new = r_pi + gamma * P_pi @ V
+        k += 1
+        if np.mean(np.abs(V_new - V)) < tol:
+            return V_new, k
+        V = V_new
+
+
+@mutant(
+    ex=5, replaces="evaluate_iterative", id="abs-outside-max", why="takes abs of the largest change"
+)
+def evaluate_iterative(P, R, gamma, pi, tol):  # noqa: F811
+    P_pi = np.einsum("sa,sat->st", pi, P)
+    r_pi = (pi * R).sum(axis=1)
+    V, k = np.zeros(len(r_pi)), 0
+    while True:
+        V_new = r_pi + gamma * P_pi @ V
+        k += 1
+        if abs(np.max(V_new - V)) < tol:
+            return V_new, k
+        V = V_new
+
+
+@mutant(
+    ex=6, replaces="bellman_residual", id="abs-outside-max", why="abs of the max, not max of abs"
+)
+def bellman_residual(P, R, gamma, pi, V):  # noqa: F811
+    P_pi = np.einsum("sa,sat->st", pi, P)
+    r_pi = (pi * R).sum(axis=1)
+    return float(abs(np.max(r_pi + gamma * P_pi @ V - V)))
+
+
+@mutant(
+    ex=6, replaces="evaluate_suspect", id="approx-iterate", why="'fixes' it by iterating 150 sweeps"
+)
+def evaluate_suspect(P, R, gamma, pi):  # noqa: F811
+    P_pi = np.einsum("sa,sat->st", pi, P)
+    r_pi = (pi * R).sum(axis=1)
+    V = np.zeros(len(r_pi))
+    for _ in range(150):
+        V = r_pi + gamma * P_pi @ V
+    return V
+
+
+# ---- regression guards: caught today, kept so they stay caught --------------------------
+
+
+@mutant(ex=1, replaces="discounted_return", id="forward-horner", why="Horner's loop run forward")
+def discounted_return(rewards, gamma):  # noqa: F811
+    g = 0.0
+    for r in rewards:
+        g = r + gamma * g
+    return g
+
+
+@mutant(ex=2, replaces="gridworld_arrays", id="column-major", why="numbers states column by column")
+def gridworld_arrays(rows, cols):  # noqa: F811
+    S, A = rows * cols, 4
+    P, R = np.zeros((S, A, S)), np.zeros((S, A))
+
+    def idx(r, c):
+        return c * rows + r
+
+    start, goal = idx(rows - 1, 0), idx(rows - 1, cols - 1)
+    cliff = [idx(rows - 1, c) for c in range(1, cols - 1)]
+    for r in range(rows):
+        for c in range(cols):
+            s = idx(r, c)
+            for a in range(A):
+                if s == goal:
+                    P[s, a, goal] = 1.0
+                elif s in cliff:
+                    P[s, a, start] = 1.0
+                else:
+                    s2 = idx(*move(r, c, a, rows, cols))  # noqa: F821
+                    if s2 in cliff:
+                        P[s, a, start], R[s, a] = 1.0, -100.0
+                    else:
+                        P[s, a, s2], R[s, a] = 1.0, -1.0
+    return P, R
+
+
+@mutant(
+    ex="3b",
+    replaces="inventory_arrays",
+    id="order-after-demand",
+    why="sells before the order arrives",
+)
+def inventory_arrays(capacity, pmf, p):  # noqa: F811
+    S = A = capacity + 1
+    P, R = np.zeros((S, A, S)), np.zeros((S, A))
+    for s in range(S):
+        for a in range(A):
+            for d, prob in enumerate(pmf):
+                P[s, a, min(max(s - d, 0) + a, capacity)] += prob
+                R[s, a] += prob * period_reward(s, a, d, p)  # noqa: F821
+    return P, R
+
+
+@mutant(
+    ex=4,
+    replaces="evaluate_exact",
+    id="argmax-policy",
+    why="uses only each state's most likely action",
+)
+def evaluate_exact(P, R, gamma, pi):  # noqa: F811
+    S = P.shape[0]
+    a = pi.argmax(axis=1)
+    P_pi = P[np.arange(S), a]
+    r_pi = R[np.arange(S), a]
+    return np.linalg.solve(np.eye(S) - gamma * P_pi, r_pi)
+
+
+@mutant(
+    ex=6,
+    replaces="bellman_residual",
+    id="error-not-residual",
+    why="measures distance to an exact solve instead of the residual",
+)
+def bellman_residual(P, R, gamma, pi, V):  # noqa: F811
+    P_pi = np.einsum("sa,sat->st", pi, P)
+    r_pi = (pi * R).sum(axis=1)
+    V_exact = np.linalg.solve(np.eye(len(r_pi)) - gamma * P_pi, r_pi)
+    return float(np.max(np.abs(V - V_exact)))

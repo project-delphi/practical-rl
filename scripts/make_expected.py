@@ -99,6 +99,8 @@ def m01_eval() -> bytes:
     pi_g = np.full((g.n_states, 4), 0.25)
     V_g, _, _ = _policy_eval(g.P, g.R, 0.9, pi_g)
     out.update(grid_P=g.P, grid_R=g.R, grid_pi=pi_g, grid_gamma=np.array(0.9), grid_V=V_g)
+    _, Pg_pi, rg_pi = _policy_eval(g.P, g.R, 0.9, pi_g)
+    out.update(grid_k=np.array(_iterate(Pg_pi, rg_pi, 0.9, 1e-6)[1], dtype=np.int64))
     # Case "inv": the lab's inventory MDP, base-stock policy "order up to 7".
     inv = InventoryMDP(**M01_INVENTORY)
     pi_i = np.zeros((inv.n_states, inv.n_actions))
@@ -122,12 +124,48 @@ def m01_eval() -> bytes:
     # Bellman residual cases: V^pi plus known perturbations, gamma 0.9.
     V9, P_pi9, r_pi9 = _policy_eval(P, R, 0.9, pi)
     deltas = np.array([np.zeros(5), np.full(5, 1.0), rng.normal(size=5)])
+    deltas = np.vstack([deltas, 3 * np.eye(5)[0]])
     Vtest = V9 + deltas
     resid = np.array([np.max(np.abs(r_pi9 + 0.9 * P_pi9 @ v - v)) for v in Vtest])
     out.update(res_V=Vtest, res_expected=resid)
+
     # Period rewards: (stock, order, demand) -> reward, with the lab parameters.
+    def reward(p, stock, order, demand):
+        q = min(order, p["capacity"] - stock)
+        y = stock + q
+        sales = min(y, demand)
+        left = y - sales
+        cost = (p["fixed_cost"] if q > 0 else 0.0) + p["unit_cost"] * q
+        return (
+            p["price"] * sales
+            - cost
+            - p["holding_cost"] * left
+            - p["lost_sales_penalty"] * (demand - sales)
+        )
+
+    # A second parameter set catches hard-coded prices.
+    p2 = dict(
+        M01_INVENTORY,
+        capacity=6,
+        price=5.0,
+        unit_cost=1.5,
+        fixed_cost=3.0,
+        holding_cost=0.5,
+        lost_sales_penalty=2.0,
+    )
+    keys = ["capacity", "price", "unit_cost", "fixed_cost", "holding_cost", "lost_sales_penalty"]
+    cases2 = np.array([[4, 5, 3], [0, 6, 6], [6, 2, 1]], dtype=np.int64)
+    out.update(
+        p2_keys=np.array(keys),
+        p2_values=np.array([float(p2[k]) for k in keys]),
+        reward2_cases=cases2,
+        reward2_expected=np.array([reward(p2, *map(int, c)) for c in cases2]),
+    )
     p = M01_INVENTORY
-    cases = np.array([[0, 7, 4], [3, 0, 5], [6, 1, 2], [9, 5, 10], [10, 0, 0]], dtype=np.int64)
+    # (10, 3, 2): a full shelf caps the order to 0, so no fixed cost is due.
+    cases = np.array(
+        [[0, 7, 4], [3, 0, 5], [6, 1, 2], [9, 5, 10], [10, 0, 0], [10, 3, 2]], dtype=np.int64
+    )
     rewards = []
     for stock, order, demand in cases:
         q = min(order, p["capacity"] - stock)

@@ -81,7 +81,9 @@ def load_mutants(module: str) -> list[dict]:
 def stub_mutants(nb: nbformat.NotebookNode) -> list[dict]:
     out = []
     for cell in nb.cells:
-        m = re.match(r"ex([0-9]+[a-z]?)-stub$", cell.get("id", ""))
+        m = re.match(r"ex([0-9]+[a-z]?)-stub$", cell.get("id", "")) or re.match(
+            r"(stretch)-stub$", cell.get("id", "")
+        )
         if m:
             names = re.findall(r"^(?:def|class)\s+([A-Za-z_]\w*)", cell.source, re.M)
             out.append(
@@ -104,6 +106,8 @@ def inject_mutants(nb: nbformat.NotebookNode, module: str) -> tuple[nbformat.Not
         m = re.match(r"ex([0-9]+[a-z]?)-chk", cell.get("id", ""))
         if m:
             chk.setdefault(m.group(1), []).append(i)
+        elif cell.get("id", "").startswith("stretch") and "lab.check(" in cell.get("source", ""):
+            chk.setdefault("stretch", []).append(i)
     for w in wrongs:
         if w["ex"] not in chk:
             raise ValueError(

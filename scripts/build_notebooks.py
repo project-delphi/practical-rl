@@ -115,8 +115,6 @@ _PINS = {{{pin_lines}}}
 _ALLOW = {json.dumps(allow)}
 _CORE = {json.dumps([n.lower() for n in v["packages"]["colab"]["use_preinstalled"]])}
 _PRL_SPEC = _os.environ.get("PRL_SPEC") or "git+{repo["url"]}@" + PRL_REF + "#subdirectory=prl"
-if WORKED:
-    _os.environ["PRL_WORKED"] = "1"
 _on_colab = ("google.colab" in _sys.modules or bool(_os.environ.get("COLAB_RELEASE_TAG"))
              or _os.environ.get("PRL_PLATFORM") == "colab-sim")
 
@@ -197,7 +195,8 @@ def init_code(
         f'lab = prl.lab.init("{m["slug"]}", "{sha}", designed="{m["runtime"]}", '
         f"api={v['prl']['api']}, ns=globals(),\n"
         f"                   checkpoints={json.dumps(checkpoints)}, packages={json.dumps(list(pins))}, "
-        f"seat=SEED, badge_ref=PRL_REF)"
+        "seat=SEED, badge_ref=PRL_REF,\n"
+        "                   worked=WORKED or None)"
     )
 
 
@@ -371,7 +370,10 @@ def build(path: Path, v: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 
     nb = nbformat.v4.new_notebook()
     nb.nbformat, nb.nbformat_minor = 4, 5
-    nb.cells = [head, setup, init, *out_cells, finish]
+    core = [c for c in out_cells if not c["id"].startswith("stretch")]
+    stretch = [c for c in out_cells if c["id"].startswith("stretch")]
+    # The finish cell comes before the stretch, so an unfinished stretch never blocks the record.
+    nb.cells = [head, setup, init, *core, finish, *stretch]
     nb.metadata = {
         "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
         "language_info": {"name": "python"},
@@ -442,7 +444,7 @@ def lint(built: dict[str, Any], v: dict[str, Any]) -> list[str]:
             if (
                 cell["id"] == f"ex{n}-stub"
                 and "NotImplementedError" in cell.source
-                and not re.search(rf"lab\.use_reference\(['\"]?{n}['\"]?\)", cell.source)
+                and not re.search(rf"lab\.use_reference\(['\"]?{n}['\"]?[,)]", cell.source)
             ):
                 p.append(
                     f"{m['slug']} exercise {n}: the stub's error must name lab.use_reference({n}), "

@@ -401,6 +401,7 @@ lab.check(4, m01.check_evaluate_exact, evaluate_exact)
 def evaluate_iterative(P, R, gamma, pi, tol):
     """Repeat V <- r_pi + gamma P_pi V from V = 0 until max|V_new - V| < tol.
 
+    Build all of V_new from the old V (not in place, state by state).
     Returns (V_new, k), where k counts the updates.
     """
     # TODO 5: build P_pi and r_pi once, then loop.
@@ -411,7 +412,8 @@ def evaluate_iterative(P, R, gamma, pi, tol):
 
 # %% [markdown] role="ex5-hint"
 # Inside a `while True:` loop, compute `V_new`, increment `k`, and `return V_new, k` as soon as
-# `np.max(np.abs(V_new - V)) < tol`; otherwise set `V = V_new`.
+# `np.max(np.abs(V_new - V)) < tol`; otherwise set `V = V_new`. If the cell never finishes,
+# you probably forgot `V = V_new` (interrupt it with the stop button).
 
 
 # %% role="ex5-sol"
@@ -437,8 +439,9 @@ for g in gammas:
     err = np.max(np.abs(V_it - evaluate_exact(P_inv, R_inv, g, pi7)))
     counts.append(k)
     errors.append(err)
+    bound = g * 1e-6 / (1 - g)
     print(
-        f"gamma {g}: {k:5d} updates, error {err:.1e} (guaranteed at most {g * 1e-6 / (1 - g):.1e})"
+        f"gamma {g}: {k:5d} updates, error {err:.3e} = {err / bound:.2f} x the guarantee {bound:.3e}"
     )
 fig, ax = plt.subplots()
 ax.plot([1 / (1 - g) for g in gammas], counts, marker="o")
@@ -458,13 +461,14 @@ plt.show()
 lab.check(5, m01.check_evaluate_iterative, evaluate_iterative)
 
 # %% [markdown] role="ex6-head"
-# **Planted bug.** A colleague wrote `evaluate_suspect`. It runs, and its numbers look
-# plausible. Do not read it line by line yet. A value function can always be tested with
-# its **Bellman residual**, max |T^π V − V| (residual): exactly zero at V^π, and not zero
-# anywhere else. Write the residual, use it as the diagnostic, then fix the bug.
+# **Planted bug.** A colleague wrote `evaluate_suspect`. It runs and returns finite numbers.
+# Here you could compare them with Exercise 4, but usually you have no reference to compare
+# with. A value function can always be tested with its **Bellman residual**,
+# max |T^π V − V| (residual): exactly zero at V^π, and not zero anywhere else. It needs no
+# reference. Write the residual, use it as the diagnostic, then fix the bug.
 #
 # **Diagnostics for this lab.** A healthy evaluator has a residual near machine precision
-# (about 1e−12 here); an iterative one, about tol. A residual of order 1 or more means the
+# (about 1e−14 here); an iterative one, about tol. A residual of order 1 or more means the
 # arrays or the evaluator are wrong, however plausible the values look.
 
 # %% [markdown] role="ex6-predict"
@@ -476,7 +480,7 @@ def bellman_residual(P, R, gamma, pi, V):
     """max over states of |r_pi + gamma P_pi V - V|: zero exactly at V^pi."""
     # TODO 6 (part 1): compute T^pi V and compare it with V in the max norm.
     raise NotImplementedError(
-        "TODO 6: write bellman_residual, or run lab.use_reference(6) to continue with the solution"
+        "TODO 6: write bellman_residual, or run lab.use_reference(6, 'bellman_residual')"
     )
 
 
@@ -518,10 +522,9 @@ print("residual of evaluate_suspect:", bellman_residual(P_inv, R_inv, g, pi7, V_
 print("residual of evaluate_exact:  ", bellman_residual(P_inv, R_inv, g, pi7, V7))
 
 # %% [markdown] role="ex6-explain"
-# Before your fix, the suspect's residual was large while its values looked like a sensible
-# value function. Why do the values still look plausible? (Hint: what is the transpose of a
-# matrix whose rows are probability distributions, and when would the bug be invisible?)
-# A residual check costs one matrix-vector product; run it on every evaluator you write.
+# Before your fix, the suspect's residual was large. When would this bug be invisible, with a
+# residual of zero? (Hint: when is P_π equal to its transpose?) A residual check costs one
+# matrix-vector product and needs no reference answer; run it on every evaluator you write.
 
 # %% role="ex6-chk1"
 lab.check(6, m01.check_bellman_residual, bellman_residual, label="6.1")

@@ -36,7 +36,7 @@ def _standin(n: int, name: str) -> Callable[..., Any]:
     def not_written(*_args: Any, **_kwargs: Any) -> Any:
         raise NotImplementedError(
             f"Exercise {n}: `{name}` is not written yet. Run your `# TODO {n}` cell first, "
-            f"or call lab.use_reference({n}) to continue with the reference."
+            f"or call lab.use_reference({n!r}) to continue with the reference."
         )
 
     not_written.__name__ = name
@@ -53,7 +53,7 @@ class _NotWrittenValue:
     def _fail(self, *_a: Any, **_k: Any) -> Any:
         raise NotImplementedError(
             f"Exercise {self._n}: `{self._name}` is not set yet. Run your `# TODO {self._n}` "
-            f"cell first, or call lab.use_reference({self._n})."
+            f"cell first, or call lab.use_reference({self._n!r})."
         )
 
     __call__ = _fail
@@ -70,6 +70,17 @@ class _NotWrittenValue:
 
     def __repr__(self) -> str:
         return f"<not written yet: {self._name} (exercise {self._n})>"
+
+
+def _tag_reference(obj: Any, n: int | str, name: str) -> None:
+    try:
+        obj.__prl_ref__ = (str(n), name)
+    except (AttributeError, TypeError):  # objects that refuse attributes are compared by identity
+        pass
+
+
+def _is_ref(obj: Any, n: int | str, name: str) -> bool:
+    return getattr(obj, "__prl_ref__", None) == (str(n), name)
 
 
 def _is_standin(obj: Any) -> bool:
@@ -96,38 +107,52 @@ class Lab:
         return self._s["notebook"]
 
     # -- solutions ---------------------------------------------------------
-    def solution(self, n: int) -> Callable[[Any], Any]:
+    def _refs(self, n: int | str) -> dict[str, Any]:
+        return self._s["refs"].setdefault(str(n), {})
+
+    def _say_once(self, key: str, message: str) -> None:
+        said = self._s.setdefault("said", set())
+        if key not in said:
+            said.add(key)
+            print(message)
+
+    def solution(self, n: int | str) -> Callable[[Any], Any]:
         """Decorator for a folded solution of exercise n."""
 
         def decorate(obj: Any) -> Any:
             name = obj.__name__
-            self._s["refs"].setdefault(n, {})[name] = obj
+            _tag_reference(obj, n, name)
+            self._refs(n)[name] = obj
             if self.worked:
                 return obj
             current = self._ns.get(name)
             if current is None or _is_standin(current):
-                print(
-                    f"Solution {n} stored. Run your `# TODO {n}` cell first, or run "
-                    f"lab.use_reference({n}) to continue with this solution."
+                self._say_once(
+                    f"missing-{n}",
+                    f"Solution {n} stored. Run your `# TODO {n}` cell first, "
+                    f"or run lab.use_reference({n!r}) to continue with this solution.",
                 )
                 return _standin(n, name)
-            if current is not obj and current is not self._s["refs"][n].get(name):
-                # Running this cell never replaces the participant's code; say so plainly.
-                print(
-                    f"Solution {n} stored, not used: your own `{name}` stays in place. "
-                    f"To continue with this solution instead, run lab.use_reference({n})."
-                )
-            return current  # the participant's own definition (or a reference they chose)
+            if _is_ref(current, n, name):
+                return obj  # they chose the reference; keep it current
+            # Running a solution cell never replaces the participant's code; say so plainly.
+            self._say_once(
+                f"kept-{n}",
+                f"Solution {n} stored, not used: the code from your `# TODO {n}` "
+                f"cell stays in place. To continue with the solution, run "
+                f"lab.use_reference({n!r}).",
+            )
+            return current
 
         return decorate
 
-    def solution_value(self, n: int, name: str, value: Any) -> Any:
+    def solution_value(self, n: int | str, name: str, value: Any) -> Any:
         """Store a non-function reference value for exercise n; return what the participant has."""
         if isinstance(value, (int, float, bool, str)):
             raise TypeError(
                 "solution_value is for arrays and objects; check scalars in the checkpoint instead"
             )
-        self._s["refs"].setdefault(n, {})[name] = value
+        self._refs(n)[name] = value
         if self.worked:
             return value
         current = self._ns.get(name)
@@ -135,26 +160,31 @@ class Lab:
             return _NotWrittenValue(n, name)
         return current
 
-    def use_reference(self, n: int) -> None:
-        """Continue with the reference solution of exercise n."""
-        refs = self._s["refs"].get(n)
+    def use_reference(self, n: int | str, *names: str) -> None:
+        """Continue with the reference solution of exercise n (optionally only some of its names)."""
+        refs = self._refs(n)
         if not refs:
-            raise KeyError(f"No reference stored for exercise {n}. Run its solution cell first.")
-        for name, obj in refs.items():
-            self._ns[name] = obj
-        names = ", ".join(f"`{k}`" for k in refs)
-        print(f"Exercise {n}: now using the REFERENCE for {names}. Checkpoints will say so.")
+            raise KeyError(f"No reference stored for exercise {n!r}. Run its solution cell first.")
+        chosen = names or tuple(refs)
+        unknown = [x for x in chosen if x not in refs]
+        if unknown:
+            raise KeyError(f"Exercise {n!r} has no reference for {unknown}; it has {sorted(refs)}.")
+        for name in chosen:
+            self._ns[name] = refs[name]
+        shown = ", ".join(f"`{k}`" for k in chosen)
+        print(f"Exercise {n}: now using the REFERENCE for {shown}. Checkpoints will say so.")
 
-    def _whose(self, n: int) -> str:
-        refs = self._s["refs"].get(n) or {}
+    def _whose(self, n: int | str) -> str:
+        refs = self._s["refs"].get(str(n)) or {}
         if not refs:
             return "provided"
-        current = [self._ns.get(name) for name in refs]
-        if any(c is None or _is_standin(c) for c in current):
+        current = [(name, self._ns.get(name)) for name in refs]
+        if any(c is None or _is_standin(c) for _, c in current):
             return "not written"
-        if all(c is refs[name] for c, name in zip(current, refs, strict=True)):
+        is_ref = [_is_ref(c, n, name) for name, c in current]
+        if all(is_ref):
             return "reference"
-        if any(c is refs[name] for c, name in zip(current, refs, strict=True)):
+        if any(is_ref):
             return "mixed"
         return "yours"
 
@@ -205,7 +235,7 @@ class Lab:
             return
         print(f"✗ Checkpoint {label} failed: {error}")
         if whose != "reference":
-            print(f"  Stuck? Open the Hint, then the Solution, or run lab.use_reference({n}).")
+            print(f"  Stuck? Open the Hint, then the Solution, or run lab.use_reference({n!r}).")
         raise error
 
     # -- mutants (used by scripts/check_notebooks.py --mode verify) -------------
@@ -229,9 +259,7 @@ class Lab:
             else:
                 self._ns[name] = obj
         results = mutant["results"]
-        allowed = {"CheckFailed", "AssertionError"} | (
-            {"NotImplementedError"} if mutant["stub"] else set()
-        )
+        allowed = {"CheckFailed"} | ({"NotImplementedError"} if mutant["stub"] else set())
         problems = []
         if not results:
             problems.append("no checkpoint ran")
@@ -258,14 +286,17 @@ class Lab:
 
     def summary(self) -> None:
         checks = self._s["checks"]
-        expected_labels = self._s["checkpoints"]
-        passed = {r["label"] for r in checks if r["pass"]}
-        print(
-            f"{self.notebook}: {len(passed)} of {len(expected_labels) or len(checks)} checkpoints passed."
-        )
-        for r in checks:
+        expected_labels = self._s["checkpoints"] or [r["label"] for r in checks]
+        core = [r for r in checks if r["label"] in expected_labels]
+        optional = [r for r in checks if r["label"] not in expected_labels]
+        passed = {r["label"] for r in core if r["pass"]}
+        print(f"{self.notebook}: {len(passed)} of {len(expected_labels)} core checkpoints passed.")
+        for r in core:
             mark = "✓" if r["pass"] else "✗"
             print(f"  {mark} {r['label']:>5}  {_whose_words(r['whose'])}")
+        for r in optional:
+            mark = "✓" if r["pass"] else "✗"
+            print(f"  {mark} {r['label']:>5}  {_whose_words(r['whose'])} (optional)")
         missing = [lbl for lbl in expected_labels if lbl not in {r["label"] for r in checks}]
         if missing:
             print(f"  Not reached: {', '.join(missing)}")

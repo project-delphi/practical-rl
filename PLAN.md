@@ -1043,7 +1043,7 @@ No algorithms. Dependencies: numpy, scipy, gymnasium, matplotlib. No torch.
   - **Install/setup:** on Colab, installs; elsewhere, checks the pins. Then sets `SEED = seat`.
   - **`lab.init(...)`**
   - **`lab.finish()`:** prints the record's JSON between markers. On Colab it also triggers a `files.download`; locally it writes to `runs/inbox/`.
-- **Solution cells:** a two-level fold, Hint then Solution, using `#@title … { display-mode: "form" }`, `cellView: form` and `jupyter.source_hidden`. They print nothing.
+- **Solution cells:** a two-level fold, Hint then Solution, using `#@title … { display-mode: "form" }`, `cellView: form` and `jupyter.source_hidden`. A solution cell prints one line per exercise: that it stored the solution without using it, and how to use it (`lab.use_reference(N)`, optionally naming one function).
 - **Checkpoint output:**
   - Pass: `✓ Checkpoint 3 passed (your code) · 0.4 s`.
   - Fail: `✗ … expected … · Hint … · Stuck? lab.use_reference(3)`, in words, not ANSI color.
@@ -1065,7 +1065,7 @@ No algorithms. Dependencies: numpy, scipy, gymnasium, matplotlib. No torch.
 - **`scripts/check_notebooks.py`** (nbclient) has four modes:
   - *worked*;
   - *learner*: must stop at the first TODO;
-  - *verify*: every checkpoint must fail on its stub **and on every mutant**;
+  - *verify*: right after each exercise's checkpoints, swap in its stub and each mutant and rerun the checkpoint cells (checks call the participant's function themselves, so rerunning run cells is unnecessary). The stub must be rejected by every checkpoint of its exercise; a mutant by every checkpoint that calls the function it replaces. Only a `CheckFailed` counts as rejection;
   - *record*.
 - **Mutant mechanism:**
   - `labs/mutants/mNN.py` holds functions decorated `@mutant(ex=3, replaces="evaluate_exact", id="P_pi_T", why="…")`.
