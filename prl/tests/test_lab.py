@@ -80,7 +80,7 @@ def test_rerunning_init_keeps_references(monkeypatch):
     reference_double.__name__ = "double"
     lab.solution(1)(reference_double)
     lab2 = harness.init("01-test", "0123456789abcdef", designed="colab-cpu", api=1, ns=ns)
-    assert lab2._s["refs"][1]["double"] is reference_double
+    assert lab2._s["refs"]["1"]["double"] is reference_double
 
 
 def test_api_mismatch_refuses(monkeypatch):
@@ -105,3 +105,54 @@ def test_solution_cell_says_it_does_not_replace_code(monkeypatch, capsys):
     lab.solution(1)(reference_double)
     out = capsys.readouterr().out
     assert "not used" in out and "lab.use_reference(1)" in out
+
+
+def test_reference_provenance_survives_rerunning_the_solution_cell(monkeypatch):
+    ns, lab = new_ns(monkeypatch)
+
+    def ref(x):
+        return 2 * x
+
+    ref.__name__ = "double"
+    ns["double"] = lambda x: x + 2
+    ns["double"] = lab.solution(1)(ref)
+    lab.use_reference(1)
+    ns["double"] = lab.solution(1)(ref)  # rerun the solution cell
+    assert lab._whose(1) == "reference"
+
+
+def test_use_reference_can_pick_one_name(monkeypatch):
+    ns, lab = new_ns(monkeypatch)
+
+    def residual(x):
+        return x
+
+    def suspect(x):
+        return x
+
+    ns["residual"], ns["suspect"] = (lambda x: 0), (lambda x: 1)
+    lab.solution(6)(residual)
+    lab.solution(6)(suspect)
+    keep = ns["suspect"]
+    lab.use_reference(6, "residual")
+    assert ns["residual"] is residual and ns["suspect"] is keep
+    lab.use_reference("6")  # string and int labels are the same exercise
+    assert ns["suspect"] is suspect
+
+
+def test_messages_show_valid_python_for_lettered_exercises(monkeypatch, capsys):
+    ns, lab = new_ns(monkeypatch)
+
+    def spec(c):
+        return c
+
+    lab.solution("3a")(spec)
+    assert "lab.use_reference('3a')" in capsys.readouterr().out
+
+
+def test_fixtures_are_copies():
+    from prl.checks import expected
+
+    a = expected("m01_eval")["rand_R"]
+    a[:] = 0
+    assert expected("m01_eval")["rand_R"].any()

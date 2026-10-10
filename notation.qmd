@@ -19,6 +19,9 @@ and note the paper's original symbol here.
 | $\pi_b$ | behavior policy (frees $b$ for the baseline $b(s)$) | Dudík et al.'s $p$; CQL's $\pi_\beta$ |
 | $\pi_{\text{ref}}$ | reference policy (language models) | |
 | $V^\pi, Q^\pi, A^\pi$ | state value, action value, advantage | |
+| $\lVert x \rVert_\infty$ | the max norm, $\max_s \lvert x(s) \rvert$: the largest entry in absolute value | |
+| $\eta$ | target accuracy: the error $\lVert V_k - V^\pi \rVert_\infty$ you want to reach (not $\varepsilon$, the exploration rate) | |
+| $\mathrm{tol}$ | stopping threshold on the change per sweep, $\lVert V_{k+1} - V_k \rVert_\infty$ | |
 | $\hat{A}_t$ | advantage estimate | |
 | $\delta_t$ | TD error | Hoeffding's failure probability → $p_{\text{fail}}$ |
 | $\alpha$ | step size (only this) | SAC's temperature → $\alpha_{\text{ent}}$; CQL's weight → $\alpha_{\text{cql}}$ |

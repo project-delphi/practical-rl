@@ -29,6 +29,15 @@ hosts:
       Quarto's revealjs math plugin loads MathJax 2.7.9 from the CDN even without math.
       Fix: `html-math-method: plain` in welcome.qmd until the deck has math (verified
       to remove the request).
+  - host: cdn.jsdelivr.net
+    page: modules/01-mdps-bellman.html
+    reason: >-
+      The contraction demo (demos/01-contraction.qmd) uses Observable Plot and Inputs,
+      which Quarto 1.10's OJS runtime does not bundle: it loads @observablehq/plot 0.6.11,
+      @observablehq/inputs 0.10.6, d3 7.8.5 and htl 0.3.1 from this CDN, at versions
+      pinned by Quarto (verified 2026-10-09; no other host is requested). Without the CDN
+      the demo does not draw and the page shows its static fallback sentence. Fix if the
+      site must work offline: vendor those four files and set the OJS require resolver.
 
 missing:
   - path: "*/fonts/source-sans-pro/source-sans-pro.css"

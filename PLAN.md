@@ -227,35 +227,35 @@ Objectives:
 **Objectives:**
 1. Encode a finite MDP as `P[s,a,s']` and `R[s,a]`, and validate it.
 2. Frame inventory control as an MDP (state, action, reward, γ) and justify the choices.
-3. Evaluate a policy exactly, and iteratively. Bound the iteration count: k ≥ log(‖V₀−V^π‖∞/ε)/log(1/γ). Stopping when ‖V_{k+1}−V_k‖∞ < tol guarantees ‖V_{k+1}−V^π‖∞ ≤ γ·tol/(1−γ).
+3. Evaluate a policy exactly, and iteratively. Bound the iteration count: k ≥ log(‖V₀−V^π‖∞/η)/log(1/γ). Stopping when ‖V_{k+1}−V_k‖∞ < tol guarantees ‖V_{k+1}−V^π‖∞ ≤ γ·tol/(1−γ).
 4. Find a wrong evaluator from its Bellman residual.
 
 **Briefing:**
 
 | § | Topic | Min |
 |---|---|---|
-| 1 | Inventory: what must you track? | 6 (predict 3) |
-| 2 | Returns, γ, MDP as arrays | 6 |
-| 3 | Bellman expectation equation (S&B Eq. 3.14); 2-state example by hand | 10 (chk 3) |
-| 4 | T^π is a γ-contraction in ‖·‖∞ (one line: ‖γP^π(V−V′)‖∞ ≤ γ‖V−V′‖∞); iteration bound; slider demo | 12 (demo 4) |
-| 5 | Optimality equation stated (S&B Eq. 3.19–3.20); bridge | 6 |
+| 1 | Inventory: what must you track? | 7 (predict 3) |
+| 2 | Returns, γ, MDP as arrays | 5 |
+| 3 | Bellman expectation equation (S&B Eq. 3.14); 2-state example by hand | 11 (chk 3) |
+| 4 | T^π is a γ-contraction in ‖·‖∞ (one line: ‖γP^π(V−V′)‖∞ ≤ γ‖V−V′‖∞); iteration bound; stopping rule; slider demo (the room predicts the guarantee first) | 11 (demo 4) |
+| 5 | Optimality equation stated (S&B Eq. 3.19–3.20); bridge | 6 (chk 2) |
 
-Total: 30 + 10. **Collapsed:** uniqueness via Banach; the stopping-rule proof.
+Total: 28 + 12. **Reference** (on the page, not read aloud): the worked reward example, the Poisson truncation, the gridworld rules and state table, why the inverse exists, uniqueness, the stopping-rule proof. **Collapsed:** the code for Exercises 1, 4, 5 and 6.1 ("open after Lab 1"); "After the lab: the shop's counts" (@fig-iterations).
 
 **Lab (core 52):**
 
 | # | Exercise | Writes | Checkpoint | Min |
 |---|---|---|---|---|
 | 1 | Discounted return | `discounted_return` | Exact on 3 fixtures | 5 |
-| 2 | Tiny cliff gridworld as arrays (index and move helpers provided) | `gridworld_arrays` (transition rule: cliff → start with −100; goal absorbs) | Equals the fixture; `validate()` | 8 |
-| 3a | Framing card for inventory | `inventory_spec` | State count; reward on 3 hand-worked cases | 5 |
-| 3b | Inventory MDP (demand pmf provided) | `inventory_arrays` | `validate()`; equals the fixture | 12 |
+| 2 | Tiny cliff gridworld as arrays (index and move helpers, and the goal and cliff branches, provided) | `gridworld_arrays` (transition rule: cliff → start with −100; goal absorbs) | Equals the fixture; `validate()` | 8 |
+| 3a | Framing card for inventory (an editable card cell) | `inventory_spec`, `period_reward` | State count; reward on hand-worked cases | 6 |
+| 3b | Inventory MDP (demand pmf provided) | `inventory_arrays` | `validate()`; equals the fixture | 9 |
 | 4 | Exact evaluation | `evaluate_exact` | Equals the fixture V | 5 |
-| 5 | Iterative evaluation (γ sweep and plot provided) | `evaluate_iterative → (V, k)` | k within the bound; error ≤ γ·tol/(1−γ) | 9 |
-| 6 | **Planted bug**: evaluator uses `P_pi.T` | Diagnose and fix | Bellman residual < tol | 8 |
+| 5 | Iterative evaluation (runs at several γ, and the plot against the bound, provided) | `evaluate_iterative → (V, k)` | k within the bound; error ≤ γ·tol/(1−γ) | 10 |
+| 6 | **Planted bug**: evaluator uses `P_pi.T` | `bellman_residual`, then fix `evaluate_suspect` | Residual on fixtures; fixed evaluator equals the fixture | 9 |
 
 - **Compare:** exact fixtures.
-- **Stretch:** T^π can expand in the unweighted 2-norm. Example: two states both moving to state 1 with γ = 0.9 give ‖γP‖₂ ≈ 1.27. It contracts in the stationary-weighted norm, which is why on-policy linear TD converges (M7).
+- **Stretch:** T^π can expand in the unweighted 2-norm. Example: two states both moving to state 1 with γ = 0.9 give ‖γP‖₂ ≈ 1.27. Weighted by the stationary distribution μ it is again a γ-contraction (‖γP_π x‖_μ ≤ γ‖x‖_μ); Module 7 uses this as the key step for on-policy linear TD's stability, and the full convergence argument needs more conditions.
 
 #### M2 · Planning: value iteration, policy iteration and model error (B, level 200, Colab CPU, S3)
 
@@ -264,7 +264,7 @@ Total: 30 + 10. **Collapsed:** uniqueness via Banach; the stopping-rule proof.
 
 **Objectives:**
 1. Implement value iteration (VI) and policy iteration (PI), and compare their iteration counts.
-2. Extract a greedy policy. Check that if ‖Q−Q*‖∞ ≤ ε, the greedy policy loses at most 2γε/(1−γ). The lemma number will be cited only after it has been opened.
+2. Extract a greedy policy. Check that if ‖Q−Q*‖∞ ≤ ε, the greedy policy loses at most 2ε/(1−γ) (AJKS V3, Lemma 1.11; opened by the academic director on 2026-10-10).
 3. Estimate a model from samples. Measure the true loss of the policy planned in it as the data shrinks, over 5 seeds.
 4. State the simulation lemma (AJKS V3 Lemma 2.2, in identity form). With rewards in [0,1] and ε_P = max‖P(·|s,a)−P̂(·|s,a)‖₁, every policy's value error is at most γε_P/(1−γ)², and the planned policy loses at most 2γε_P/(1−γ)².
 
@@ -1043,7 +1043,7 @@ No algorithms. Dependencies: numpy, scipy, gymnasium, matplotlib. No torch.
   - **Install/setup:** on Colab, installs; elsewhere, checks the pins. Then sets `SEED = seat`.
   - **`lab.init(...)`**
   - **`lab.finish()`:** prints the record's JSON between markers. On Colab it also triggers a `files.download`; locally it writes to `runs/inbox/`.
-- **Solution cells:** a two-level fold, Hint then Solution, using `#@title … { display-mode: "form" }`, `cellView: form` and `jupyter.source_hidden`. They print nothing.
+- **Solution cells:** a two-level fold, Hint then Solution, using `#@title … { display-mode: "form" }`, `cellView: form` and `jupyter.source_hidden`. A solution cell prints one line per exercise: that it stored the solution without using it, and how to use it (`lab.use_reference(N)`, optionally naming one function).
 - **Checkpoint output:**
   - Pass: `✓ Checkpoint 3 passed (your code) · 0.4 s`.
   - Fail: `✗ … expected … · Hint … · Stuck? lab.use_reference(3)`, in words, not ANSI color.
@@ -1065,7 +1065,7 @@ No algorithms. Dependencies: numpy, scipy, gymnasium, matplotlib. No torch.
 - **`scripts/check_notebooks.py`** (nbclient) has four modes:
   - *worked*;
   - *learner*: must stop at the first TODO;
-  - *verify*: every checkpoint must fail on its stub **and on every mutant**;
+  - *verify*: right after each exercise's checkpoints, swap in its stub and each mutant and rerun the checkpoint cells (checks call the participant's function themselves, so rerunning run cells is unnecessary). The stub must be rejected by every checkpoint of its exercise; a mutant by every checkpoint that calls the function it replaces. Only a `CheckFailed` counts as rejection;
   - *record*.
 - **Mutant mechanism:**
   - `labs/mutants/mNN.py` holds functions decorated `@mutant(ex=3, replaces="evaluate_exact", id="P_pi_T", why="…")`.

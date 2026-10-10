@@ -1,6 +1,11 @@
 ---
 title: "{{< var modules.m01.title >}}"
-status: placeholder
+live:
+  - {section: 1, minutes: 7, activities: [{block: predict-state, minutes: 3, label: "Predict: what must the state hold?"}]}
+  - {section: 2, minutes: 5}
+  - {section: 3, minutes: 11, activities: [{block: chk-bellman, minutes: 3, label: "Check yourself 3.1"}]}
+  - {section: 4, minutes: 11, activities: [{block: demo-contraction, minutes: 4, label: "Demo: predict the guarantee, then watch"}]}
+  - {section: 5, minutes: 6, activities: [{block: chk-opt, minutes: 2, label: "Check yourself 5.1"}]}
 ---
 
 {{< include /_includes/module-01.md >}}
@@ -11,6 +16,499 @@ status: placeholder
 
 {{< include /_includes/live-01.md >}}
 
-::: {.callout-note}
-This briefing is not written yet. It follows the Module 1 template (see [the plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+## 1. Inventory: what must you track?
+
+**In this section:** frame a real decision problem, restocking a shop, as a Markov decision process, and decide what its state must contain.
+
+You run a shop that sells one product. The shelf holds at most 10 units. Each period (say, each day) you count the stock, decide how many units to order, and the order arrives at once. Then customers come. The demand $D$, the number of units customers want, is random. You sell what you can, and customers you cannot serve buy elsewhere: unmet demand is lost.
+
+Write $x$ for the stock when you decide, and $a \in \{0, 1, \dots, 10\}$ for the number of units you order. The order is cut so the shelf never overflows: you receive $q = \min(a,\ 10 - x)$ units. After the delivery there are $x + q$ units on the shelf, and
+
+$$
+\text{sales} = \min(x + q,\ D), \qquad \text{left} = x + q - \text{sales}, \qquad \text{lost} = D - \text{sales}.
+$$
+
+The money for one period is the price of 4 per unit sold, minus the order cost (5 if any units arrive, plus 2 per unit that arrives), minus a holding cost of 0.2 per unit left on the shelf, minus a penalty of 1 per unit of lost demand:
+
+$$
+\text{reward} = 4\,\text{sales} - \big(5\,[q > 0] + 2q\big) - 0.2\,\text{left} - 1 \cdot \text{lost},
+$$
+
+where $[q > 0]$ is 1 if any units are delivered and 0 otherwise. The penalty for lost demand is not money that leaves the till. It is our estimate of what an unserved customer costs in the future, and it is a choice we made (see Gotchas).
+
+With these prices, a period that turns customers away can still earn more than one that serves everyone; the two cases below show it. Demand follows a Poisson distribution with mean 4, truncated at 10, so every expectation in this module is a finite sum.
+
+::: {.reference}
+**Two periods, worked.** With stock 3 you order 4, so 7 units are on the shelf. If demand is 5, you sell 5, keep 2 and lose none: the reward is $4 \cdot 5 - (5 + 2 \cdot 4) - 0.2 \cdot 2 - 0 = 6.6$. If demand is 9, you sell 7 and lose 2: $28 - 13 - 0 - 2 = 13$.
+
+**The demand distribution.** Truncating at 10 moves the probability of 10 or more, about 0.008, onto 10. The lab provides this distribution as `prl.envs.demand_pmf`.
 :::
+
+::: {#predict-state .predict}
+**Predict (3 min).** At the end of each period you may write down anything you like before the next decision. What is the least you must record so that, given the next order, the probabilities of what happens next do not depend on anything earlier? Then answer two variations: (a) orders take one full period to arrive; (b) demand is higher on weekends.
+
+::: {.callout-tip collapse="true" title="Answer"}
+The stock on hand, $x \in \{0, 1, \dots, 10\}$. Given $x$ and the order, the next stock is $x + q - \min(x + q, D)$, and $D$ is drawn afresh each period from the same distribution. Nothing earlier changes these probabilities, so $x$ is enough.
+
+(a) With a delay, last period's order is still on its way, and it will change tomorrow's stock. The state must include it: (stock, units in transit).
+
+(b) If demand depends on the day, the state needs the day of the week: (stock, day).
+
+The rule in every case: keep adding whatever the future depends on, until the past adds nothing more.
+:::
+:::
+
+**The MDP.** A finite *Markov decision process* (MDP) has:
+
+- a finite set of states $\mathcal{S}$ and a finite set of actions $\mathcal{A}$;
+- transition probabilities $P(s' \mid s, a)$: the probability that the next state is $s'$ when you take action $a$ in state $s$;
+- an expected reward $r(s, a)$ for taking $a$ in $s$;
+- a discount factor $\gamma \in [0, 1)$ (section 2).
+
+At each time $t = 0, 1, 2, \dots$ the agent observes the state $s_t$, takes an action $a_t$, receives a reward $r_t$, and moves to a next state $s_{t+1}$ drawn from $P(\cdot \mid s_t, a_t)$. The mean of $r_t$ given $s_t = s$ and $a_t = a$ is $r(s, a)$. The *Markov property* is the Predict's answer in one line: given $s_t$ and $a_t$, the distribution of $s_{t+1}$ and $r_t$ does not depend on earlier states and actions.
+
+The shop as an MDP:
+
+| Part | The shop |
+|---|---|
+| State $s$ | stock when you decide, $0, \dots, 10$: 11 states |
+| Action $a$ | units to order, $0, \dots, 10$: 11 actions; $q = \min(a, 10 - x)$ arrive |
+| Transition | next stock $=$ left; random because $D$ is |
+| Reward $r_t$ | the period's money, above; $r(s, a)$ is its mean over $D$ |
+| Discount $\gamma$ | 0.95 |
+
+The policy we evaluate in the lab is *base stock*: order up to 7, that is $a = \max(0, 7 - x)$.
+
+::: {.reference}
+This order always fits on the shelf, so $q = a$. As an array of action probabilities, one row per state:
+
+```python
+pi = np.zeros((11, 11))                                   # pi[s, a]: probability of action a in state s
+pi[np.arange(11), np.maximum(0, 7 - np.arange(11))] = 1.0  # base stock: order up to 7
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 3a** is the framing card. In a text cell you write the state, the action, the reward, $\gamma$, and one judgment call with your reason. Then `inventory_spec(capacity)` returns the numbers of states and actions, and `period_reward(stock, order, demand, p)` the reward above for one period. Checkpoints 3a.1 and 3a.2 test the counts and the rewards on hand-worked cases; the card is discussed in the debrief.
+:::
+
+## 2. Returns, discounting and MDPs as arrays
+
+**In this section:** define the return and the value of a policy, say what $\gamma$ means, and store an MDP as two NumPy arrays.
+
+**The return.** The *return* from time $t$ is the discounted sum of the rewards that follow:
+
+$$
+G_t = r_t + \gamma\, r_{t+1} + \gamma^2 r_{t+2} + \cdots = \sum_{k=0}^{\infty} \gamma^k\, r_{t+k} .
+$$ {#eq-return}
+
+Here $r_t$ is the reward received after action $a_t$.
+
+::: {.reference}
+Sutton and Barto write $R_{t+1}$ for the same reward; see [Notation](/notation.qmd). If every reward satisfies $|r_t| \le r_{\max}$ and $\gamma < 1$, the sum converges and $|G_t| \le r_{\max}/(1 - \gamma)$.
+:::
+
+**What $\gamma$ means.** A reward $k$ steps ahead counts $\gamma^k$ as much as a reward now. A reward of 1 at every step is worth $\sum_k \gamma^k = 1/(1 - \gamma)$, so $1/(1 - \gamma)$ is called the *effective horizon*: 10 steps at $\gamma = 0.9$, 20 at 0.95, 100 at 0.99. After $1/(1-\gamma)$ steps the weight $\gamma^k$ has fallen to about $1/e \approx 0.37$ (for example, $0.9^{10} \approx 0.35$). For the shop, $\gamma = 0.95$ says that money 20 periods from now counts about a third as much as money today. Choosing $\gamma$ is choosing what you value. It is part of the problem, not a setting of the solver.
+
+The sum obeys a one-step recursion, $G_t = r_t + \gamma\, G_{t+1}$. Section 3 builds the Bellman equation on it. In code it gives a loop with no powers, which you write in Exercise 1.
+
+::: {.callout-note collapse="true" title="Code: discounted_return (open after Lab 1)"}
+```python
+def discounted_return(rewards, gamma):
+    g = 0.0
+    for r in reversed(rewards):        # G_t = r_t + gamma * G_{t+1}, from the last reward back
+        g = r + gamma * g
+    return g
+```
+:::
+
+**Policies and values.** A *policy* $\pi$ gives, for every state $s$, a probability $\pi(a \mid s)$ for each action $a$. Our policies are *stationary*: they depend on the current state only, not on the time or the past. In code a policy is an array `pi[s, a]` whose rows sum to 1; a deterministic policy has a single 1 in each row. The *value* of $\pi$ is the expected return when you start in $s$ and follow $\pi$:
+
+$$
+V^\pi(s) = \mathbb{E}_\pi\big[\, G_0 \mid s_0 = s \,\big].
+$$ {#eq-vpi}
+
+The expectation is over actions drawn from $\pi$ and next states drawn from $P$. $V^\pi$ is a vector with one entry per state. It is the quantity this module computes, and the answer to the module's question.
+
+**An MDP as arrays.** With states numbered $0, \dots, |\mathcal{S}| - 1$ and actions $0, \dots, |\mathcal{A}| - 1$, two arrays hold the whole model:
+
+- `P[s, a, s2]` $= P(s' \mid s, a)$, shape `(S, A, S)`. Each slice `P[s, a, :]` is a probability distribution over next states: non-negative, summing to 1.
+- `R[s, a]` $= r(s, a)$, shape `(S, A)`: the expected reward.
+
+Only the mean reward is stored. That is enough for $V^\pi$, because $V^\pi$ is the expectation of a sum, and expectation is linear.
+
+::: {.reference}
+Noise in $r_t$ around $r(s, a)$ changes how spread out the returns are, not their mean. (When we learn from samples in Module 3, the noise will matter.) The checks every model must pass:
+
+```python
+S, A = R.shape
+assert P.shape == (S, A, S)
+assert np.all(P >= 0)
+assert np.allclose(P.sum(axis=2), 1.0)   # sum over the LAST axis: each P[s, a, :] is a distribution
+```
+
+`prl.envs.TabularMDP(P, R, gamma).validate()` runs these checks and a few more.
+:::
+
+**The cliff gridworld.** The lab's first MDP is the grid of @fig-cliff, with the start, goal, cliff and rewards of Sutton and Barto's Cliff Walking [@sutton2018rl, Example 6.6]. Every move costs $-1$, a move into the cliff costs $-100$ and sends you back to the start, and the goal is absorbing.
+
+![**What to notice:** the edge route (solid) is four moves shorter than the safe route (dashed), 13 against 17, but one step down from it costs 100 and sends you back to S. Which route a method prefers is a question for Module 3.](/images/01-cliff-gridworld.svg){#fig-cliff fig-alt="A grid of 4 rows and 12 columns. The start S is bottom left and the goal G bottom right; the ten cells between them are the cliff. A dashed path climbs to the top row and crosses; a solid path runs one row above the cliff."}
+
+::: {.reference}
+**The rules in full.** The grid has `rows` × `cols` cells. The state is `row * cols + col`, with row 0 at the top. The start is the bottom-left cell and the goal the bottom-right cell. The cells between them on the bottom row are the cliff. The actions are 0 up, 1 right, 2 down and 3 left.
+
+- Every move costs $-1$. A move off the grid leaves you where you are, and still costs $-1$.
+- A move into the cliff costs $-100$ and puts you back at the start.
+- The goal is absorbing: every action keeps you there with reward 0.
+- You are never *in* a cliff cell, but the cells are still states in the arrays. Every action from one leads to the start with reward 0.
+
+Sutton and Barto's version is undiscounted; ours uses $\gamma$. Module 3 returns to it.
+
+For example, in the 4 × 12 grid of @fig-cliff the start is state $3 \cdot 12 + 0 = 36$. Its four rows of the arrays are:
+
+| Action from state 36 | Lands in | Entry of `P` | `R[36, a]` |
+|---|---|---|---|
+| 0 up | state 24 | `P[36, 0, 24] = 1` | $-1$ |
+| 1 right | the cliff, so back to the start | `P[36, 1, 36] = 1` | $-100$ |
+| 2 down | off the grid, so it stays | `P[36, 2, 36] = 1` | $-1$ |
+| 3 left | off the grid, so it stays | `P[36, 3, 36] = 1` | $-1$ |
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 1** is `discounted_return(rewards, gamma)`: @eq-return. **Exercise 2** is `gridworld_arrays(rows, cols)`, which returns `(P, R)` for the rules above; the helpers `index(r, c, cols)` and `move(r, c, a, rows, cols)` are provided, and the checkpoint compares your arrays with `prl.envs.CliffGridworld(rows, cols)` for several sizes. **Exercise 3b** is `inventory_arrays(capacity, pmf, p)`: for each stock $x$, action $a$ and demand $d$, add `pmf[d]` to `P[x, a, left]` and `pmf[d]` times the period's reward to `R[x, a]`. The checkpoint compares your arrays with `prl.envs.InventoryMDP`.
+:::
+
+::: {.self-check}
+**Check yourself 2.1.** In the 4 × 12 cliff gridworld with $\gamma = 0.9$, compare two episodes that reach the goal. The edge route goes up once, right 11 times and down once (13 moves). The top route goes up 3 times, right 11 times and down 3 times (17 moves). Which return is higher, and by how much? What is the return of a policy that never falls off the cliff and never reaches the goal?
+
+::: {.callout-tip collapse="true" title="Answer to 2.1"}
+Every move costs $-1$, including the move into the goal, and the goal then gives 0 forever. An episode of $n$ moves returns $-\sum_{k=0}^{n-1} 0.9^k = -10\,(1 - 0.9^n)$. The edge route returns $-10(1 - 0.9^{13}) \approx -7.46$ and the top route $-10(1 - 0.9^{17}) \approx -8.33$, so the edge route is better by about 0.87. A policy that wanders forever returns $-10$, the limit as $n \to \infty$. Every route to the goal returns between $-10$ and 0, while a fall at step $k$ costs $100 \cdot 0.9^k$ on that step alone. So the detour costs 0.87, and even a small chance of falling can cost more. Module 3 returns to this trade.
+:::
+:::
+
+## 3. The Bellman expectation equation
+
+**In this section:** derive the equation that $V^\pi$ satisfies, write it in matrix form, solve it exactly, and check it on a two-state example by hand.
+
+**Derivation.** Start from $G_0 = r_0 + \gamma G_1$ and take expectations given $s_0 = s$:
+
+$$
+V^\pi(s) = \mathbb{E}_\pi[r_0 \mid s_0 = s] + \gamma\, \mathbb{E}_\pi[G_1 \mid s_0 = s].
+$$
+
+The first term: the action is drawn from $\pi(\cdot \mid s)$, and the mean reward of action $a$ is $r(s, a)$, so it equals $\sum_a \pi(a \mid s)\, r(s, a)$. For the second term, condition on the action $a$ and the next state $s'$. By the Markov property, and because $\pi$ does not depend on time, the future from $s'$ looks exactly like a fresh start in $s'$: $\mathbb{E}_\pi[G_1 \mid s_0 = s, a_0 = a, s_1 = s'] = V^\pi(s')$. Averaging over $a$ and $s'$ gives
+
+$$
+V^\pi(s) = \sum_{a} \pi(a \mid s) \Big[\, r(s, a) + \gamma \sum_{s'} P(s' \mid s, a)\, V^\pi(s') \Big].
+$$ {#eq-bellman-v}
+
+This is the *Bellman expectation equation*. Sutton and Barto give it in their notation as Eq. 3.14 [@sutton2018rl, §3.5]. In words: the value of a state is the expected reward now plus $\gamma$ times the expected value of where you land. There is one such equation per state, so @eq-bellman-v is a system of $|\mathcal{S}|$ linear equations in $|\mathcal{S}|$ unknowns.
+
+**Matrix form.** Average over the policy first. Define the vector $r_\pi$ and the matrix $P_\pi$ by
+
+$$
+r_\pi(s) = \sum_a \pi(a \mid s)\, r(s, a), \qquad P_\pi(s, s') = \sum_a \pi(a \mid s)\, P(s' \mid s, a).
+$$
+
+$r_\pi(s)$ is the expected reward in state $s$ under $\pi$. $P_\pi$ is the state-to-state transition matrix under $\pi$: row $s$ is the distribution of the next state when you are in $s$, so each row is non-negative and sums to 1. All $|\mathcal{S}|$ equations of @eq-bellman-v at once read
+
+$$
+V^\pi = r_\pi + \gamma P_\pi V^\pi .
+$$ {#eq-bellman-matrix}
+
+Move $\gamma P_\pi V^\pi$ to the left: $(I - \gamma P_\pi)\, V^\pi = r_\pi$, where $I$ is the identity matrix. So
+
+$$
+V^\pi = (I - \gamma P_\pi)^{-1}\, r_\pi \qquad (\gamma < 1).
+$$ {#eq-exact}
+
+For $\gamma < 1$ the matrix $I - \gamma P_\pi$ is invertible, so @eq-exact is the only solution. The proof below uses $\lVert x \rVert_\infty = \max_s |x(s)|$, the max norm: the largest entry of a vector in absolute value. Section 4 needs it too.
+
+::: {.reference}
+**Why the inverse exists.** Each entry of $P_\pi x$ is an average of the entries of $x$, with the weights of one row of $P_\pi$, and an average is never larger in absolute value than the largest $|x(s')|$. So $\lVert P_\pi x \rVert_\infty \le \lVert x \rVert_\infty$. Now suppose $(I - \gamma P_\pi)\, x = 0$. Then $x = \gamma P_\pi x$, so $\lVert x \rVert_\infty \le \gamma \lVert x \rVert_\infty$, and with $\gamma < 1$ this forces $x = 0$. A square matrix whose only null vector is 0 is invertible. With $\gamma = 1$ the argument fails, and $I - P_\pi$ is in fact singular: $P_\pi \mathbf{1} = \mathbf{1}$ for the all-ones vector $\mathbf{1}$, because every row sums to 1.
+
+**Another reading.** For $\gamma < 1$ the inverse is the series $(I - \gamma P_\pi)^{-1} = \sum_{k \ge 0} \gamma^k P_\pi^k$. Row $s$ of $P_\pi^k$ is the distribution of $s_k$ given $s_0 = s$, so $(P_\pi^k r_\pi)(s) = \mathbb{E}_\pi[r_k \mid s_0 = s]$. Then @eq-exact is @eq-vpi with the expectation taken one term at a time.
+:::
+
+**Assumptions, and what this does not say.** We assumed finite $\mathcal{S}$ and $\mathcal{A}$, a stationary policy and $\gamma < 1$. The result says nothing about which policy is good (section 5). It also hides the cost: a direct solve takes on the order of $|\mathcal{S}|^3$ operations. That is nothing for the shop's 11 states or the lab's 3 × 4 gridworld, and too much for millions of states.
+
+::: {.callout-note collapse="true" title="Code: evaluate_exact (open after Lab 1)"}
+```python
+def evaluate_exact(P, R, gamma, pi):
+    r_pi = (pi * R).sum(axis=1)                  # r_pi[s] = sum_a pi[s, a] R[s, a]
+    P_pi = np.einsum("sa,sat->st", pi, P)        # P_pi[s, t] = sum_a pi[s, a] P[s, a, t]
+    S = len(r_pi)
+    return np.linalg.solve(np.eye(S) - gamma * P_pi, r_pi)   # solve the system; no need to form the inverse
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 4** is `evaluate_exact(P, R, gamma, pi)`: @eq-exact. The checkpoint compares your $V$ with a fixture. You use it on the 3 × 4 cliff gridworld under the uniform random policy with $\gamma = 0.9$, and on the shop under the base-stock policy with $\gamma = 0.95$.
+:::
+
+::: {.worked-example}
+**Worked example: a two-state shop, by hand.** There are two states, 0 = shelf empty and 1 = shelf stocked, and two actions, 0 = wait and 1 = order. The discount is $\gamma = 0.8$.
+
+| State | Action | $r(s, a)$ | Next state: (empty, stocked) |
+|---|---|---|---|
+| empty | wait | 0 | (1, 0) |
+| empty | order | $-2$ | (0, 1) |
+| stocked | wait | 3 | (1/4, 3/4) |
+| stocked | order | 1 | (0, 1) |
+
+The policy: when the shelf is empty, flip a coin to decide whether to order; when it is stocked, always wait. As an array, `pi = [[0.5, 0.5], [1.0, 0.0]]`.
+
+*Step 1: average over the policy.*
+$r_\pi = \big(\tfrac12 \cdot 0 + \tfrac12 \cdot (-2),\ 3\big) = (-1,\ 3)$. Row 0 of $P_\pi$ is $\tfrac12 (1, 0) + \tfrac12 (0, 1) = (\tfrac12, \tfrac12)$, and row 1 is $(\tfrac14, \tfrac34)$.
+
+*Step 2: solve @eq-exact.* The system $(I - 0.8\, P_\pi)\, V = r_\pi$ is
+
+$$
+\begin{aligned}
+0.6\, V(0) - 0.4\, V(1) &= -1, \\
+-0.2\, V(0) + 0.4\, V(1) &= 3.
+\end{aligned}
+$$
+
+Add the two equations: $0.4\, V(0) = 2$, so $V(0) = 5$. Then $0.4\, V(1) = 3 + 0.2 \cdot 5 = 4$, so $V(1) = 10$. The answer is $V^\pi = (5, 10)$.
+
+*Step 3: check @eq-bellman-v at the empty state, one action at a time.* Waiting gives $0 + 0.8 \cdot V(0) = 4$. Ordering gives $-2 + 0.8 \cdot V(1) = 6$. The policy averages them: $\tfrac12 \cdot 4 + \tfrac12 \cdot 6 = 5 = V(0)$.
+
+*Step 4: iterate instead.* Start from $V_0 = (0, 0)$ and repeat $V_k = r_\pi + 0.8\, P_\pi V_{k-1}$ (section 4 names this map $T^\pi$, and one application of it a sweep):
+
+| $k$ | $P_\pi V_{k-1}$ | $V_k$ | error $\lVert V_k - V^\pi \rVert_\infty$ | bound $0.8^k \lVert V_0 - V^\pi \rVert_\infty$ |
+|---|---|---|---|---|
+| 0 | — | $(0,\ 0)$ | 10 | 10 |
+| 1 | $(0,\ 0)$ | $(-1,\ 3)$ | 7 | 8 |
+| 2 | $(1,\ 2)$ | $(-0.2,\ 4.6)$ | 5.4 | 6.4 |
+| 3 | $(2.2,\ 3.4)$ | $(0.76,\ 5.72)$ | 4.28 | 5.12 |
+
+The error shrinks at every sweep and never exceeds the bound; section 4 proves that it cannot. After three sweeps 4.28 of the starting error of 10 is left. The linear solve gave the exact answer in one step; iteration only approaches it.
+:::
+
+::: {#chk-bellman .self-check}
+**Check yourself 3.1.** A colleague's code returns $V = (6, 10)$ for the two-state shop. Without solving the system, check @eq-bellman-v in each state. Which equations fail? $V(1) = 10$ is correct, so why does state 1's equation fail too?
+
+::: {.callout-tip collapse="true" title="Answer to 3.1"}
+Use the averaged form, $r_\pi + 0.8\, P_\pi V$. At the empty state, $-1 + 0.8\,(\tfrac12 \cdot 6 + \tfrac12 \cdot 10) = -1 + 6.4 = 5.4 \ne 6$. At the stocked state, $3 + 0.8\,(\tfrac14 \cdot 6 + \tfrac34 \cdot 10) = 3 + 7.2 = 10.2 \ne 10$. Both fail. State 1's equation contains $V(0)$, because from a stocked shelf you reach an empty one with probability 1/4. One wrong entry shows up in the equation of every state that can reach it.
+
+The largest mismatch, $\max(|5.4 - 6|,\ |10.2 - 10|) = 0.6$, is the *Bellman residual* of section 4. It is zero only at $V^\pi$, and section 4 turns it into an error bound.
+:::
+:::
+
+## 4. Iterative evaluation and the contraction
+
+**In this section:** define the Bellman operator $T^\pi$, prove in one line that it shrinks distances by a factor $\gamma$, and turn that into a sweep count and a stopping rule you can trust.
+
+**The operator.** For any vector $V$ with one entry per state, define
+
+$$
+T^\pi V = r_\pi + \gamma P_\pi V .
+$$ {#eq-tpi}
+
+One application of $T^\pi$ is a *sweep*: every state's new value is its expected reward plus $\gamma$ times the average of the old values of where it lands. @eq-bellman-matrix says $T^\pi V^\pi = V^\pi$: $V^\pi$ is a *fixed point* of $T^\pi$. *Iterative policy evaluation* applies $T^\pi$ again and again, $V_{k+1} = T^\pi V_k$, from a start such as $V_0 = 0$ [@sutton2018rl, §4.1, Eq. 4.5].
+
+**The contraction, in one line.** The reward cancels in a difference, $T^\pi V - T^\pi U = \gamma P_\pi (V - U)$. Each row of $P_\pi$ is a probability vector, so each entry of $P_\pi (V - U)$ is an average of the entries of $V - U$, and no average exceeds the largest entry in absolute value. Hence, for any two vectors $V$ and $U$,
+
+$$
+\lVert T^\pi V - T^\pi U \rVert_\infty = \gamma\, \lVert P_\pi (V - U) \rVert_\infty \le \gamma\, \lVert V - U \rVert_\infty .
+$$ {#eq-contraction}
+
+A map with this property for some $\gamma < 1$ is a *$\gamma$-contraction* in the max norm: every sweep brings any two vectors closer by at least the factor $\gamma$.
+
+**The iteration bound.** Take $U = V^\pi$ and use $T^\pi V^\pi = V^\pi$: then $\lVert V_{k+1} - V^\pi \rVert_\infty \le \gamma\, \lVert V_k - V^\pi \rVert_\infty$. Apply this $k$ times. To guarantee an error of at most $\eta > 0$, an accuracy you choose, it is enough that $\gamma^k \lVert V_0 - V^\pi \rVert_\infty \le \eta$:
+
+$$
+\lVert V_k - V^\pi \rVert_\infty \le \gamma^k\, \lVert V_0 - V^\pi \rVert_\infty,
+\qquad\text{so}\qquad
+k \ge \frac{\log\!\big(\lVert V_0 - V^\pi \rVert_\infty / \eta\big)}{\log(1/\gamma)} \ \text{ sweeps reach error } \eta .
+$$ {#eq-iteration-bound}
+
+The number of sweeps grows like the horizon $1/(1 - \gamma)$.
+
+::: {.reference}
+**Why it grows like the horizon.** The denominator carries the effect of $\gamma$. Since $\log(1/\gamma) \ge 1 - \gamma$, with near equality when $\gamma$ is close to 1, the bound behaves like $\log\!\big(\lVert V_0 - V^\pi \rVert_\infty / \eta\big)/(1 - \gamma)$. The numerator can grow too: with $V_0 = 0$ it is $\lVert V^\pi \rVert_\infty$, which can be as large as $r_{\max}/(1-\gamma)$.
+:::
+
+**The stopping rule.** While iterating you do not know $V^\pi$, so you cannot measure the error. You can measure the change from one sweep to the next. Stop when it falls below a tolerance $\mathrm{tol}$:
+
+$$
+\lVert V_{k+1} - V_k \rVert_\infty < \mathrm{tol}
+\quad\Longrightarrow\quad
+\lVert V_{k+1} - V^\pi \rVert_\infty \le \frac{\gamma\, \mathrm{tol}}{1 - \gamma} .
+$$ {#eq-stop}
+
+The factor $\gamma/(1 - \gamma)$ is one less than the horizon $1/(1 - \gamma)$, so it grows as $\gamma$ nears 1.
+
+The demo below runs @eq-tpi on a two-state MDP, so you can watch the error, the bound of @eq-iteration-bound and the stopping rule of @eq-stop together as you change $\gamma$ and the tolerance.
+
+::: {#demo-contraction .demo}
+{{< include /demos/01-contraction.qmd >}}
+:::
+
+::: {.callout-tip collapse="true" title="Optional: why the stopping rule works"}
+This is a proof of @eq-stop. $V_{k+1} - V^\pi = T^\pi V_k - T^\pi V^\pi$, so by @eq-contraction and the triangle inequality,
+
+$$
+\lVert V_{k+1} - V^\pi \rVert_\infty \le \gamma\, \lVert V_k - V^\pi \rVert_\infty \le \gamma\, \big( \lVert V_k - V_{k+1} \rVert_\infty + \lVert V_{k+1} - V^\pi \rVert_\infty \big).
+$$
+
+Collect the two $\lVert V_{k+1} - V^\pi \rVert_\infty$ terms: $(1 - \gamma)\, \lVert V_{k+1} - V^\pi \rVert_\infty \le \gamma\, \lVert V_{k+1} - V_k \rVert_\infty < \gamma\, \mathrm{tol}$. Divide by $1 - \gamma > 0$.
+
+The rule is also sure to fire. The changes contract too: $\lVert V_{k+1} - V_k \rVert_\infty = \lVert T^\pi V_k - T^\pi V_{k-1} \rVert_\infty \le \gamma^k \lVert V_1 - V_0 \rVert_\infty$. With $V_0 = 0$ we have $V_1 = r_\pi$, so the change is below $\mathrm{tol}$ as soon as $\gamma^k \lVert r_\pi \rVert_\infty < \mathrm{tol}$.
+:::
+
+::: {.callout-note collapse="true" title="Code: evaluate_iterative (open after Lab 1)"}
+```python
+def evaluate_iterative(P, R, gamma, pi, tol):
+    r_pi = (pi * R).sum(axis=1)
+    P_pi = np.einsum("sa,sat->st", pi, P)
+    V, k = np.zeros(len(r_pi)), 0                # V_0 = 0; k counts sweeps
+    while True:
+        V_new = r_pi + gamma * P_pi @ V          # V_{k+1} = T^pi V_k   (eq-tpi)
+        k += 1
+        if np.max(np.abs(V_new - V)) < tol:      # the stopping rule   (eq-stop)
+            return V_new, k
+        V = V_new
+```
+:::
+
+**The Bellman residual.** For any vector $V$, the *Bellman residual*
+
+$$
+\lVert T^\pi V - V \rVert_\infty
+$$ {#eq-residual}
+
+measures how far $V$ is from satisfying @eq-bellman-matrix. It is zero exactly at $V^\pi$, because $T^\pi$ has only one fixed point.
+
+::: {.reference}
+**Only one fixed point.** If $V$ and $U$ are both fixed points, then $\lVert V - U \rVert_\infty = \lVert T^\pi V - T^\pi U \rVert_\infty \le \gamma \lVert V - U \rVert_\infty$, so $V = U$.
+:::
+
+The residual also bounds the error. By the triangle inequality and @eq-contraction, $\lVert V - V^\pi \rVert_\infty \le \lVert V - T^\pi V \rVert_\infty + \gamma \lVert V - V^\pi \rVert_\infty$, so
+
+$$
+\lVert V - V^\pi \rVert_\infty \le \frac{\lVert T^\pi V - V \rVert_\infty}{1 - \gamma} .
+$$
+
+In Check yourself 3.1 the residual of $(6, 10)$ is 0.6, so its error is at most $0.6 / 0.2 = 3$; the actual error is 1. The residual needs only $P$, $R$, $\pi$ and $V$, and no reference answer, so you can compute it for the output of any evaluator, including a broken one.
+
+::: {.callout-note collapse="true" title="Code: bellman_residual (open after Lab 1)"}
+```python
+def bellman_residual(P, R, gamma, pi, V):
+    r_pi = (pi * R).sum(axis=1)
+    P_pi = np.einsum("sa,sat->st", pi, P)
+    return np.max(np.abs(r_pi + gamma * P_pi @ V - V))   # || T^pi V - V ||_inf
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 5** is `evaluate_iterative(P, R, gamma, pi, tol)`, which returns `(V, k)`: start from $V_0 = 0$, sweep with @eq-tpi, and stop with @eq-stop. The checkpoint tests the guarantee of @eq-stop and that $k$ is within 1 of the reference count. A provided cell runs your evaluator on the shop at several values of $\gamma$ and plots your sweep counts, with the bound of @eq-iteration-bound dashed, against the horizon $1/(1 - \gamma)$. **Exercise 6** is the planted bug: a provided evaluator, `evaluate_suspect(P, R, gamma, pi)`, returns a vector of the right shape and a plausible size, and it is wrong. You write `bellman_residual(P, R, gamma, pi, V)`, @eq-residual (checkpoint 6.1), use it to find the bug, and fix the evaluator (checkpoint 6.2).
+:::
+
+::: {.callout-note collapse="true" title="After the lab: the shop's counts"}
+By @eq-iteration-bound, each factor of 10 in accuracy costs $\log 10 / \log(1/\gamma)$ sweeps: about 22 at $\gamma = 0.9$ and about 229 at $\gamma = 0.99$, some 10.5 times as many. The shop follows suit. With $\mathrm{tol} = 10^{-6}$ the reference evaluator takes 140 sweeps at $\gamma = 0.9$ and 1,456 at $\gamma = 0.99$, 10.4 times as many. These are exact counts from a deterministic computation, not timings.
+
+![**What to notice:** the number of sweeps grows roughly like $1/(1-\gamma)$, from 23 at $\gamma = 0.5$ to 1,456 at $\gamma = 0.99$, and every count stays under the dashed bound $2 + \log\big((1+\gamma)\lVert V_0 - V^\pi\rVert_\infty/\text{tol}\big)/\log(1/\gamma)$, which follows from @eq-iteration-bound. The shop of Lab 1 under the base-stock policy, $V_0 = 0$, tol $= 10^{-6}$. Exact counts from a deterministic computation (`scripts/make_figures_m01.py`), not timings.](/images/01-iterations-vs-gamma.svg){#fig-iterations fig-alt="A chart of the number of sweeps of iterative policy evaluation against the discount gamma, from 0.5 to 0.99, for the shop under the base-stock policy. The count rises steeply as gamma nears 1, and a dashed line shows the bound from the contraction argument."}
+:::
+
+**What the contraction does not say.** It is an upper bound, in the max norm, for exact sweeps of one fixed policy with a known model. The notes below say what changes outside these limits.
+
+::: {.reference}
+- **It is a statement about the max norm.** In another norm, $T^\pi$ can stretch distances. Take two states that both move to state 1, $P_\pi = \begin{pmatrix} 0 & 1 \\ 0 & 1 \end{pmatrix}$, with $\gamma = 0.9$, and a difference $V - U = (0, 1)$. Then $\gamma P_\pi (V - U) = (0.9, 0.9)$. The largest entry shrinks from 1 to 0.9, but the Euclidean length grows from 1 to $0.9\sqrt{2} \approx 1.27$. The lab's stretch explores this. Module 7 needs it: with linear function approximation, the analysis measures error in a norm weighted by the long-run fraction of time $\pi$ spends in each state (its stationary distribution), and in that norm $P_\pi$ does not stretch distances.
+- **It is an upper bound.** The error can fall faster than $\gamma^k$. In the worked example it fell from 10 to 7 in the first sweep, where the bound allowed 8.
+- **It is about exact sweeps with a known model.** Updates estimated from samples (Module 3) or passed through a function approximator (Modules 7 and 8) need further arguments.
+- **It is about one fixed policy.** The optimality operator of section 5 is also a $\gamma$-contraction in the max norm, but the max needs its own argument; section 5 cites it.
+:::
+
+::: {.callout-tip collapse="true" title="Optional: why the solution is unique (Banach's fixed-point theorem)"}
+*Banach's fixed-point theorem* says: a $\gamma$-contraction with $\gamma < 1$ on a complete metric space has exactly one fixed point, and iterating the map from any starting point converges to it, with the error shrinking by at least $\gamma$ per step. The vectors in $\mathbb{R}^{|\mathcal{S}|}$ with the distance $\lVert V - U \rVert_\infty$ form a complete metric space, and @eq-contraction says $T^\pi$ is a $\gamma$-contraction on it. So $T^\pi$ has exactly one fixed point. That point is $V^\pi$, by @eq-bellman-matrix, and $V_k \to V^\pi$ from every $V_0$, not only from $V_0 = 0$.
+
+For finite $\mathcal{S}$ we already knew uniqueness, from the invertibility of $I - \gamma P_\pi$ in section 3. The theorem's proof is the iteration itself: the steps shrink geometrically, $\lVert V_{k+1} - V_k \rVert_\infty \le \gamma^k \lVert V_1 - V_0 \rVert_\infty$, so the iterates form a Cauchy sequence. In a complete space such a sequence has a limit, and the limit is a fixed point. The same argument works for operators where no matrix inverse is available, such as the optimality operator of section 5.
+:::
+
+::: {.self-check}
+**Check yourself 4.1.** At $\gamma = 0.99$ a colleague needs an error of at most $10^{-6}$. What tolerance should they use? Their evaluator now stops at $\mathrm{tol} = 10^{-6}$. About how many extra sweeps does the bound say the smaller tolerance could take: tens, hundreds or thousands?
+
+::: {.callout-tip collapse="true" title="Answer to 4.1"}
+By @eq-stop they need $\gamma\, \mathrm{tol}/(1 - \gamma) \le 10^{-6}$, so $\mathrm{tol} \le 10^{-6} \times 0.01 / 0.99 \approx 1.01 \times 10^{-8}$. That is 99 times smaller.
+
+Hundreds. Once the change is below $10^{-6}$, each later change is at most $\gamma$ times the one before (apply @eq-contraction to consecutive iterates), so $j$ sweeps later it is below $0.99^j \times 10^{-6}$. That is below $1.01 \times 10^{-8}$ once $0.99^j \le 1/99$, that is $j \ge \log 99 / \log(1/0.99) \approx 457.2$: at most 458 extra sweeps. That is an upper bound. On the lab's shop it is nearly tight: the reference evaluator takes 457 extra sweeps.
+:::
+:::
+
+## 5. The optimality equation, and the bridge to planning
+
+**In this section:** state the equation the best policy satisfies, see why it is harder than the one we solved, and hand the problem to Module 2.
+
+The *optimal value* of a state is the best value any policy achieves from it, $V^*(s) = \max_\pi V^\pi(s)$. It satisfies the *Bellman optimality equation*, Sutton and Barto's Eq. 3.19 [@sutton2018rl, §3.6]:
+
+$$
+V^*(s) = \max_{a} \Big[\, r(s, a) + \gamma \sum_{s'} P(s' \mid s, a)\, V^*(s') \Big].
+$$ {#eq-bellman-opt}
+
+Compare @eq-bellman-v. The average over actions, weighted by $\pi(a \mid s)$, has become a max over actions. Three consequences:
+
+- **No single linear solve.** The max makes the equation nonlinear, so @eq-exact has no counterpart.
+- **Iteration still works.** The operator on the right of @eq-bellman-opt is still a $\gamma$-contraction in the max norm [@agarwal2022rltheory, §1.3.1, Lemma 1.10, for action values], so sweeping with it converges. That is *value iteration*.
+- **The best policy is greedy.** Once you know the optimal values, the action that attains the max in each state gives an optimal policy, and it is deterministic. Agarwal et al. state this, with the optimality equation for action values, as their Theorem 1.8 [@agarwal2022rltheory, §1.1.3].
+
+The two-state shop shows the first step of the search. Put $V^\pi = (5, 10)$ into the bracket of @eq-bellman-opt at the empty state: waiting gives $0 + 0.8 \cdot 5 = 4$ and ordering gives $-2 + 0.8 \cdot 10 = 6$. The best action is worth 6, more than the coin flip's $V^\pi(0) = 5$, so the coin flip leaves value on the table. The policy "always order when empty, wait when stocked" has value $(20/3,\ 65/6) \approx (6.67,\ 10.83)$, higher in both states. Repeat the same check with its values and no action improves on it in either state. Its values satisfy @eq-bellman-opt, and since that equation has only one solution (the contraction again), this policy is optimal.
+
+::: {#chk-opt .self-check}
+**Check yourself 5.1.** In the two-state shop, which action is best on an empty shelf with $\gamma = 0$? With $\gamma = 0.8$? For $\gamma = 0.8$, use the optimal values above.
+
+::: {.callout-tip collapse="true" title="Answer to 5.1"}
+With $\gamma = 0$ only the reward now counts, so the bracket of @eq-bellman-opt is just $r(s, a)$. Waiting gives 0 and ordering gives $-2$: wait.
+
+With $\gamma = 0.8$, put $V^* = (20/3,\ 65/6)$ into the bracket at the empty state. Waiting gives $0 + 0.8 \cdot 20/3 = 16/3 \approx 5.33$, and ordering gives $-2 + 0.8 \cdot 65/6 = 20/3 \approx 6.67$: order. The larger of the two equals $V^*(0)$, as @eq-bellman-opt requires. The check with the coin flip's values above points the same way: 6 against 4.
+
+The states, rewards and transitions did not change; only $\gamma$ did, and the best action changed with it. $\gamma$ is part of the problem, not a setting of the solver.
+:::
+:::
+
+Module 1 evaluates a given policy; Module 2 finds the best one. Module 2 solves @eq-bellman-opt by value iteration, and by policy iteration, which alternates the evaluation you write today with the improvement step above. Then it asks what happens when $P$ is estimated from data instead of known.
+
+## Summary
+
+- An MDP is states, actions, transition probabilities $P(s' \mid s, a)$, mean rewards $r(s, a)$ and a discount $\gamma$. Given the state and the action, what happens next must not depend on the past (the Markov property). For the shop the state is the stock on hand.
+- A finite MDP is two arrays: `P[s, a, s']`, whose slices over the last axis are distributions, and `R[s, a]`.
+- The return is the discounted sum of rewards (@eq-return). $\gamma$ is part of the objective, with effective horizon $1/(1 - \gamma)$. The value $V^\pi$ is the expected return under $\pi$ (@eq-vpi).
+- $V^\pi$ satisfies the Bellman expectation equation (@eq-bellman-v), a linear system $V^\pi = r_\pi + \gamma P_\pi V^\pi$ (@eq-bellman-matrix). For $\gamma < 1$ it has exactly one solution, $(I - \gamma P_\pi)^{-1} r_\pi$ (@eq-exact).
+- $T^\pi$ (@eq-tpi) is a $\gamma$-contraction in the max norm (@eq-contraction), because the rows of $P_\pi$ are probability vectors. Iterating it converges at rate $\gamma$ (@eq-iteration-bound), so the number of sweeps grows like $1/(1 - \gamma)$.
+- Stopping when the change is below tol guarantees an error of at most $\gamma\, \mathrm{tol}/(1 - \gamma)$ (@eq-stop). The Bellman residual (@eq-residual) checks any $V$ without a reference answer.
+- The optimality equation (@eq-bellman-opt) replaces the average over actions with a max. Module 2 solves it.
+
+### Equations and where you implement them
+
+| Equation | Lab 1 | Name in the notebook |
+|---|---|---|
+| The shop's reward per period (section 1) | Exercise 3a: `period_reward`; `inventory_spec` gives the state and action counts | — |
+| Return (@eq-return) | Exercise 1: `discounted_return` | (return) |
+| An MDP as arrays `P[s, a, s']` and `R[s, a]` (section 2) | Exercise 2: `gridworld_arrays`; Exercise 3b: `inventory_arrays` | — |
+| Value and the Bellman expectation equation (@eq-vpi, @eq-bellman-v, @eq-bellman-matrix), solved exactly (@eq-exact) | Exercise 4: `evaluate_exact` | (matrix form), (exact) |
+| Iterative evaluation (@eq-tpi, @eq-contraction, @eq-iteration-bound, @eq-stop) | Exercise 5: `evaluate_iterative`; the runs at several values of $\gamma$ and the plot are provided | (operator), (contraction), (iteration bound), (stopping rule) |
+| Bellman residual (@eq-residual) | Exercise 6: `bellman_residual`, then fix `evaluate_suspect` | (residual) |
+| The contraction fails in the 2-norm (section 4) | Stretch | — |
+| Bellman optimality equation (@eq-bellman-opt) | Not implemented here; Module 2 | — |
+
+## Gotchas and troubleshooting
+
+- **"$\gamma$ is a speed knob."** $\gamma$ is part of the objective. It decides how much the future counts, with effective horizon $1/(1 - \gamma)$. Changing it changes $V^\pi$, and it can change which policy is best. In the two-state shop, with $\gamma = 0$ the best move on an empty shelf is to wait (0 beats $-2$); with $\gamma = 0.8$ it is to order (Check yourself 5.1). It also changes the number of sweeps (@eq-iteration-bound), but that is a side effect. Choose $\gamma$ for the problem, then pay for the sweeps.
+- **"It has converged because $\Delta V$ is small."** A small change per sweep is not a small error. What you can guarantee is $\lVert V_{k+1} - V^\pi \rVert_\infty \le \frac{\gamma}{1 - \gamma} \lVert V_{k+1} - V_k \rVert_\infty$ (@eq-stop), which is 99 times the change at $\gamma = 0.99$. In the worked example, after three sweeps the change is 1.12 while the error is still 4.28 (the bound gives $4 \times 1.12 = 4.48$).
+- **"The reward is what I want."** The reward is a framing choice. The shop's lost-sales penalty of 1 per unit is our guess at the cost of an unserved customer. With a penalty of 0 or of 5 instead, the same policy has a different value, and the best policy for the shop is a different one. An optimizer maximizes the reward you wrote down, not the outcome you meant.
+- **"Rows or columns of $P_\pi$, it makes no difference."** It does. `P[s, a, s2]` puts the current state first and the next state last, and so does `P_pi[s, s2]`. Row `s` of `P_pi` is a distribution over next states, so `P_pi @ V` averages $V$ over where you go from each state. `P_pi.T @ V` weights values by where you came from instead. It is a different vector of the same shape, so NumPy raises no error. Two checks catch it: `P.sum(axis=2)` and `P_pi.sum(axis=1)` must be all ones (not `axis=0`), and the Bellman residual (@eq-residual) of every $V$ you produce must be near 0. A test MDP with a symmetric $P_\pi$ cannot catch it, because there the two products agree.
+- **"$\gamma = 1$ is the honest choice for a shop that runs forever."** With $\gamma = 1$ the return of a shop that makes money every period has no finite value, and $I - P_\pi$ is singular, so @eq-exact does not apply. Episodic tasks can use $\gamma = 1$ when every episode is sure to end [@sutton2018rl, §4.1]; that needs a different argument, and this module does not use it.
+- **"The Exercise 5 cell never finishes."** The loop never sets `V = V_new`. Then every pass compares $T^\pi 0 = r_\pi$ with 0, so the change stays at $\lVert r_\pi \rVert_\infty$ (about 15 for the shop) and the stopping rule never fires. Stop the running cell with its stop button. Add `V = V_new` at the end of the loop body, rerun your TODO 5 cell, then rerun the cell that hung.
+- **"My $k$ is too small, and checkpoint 5 says so."** Your sweep updated `V` in place, state by state, so later states used values already changed in the same sweep. That is a different method, and it stops sooner: on the shop at $\gamma = 0.9$, an in-place version stops after 86 sweeps, where the reference takes 140. Build all of `V_new` from the old `V` in one line, `V_new = r_pi + gamma * P_pi @ V`, then set `V = V_new`.
+- **"`NotImplementedError`."** The function still raises its TODO: you have not written it yet, or you have not run the cell that holds your code. Write the TODO and run its cell. To move on without it, run `lab.use_reference(N)` with the exercise number (`lab.use_reference('3a')` for 3a), and the lab continues with the reference solution; the exercise's solution cell must have run once. Running a solution cell alone does not replace your function.
+
+## Next steps
+
+[Module 2](/modules/02-planning.qmd) keeps the shop and the arrays. It solves the optimality equation of section 5 by value iteration and by policy iteration, whose evaluation step is the function you write today. Then it estimates $P$ from data, plans in the estimate, and measures what the model error costs. [Module 3](/modules/03-model-free.qmd) drops the model altogether and learns from sampled steps, starting in the cliff gridworld of @fig-cliff.
+
+## Further reading
+
+1. @sutton2018rl, *Reinforcement Learning: An Introduction*, 2nd edition. Read §3.5–3.6 for value functions, the Bellman equation for $v_\pi$ (Eq. 3.14) and the optimality equations (Eqs. 3.19–3.20), and §4.1 for iterative policy evaluation (Eq. 4.5), which is Exercise 5. Example 6.6 is the cliff gridworld. Their reward after $A_t$ is $R_{t+1}$, our $r_t$, and they write the dynamics as a joint distribution of next state and reward; the equations are the same.
+2. @agarwal2022rltheory, *Reinforcement Learning: Theory and Algorithms*, working draft, version 3. A compact, proof-first treatment. §1.1.3, Theorem 1.8: the Bellman optimality equations for action values, and the optimality of the greedy policy. §1.3.1, Lemma 1.10: the $\gamma$-contraction of the optimality operator on action values; our @eq-contraction is the same argument without the max. The book assumes rewards in $[0, 1]$. These numbers are from version 3; later drafts may renumber.
+3. @puterman1994mdp, *Markov Decision Processes: Discrete Stochastic Dynamic Programming*. Background only: a book-length treatment of Markov decision processes and dynamic programming, for readers who want more than this module needs. We cite it for no specific result.

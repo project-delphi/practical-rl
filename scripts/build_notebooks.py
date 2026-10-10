@@ -115,8 +115,6 @@ _PINS = {{{pin_lines}}}
 _ALLOW = {json.dumps(allow)}
 _CORE = {json.dumps([n.lower() for n in v["packages"]["colab"]["use_preinstalled"]])}
 _PRL_SPEC = _os.environ.get("PRL_SPEC") or "git+{repo["url"]}@" + PRL_REF + "#subdirectory=prl"
-if WORKED:
-    _os.environ["PRL_WORKED"] = "1"
 _on_colab = ("google.colab" in _sys.modules or bool(_os.environ.get("COLAB_RELEASE_TAG"))
              or _os.environ.get("PRL_PLATFORM") == "colab-sim")
 
@@ -197,7 +195,8 @@ def init_code(
         f'lab = prl.lab.init("{m["slug"]}", "{sha}", designed="{m["runtime"]}", '
         f"api={v['prl']['api']}, ns=globals(),\n"
         f"                   checkpoints={json.dumps(checkpoints)}, packages={json.dumps(list(pins))}, "
-        f"seat=SEED, badge_ref=PRL_REF)"
+        "seat=SEED, badge_ref=PRL_REF,\n"
+        "                   worked=WORKED or None)"
     )
 
 
@@ -327,6 +326,21 @@ def build(path: Path, v: dict[str, Any]) -> tuple[str, dict[str, Any]]:
             out_cells.append(new)
             continue
         # plain cells, includes and stretch cells
+        if role == "stretch-sol" and cell.cell_type == "code":
+            code_for_sha.append((role, src))
+            names = re.findall(r"^(?:def|class)\s+([A-Za-z_]\w*)", src, re.M)
+            title = (
+                f"#@title Stretch solution · {', '.join(names) or 'reference'} (open after trying) "
+                '{ display-mode: "form" }\n'
+            )
+            new = nbformat.v4.new_code_cell(
+                title + src,
+                metadata={**meta, "cellView": "form", "jupyter": {"source_hidden": True}},
+            )
+            new["id"] = role
+            seen_ids.add(role)
+            out_cells.append(new)
+            continue
         if role.startswith("shared-") or role.startswith("stretch"):
             cid = role if role not in seen_ids else f"{role}-{auto}"
         elif role:
@@ -356,7 +370,10 @@ def build(path: Path, v: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 
     nb = nbformat.v4.new_notebook()
     nb.nbformat, nb.nbformat_minor = 4, 5
-    nb.cells = [head, setup, init, *out_cells, finish]
+    core = [c for c in out_cells if not c["id"].startswith("stretch")]
+    stretch = [c for c in out_cells if c["id"].startswith("stretch")]
+    # The finish cell comes before the stretch, so an unfinished stretch never blocks the record.
+    nb.cells = [head, setup, init, *core, finish, *stretch]
     nb.metadata = {
         "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
         "language_info": {"name": "python"},
@@ -427,16 +444,35 @@ def lint(built: dict[str, Any], v: dict[str, Any]) -> list[str]:
             if (
                 cell["id"] == f"ex{n}-stub"
                 and "NotImplementedError" in cell.source
-                and f"lab.use_reference({n})" not in cell.source
+                and not re.search(rf"lab\.use_reference\(['\"]?{n}['\"]?[,)]", cell.source)
             ):
                 p.append(
                     f"{m['slug']} exercise {n}: the stub's error must name lab.use_reference({n}), "
                     "the way out for a stuck participant"
                 )
-            if cell["id"] == f"ex{n}-sol" and f"@lab.solution({n})" not in cell.source:
+            if cell["id"] == f"ex{n}-sol" and not re.search(
+                rf"@lab\.solution\(['\"]?{n}['\"]?\)", cell.source
+            ):
                 p.append(f"{m['slug']} exercise {n}: solution must use @lab.solution({n})")
             if cell["id"].startswith(f"ex{n}-chk") and "lab.check(" not in cell.source:
                 p.append(f"{m['slug']} exercise {n}: checkpoint must call lab.check(...)")
+        # PLAN §3.1: the Predict's answer goes on the pace sheet, and the Explain cites an
+        # equation name or a Gotcha of the briefing. A module whose briefing is still a
+        # placeholder (M0, pre-work) has nothing to cite yet.
+        if m["status"]["briefing"] != "placeholder":
+            e = exercises[n]
+            if not str(e.get("predict_answer", "")).strip():
+                p.append(f"{m['slug']} exercise {n}: _variables.yml needs a predict_answer")
+            ref = str(e.get("explain_ref", "")).strip()
+            explain = " ".join(
+                " ".join(c.source.split()) for c in nb.cells if c["id"] == f"ex{n}-explain"
+            )
+            if not ref:
+                p.append(f"{m['slug']} exercise {n}: _variables.yml needs an explain_ref")
+            elif " ".join(ref.split()) not in explain:
+                p.append(
+                    f"{m['slug']} exercise {n}: the Explain does not cite its explain_ref {ref!r}"
+                )
     for cell in nb.cells:
         if cell.cell_type == "markdown" and "generated" not in cell.metadata.get("tags", []):
             if re.search(r"@eq-|^:::|\{\{<", cell.source, re.M):

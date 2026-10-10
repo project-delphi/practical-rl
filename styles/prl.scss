@@ -54,6 +54,7 @@ $prl-tokens: (
   "series-3": $brand-series-3,
   "series-4": $brand-series-4,
   "neutral": $brand-neutral,
+  "paper": $brand-paper,
 );
 
 @mixin prl-tokens {
@@ -145,7 +146,10 @@ samp {
   font-variant-ligatures: none;
 }
 
+// Quarto gives inline code white-space: pre, which never wraps; a long span then scrolls
+// the page sideways on a phone. pre-wrap keeps the spaces and lets it wrap.
 :not(pre) > code {
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
@@ -417,6 +421,30 @@ a.btn-quiet[target="_blank"]:has(.visually-hidden)::after {
   border-left: 4px solid var(--prl-link);
   border-radius: 0 0.5rem 0.5rem 0;
   background-color: var(--prl-surface);
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+}
+
+// Reference material in a briefing (`::: {.reference}`): kept on the page for reading, not
+// covered aloud, and left out of the live plan (PLAN.md §4). The label is visible text for
+// sighted readers and screen readers alike.
+.reference {
+  margin: 1rem 0 1.5rem;
+  padding: 0.25rem 0 0.25rem 1rem;
+  border-left: 3px solid var(--prl-border-subtle);
+
+  &::before {
+    content: "For reference";
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--prl-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
 
   > :last-child {
     margin-bottom: 0;
@@ -977,4 +1005,18 @@ details.disclosure-tip {
     font-weight: 400;
     overflow-wrap: anywhere;
   }
+}
+
+// OJS demos: Quarto 1.10 leaves a "Copy to Clipboard" button beside OJS source that
+// echo: false hides. Hide the button with its hidden code.
+.code-copy-outer-scaffold:has(> .cell-code.hidden) > .code-copy-button {
+  display: none;
+}
+
+// Figures with no dark twin (filters/figures.lua adds .paper): keep them legible in dark
+// mode on a light card.
+img.paper {
+  background: var(--prl-paper);
+  border-radius: 0.4rem;
+  padding: 0.4rem;
 }

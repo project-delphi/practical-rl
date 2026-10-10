@@ -54,3 +54,23 @@ def check_record(rec: dict) -> None:
     problems = validate(rec)
     if problems:
         raise CheckFailed("Your run record is not valid: " + "; ".join(problems))
+
+
+def check_run_episode(fn) -> None:
+    """Calls the participant's run_episode on fresh CartPole environments."""
+    import gymnasium as gym
+
+    env = gym.make("CartPole-v1")
+    returns = [fn(env, seed) for seed in range(5)]
+    check_episode_returns(returns, 5)
+    if fn(env, 3) != fn(env, 3):
+        raise CheckFailed(
+            "The same seed gave different returns. Seed both env.reset and env.action_space."
+        )
+    env.close()
+
+
+def check_returns_by_seed(fn) -> None:
+    """Calls the participant's returns_by_seed with a small budget."""
+    arr = fn(3, 4, 0)
+    check_seed_bands(arr, 3, 4)

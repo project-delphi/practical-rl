@@ -27,3 +27,17 @@ def test_generated_files_are_current(script):
         cwd=ROOT,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_fixture_check_allows_float_rounding_only():
+    import numpy as np
+
+    import make_expected as me
+
+    base = {"V": np.array([-152.87, 0.5]), "k": np.array(140)}
+    blob = me.save_npz(**base)
+    rounded = me.save_npz(V=base["V"] * (1 + 4e-16), k=base["k"])
+    assert blob != rounded and me.same_content(blob, rounded)
+    assert not me.same_content(blob, me.save_npz(V=base["V"], k=np.array(141)))
+    assert not me.same_content(blob, me.save_npz(V=base["V"] + 1e-6, k=base["k"]))
+    assert not me.same_content(blob, me.save_npz(V=base["V"]))

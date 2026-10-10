@@ -139,7 +139,7 @@ print(
 # last much longer than others?
 
 # %% role="ex1-chk"
-lab.check(1, m00.check_episode_returns, returns, 20)
+lab.check(1, m00.check_run_episode, run_episode)
 
 # %% [markdown] role="ex2-head"
 # One run is one draw from a random process. To say anything about a method you need several
@@ -203,7 +203,7 @@ lab.metric("random_mean_return", round(float(by_seed.mean()), 2))
 # random agent scores 22" from one seed each. What would you ask them?
 
 # %% role="ex2-chk"
-lab.check(2, m00.check_seed_bands, by_seed, 5, 20)
+lab.check(2, m00.check_returns_by_seed, returns_by_seed)
 
 # %% [markdown] role="ex3-head"
 # Each lab ends by printing a **run record**: what ran, where, with which versions, and which

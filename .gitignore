@@ -29,3 +29,4 @@ node_modules/
 .claude/worktrees/
 
 **/*.quarto_ipynb
+.claude/scheduled_tasks.lock
