@@ -60,8 +60,28 @@ def check_run_episode(fn) -> None:
     """Calls the participant's run_episode on fresh CartPole environments."""
     import gymnasium as gym
 
-    env = gym.make("CartPole-v1")
-    returns = [fn(env, seed) for seed in range(5)]
+    class StepCounter(gym.Wrapper):
+        """Counts the steps since the last reset; CartPole pays +1 for each one."""
+
+        def reset(self, **kwargs):
+            self.steps = 0
+            return self.env.reset(**kwargs)
+
+        def step(self, action):
+            self.steps += 1
+            return self.env.step(action)
+
+    env = StepCounter(gym.make("CartPole-v1"))
+    returns = []
+    for seed in range(5):
+        ret = fn(env, seed)
+        returns.append(ret)
+        if np.isfinite(ret) and float(ret) != getattr(env, "steps", None):
+            raise CheckFailed(
+                f"Seed {seed}: your episode took {getattr(env, 'steps', 0)} steps but returned "
+                f"{ret:g}. CartPole-v1 pays +1 per step, so they must match: add up the reward "
+                "of every step, not just the last one."
+            )
     check_episode_returns(returns, 5)
     if fn(env, 3) != fn(env, 3):
         raise CheckFailed(
