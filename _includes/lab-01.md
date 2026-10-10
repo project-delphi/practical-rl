@@ -6,13 +6,13 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 ::: {.lab-steps}
 | # | Exercise | Min |
 |---|---|---|
-| 1 | [Discounted return](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex1-head) | 5 |
-| 2 | [A tiny cliff gridworld as arrays](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex2-head) | 8 |
-| 3a | [Framing card for inventory](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex3a-head) | 6 |
-| 3b | [The inventory MDP](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex3b-head) | 9 |
-| 4 | [Exact evaluation](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex4-head) | 5 |
-| 5 | [Iterative evaluation and the contraction](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex5-head) | 10 |
-| 6 | [Planted bug: a wrong evaluator](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex6-head) [Planted bug]{.chip .chip-stale} | 9 |
+| 1 | [Discounted return [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} | 5 |
+| 2 | [A tiny cliff gridworld as arrays [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 8 |
+| 3a | [Framing card for inventory [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex3a-head){target="_blank" rel="noopener"} | 6 |
+| 3b | [The inventory MDP [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex3b-head){target="_blank" rel="noopener"} | 9 |
+| 4 | [Exact evaluation [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex4-head){target="_blank" rel="noopener"} | 5 |
+| 5 | [Iterative evaluation and the contraction [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 10 |
+| 6 | [Planted bug: a wrong evaluator [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/01-mdps-bellman.ipynb#scrollTo=ex6-head){target="_blank" rel="noopener"} [Planted bug]{.chip .chip-stale} | 9 |
 | | **Core** | **52 of 70** |
 :::
 
