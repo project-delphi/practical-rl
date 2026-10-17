@@ -49,6 +49,21 @@ NB_DIR = ROOT / "notebooks"
 MUTANTS = ROOT / "labs" / "mutants"
 
 
+def file_in_inbox(src: Path, inbox: Path) -> Path:
+    """Copy a run record into the inbox without overwriting a different one.
+
+    Live and QUICK runs of one notebook on one day share a file name, so the second
+    becomes `<stem>-2.json` (then -3, ...). Copying the same record twice is a no-op.
+    """
+    text = src.read_text()
+    target, n = inbox / src.name, 1
+    while target.exists() and target.read_text() != text:
+        n += 1
+        target = inbox / f"{src.stem}-{n}{src.suffix}"
+    target.write_text(text)
+    return target
+
+
 def load_mutants(module: str, directory: Path | None = None) -> list[dict]:
     """Mutants declared with @mutant(ex=..., replaces=..., id=..., why=..., exact_only=...) in labs/mutants/<module>.py."""
     path = (directory or MUTANTS) / f"{module}.py"
@@ -238,7 +253,7 @@ def run_notebook(path: Path, *, mode: str, timeout: int, record_dir: Path | None
     if record_dir is not None and records and mode == "worked":  # never file a record from verify
         record_dir.mkdir(parents=True, exist_ok=True)
         for rec_path in records:
-            shutil.copy(rec_path, record_dir / rec_path.name)
+            file_in_inbox(rec_path, record_dir)
         result["records"] = [r.name for r in records]
     if records:
         rec = json.loads(records[-1].read_text())

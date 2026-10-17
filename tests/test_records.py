@@ -35,3 +35,19 @@ def test_filing_never_overwrites_a_different_record(tmp_path, monkeypatch):
     third = add_run_record.file_record({**rec, "seconds": rec["seconds"] + 2}, v)
     assert second.name == f"{first.stem}-2.json" and third.name == f"{first.stem}-3.json"
     assert json.loads(first.read_text()) == rec
+
+
+def test_check_notebooks_never_overwrites_an_inbox_record(tmp_path):
+    import check_notebooks
+
+    inbox, a, b = tmp_path / "inbox", tmp_path / "a", tmp_path / "b"
+    inbox.mkdir()
+    a.mkdir()
+    b.mkdir()
+    (a / "r.json").write_text('{"quick": false}')
+    (b / "r.json").write_text('{"quick": true}')
+    first = check_notebooks.file_in_inbox(a / "r.json", inbox)
+    second = check_notebooks.file_in_inbox(b / "r.json", inbox)
+    again = check_notebooks.file_in_inbox(b / "r.json", inbox)
+    assert (first.name, second.name, again.name) == ("r.json", "r-2.json", "r-2.json")
+    assert first.read_text() == '{"quick": false}'

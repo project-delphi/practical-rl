@@ -406,6 +406,8 @@ class Result:
     seconds_per_call: float
     inputs_sha: str
     analysis: Analysis
+    git_sha: str | None = None  # read when the run starts, not when it ends
+    repo_dirty: bool | None = None
 
 
 def check_seed_floor(budget: str, n_seeds: int) -> None:
@@ -438,6 +440,10 @@ def run_protocol(
 ) -> Result:
     """Measure the solution and every wrong version over the seeds, then analyze."""
     check_seed_floor(budget, n_seeds)
+    # The repo state and the metric's source are read before measuring, so editing a file
+    # while the protocol runs cannot change what its record says it measured.
+    git_sha, repo_dirty = _git_state()
+    metric_source = _source(check.metric)
     meta = nbformat.read(notebook, as_version=4).metadata.get("prl", {})
     module = meta.get("module")
     if not module:
@@ -500,7 +506,7 @@ def run_protocol(
     inputs = [
         *executed,
         *((f"mutant:{m['id']}", "\n".join(m["sources"].values())) for m in wrong),
-        ("metric", _source(check.metric)),
+        ("metric", metric_source),
         ("budget", json.dumps(settings, sort_keys=True)),
     ]
     return Result(
@@ -520,6 +526,8 @@ def run_protocol(
         seconds_per_call=sol_seconds / n_seeds,
         inputs_sha=record.content_sha(inputs),
         analysis=analysis,
+        git_sha=git_sha,
+        repo_dirty=repo_dirty,
     )
 
 
@@ -584,7 +592,7 @@ def _summary(a: Analysis) -> str:
 def build_record(res: Result) -> dict[str, Any]:
     """The experiment record (kind: experiment) of a successful protocol run."""
     rt = runtime.detect()
-    git_sha, dirty = _git_state()
+    git_sha, dirty = res.git_sha, res.repo_dirty
     a = res.analysis
     return {
         "schema": record.SCHEMA,
