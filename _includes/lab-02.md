@@ -6,12 +6,12 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 ::: {.lab-steps}
 | # | Exercise | Min |
 |---|---|---|
-| 0 | Reconnect and rerun setup | 3 |
-| 1 | Value iteration and greedy extraction | 12 |
-| 2 | Policy iteration | 9 |
-| 3 | Estimate the model | 8 |
-| 4 | Plan in the estimate | 12 |
-| 5 | Planted bug: a stopping rule [Planted bug]{.chip .chip-stale} | 8 |
+| 0 | [Reconnect and rerun setup [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/02-planning.ipynb#scrollTo=ex0-head){target="_blank" rel="noopener"} | 3 |
+| 1 | [Value iteration and greedy extraction [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/02-planning.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} | 12 |
+| 2 | [Policy iteration [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/02-planning.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 9 |
+| 3 | [Estimate the model [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/02-planning.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 8 |
+| 4 | [Plan in the estimate, evaluate in the truth [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/02-planning.ipynb#scrollTo=ex4-head){target="_blank" rel="noopener"} | 12 |
+| 5 | [Planted bug: a stopping rule [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/02-planning.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} [Planted bug]{.chip .chip-stale} | 8 |
 | | **Core** | **52 of 70** |
 :::
 

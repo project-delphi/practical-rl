@@ -8,7 +8,7 @@ Find the best policy with a model, then measure what an estimated model costs yo
 :::
 
 ::: {.module-actions}
-[Lab notebook not built yet]{.btn-disabled} [Other ways to run](/setup.qmd#local){.btn-quiet}
+[Open in Colab[, Lab 2: Planning: value iteration, policy iteration and model error (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/02-planning.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/02-planning.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
 :::
 :::
 
