@@ -1,9 +1,11 @@
 """Module 3 figures, drawn from recorded experiments: light and dark SVGs (PLAN.md §8).
 
-  uv run python scripts/make_figures_m03.py --run     # run both experiments; records go to runs/inbox/
+  uv run python scripts/make_figures_m03.py --run [--only NAME]  # run the experiments; records go to runs/inbox/
   uv run python scripts/add_run_record.py             # file them in runs/
   uv run python scripts/make_figures_m03.py           # draw images/03-*.svg from the filed records
   uv run python scripts/make_figures_m03.py --check   # fail if a committed SVG differs from a fresh drawing
+  uv run python scripts/make_figures_m03.py --reproduce [--only NAME]  # rerun in memory, compare
+                                                      # with the filed records, write nothing
 
 The experiments use the lab's own reference code: the worked notebook (solutions bound,
 live budget) runs in-process up to the stretch's run cell, as scripts/threshold_protocol.py
@@ -15,8 +17,17 @@ do the work. Nothing here reimplements a learner.
                      Right: online return per episode, moving average of 20, mean over the
                      seeds with the min-max band.
   03-nstep-dial      Offline n-step TD on 1000 episodes of the epsilon-soft safe route:
-                     RMS error on the route against n, one line per alpha, mean over seeds
-                     0-9 with the min-max band.
+                     RMS error on the route against n, one line per alpha, the IQM over
+                     seeds 0-9 with a 95% bootstrap interval.
+
+One more experiment has no figure: m03-suspect-returns, the planted-bug suspect (the
+notebook's ex6-stub cell) against the reference q_learning from Q0 = 10, both trained by the
+lab's own value_curve (Exercise 6's left panel). `report` prints its numbers.
+
+`--reproduce` reruns the experiments with the current notebook and compares every per-seed
+value with the newest filed record: discrete outcomes (paths, path lengths, whole-number
+returns) must match exactly, floats to 1e-9. It checks a new platform or a changed notebook
+without filing anything.
 
 The figures read only the newest filed record of each experiment (runs/*.json), so
 `--check` never reruns anything. Drawing is deterministic: svg.hashsalt is the figure
@@ -58,8 +69,11 @@ SEEDS = list(range(10))
 CONTRAST = {"episodes": 1000, "alpha": 0.1, "epsilon": 0.1, "gamma": 0.95, "window": 500}
 DIAL = {"episodes": 1000, "ns": [1, 2, 4, 8, 16, 32], "alphas": [0.02, 0.05, 0.1, 0.2]}
 DIAL.update(epsilon=0.1, gamma=0.95)
+SUSPECT = {"episodes": 1000, "alpha": 0.1, "epsilon": 0.1, "gamma": 0.95, "q0": 10.0}
+SUSPECT.update(chunk=20, first=100, last=500)
 SMOOTH = 20
 EXPERIMENTS = {"03-cliff-contrast": "m03-cliff-contrast", "03-nstep-dial": "m03-nstep-dial"}
+SUSPECT_EXPERIMENT = "m03-suspect-returns"
 
 
 # ------------------------------------------------------------------ running the experiments
@@ -115,9 +129,54 @@ def run_dial(ns: dict) -> dict:
     return per
 
 
-def experiment_record(name: str, budget: dict, per_seed: dict, seconds: float, note: str) -> dict:
+def buggy_suspect(ns: dict):
+    """The colleague's q_learning_suspect as the notebook ships it (its ex6-stub cell).
+
+    The worked namespace binds the fixed reference to that name, so the stub cell is run
+    again in a copy of the namespace.
+    """
+    import nbformat
+
+    nb = nbformat.read(NOTEBOOK, as_version=4)
+    (src,) = [c.source for c in nb.cells if c.get("id") == "ex6-stub"]
+    local = dict(ns)
+    exec(compile(src, "<ex6-stub>", "exec"), local)  # noqa: S102
+    return local["q_learning_suspect"]
+
+
+def run_suspect(ns: dict) -> dict:
+    """Online returns and final values of the suspect and of the reference q_learning."""
+    b = SUSPECT
+    assert ns["budget"]["control_alpha"] == b["alpha"] and ns["EPSILON"] == b["epsilon"]
+    assert max(10, b["episodes"] // 50) == b["chunk"], "the lab's chunk size"
+    learners = {"suspect": buggy_suspect(ns), "fixed": ns["q_learning"]}
+    per: dict[str, list] = {}
+    for seed in SEEDS:
+        for key, fn in learners.items():
+            with contextlib.redirect_stdout(io.StringIO()):
+                _, values, online, Q = ns["value_curve"](
+                    fn, b["episodes"], b["chunk"], seed, b["q0"]
+                )
+            ints = [int(round(x)) for x in online]
+            assert np.allclose(ints, online), "the cliff's rewards are whole numbers"
+            path, reached = ns["greedy_path"](Q)
+            per.setdefault(f"{key}_online", []).append(ints)
+            per.setdefault(f"{key}_max_q_start", []).append([round(float(v), 9) for v in values])
+            per.setdefault(f"{key}_q_last_move", []).append(round(float(Q[ns["ABOVE_GOAL"], 2]), 9))
+            per.setdefault(f"{key}_path_moves", []).append(len(path) - 1 if reached else None)
+    return per
+
+
+def experiment_record(
+    name: str,
+    budget: dict,
+    per_seed: dict,
+    seconds: float,
+    note: str,
+    git: tuple[str | None, bool | None],
+) -> dict:
     rt = runtime.detect()
-    git_sha, dirty = tp._git_state()
+    git_sha, dirty = git
     import nbformat
 
     meta = nbformat.read(NOTEBOOK, as_version=4).metadata.get("prl", {})
@@ -161,30 +220,104 @@ def where() -> str:
     return f"{_default_env(rt, 'colab-cpu')} ({rt.cpu}, {__import__('platform').machine()})"
 
 
-def run(inbox: Path = tp.INBOX) -> list[Path]:
+def _notes() -> dict[str, str]:
+    return {
+        "m03-cliff-contrast": (
+            f"SARSA and Q-learning from the worked notebook, {len(SEEDS)} seeds, "
+            f"{CONTRAST['episodes']} episodes each. per_seed lists are indexed like `seeds`."
+        ),
+        "m03-nstep-dial": (
+            f"Offline n-step TD (the stretch's reference) on {DIAL['episodes']} episodes of the "
+            "epsilon-soft safe route per seed; per_seed['alpha a'][i][j] is the RMS error on "
+            "the route for seeds[i] and ns[j]."
+        ),
+        SUSPECT_EXPERIMENT: (
+            "The planted-bug suspect (the notebook's ex6-stub cell) and the reference "
+            f"q_learning, each trained by the lab's value_curve from Q0 = {SUSPECT['q0']:g}: "
+            f"{SUSPECT['episodes'] // SUSPECT['chunk']} chunks of {SUSPECT['chunk']} episodes, "
+            "chunk i seeded seed * 1000 + i. per_seed: every episode's online return, max Q(start) "
+            "after each chunk, the final Q(above goal, down) and the greedy path's moves."
+        ),
+    }
+
+
+RUNNERS = {
+    "m03-cliff-contrast": (run_contrast, CONTRAST),
+    "m03-nstep-dial": (run_dial, DIAL),
+    SUSPECT_EXPERIMENT: (run_suspect, SUSPECT),
+}
+
+
+def run(inbox: Path = tp.INBOX, only: list[str] | None = None) -> list[Path]:
+    git = tp._git_state()  # the repo as it is when the run starts
     ns = lab_namespace()
     out = []
-    start = time.perf_counter()
-    per = run_contrast(ns)
-    secs = time.perf_counter() - start
-    note = (
-        f"SARSA and Q-learning from the worked notebook, {len(SEEDS)} seeds, "
-        f"{CONTRAST['episodes']} episodes each. Wall time on {where()}: a laptop time, "
-        "not a Colab time. per_seed lists are indexed like `seeds`."
-    )
-    rec = experiment_record(EXPERIMENTS["03-cliff-contrast"], dict(CONTRAST), per, secs, note)
-    out.append(tp.write_record(rec, inbox))
-    start = time.perf_counter()
-    per = run_dial(ns)
-    secs = time.perf_counter() - start
-    note = (
-        f"Offline n-step TD (the stretch's reference) on {DIAL['episodes']} episodes of the "
-        f"epsilon-soft safe route per seed; per_seed['alpha a'][i][j] is the RMS error on the "
-        f"route for seeds[i] and ns[j]. Wall time on {where()}: a laptop time, not a Colab time."
-    )
-    rec = experiment_record(EXPERIMENTS["03-nstep-dial"], dict(DIAL), per, secs, note)
-    out.append(tp.write_record(rec, inbox))
+    for name, (runner, budget) in RUNNERS.items():
+        if only and name not in only:
+            continue
+        start = time.perf_counter()
+        per = runner(ns)
+        secs = time.perf_counter() - start
+        note = f"{_notes()[name]} Wall time on {where()}: a laptop time, not a Colab time."
+        rec = experiment_record(name, dict(budget), per, secs, note, git)
+        out.append(tp.write_record(rec, inbox))
     return out
+
+
+def _diff(old, new, path: str, out: list[str], floats: list[float]) -> None:
+    """Exact comparison of JSON-like values, except floats (collected as |differences|)."""
+    if isinstance(old, float) or isinstance(new, float):
+        if old is None or new is None:
+            out.append(f"{path}: {old!r} vs {new!r}")
+        else:
+            floats.append(abs(float(old) - float(new)))
+        return
+    if isinstance(old, dict) and isinstance(new, dict):
+        for key in sorted(set(old) | set(new)):
+            if key not in old or key not in new:
+                out.append(
+                    f"{path}[{key!r}]: only in {'the record' if key in old else 'the rerun'}"
+                )
+            else:
+                _diff(old[key], new[key], f"{path}[{key!r}]", out, floats)
+        return
+    if isinstance(old, list) and isinstance(new, list):
+        if len(old) != len(new):
+            out.append(f"{path}: length {len(old)} vs {len(new)}")
+            return
+        for i, (a, b) in enumerate(zip(old, new, strict=True)):
+            _diff(a, b, f"{path}[{i}]", out, floats)
+        return
+    if old != new:
+        out.append(f"{path}: {old!r} vs {new!r}")
+
+
+def reproduce(only: list[str] | None = None) -> bool:
+    """Rerun each experiment in memory and compare with its newest filed record."""
+    ns = lab_namespace()
+    ok = True
+    for name, (runner, budget) in RUNNERS.items():
+        if only and name not in only:
+            continue
+        path, rec = newest_record(name)
+        if rec["budget"] != json.loads(json.dumps(budget)) or rec["seeds"] != SEEDS:
+            print(f"{name}: runs/{path.name} has a different budget or seeds; not comparable")
+            ok = False
+            continue
+        new = json.loads(json.dumps(runner(ns)))  # the record's JSON types
+        exact: list[str] = []
+        floats: list[float] = []
+        _diff(rec["per_seed"], new, "per_seed", exact, floats)
+        worst = max(floats, default=0.0)
+        good = not exact and worst <= 1e-9
+        ok &= good
+        print(
+            f"{name}: {'REPRODUCED' if good else 'DIFFERS'} against runs/{path.name} "
+            f"({len(floats)} floats, max |diff| {worst:.3g}; {len(exact)} exact mismatches)"
+        )
+        for line in exact[:10]:
+            print(f"  {line}")
+    return ok
 
 
 # ------------------------------------------------------------------ reading the records
@@ -489,11 +622,42 @@ def report(computed: dict[str, dict]) -> None:
         print(f"  alpha {a:<5g} best n by seed: {line['best_n']}")
 
 
+def suspect_report() -> None:
+    path, rec = newest_record(SUSPECT_EXPERIMENT)
+    b, per = rec["budget"], rec["per_seed"]
+    print(f"{SUSPECT_EXPERIMENT} from runs/{path.name} (budget {b})")
+    windows = {
+        f"first {b['first']}": slice(0, b["first"]),
+        f"last {b['last']}": slice(-b["last"], None),
+    }
+    windows["all"] = slice(None)
+    for label, sl in windows.items():
+        s = [float(np.mean(o[sl])) for o in per["suspect_online"]]
+        f = [float(np.mean(o[sl])) for o in per["fixed_online"]]
+        above = sum(x > y for x, y in zip(s, f, strict=True))
+        ties = sum(x == y for x, y in zip(s, f, strict=True))
+        print(
+            f"  mean online return, {label} episodes: suspect {[round(x, 1) for x in s]} "
+            f"(min {min(s):.1f}, max {max(s):.1f}); fixed {[round(x, 1) for x in f]} "
+            f"(min {min(f):.1f}, max {max(f):.1f}); suspect higher on {above} of {len(s)} "
+            f"seeds, equal on {ties}"
+        )
+    for key in ("suspect", "fixed"):
+        print(
+            f"  {key}: Q(above goal, down) {sorted(set(round(v, 4) for v in per[f'{key}_q_last_move']))}; "
+            f"final max Q(start) {[round(c[-1], 3) for c in per[f'{key}_max_q_start']]}; "
+            f"greedy-path moves {per[f'{key}_path_moves']}"
+        )
+
+
 def main(argv: list[str]) -> int:
+    only = [argv[i + 1] for i, a in enumerate(argv) if a == "--only" and i + 1 < len(argv)]
     if "--run" in argv:
-        for p in run():
+        for p in run(only=only or None):
             print(f"Saved {p.name} in runs/inbox/ (file it with scripts/add_run_record.py).")
         return 0
+    if "--reproduce" in argv:
+        return 0 if reproduce(only or None) else 1
     check = "--check" in argv
     files, computed = build()
     if check:
@@ -507,6 +671,8 @@ def main(argv: list[str]) -> int:
         print(f"wrote {p.relative_to(ROOT)} ({len(data) / 1024:.0f} KiB)")
     print()
     report(computed)
+    with contextlib.suppress(SystemExit):  # no record yet: nothing to report
+        suspect_report()
     return 0
 
 
