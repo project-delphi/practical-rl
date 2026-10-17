@@ -384,12 +384,14 @@ def check_plan_and_evaluate(fn: Callable[..., tuple]) -> None:
     fx = expected("m02_plan_eval")
     mdp = InventoryMDP(**INVENTORY)
     seeds = [int(x) for x in fx["seeds"]]
-    results: dict[int, tuple[np.ndarray, np.ndarray]] = {}
+    results: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
     for N in (int(x) for x in fx["Ns"]):
-        losses, eps = [], []
+        losses, eps, eps_r = [], [], []
         for seed in seeds:
-            loss, eps_P = _unpack(fn(mdp, N, seed), 2, "plan_and_evaluate", "(loss, eps_P)")
-            loss, eps_P = float(loss), float(eps_P)
+            loss, eps_P, eps_R = _unpack(
+                fn(mdp, N, seed), 3, "plan_and_evaluate", "(loss, eps_P, eps_R)"
+            )
+            loss, eps_P, eps_R = float(loss), float(eps_P), float(eps_R)
             if not np.isfinite(loss) or loss < -1e-9:
                 raise CheckFailed(
                     f"At N = {N}, seed {seed}: loss = {loss:.4g}. The loss max_s [V*(s) - V^pi_hat(s)] "
@@ -401,12 +403,18 @@ def check_plan_and_evaluate(fn: Callable[..., tuple]) -> None:
                     f"At N = {N}, seed {seed}: eps_P = {eps_P:.4g}, outside [0, 2]. eps_P is the "
                     "largest l1 distance between a row of P and the same row of P_hat."
                 )
+            if not (np.isfinite(eps_R) and eps_R >= 0.0):
+                raise CheckFailed(
+                    f"At N = {N}, seed {seed}: eps_R = {eps_R:.4g}. eps_R is the largest ABSOLUTE "
+                    "difference between R and R_hat, so it is a finite number >= 0."
+                )
             losses.append(loss)
             eps.append(eps_P)
-        results[N] = (np.array(losses), np.array(eps))
+            eps_r.append(eps_R)
+        results[N] = (np.array(losses), np.array(eps), np.array(eps_r))
     (n_small, n_large) = (int(x) for x in fx["Ns"])
-    loss_s, eps_s = results[n_small]
-    loss_l, eps_l = results[n_large]
+    loss_s, eps_s, _ = results[n_small]
+    loss_l, eps_l, _ = results[n_large]
     if np.ptp(loss_s) == 0.0:
         raise CheckFailed(
             f"All five seeds at N = {n_small} give the same loss ({loss_s[0]:.4g}). Five seeds "
@@ -436,7 +444,7 @@ def check_plan_and_evaluate(fn: Callable[..., tuple]) -> None:
             "difference, np.abs(mdp.P - P_hat).sum(axis=2).max(), not the largest single entry."
         )
     for i, N in enumerate((n_small, n_large)):
-        got_loss, got_eps = results[N]
+        got_loss, got_eps, got_eps_r = results[N]
         assert_close(
             got_eps,
             fx["eps_P"][i],
@@ -447,6 +455,15 @@ def check_plan_and_evaluate(fn: Callable[..., tuple]) -> None:
             "rng = np.random.default_rng(seed), and estimate the model from all of it.",
         )
         assert_close(
+            got_eps_r,
+            fx["eps_R"][i],
+            atol=1e-9,
+            rtol=0.0,
+            what=f"eps_R for seeds {seeds[0]}-{seeds[-1]} at N = {N}",
+            hint="eps_R is the largest absolute entry of mdp.R - R_hat over all (s, a): "
+            "np.abs(mdp.R - R_hat).max(), not a mean and not a signed max.",
+        )
+        assert_close(
             got_loss,
             fx["loss"][i],
             atol=1e-6,
@@ -455,6 +472,94 @@ def check_plan_and_evaluate(fn: Callable[..., tuple]) -> None:
             hint="V* is the exact value of the TRUE model's greedy policy; V^pi_hat is the exact "
             "value of the estimate's greedy policy, also in the TRUE model.",
         )
+
+
+def _scalar(out: Any, what: str) -> float:
+    """A finite real number, or CheckFailed (None, arrays and NaN are rejected)."""
+    if out is None:
+        raise CheckFailed(f"{what} returned None. Did you forget `return`?")
+    if np.ndim(out) != 0:
+        raise CheckFailed(
+            f"{what} should return one number, but returned an array of shape {np.shape(out)}. "
+            "Did you forget the max over states?"
+        )
+    try:
+        value = float(out)
+    except (TypeError, ValueError):
+        raise CheckFailed(f"{what} should return a number; you returned {out!r}.") from None
+    if not np.isfinite(value):
+        raise CheckFailed(f"{what} returned {value}, not a finite number.")
+    return value
+
+
+def check_planning_loss_bound(fn: Callable[..., float]) -> None:
+    """The rescaled planning-loss bound: 2 eps_R / (1 - g) + 2 g eps_P r_range / (1 - g)^2."""
+    fx = expected("m02_plan_eval")
+    hints = {
+        0: "With eps_R = 0 only the transition term is left: 2 gamma eps_P r_range / (1 - gamma)^2, "
+        "with two horizon factors.",
+        1: "With eps_R = 0 only the transition term is left: 2 gamma eps_P r_range / (1 - gamma)^2.",
+        2: "Both terms count, and the transition term scales with r_range (the rewards are not "
+        "in [0, 1]).",
+        3: "With eps_P = 0 only the reward term is left: 2 eps_R / (1 - gamma), one horizon factor.",
+    }
+    for i, (case, want) in enumerate(zip(fx["bound_cases"], fx["bound_expected"], strict=True)):
+        eps_P, eps_R, r_range, gamma = (float(x) for x in case)
+        what = (
+            f"planning_loss_bound(eps_P={eps_P:g}, eps_R={eps_R:g}, r_range={r_range:g}, "
+            f"gamma={gamma:g})"
+        )
+        got = _scalar(fn(eps_P, eps_R, r_range, gamma), what)
+        if not np.isclose(got, want, rtol=1e-12, atol=0.0):
+            raise CheckFailed(
+                f"{what} = {got:.6g}; the planning loss bound gives {want:g}. {hints[i]}"
+            )
+    # The shop at N = 2 and N = 100, seeds 0-4: a measured loss above a proven bound is a bug.
+    r_range = float(fx["r_range"])
+    for i, N in enumerate(int(x) for x in fx["Ns"]):
+        for j, seed in enumerate(int(x) for x in fx["seeds"]):
+            eps_P, eps_R = float(fx["eps_P"][i, j]), float(fx["eps_R"][i, j])
+            loss, want = float(fx["loss"][i, j]), float(fx["bound"][i, j])
+            what = f"the bound for the shop at N = {N}, seed {seed}"
+            got = _scalar(fn(eps_P, eps_R, r_range, 0.95), what)
+            if got < loss:
+                raise CheckFailed(
+                    f"{what} is {got:.6g}, below the measured loss {loss:.6g}. A bound that a "
+                    "measured loss exceeds is wrong: check both terms and both horizon factors."
+                )
+            if not np.isclose(got, want, rtol=1e-12, atol=0.0):
+                raise CheckFailed(f"{what} is {got:.6g}; the planning loss bound gives {want:.6g}.")
+
+
+def _about(x: float) -> str:
+    return "0 (up to rounding, below 1e-9)" if abs(x) < 1e-9 else f"{x:.6g}"
+
+
+def check_optimality_residual(fn: Callable[..., float]) -> None:
+    """max_s |max_a (R + gamma P V)[s, a] - V[s]| on the shop (first) and the random MDP."""
+    fx = expected("m02_residual")
+    inv = InventoryMDP(**INVENTORY)
+    labels = ["V*", "V* + 1", "V* - 2", "V* + 3 at stock 5", "V = 0"]
+    # The shop first: it has as many actions as states, so a max over the wrong axis still
+    # runs there and is caught as a wrong number, not a shape error.
+    cases = [
+        (f"the shop with {lbl}", inv.P, inv.R, 0.95, V, r)
+        for lbl, V, r in zip(labels, fx["shop_V"], fx["shop_residual"], strict=True)
+    ]
+    g = float(fx["rand_gamma"])
+    cases += [
+        (f"the random MDP (case {i + 1})", fx["rand_P"], fx["rand_R"], g, V, r)
+        for i, (V, r) in enumerate(zip(fx["rand_V"], fx["rand_residual"], strict=True))
+    ]
+    for name, P, R, gamma, V, want in cases:
+        what = f"optimality_residual on {name}"
+        got = _scalar(fn(P, R, gamma, V.copy()), what)
+        if abs(got - float(want)) > 1e-9:
+            raise CheckFailed(
+                f"{what} is {got:.6g}; expected {_about(float(want))}. Back V up once, "
+                "Q = R + gamma * P @ V, take the max over ACTIONS (axis=1), subtract V, and "
+                "return the largest ABSOLUTE entry over states."
+            )
 
 
 def check_value_iteration_suspect(fn: Callable[..., tuple]) -> None:
