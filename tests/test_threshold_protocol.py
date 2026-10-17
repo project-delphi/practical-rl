@@ -332,3 +332,50 @@ def test_namespace_of_a_real_lab():
     assert ids[-2:] == ["ex4-stub", "ex4-sol"] and not any("-chk" in i for i in ids)
     assert ns["evaluate_exact"].__prl_ref__ == ("4", "evaluate_exact")
     assert ns["lab"]._s["checks"] == []  # no checkpoint ran
+
+
+# ---------------------------------------------------------------- declared thresholds
+def _declared_thresholds():
+    import importlib
+    import pkgutil
+
+    import prl.checks
+
+    out = []
+    for info in pkgutil.iter_modules(prl.checks.__path__):
+        mod = importlib.import_module(f"prl.checks.{info.name}")
+        for name, obj in vars(mod).items():
+            if isinstance(obj, StochasticCheck):
+                for budget, (threshold, provenance) in obj.thresholds.items():
+                    out.append((info.name, name, obj, budget, threshold, provenance))
+    return out
+
+
+@pytest.mark.parametrize(
+    "module, name, check, budget, threshold, provenance",
+    _declared_thresholds(),
+    ids=lambda x: x if isinstance(x, str) and not x.startswith("threshold") else "",
+)
+def test_every_threshold_comes_from_a_filed_protocol_record(
+    module, name, check, budget, threshold, provenance
+):
+    """A pasted threshold names its record in runs/, and the record re-derives it."""
+    import re
+    from pathlib import Path
+
+    m = re.search(r"runs/(\S+\.json)$", provenance)
+    assert m, f"{name}: provenance {provenance!r} names no runs/ record"
+    path = Path(tp.ROOT) / "runs" / m.group(1)
+    assert path.exists(), f"{name}: {path.name} is not filed in runs/"
+    rec = json.loads(path.read_text())
+    args = rec["args"]
+    assert (args["module"], args["check"], rec["budget"]["name"]) == (module, name, budget)
+    assert rec["budget"]["settings"] == dict(getattr(check, budget)), "the budget changed"
+    assert (args["higher_is_better"], args["min_gap"]) == (check.higher_is_better, check.min_gap)
+    a = tp.analyze(
+        rec["per_seed"],
+        rec["seeds"],
+        higher_is_better=args["higher_is_better"],
+        min_gap=args["min_gap"],
+    )
+    assert a.ok and a.threshold == threshold

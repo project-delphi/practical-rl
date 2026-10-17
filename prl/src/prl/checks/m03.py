@@ -173,7 +173,26 @@ check_mc_rms = StochasticCheck(
     higher_is_better=False,
     min_gap=1.0,
     what="RMS error on the route",
-    thresholds={},
+    thresholds={
+        # threshold_protocol.py, live budget {"episodes": 1000}, N = 100 seeds (0-99),
+        # 2026-10-17, local (Apple M1 Pro, arm64). Solution p99 0.3473; strongest wrong version
+        # mutant 'no-discount' p1 3.238; gap 2.89 (minimum 1); threshold: the midpoint 1.79257,
+        # rounded to 1.8. 0 of 100 solution seeds fail: flake rate at most about 3/N = 3.0%
+        # (rule of three).
+        "live": (
+            1.8,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_mc_rms-live-n100-exp.json",
+        ),
+        # threshold_protocol.py, quick budget {"episodes": 200}, N = 100 seeds (0-99),
+        # 2026-10-17, local (Apple M1 Pro, arm64). Solution p99 0.862; strongest wrong version
+        # mutant 'no-discount' p1 2.976; gap 2.114 (minimum 1); threshold: the midpoint 1.91905,
+        # rounded to 1.9. 0 of 100 solution seeds fail: flake rate at most about 3/N = 3.0%
+        # (rule of three).
+        "quick": (
+            1.9,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_mc_rms-quick-n100-exp.json",
+        ),
+    },
 )
 
 
@@ -221,7 +240,26 @@ check_td0_rms = StochasticCheck(
     higher_is_better=False,
     min_gap=2.0,
     what="RMS error on the route",
-    thresholds={},
+    thresholds={
+        # threshold_protocol.py, live budget {"alpha": 0.05, "episodes": 1000}, N = 100 seeds
+        # (0-99), 2026-10-17, local (Apple M1 Pro, arm64). Solution p99 1.638; strongest wrong
+        # version mutant 'no-bootstrap' p1 7.197; gap 5.558 (minimum 2); threshold: the midpoint
+        # 4.41746, rounded to 4.4. 0 of 100 solution seeds fail: flake rate at most about 3/N =
+        # 3.0% (rule of three).
+        "live": (
+            4.4,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_td0_rms-live-n100-exp.json",
+        ),
+        # threshold_protocol.py, quick budget {"alpha": 0.05, "episodes": 200}, N = 100 seeds
+        # (0-99), 2026-10-17, local (Apple M1 Pro, arm64). Solution p99 2.934; strongest wrong
+        # version mutant 'no-bootstrap' p1 7.286; gap 4.352 (minimum 2); threshold: the midpoint
+        # 5.11018, rounded to 5.1. 0 of 100 solution seeds fail: flake rate at most about 3/N =
+        # 3.0% (rule of three).
+        "quick": (
+            5.1,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_td0_rms-quick-n100-exp.json",
+        ),
+    },
 )
 
 
@@ -330,7 +368,26 @@ check_sarsa = StochasticCheck(
     higher_is_better=False,
     min_gap=4.0,
     what="cells of SARSA's greedy path directly above the cliff",
-    thresholds={},
+    thresholds={
+        # threshold_protocol.py, live budget {"control_alpha": 0.1, "control_episodes": 1000}, N
+        # = 100 seeds (0-99), 2026-10-17, local (Apple M1 Pro, arm64). Solution p99 2; strongest
+        # wrong version mutant 'max-target' p1 10; gap 8 (minimum 4); threshold: the midpoint,
+        # 6.0. 0 of 100 solution seeds fail: flake rate at most about 3/N = 3.0% (rule of
+        # three).
+        "live": (
+            6.0,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_sarsa-live-n100-exp.json",
+        ),
+        # threshold_protocol.py, quick budget {"control_alpha": 0.1, "control_episodes": 1000},
+        # N = 100 seeds (0-99), 2026-10-17, local (Apple M1 Pro, arm64). Solution p99 2;
+        # strongest wrong version mutant 'max-target' p1 10; gap 8 (minimum 4); threshold: the
+        # midpoint, 6.0. 0 of 100 solution seeds fail: flake rate at most about 3/N = 3.0% (rule
+        # of three).
+        "quick": (
+            6.0,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_sarsa-quick-n100-exp.json",
+        ),
+    },
 )
 
 
@@ -356,7 +413,26 @@ check_q_learning_path = StochasticCheck(
     higher_is_better=False,
     min_gap=1.0,
     what=f"moves of Q-learning's greedy path beyond the optimal {OPTIMAL_MOVES}",
-    thresholds={},
+    thresholds={
+        # threshold_protocol.py, live budget {"control_alpha": 0.1, "control_episodes": 1000}, N
+        # = 100 seeds (0-99), 2026-10-17, local (Apple M1 Pro, arm64). Solution p99 0; strongest
+        # wrong version mutant 'taken-action-target' p1 2; gap 2 (minimum 1); threshold: the
+        # midpoint, 1.0. 0 of 100 solution seeds fail: flake rate at most about 3/N = 3.0% (rule
+        # of three).
+        "live": (
+            1.0,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_q_learning_path-live-n100-exp.json",
+        ),
+        # threshold_protocol.py, quick budget {"control_alpha": 0.1, "control_episodes": 1000},
+        # N = 100 seeds (0-99), 2026-10-17, local (Apple M1 Pro, arm64). Solution p99 0;
+        # strongest wrong version mutant 'taken-action-target' p1 2; gap 2 (minimum 1);
+        # threshold: the midpoint, 1.0. 0 of 100 solution seeds fail: flake rate at most about
+        # 3/N = 3.0% (rule of three).
+        "quick": (
+            1.0,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_q_learning_path-quick-n100-exp.json",
+        ),
+    },
 )
 
 
@@ -389,7 +465,26 @@ check_cliff_contrast = StochasticCheck(
     higher_is_better=True,
     min_gap=5.0,
     what="SARSA's online-return lead over Q-learning (mean of the last window episodes)",
-    thresholds={},
+    thresholds={
+        # threshold_protocol.py, live budget {"control_alpha": 0.1, "control_episodes": 1000,
+        # "window": 500}, N = 100 seeds (0-99), 2026-10-17, local (Apple M1 Pro, arm64).
+        # Solution p1 20.05; strongest wrong version mutant 'max-target' p99 6.765; gap 13.29
+        # (minimum 5); threshold: the midpoint 13.4091, rounded to 13.0. 0 of 100 solution seeds
+        # fail: flake rate at most about 3/N = 3.0% (rule of three).
+        "live": (
+            13.0,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_cliff_contrast-live-n100-exp.json",
+        ),
+        # threshold_protocol.py, quick budget {"control_alpha": 0.1, "control_episodes": 1000,
+        # "window": 500}, N = 100 seeds (0-99), 2026-10-17, local (Apple M1 Pro, arm64).
+        # Solution p1 20.05; strongest wrong version mutant 'max-target' p99 6.765; gap 13.29
+        # (minimum 5); threshold: the midpoint 13.4091, rounded to 13.0. 0 of 100 solution seeds
+        # fail: flake rate at most about 3/N = 3.0% (rule of three).
+        "quick": (
+            13.0,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_cliff_contrast-quick-n100-exp.json",
+        ),
+    },
 )
 
 
@@ -424,7 +519,26 @@ check_q_learning_suspect = StochasticCheck(
         f"|Q(above goal, down) + 1| + |max Q(start) - V*(start)| from Q0 = {Q0:g} "
         "(both terms are 0 for a correct fix)"
     ),
-    thresholds={},
+    thresholds={
+        # threshold_protocol.py, live budget {"control_alpha": 0.1, "control_episodes": 1000}, N
+        # = 100 seeds (0-99), 2026-10-17, local (Apple M1 Pro, arm64). Solution p99 4.485e-14;
+        # strongest wrong version mutant 'still-bootstraps' p1 14.63; gap 14.63 (minimum 5);
+        # threshold: the midpoint 7.31671, rounded to 7.3. 0 of 100 solution seeds fail: flake
+        # rate at most about 3/N = 3.0% (rule of three).
+        "live": (
+            7.3,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_q_learning_suspect-live-n100-exp.json",
+        ),
+        # threshold_protocol.py, quick budget {"control_alpha": 0.1, "control_episodes": 1000},
+        # N = 100 seeds (0-99), 2026-10-17, local (Apple M1 Pro, arm64). Solution p99 4.485e-14;
+        # strongest wrong version mutant 'still-bootstraps' p1 14.63; gap 14.63 (minimum 5);
+        # threshold: the midpoint 7.31671, rounded to 7.3. 0 of 100 solution seeds fail: flake
+        # rate at most about 3/N = 3.0% (rule of three).
+        "quick": (
+            7.3,
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_q_learning_suspect-quick-n100-exp.json",
+        ),
+    },
 )
 
 
