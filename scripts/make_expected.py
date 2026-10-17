@@ -430,6 +430,7 @@ def m02_plan_eval() -> bytes:
     seeds = np.arange(5, dtype=np.int64)
     loss = np.zeros((len(Ns), len(seeds)))
     eps_P = np.zeros_like(loss)
+    eps_R = np.zeros_like(loss)
     for i, N in enumerate(Ns):
         for j, seed in enumerate(seeds):
             log = _sample_transitions(inv, int(N), np.random.default_rng(int(seed)))
@@ -442,8 +443,79 @@ def m02_plan_eval() -> bytes:
             pi_hat = Q_hat.argmax(axis=1)
             loss[i, j] = np.max(V_star - _exact_value(inv.P, inv.R, 0.95, pi_hat))
             eps_P[i, j] = np.abs(inv.P - P_hat).sum(axis=2).max()
+            eps_R[i, j] = np.abs(inv.R - R_hat).max()
     assert abs(eps_P[0].mean() - 1.869) < 5e-4 and abs(loss[0].mean() - 31.54) < 5e-3
-    return _save("m02_plan_eval", Ns=Ns, seeds=seeds, loss=loss, eps_P=eps_P)
+    assert np.allclose(
+        eps_R.round(2), [[12.58, 12.62, 18.92, 14.68, 14.87], [2.54, 2.33, 2.29, 2.16, 2.45]]
+    )
+    # Checkpoint 4.2: the planning-loss bound, rescaled to the reward range (eq-plan-loss).
+    r_range = float(inv.R.max() - inv.R.min())
+    bound = _planning_loss_bound(eps_P, eps_R, r_range, 0.95)
+    assert np.all(bound >= loss)
+    bound_cases = np.array(
+        [[0.1, 0.0, 1.0, 0.95], [0.2, 0.0, 1.0, 0.9], [0.5, 3.0, 25.0, 0.95], [0.0, 1.0, 1.0, 0.9]]
+    )
+    bound_expected = np.array([_planning_loss_bound(*c) for c in bound_cases])
+    assert np.allclose(bound_expected, [76.0, 36.0, 9620.0, 20.0], rtol=1e-12)
+    return _save(
+        "m02_plan_eval",
+        Ns=Ns,
+        seeds=seeds,
+        loss=loss,
+        eps_P=eps_P,
+        eps_R=eps_R,
+        r_range=np.array(r_range),
+        bound=bound,
+        bound_cases=bound_cases,
+        bound_expected=bound_expected,
+    )
+
+
+def _planning_loss_bound(eps_P, eps_R, r_range, gamma):
+    """eq-plan-loss rescaled to rewards in a range r_range."""
+    return 2 * eps_R / (1 - gamma) + 2 * gamma * eps_P * r_range / (1 - gamma) ** 2
+
+
+def _optimality_residual(P, R, gamma, V):
+    return float(np.max(np.abs((R + gamma * P @ V).max(axis=1) - V)))
+
+
+def m02_residual() -> bytes:
+    """Checkpoint 5.1: value vectors and their optimality residuals, on the shop and the
+    random MDP of m02_plan (negative rewards)."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import InventoryMDP
+
+    inv = InventoryMDP(**M01_INVENTORY)
+    V_star = _optimal(inv.P, inv.R, 0.95)[0]
+    e5 = np.eye(inv.n_states)[5]
+    shop_V = np.array([V_star, V_star + 1, V_star - 2, V_star + 3 * e5, np.zeros_like(V_star)])
+    shop_res = np.array([_optimality_residual(inv.P, inv.R, 0.95, V) for V in shop_V])
+    assert shop_res[0] < 1e-9 and np.allclose(shop_res[1:3], [0.05, 0.1])
+    assert round(shop_res[3], 4) == 2.9478 and round(shop_res[4], 4) == 15.0293
+    rng = np.random.default_rng(20261017)
+    P = rng.dirichlet(np.ones(5), size=(5, 3))
+    R = rng.normal(size=(5, 3))
+    rand_V_star = _optimal(P, R, 0.9)[0]
+    rand_V = np.array(
+        [
+            rand_V_star,
+            rand_V_star + rng.normal(size=5),
+            np.zeros(5),
+            rand_V_star - 1.5 * np.eye(5)[2],
+        ]
+    )
+    rand_res = np.array([_optimality_residual(P, R, 0.9, V) for V in rand_V])
+    return _save(
+        "m02_residual",
+        shop_V=shop_V,
+        shop_residual=shop_res,
+        rand_P=P,
+        rand_R=R,
+        rand_gamma=np.array(0.9),
+        rand_V=rand_V,
+        rand_residual=rand_res,
+    )
 
 
 FIXTURES = {
@@ -452,6 +524,7 @@ FIXTURES = {
     "m02_plan": m02_plan,
     "m02_model": m02_model,
     "m02_plan_eval": m02_plan_eval,
+    "m02_residual": m02_residual,
 }
 
 
