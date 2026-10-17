@@ -82,6 +82,12 @@ def mean_estimate(samples):
     return float(samples[0])
 """
 
+EXACT_ONLY_MUTANT = """
+@mutant(ex=2, replaces="mean_estimate", id="off-by-tiny", why="an exact check's job", exact_only=True)
+def mean_estimate(samples):
+    return total(samples) / len(samples) + 1e-9
+"""
+
 CRASHING_MUTANT = """
 @mutant(ex=2, replaces="mean_estimate", id="crashes", why="a broken mutant")
 def mean_estimate(samples):
@@ -203,6 +209,38 @@ def test_seed_floor(lab):
         run(lab, make_check(), budget="live", n_seeds=19)
     res = run(lab, make_check(), budget="live", n_seeds=20)
     assert res.analysis.ok and res.settings == {"n": 1600}
+
+
+def test_exact_only_mutants_are_left_out_of_the_protocol(lab):
+    notebook, mutants = lab
+    with (mutants / "m99.py").open("a") as fh:
+        fh.write(textwrap.dedent(EXACT_ONLY_MUTANT))
+    loaded = {m["id"]: m for m in tp.check_notebooks.load_mutants("m99", mutants)}
+    assert loaded["off-by-tiny"]["exact_only"] is True and loaded["biased"]["exact_only"] is False
+    res = run(lab, make_check())
+    assert res.analysis.ok, res.analysis.problems  # the overlapping mutant did not spoil the gap
+    assert set(res.per_seed) == {"solution", "mutant:biased", "mutant:halved"}
+    assert res.exact_only == ["off-by-tiny"]
+    assert tp.build_record(res)["args"]["exact_only_left_out"] == ["off-by-tiny"]
+
+
+def test_mutants_of_a_checked_function_count_whichever_exercise_declares_them(lab):
+    # A check of two functions scores the mutants of both, including "drops-last", which
+    # exercise 1 declares for `total`.
+    def two(total, mean_estimate, *, seed, n):
+        return abs_error(lambda s: total(s) / len(s), seed=seed, n=n)
+
+    check = StochasticCheck(
+        ex=2,
+        functions=("total", "mean_estimate"),
+        metric=two,
+        live={"n": 1600},
+        quick={"n": 400},
+        higher_is_better=False,
+        min_gap=0.1,
+    )
+    res = run(lab, check)
+    assert set(res.per_seed) == {"solution", "mutant:drops-last", "mutant:biased", "mutant:halved"}
 
 
 def test_a_crashing_mutant_is_not_a_rejection(lab):

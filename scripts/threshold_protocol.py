@@ -4,7 +4,8 @@ A stochastic checkpoint is a prl.checks.StochasticCheck in prl/checks/mNN.py: a 
 the participant's function (RMS error, regret, return), its direction, a live and a QUICK
 budget, and a stated minimum gap. This script computes the metric over many seeds for the
 reference solution and for every mutant of that function in labs/mutants/mNN.py (write
-random play as a mutant with id="random"). Then:
+random play as a mutant with id="random"; a mutant marked exact_only=True is left out,
+since only an exact checkpoint can tell it from the solution). Then:
 
   threshold = the midpoint between the solution's 1st percentile and the strongest wrong
               version's 99th (higher is better), or between the solution's 99th and the
@@ -400,6 +401,7 @@ class Result:
     seeds: list[int]
     per_seed: dict[str, list[float | None]]
     why: dict[str, str]
+    exact_only: list[str]
     seconds: float
     seconds_per_call: float
     inputs_sha: str
@@ -441,11 +443,17 @@ def run_protocol(
     if not module:
         raise ProtocolError(f"{notebook.name} has no prl.module in its metadata")
     mutants_dir = mutants_dir or check_notebooks.MUTANTS
-    wrong = [
+    # Every mutant of the checked functions, whichever exercise declares it (a check of two
+    # functions scores the mutants of both); exact_only mutants are the exact checkpoints' job.
+    candidates = [
         m
         for m in check_notebooks.load_mutants(module, mutants_dir)
-        if m["ex"] == check.ex and set(m["sources"]) <= set(check.functions)
+        if set(m["sources"]) <= set(check.functions)
     ]
+    excluded = [m["id"] for m in candidates if m.get("exact_only")]
+    wrong = [m for m in candidates if not m.get("exact_only")]
+    if excluded:
+        progress(f"Left out as exact_only: {', '.join(excluded)}")
     if not wrong:
         raise ProtocolError(
             f"{module}.py in {mutants_dir.name}/ has no mutant of exercise {check.ex} that "
@@ -507,6 +515,7 @@ def run_protocol(
         seeds=seeds,
         per_seed=per_seed,
         why=why,
+        exact_only=excluded,
         seconds=elapsed,
         seconds_per_call=sol_seconds / n_seeds,
         inputs_sha=record.content_sha(inputs),
@@ -591,6 +600,7 @@ def build_record(res: Result) -> dict[str, Any]:
             "notebook_content_sha": res.content_sha,
             "mutants": _rel(res.mutants_file),
             "wrong_versions": res.why,
+            "exact_only_left_out": res.exact_only,
             "higher_is_better": res.check.higher_is_better,
             "min_gap": res.check.min_gap,
             "percentiles": [P_LOW, P_HIGH],
