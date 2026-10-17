@@ -90,3 +90,43 @@ def test_planning_loss_bound_and_optimality_residual_pass():
 def test_optimality_residual_rejects_a_vector():
     with pytest.raises(CheckFailed, match="one number"):
         m02.check_optimality_residual(lambda P, R, gamma, V: np.abs((R + gamma * P @ V).max(1) - V))
+
+
+def make_policy_iteration(*, tie_tol, noise_seed=None):
+    """Policy iteration whose P @ V may carry a few ulps of noise per entry, as another BLAS
+    kernel would produce (OpenBLAS splits the shop's exact ties this way)."""
+    rng = np.random.default_rng(noise_seed)
+
+    def matvec(P, V):
+        PV = P @ V
+        if noise_seed is None:
+            return PV
+        return PV + np.spacing(np.abs(PV)) * rng.integers(-3, 4, size=PV.shape)
+
+    def policy_iteration(P, R, gamma, pi0):
+        S = P.shape[0]
+        pi, k = np.asarray(pi0, dtype=int).copy(), 0
+        while k < 100:
+            P_pi, r_pi = P[np.arange(S), pi], R[np.arange(S), pi]
+            V = np.linalg.solve(np.eye(S) - gamma * P_pi, r_pi)
+            k += 1
+            Q = R + gamma * matvec(P, V)
+            tol = 1e-9 * (1 + np.abs(Q).max()) if tie_tol else 0.0
+            pi_new = np.where(Q[np.arange(S), pi] >= Q.max(axis=1) - tol, pi, Q.argmax(axis=1))
+            if np.array_equal(pi_new, pi):
+                break
+            pi = pi_new
+        return V, pi, k
+
+    return policy_iteration
+
+
+@pytest.mark.parametrize("noise_seed", [None, *range(10)])
+def test_policy_iteration_with_a_tolerance_passes_under_rounding_noise(noise_seed):
+    m02.check_policy_iteration(make_policy_iteration(tie_tol=True, noise_seed=noise_seed))
+
+
+@pytest.mark.parametrize("noise_seed", [None, 0, 1])
+def test_policy_iteration_with_an_exact_tie_rule_fails_everywhere(noise_seed):
+    with pytest.raises(CheckFailed, match="1e-13"):
+        m02.check_policy_iteration(make_policy_iteration(tie_tol=False, noise_seed=noise_seed))

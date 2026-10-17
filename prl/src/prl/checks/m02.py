@@ -213,7 +213,20 @@ def check_policy_iteration(fn: Callable[..., tuple]) -> None:
     fx = expected("m02_plan")
     inv = InventoryMDP(**INVENTORY)
     S = inv.n_states
+    # The tie-rule case first: an exact comparison can make the loop cycle on the shop, whose
+    # capped orders tie exactly (rounding splits them on some machines), so reject it here.
     cases = [
+        (
+            "an MDP whose action 3 copies another action with a reward 1e-13 lower, from "
+            "'always 3' (action 4 is a clearly worse copy of action 0)",
+            fx["dup_P"],
+            fx["dup_R"],
+            float(fx["rand_gamma"]),
+            fx["dup_pi0"],
+            fx["dup_V_star"],
+            fx["dup_pi_star"],
+            int(fx["dup_k_pi"]),
+        ),
         (
             "the shop from 'never order'",
             inv.P,
@@ -244,16 +257,6 @@ def check_policy_iteration(fn: Callable[..., tuple]) -> None:
             fx["rand_pi_star"],
             int(fx["rand_k_pi"]),
         ),
-        (
-            "an MDP whose action 3 duplicates another action, from 'always 3'",
-            fx["dup_P"],
-            fx["dup_R"],
-            float(fx["rand_gamma"]),
-            fx["dup_pi0"],
-            fx["dup_V_star"],
-            fx["dup_pi_star"],
-            int(fx["dup_k_pi"]),
-        ),
     ]
     for name, P, R, gamma, pi0, V_star, pi_star, k_ref in cases:
         V, pi, k = _unpack(fn(P, R, gamma, pi0.copy()), 3, "policy_iteration", "(V, pi, k)")
@@ -263,28 +266,30 @@ def check_policy_iteration(fn: Callable[..., tuple]) -> None:
             raise CheckFailed(
                 f"pi for {name} should hold integer actions; its dtype is {pi.dtype}."
             )
-        duplicate = name.startswith("an MDP whose action 3")
+        duplicate = name.startswith("an MDP whose action 3")  # the tie-rule case
         if duplicate:
             wrong = np.flatnonzero(pi != pi_star)
             s = int(wrong[0]) if wrong.size else None
         else:
             s = _first_non_greedy(pi, R + gamma * P @ V_star)
+        if s is not None and duplicate and pi_star[s] == pi0[s]:
+            raise CheckFailed(
+                f"On {name}, your policy picks action {pi[s]} in state {s}; it should keep action "
+                f"{pi_star[s]}. The two actions differ by 1e-13, the size of a rounding error, so "
+                "they tie: keep the current action when its Q is within a small tolerance of the "
+                "row's max (for example 1e-9 * (1 + max|Q|)). An exact comparison is decided by "
+                "the last bits of the arithmetic, which differ between machines, and can make "
+                "the loop switch between tied actions without end."
+            )
         if s is not None:
             msg = (
                 f"On {name}, your policy picks action {pi[s]} in state {s}; the optimal policy "
                 f"picks {pi_star[s]}."
             )
-            if duplicate:
-                msg += (
-                    f" Actions {pi[s]} and {pi_star[s]} are identical here, and the loop started "
-                    "on an optimal action: keep the current action when it ties for the best, "
-                    "and change it only where a strictly better action exists."
-                )
-            else:
-                msg += (
-                    " Improve with Q = R + gamma * P @ V of the policy you just evaluated, and "
-                    "loop until the greedy policy is the one you already have."
-                )
+            msg += (
+                " Improve with Q = R + gamma * P @ V of the policy you just evaluated, and "
+                "loop until the greedy policy is the one you already have."
+            )
             raise CheckFailed(msg)
         assert_close(
             V,
