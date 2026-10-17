@@ -8,7 +8,7 @@ Find the best policy with a model, then measure what an estimated model costs yo
 :::
 
 ::: {.module-actions}
-[Lab notebook not built yet]{.btn-disabled} [Other ways to run](/setup.qmd#local){.btn-quiet}
+[Open in Colab[, Lab 2: Planning: value iteration, policy iteration and model error (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/02-planning.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/02-planning.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
 :::
 :::
 
@@ -20,7 +20,7 @@ Level
 :   [200 · Intermediate](/index.qmd#levels)
 
 Lab runtime
-:   Google Colab, CPU runtime · core 52 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
+:   Google Colab, CPU runtime · core 53 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
 
 Cost
 :   Free (Google account)
@@ -40,7 +40,7 @@ In this module you will:
 - Implement value iteration and policy iteration and compare their iteration counts.
 - Extract a greedy policy and check the greedy-loss bound.
 - Measure the true loss of a policy planned in an estimated model as the data shrinks, over 5 seeds.
-- State the simulation lemma with its assumptions and horizon factor.
+- State the simulation lemma with its assumptions and horizon factor, and check measured losses against its planning-loss bound.
 
 ## Before you start {#before}
 

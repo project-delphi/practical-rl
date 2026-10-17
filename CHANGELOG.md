@@ -17,6 +17,10 @@ All notable changes to this workshop. Dates are UTC.
   - Lab: seven exercises and a stretch, with a planted bug (an evaluator that uses `P_pi.T`).
   - `prl.checks.m01` with fixtures from `scripts/make_expected.py`; 28 mutants in `labs/mutants/m01.py`; a verify mode that must reject every stub and mutant.
   - Eight knowledge checks for Module 1. Technical, academic and pedagogy reviews applied.
+- Phase 3, Day 1 (2026-10-17): Module 2, "Planning: value iteration, policy iteration and model error".
+  - Briefing with a worked two-state example, the greedy-loss and planning-loss bounds, two subfigured figures and a "ties need a tolerance" section.
+  - Lab: six exercises (core 3 + 50) and a stretch (modified policy iteration). The planted bug, VI stopping on the mean change, runs on three models.
+  - `prl.checks.m02` with fixtures, 49 mutants (verify rejects 55 wrong versions), knowledge checks, and a laptop run record. Pedagogy, UI and academic reviews applied.
 - Phase 3, Day 1 (2026-10-17): Module 3, "Model-free prediction and control".
   - Briefing on MC, TD(0) with its bias and variance, SARSA vs Q-learning on the 4 × 12 cliff, terminated vs truncated, and the n-step dial, with two figures drawn from recorded experiments.
   - Lab: seven exercises (core 50) and a stretch (an n-step sweep). The planted bug, Q-learning that bootstraps through the terminal, is visible only from an optimistic start; its return curve shows nothing.

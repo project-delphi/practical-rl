@@ -1,6 +1,12 @@
 ---
 title: "{{< var modules.m02.title >}}"
-status: placeholder
+live:
+  - {section: 1, minutes: 7, activities: [{block: cold-sweep, minutes: 1, label: "Cold call: one sweep by hand"}]}
+  - {section: 2, minutes: 7, activities: [{block: chk-greedy, minutes: 2, label: "Check yourself 2.1"}]}
+  - {section: 3, minutes: 9, activities: [{block: chk-pi, minutes: 2, label: "Check yourself 3.1"}]}
+  - {section: 4, minutes: 13, activities: [{block: predict-halve, minutes: 3, label: "Predict: does halving the data double the loss?"}]}
+  - {section: 5, minutes: 2}
+  - {setup: 2}
 ---
 
 {{< include /_includes/module-02.md >}}
@@ -11,6 +17,488 @@ status: placeholder
 
 {{< include /_includes/live-02.md >}}
 
-::: {.callout-note}
-This briefing is not written yet. It follows the Module 1 template (see [the plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+## 1. Value iteration: repeated optimality backups
+
+**In this section:** turn the optimality equation of Module 1 into an algorithm, and show that it converges for the same reason iterative evaluation did.
+
+**Where Module 1 stopped.** Module 1 evaluated a *given* policy for the shop, from its arrays `P[s, a, s']` and `R[s, a]`. The best policy satisfies the Bellman optimality equation (Module 1, section 5):
+
+$$
+V^*(s) = \max_a \Big[\, r(s, a) + \gamma \sum_{s'} P(s' \mid s, a)\, V^*(s') \Big],
+$$
+
+where $V^*(s) = \max_\pi V^\pi(s)$ is the *optimal value* of $s$. Write $Q^*(s, a)$ for the bracket at the optimum: the value of taking $a$ in $s$ once and acting optimally afterwards. Then $V^*(s) = \max_a Q^*(s, a)$.
+
+**The optimality operator.** For any vector $V$ with one entry per state, define $T^* V$ by applying the bracket to $V$ instead of $V^*$:
+
+$$
+(T^* V)(s) = \max_a \Big[\, r(s, a) + \gamma \sum_{s'} P(s' \mid s, a)\, V(s') \Big].
+$$
+
+$V^*$ is a fixed point of $T^*$, and it is the only one, by the contraction argument below. *Value iteration* (VI) applies $T^*$ again and again from $V_0 = 0$:
+
+$$
+\begin{aligned}
+V_{k+1} &= T^* V_k, \quad \text{in arrays:} \\
+Q_k &= R + \gamma\, P V_k, \\
+V_{k+1}(s) &= \max_a Q_k(s, a).
+\end{aligned}
+$$ {#eq-vi}
+
+Here $P V_k$ is the array `P @ V_k` of shape $(|\mathcal{S}|, |\mathcal{A}|)$, whose entry $(s, a)$ is $\sum_{s'} P(s' \mid s, a) V_k(s')$. One application of $T^*$ is a *sweep*, as in Module 1. This is Sutton and Barto's value iteration update [@sutton2018rl, §4.4, Eq. 4.10].
+
+::: {#cold-sweep .predict}
+**Cold call (1 min).** Module 1's two-state shop: an empty shelf earns 0 if you wait and $-2$ if you order; a stocked shelf earns 3 if you wait and 1 if you order. One sweep of value iteration from $V_0 = 0$: what is $V_1$?
+
+::: {.callout-tip collapse="true" title="Answer: one sweep by hand"}
+$V_1 = (0,\ 3)$. With $V_0 = 0$ the future term vanishes, so $V_1(s) = \max_a r(s, a)$: the best one-day reward in each state. Section 3 continues the sweeps by hand.
 :::
+:::
+
+**Why it converges.** $T^*$ is a $\gamma$-contraction in the max norm, like $T^\pi$. Agarwal et al. prove it for the action-value form [@agarwal2022rltheory, §1.3.1, Lemma 1.10]; the state-value form needs one extra line.
+
+::: {.reference}
+**The extra line.** For two vectors $V$ and $U$, and any state $s$, let $a$ attain the max in $(T^* V)(s)$. Then $(T^* V)(s) - (T^* U)(s) \le [r(s, a) + \gamma \sum_{s'} P(s' \mid s, a) V(s')] - [r(s, a) + \gamma \sum_{s'} P(s' \mid s, a) U(s')] = \gamma \sum_{s'} P(s' \mid s, a)\, (V(s') - U(s')) \le \gamma \lVert V - U \rVert_\infty$, because the inner sum is an average of the entries of $V - U$. Swap $V$ and $U$ for the other direction. So $\lVert T^* V - T^* U \rVert_\infty \le \gamma \lVert V - U \rVert_\infty$: the difference of two maxima is at most the difference at one maximizing action, and that is a one-step evaluation difference.
+:::
+
+Everything Module 1 derived from the contraction carries over word for word, with $V^*$ in place of $V^\pi$:
+
+- the error shrinks by at least $\gamma$ per sweep, $\lVert V_k - V^* \rVert_\infty \le \gamma^k \lVert V_0 - V^* \rVert_\infty$, so the number of sweeps grows like the horizon $1 / (1 - \gamma)$;
+- the stopping rule is the same:
+
+$$
+\begin{aligned}
+&\text{If } \lVert V_{k+1} - V_k \rVert_\infty < \mathrm{tol}, \text{ then} \\
+&\lVert V_{k+1} - V^* \rVert_\infty \le \frac{\gamma\, \mathrm{tol}}{1 - \gamma} \\
+&\text{and } \lVert T^* V_{k+1} - V_{k+1} \rVert_\infty \le \gamma\, \mathrm{tol}.
+\end{aligned}
+$$ {#eq-vi-stop}
+
+The second inequality is the *optimality residual* of the returned vector: $T^* V_{k+1} - V_{k+1} = T^* V_{k+1} - T^* V_k$, and the contraction bounds it by $\gamma \lVert V_{k+1} - V_k \rVert_\infty$. Like Module 1's Bellman residual, it needs no reference answer, and the lab uses it as a diagnostic.
+
+**Assumptions, and what this does not say.** $P$ and $r$ are known, exact and finite, and $\gamma < 1$. The result hides the cost of a sweep, about $|\mathcal{S}|^2 |\mathcal{A}|$ multiply-adds: nothing for the shop, too much for a state space you cannot enumerate (Day 3). Value iteration never returns $V^*$ exactly; it stops at a tolerance. And the result does not say when the *policy* is right; section 2 does.
+
+::: {.callout-tip collapse="true" title="Optional: asynchronous value iteration"}
+@eq-vi builds all of $V_{k+1}$ from $V_k$. Updating one state at a time, in place, and using the new values at once is *asynchronous* value iteration [@sutton2018rl, §4.5]. It still converges to $V^*$ when every state keeps being updated, and it often needs fewer passes, as Module 1's in-place evaluator did. It is a different method with a different count: a checkpoint that counts sweeps of @eq-vi rejects it, as Module 1's did. The order of updates can be chosen, for example to visit the states an agent actually reaches, which is the thread Day 3 picks up.
+:::
+
+::: {.callout-note collapse="true" title="Code: value_iteration (open after Lab 2)"}
+```python
+def value_iteration(P, R, gamma, tol):
+    """Value iteration from V = 0; stop when max|V_new - V| < tol."""
+    V, k = np.zeros(P.shape[0]), 0  # V_0 = 0; k counts sweeps
+    while True:
+        Q = R + gamma * P @ V  # Q_k, shape (S, A) (eq-vi)
+        V_new = Q.max(axis=1)  # V_{k+1} = T* V_k
+        k += 1
+        if np.max(np.abs(V_new - V)) < tol:  # eq-vi-stop
+            # Return the Q of the returned V, for greedy().
+            return V_new, R + gamma * P @ V_new, k
+        V = V_new
+
+
+def optimality_residual(P, R, gamma, V):
+    """max_s |max_a (R + gamma P V)[s, a] - V[s]|: zero only at V*."""
+    backup = (R + gamma * P @ V).max(axis=1)  # T* V
+    return float(np.max(np.abs(backup - V)))
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 1** is `value_iteration(P, R, gamma, tol)`, @eq-vi with the stopping rule of @eq-vi-stop. It returns the final $V$, the $Q = R + \gamma P V$ built from it, and the sweep count, which checkpoint 1.1 compares with fixtures. **Exercise 5** is a planted bug: you write `optimality_residual(P, R, gamma, V)` (checkpoint 5.1), use it to find what is wrong with a colleague's value iteration, and fix it (5.2).
+:::
+
+::: {.callout-note collapse="true" title="After the lab: the planted bug on three models"}
+The suspect stops when the *mean* change is below tol. Exact counts at $\mathrm{tol} = 10^{-6}$ and $\gamma = 0.95$, not timings:
+
+- **The shop:** 299 sweeps, the same as a correct value iteration, with residual $9.1 \times 10^{-7}$, inside the guarantee $\gamma\, \mathrm{tol} = 9.5 \times 10^{-7}$. Near the end every state changes by almost the same amount, so the mean is almost the max and the bug is invisible.
+- **The slippery cliff** (`CliffGridworld(4, 12, slip=0.2)`): 72 sweeps against 76, residual $1.9 \times 10^{-6}$, about twice the guarantee.
+- **100 states, 99 already settled:** 181 sweeps against 271, residual $9.3 \times 10^{-5}$, about 98 times the guarantee. The mean divides the one live state's change by 100.
+:::
+
+## 2. Greedy extraction and the loss bound
+
+**In this section:** read a policy off a value function, and bound what you lose when the value function is not quite right.
+
+**Greedy extraction.** Given any action-value array $Q$, the *greedy policy* for $Q$ picks the best-looking action in each state:
+
+$$
+\pi_Q(s) = \arg\max_a Q(s, a).
+$$ {#eq-greedy}
+
+When you start from a value vector $V$, build $Q(s, a) = r(s, a) + \gamma \sum_{s'} P(s' \mid s, a)\, V(s')$ first: the array `R + gamma * P @ V`. When several actions tie for the max, any of them is greedy; the lab's reference takes the first action within rounding of the max, so rounding does not decide its choice. Module 1 stated that $\pi_{Q^*}$ is optimal [@agarwal2022rltheory, §1.1.3, Theorem 1.8]. In the two-state shop it is (order, wait), as Module 1 found. Lab 2 reads the 11-state shop's $\pi^*$ off your value iteration; guess its shape before you run it.
+
+**The loss bound.** Value iteration never hands you $Q^*$, only a $Q$ within some error $\eta$ of it, $\lVert Q - Q^* \rVert_\infty \le \eta$. How much does the greedy policy of such a $Q$ lose? Agarwal et al. give the answer as their Lemma 1.11 [@agarwal2022rltheory, §1.3.1]: for any $Q$,
+
+$$
+V^{\pi_Q}(s) \ \ge\ V^*(s) - \frac{2\, \lVert Q - Q^* \rVert_\infty}{1 - \gamma} \qquad \text{for every state } s.
+$$ {#eq-greedy-loss}
+
+Here $V^{\pi_Q}$ is the true value of the greedy policy, evaluated in the true model. An error $\eta$ can cost up to $2\eta / (1 - \gamma)$: twice the error, once per horizon length.
+
+::: {.reference}
+**Why, in four lines.** Fix $s$ and let $a = \pi_Q(s)$ and $a^* = \pi^*(s)$. Then $V^*(s) - V^{\pi_Q}(s) = Q^*(s, a^*) - Q^{\pi_Q}(s, a)$. Add and subtract $Q^*(s, a)$: the first part, $Q^*(s, a^*) - Q^*(s, a)$, is at most $2 \lVert Q - Q^* \rVert_\infty$, because $Q(s, a^*) \le Q(s, a)$ by the choice of $a$, so swapping $Q^*$ for $Q$ twice costs at most $2\eta$. The second part, $Q^*(s, a) - Q^{\pi_Q}(s, a)$, is $\gamma$ times the average of $V^* - V^{\pi_Q}$ over the next state, at most $\gamma \lVert V^* - V^{\pi_Q} \rVert_\infty$. So $\lVert V^* - V^{\pi_Q} \rVert_\infty \le 2\eta + \gamma \lVert V^* - V^{\pi_Q} \rVert_\infty$; collect and divide by $1 - \gamma$. This is the proof in Agarwal et al.; it uses only the optimality equation and the definition of $\pi_Q$. A greedy step that accepts any action within a tolerance $\tau$ of the max, as the lab's reference does, adds $\tau$ to the first part, so its loss is at most $(2\eta + \tau)/(1 - \gamma)$; for the lab's $\tau \approx 10^{-7}$ that changes nothing you can see.
+:::
+
+**Put together with the stopping rule.** The $Q$ that value iteration returns is built from $V_{k+1}$, so $\lVert Q - Q^* \rVert_\infty \le \gamma \lVert V_{k+1} - V^* \rVert_\infty \le \gamma^2 \mathrm{tol} / (1 - \gamma)$ by @eq-vi-stop, and @eq-greedy-loss turns that into a loss of at most $2 \gamma^2 \mathrm{tol} / (1 - \gamma)^2$. At $\gamma = 0.95$ and $\mathrm{tol} = 10^{-6}$ that is $2 \times 0.9025 \times 10^{-6} / 0.0025 \approx 7.2 \times 10^{-4}$. Two horizon factors: one from the stopping rule, one from the loss bound.
+
+**What the bound does not say.** It is an upper bound, and often a loose one. In the two-state shop the greedy policy is already optimal after the second sweep, while both values are still about 6 short (section 3's worked example): the policy is right long before the values are. The bound cannot see that, because it holds for the worst MDP with the same $\eta$. It also says nothing about a $Q$ that is wrong in a way the max norm does not measure, such as a $Q$ that is right everywhere except in one state the policy visits often; Day 3 meets that case.
+
+::: {#chk-greedy .self-check}
+**Check yourself 2.1.** A colleague has a $Q$ within $\eta = 0.01$ of $Q^*$ in every entry, at $\gamma = 0.95$, and says the greedy policy is therefore within $0.01$ of optimal. What can you guarantee? And if value iteration stopped at $\mathrm{tol} = 10^{-3}$ instead of $10^{-6}$, what loss would @eq-greedy-loss guarantee?
+
+::: {.callout-tip collapse="true" title="Answer to 2.1"}
+@eq-greedy-loss guarantees a loss of at most $2 \times 0.01 / 0.05 = 0.4$, forty times the colleague's claim. The policy may well be optimal, but the error alone cannot show it.
+
+At $\mathrm{tol} = 10^{-3}$: $2 \gamma^2 \mathrm{tol} / (1 - \gamma)^2 = 2 \times 0.9025 \times 10^{-3} / 0.0025 \approx 0.72$. The shop's values are near 80 to 105, so this is under 1 percent of them, and the lab shows that on the shop the policy is in fact already optimal at a far looser tolerance.
+:::
+:::
+
+::: {.callout-note collapse="true" title="Code: greedy (open after Lab 2)"}
+```python
+def greedy(Q):
+    """The first action within rounding of each row's max."""
+    tie_tol = 1e-9 * (1 + np.abs(Q).max())
+    return (Q >= Q.max(axis=1, keepdims=True) - tie_tol).argmax(axis=1)
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 1** also writes `greedy(Q)`, @eq-greedy; checkpoint 1.2 compares it with the argmax of several arrays, and accepts any maximizer where a row ties. The run cell perturbs $Q^*$ by noise of size $\eta$, evaluates the greedy policy in the true model with the Module 1 evaluator, and prints the worst loss next to the bound of @eq-greedy-loss.
+:::
+
+## 3. Policy iteration and the improvement argument
+
+**In this section:** alternate the evaluation you wrote in Module 1 with greedy extraction, prove in three lines that each step improves the policy, and compare the iteration counts with value iteration.
+
+**The algorithm.** *Policy iteration* (PI) starts from any deterministic policy $\pi_0$ and repeats two steps [@sutton2018rl, §4.3]:
+
+1. **Evaluate.** Compute $V^{\pi_k}$ exactly, by Module 1's linear solve $V^{\pi} = (I - \gamma P_\pi)^{-1} r_\pi$, and from it $Q^{\pi_k}(s, a) = r(s, a) + \gamma \sum_{s'} P(s' \mid s, a) V^{\pi_k}(s')$.
+2. **Improve.** Take the greedy policy of $Q^{\pi_k}$:
+
+$$
+\begin{aligned}
+\pi_{k+1}(s) &= \arg\max_a Q^{\pi_k}(s, a), \\
+&\phantom{{}={}} \text{or } \pi_k(s) \text{ if it ties.}
+\end{aligned}
+$$ {#eq-improve}
+
+"Ties" means within rounding: keep $\pi_k(s)$ when $Q^{\pi_k}(s, \pi_k(s))$ is within a small tolerance of the row's max, about $10^{-9}$ of the values (see "Ties need a tolerance" below). Stop when $\pi_{k+1} = \pi_k$.
+
+**The improvement argument, in three lines.** Write $\pi = \pi_k$ and $\pi' = \pi_{k+1}$.
+
+1. In every state, $\pi'$ picks the largest entry of $Q^\pi(s, \cdot)$, and $\pi$'s own action gives $Q^\pi(s, \pi(s)) = V^\pi(s)$. So $Q^\pi(s, \pi'(s)) \ge V^\pi(s)$, that is, $T^{\pi'} V^\pi \ge V^\pi$ entry by entry.
+2. $T^{\pi'}$ is monotone: if $V \ge U$ entry by entry then $T^{\pi'} V \ge T^{\pi'} U$, because $P_{\pi'}$ has no negative entries. Apply $T^{\pi'}$ to line 1 repeatedly: $V^\pi \le T^{\pi'} V^\pi \le (T^{\pi'})^2 V^\pi \le \cdots$.
+3. By Module 1's contraction, $(T^{\pi'})^j V^\pi \to V^{\pi'}$. So $V^{\pi'} \ge T^{\pi'} V^\pi \ge V^\pi$ in every state.
+
+This is the *policy improvement theorem* [@sutton2018rl, §4.2, Eqs. 4.7–4.8]. If the improvement step changes nothing, then $V^\pi(s) = \max_a Q^\pi(s, a)$ in every state: $V^\pi$ solves the optimality equation, which has one solution, so $\pi$ is optimal. The tie rule in @eq-improve makes the loop stop: the policy changes only where some action is better by more than the tolerance, so its value rises at every change, no policy can come back, and there are finitely many deterministic policies.
+
+**Ties need a tolerance.** Two orders that both fill the shelf are the same action, so on paper their $Q$ values are equal. In floating point, the matrix product can round two equal rows differently on different machines, by a few units in the last place. An exact comparison then lets that rounding decide. Policy iteration can then switch between equally good actions: it pays extra evaluations, or, as Sutton and Barto warn of a loop that keeps switching between equally good policies, it may never stop [@sutton2018rl, §4.3, Exercise 4.4]. So keep the current action when its $Q$ is within a small tolerance of the best, such as $10^{-9}(1 + \max_{s,a} |Q(s, a)|)$.
+
+::: {.reference}
+**What the tolerance costs.** With a tolerance $\tau$, "the improvement step changes nothing" means that every current action is within $\tau$ of its row's max, so $T^* V^\pi \le V^\pi + \tau$. Then $V^* - V^\pi \le \gamma \lVert V^* - V^\pi \rVert_\infty + \tau$, and $\pi$ is optimal to within $\tau / (1 - \gamma)$: about $2 \times 10^{-6}$ on the shop, where $\tau \approx 1.06 \times 10^{-7}$. On the shop the policy it returns is $\pi^*$ itself.
+:::
+
+**How fast.** Agarwal et al. show more [@agarwal2022rltheory, §1.3.2, Lemma 1.13 and Theorem 1.14]: each improvement also shrinks the distance to the optimum, $\lVert Q^{\pi_{k+1}} - Q^* \rVert_\infty \le \gamma \lVert Q^{\pi_k} - Q^* \rVert_\infty$, the rate that value iteration's contraction guarantees per sweep. Sutton and Barto note that policy iteration often converges in surprisingly few iterations [@sutton2018rl, §4.3]. Lab 2 counts both on the shop.
+
+**What the count does not say.** Fewer iterations is not less work. Each evaluation is a linear solve, about $|\mathcal{S}|^3$ multiply-adds, where a sweep of @eq-vi costs about $|\mathcal{S}|^2 |\mathcal{A}|$. With a million states a single solve is $10^{18}$ operations, and sweeps are the only option; the lab's stretch is the usual middle ground.
+
+::: {.callout-tip collapse="true" title="Optional: modified policy iteration"}
+Replace the exact solve in step 1 by $m$ sweeps of $T^{\pi_k}$ from the current $V$. With $m = 1$ this is value iteration (one optimality sweep is one evaluation sweep of the greedy policy); as $m$ grows it approaches policy iteration. Sutton and Barto call the whole family *generalized policy iteration* [@sutton2018rl, §4.6]: any interleaving of evaluation sweeps and greedy improvement, each pulling the other toward the fixed point. The lab's stretch implements the $m$-sweep version and counts sweeps for several $m$.
+:::
+
+::: {.worked-example}
+**Worked example: the two-state shop, by hand.** Module 1's two-state shop: states 0 = empty and 1 = stocked, actions 0 = wait and 1 = order, $\gamma = 0.8$.
+
+| State | Action | $r(s, a)$ | Next state: (empty, stocked) |
+|---|---|---|---|
+| empty | wait | 0 | (1, 0) |
+| empty | order | $-2$ | (0, 1) |
+| stocked | wait | 3 | (1/4, 3/4) |
+| stocked | order | 1 | (0, 1) |
+
+*Value iteration, @eq-vi, from $V_0 = (0, 0)$.* Each sweep computes $Q_k(s, a) = r(s, a) + 0.8 \sum_{s'} P(s' \mid s, a) V_k(s')$, then takes the row maxima. Rows are empty and stocked; columns are wait and order.
+
+| $k$ | $Q_k$ | $V_{k+1}$ | greedy policy of $Q_k$ |
+|---|---|---|---|
+| 0 | $\begin{pmatrix} 0 & -2 \\ 3 & 1 \end{pmatrix}$ | $(0,\ 3)$ | (wait, wait) |
+| 1 | $\begin{pmatrix} 0 & 0.4 \\ 4.8 & 3.4 \end{pmatrix}$ | $(0.4,\ 4.8)$ | (order, wait) |
+| 2 | $\begin{pmatrix} 0.32 & 1.84 \\ 5.96 & 4.84 \end{pmatrix}$ | $(1.84,\ 5.96)$ | (order, wait) |
+
+For example, $Q_1(\text{empty}, \text{order}) = -2 + 0.8 \cdot 3 = 0.4$ and $Q_1(\text{stocked}, \text{wait}) = 3 + 0.8\,(\tfrac14 \cdot 0 + \tfrac34 \cdot 3) = 4.8$.
+
+The optimal values are $V^* = (20/3,\ 65/6) \approx (6.67,\ 10.83)$ (Module 1, section 5). After three sweeps the values are still 4.8 and 4.9 short, yet the greedy policy has been (order, wait), the optimal policy, since the second sweep. Reaching $\mathrm{tol} = 10^{-6}$ takes 66 sweeps.
+
+*Policy iteration, @eq-improve, from "always wait".* Evaluate: waiting on an empty shelf gives $V(0) = 0 + 0.8 V(0)$, so $V(0) = 0$; on a stocked one $V(1) = 3 + 0.8\,(\tfrac14 \cdot 0 + \tfrac34 V(1))$, so $0.4\, V(1) = 3$ and $V(1) = 7.5$. Improve: $Q^\pi(0, \text{order}) = -2 + 0.8 \cdot 7.5 = 4 > 0 = Q^\pi(0, \text{wait})$, and $Q^\pi(1, \text{wait}) = 7.5 > 7 = 1 + 0.8 \cdot 7.5 = Q^\pi(1, \text{order})$. The new policy is (order, wait). Evaluate it: $V = (20/3,\ 65/6)$, as in Module 1. Improve again: $Q^\pi(0, \cdot) = (16/3,\ 20/3)$ and $Q^\pi(1, \cdot) = (65/6,\ 29/3)$, so the greedy choice is still (order, wait). Two evaluations, and the values went up in both states on the way, as the three-line argument says they must.
+:::
+
+::: {#chk-pi .self-check}
+**Check yourself 3.1.** In the worked example, the first improvement step switched the empty state from wait to order. Lines 1 to 3 give $V^{\pi'} \ge T^{\pi'} V^\pi$. What lower bound does that give for $V^{\pi'}(0)$? The exact value is $20/3$: why is the bound smaller?
+
+::: {.callout-tip collapse="true" title="Answer to 3.1"}
+Lines 1–3 give $V^{\pi'}(0) \ge (T^{\pi'} V^\pi)(0) = Q^\pi(0, \text{order}) = -2 + 0.8 \cdot 7.5 = 4$, where $Q^\pi$ uses the *old* policy's values after the first step. The exact value, $20/3 \approx 6.67$, is larger because after the first order the new policy keeps acting greedily, in every later step too, and each of those steps adds a little. Line 2 is that "little, repeated": $T^{\pi'} V^\pi = (4, 7.5)$, then $(T^{\pi'})^2 V^\pi = (-2 + 0.8 \cdot 7.5,\ 3 + 0.8\,(\tfrac14 \cdot 4 + \tfrac34 \cdot 7.5)) = (4,\ 8.3)$, and the sequence climbs to $(20/3, 65/6)$.
+:::
+:::
+
+::: {.callout-note collapse="true" title="Code: policy_iteration (open after Lab 2)"}
+```python
+def policy_iteration(P, R, gamma, pi0):
+    """Exact evaluation and greedy improvement from the policy pi0."""
+    S, A = R.shape
+    pi, k = np.asarray(pi0, dtype=int).copy(), 0
+    while True:
+        V = evaluate_exact(P, R, gamma, policy_matrix(pi, A))
+        k += 1
+        Q = R + gamma * P @ V  # Q^pi from V^pi
+        # Tie rule of eq-improve: keep pi[s] within rounding of the max.
+        tie_tol = 1e-9 * (1 + np.abs(Q).max())
+        keep = Q[np.arange(S), pi] >= Q.max(axis=1) - tie_tol
+        pi_new = np.where(keep, pi, greedy(Q))
+        if np.array_equal(pi_new, pi):
+            return V, pi, k
+        pi = pi_new
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 2** is `policy_iteration(P, R, gamma, pi0)`, @eq-improve, with Module 1's exact evaluator provided. The checkpoint requires an optimal policy, its exact value and the reference count of evaluations. One of its MDPs has an action that copies another to within $10^{-13}$, where only a tie rule with a tolerance keeps the expected policy.
+:::
+
+::: {.callout-note collapse="true" title="After the lab: the shop's counts"}
+These are exact counts from a deterministic computation on the shop ($\gamma = 0.95$, $\mathrm{tol} = 10^{-6}$, $V_0 = 0$), not timings.
+
+- **Value iteration** takes 299 sweeps. $V^*$ runs from $V^*(0) \approx 79.83$ for an empty shelf to $V^*(10) \approx 104.83$ for a full one, and the stopping rule guarantees an error of at most $0.95 \times 10^{-6} / 0.05 = 1.9 \times 10^{-5}$.
+- **The optimal policy** fills the shelf from stocks 0 to 3 and orders nothing from stock 4 up. As actions it is not unique: the shelf cuts an order to fit, so at stock 1 the orders 9 and 10 both deliver 9 units, and at stock 10 every order delivers nothing. Each delivery costs a fixed 5, so the best policy makes fewer, larger deliveries. Module 1's "order up to 7" pays that cost almost every day: it leaves about 42 on the table from an empty shelf ($V^\pi(0) \approx 38.23$) and up to about 45 at stock 6. Under $\pi^*$ one more unit at stock 6 is worth $V^*(7) - V^*(6) \approx 2.54$, not the 7 of Lab 1's policy.
+- **The greedy policy of $Q_k$** is already $\pi^*$ at $k = 2$, loses it at $k = 3$ (stock 3 stops ordering), and equals $\pi^*$ for every $k \ge 4$, when $\lVert V_4 - V^* \rVert_\infty$ is still about 68.
+- **Policy iteration** from "never order" takes 4 evaluations. Its policies are "never order", "fill the shelf from stocks 0 to 7", "fill it from 0 to 2", and "fill it from 0 to 3", which is $\pi^*$; the fourth improvement changes nothing. From Module 1's "order up to 7" it takes 3. For the shop a solve and a sweep both cost about 1,331 multiply-adds, so policy iteration wins.
+
+::: {layout="[[62,38]]"}
+![Value iteration on the shop: the change at sweep $k$, $\lVert V_k - V_{k-1} \rVert_\infty$, log scale.](/images/02-vi-vs-pi-vi.svg){fig-alt="Value iteration's largest change per sweep against sweep k, on a log scale: 15.0 at sweep 1, then a nearly straight line from about 3.6 at sweep 5 down to the tolerance line, 1e-6, which it crosses at sweep 299. A shaded region from sweep 4 on, where the greedy policy equals the optimal policy."}
+
+![Policy iteration from 'never order': each policy's distance to the optimum.](/images/02-vi-vs-pi-pi.svg){fig-alt="Policy iteration's distance to the optimal value, for the four policies it evaluates, pi_0 to pi_3: 159.8, 38.9, 0.38 and 0."}
+:::
+
+**What to notice:** value iteration's change at sweep $k$, $\lVert V_k - V_{k-1} \rVert_\infty$, falls by about a factor $\gamma = 0.95$ per sweep and crosses $\mathrm{tol} = 10^{-6}$ at sweep 299, while its greedy policy is $\pi^*$ for every ${k \ge 4}$ (shaded). Policy iteration's distance to the optimum, $\lVert V^{\pi_k} - V^* \rVert_\infty$, falls to 0 in 4 evaluations from "never order". Both are exact counts from a deterministic computation on the shop (`scripts/make_figures_m02.py`), not timings.
+:::
+
+## 4. From counts to a model: the simulation lemma and its horizon factor
+
+**In this section:** estimate $P$ and $r$ from samples, plan in the estimate, and bound what the planned policy loses in the true model, with a factor of the horizon squared.
+
+**The estimator.** Suppose nobody hands you $P$ and $r$, but you can watch the shop: a log of transitions $(s, a, r, s')$. Let $N(s, a)$ be the number of log rows with state $s$ and action $a$, and $N(s, a, s')$ the number of those that went on to $s'$. The *counts estimator* is
+
+$$
+\begin{aligned}
+\hat P(s' \mid s, a) &= \frac{N(s, a, s')}{N(s, a)}, \\
+\hat r(s, a) &= \frac{1}{N(s, a)} \sum_{\text{rows with } (s, a)} r.
+\end{aligned}
+$$ {#eq-counts}
+
+**Unvisited pairs.** If $N(s, a) = 0$, set $\hat P(s \mid s, a) = 1$ and $\hat r(s, a) = 0$: a self-loop with reward 0. This is our rule for a pair the log never visited. It is a default, not knowledge, and the planner treats it as fact; Lab 2's Exercise 3 shows where that matters.
+
+::: {.reference}
+**A generative model, and a log.** Agarwal et al. define $\hat P$ this way for a *generative model*, a sampler you can call $N$ times at every $(s, a)$ [@agarwal2022rltheory, §2.1]. A log from a running shop is not that: some pairs appear often, some never. In the shop every value is positive, so a self-loop action has $\hat Q(s, a) = \gamma \hat V(s) < \hat V(s)$ and the planner never picks it. In a world where values are negative the same default looks like a free safe harbor. Module 6 turns this default into a deliberate choice.
+:::
+
+**Model error.** Measure each row by the $\ell_1$ distance, $\lVert p - q \rVert_1 = \sum_{s'} |p(s') - q(s')|$, between 0 (equal) and 2 (disjoint), and take the worst pair:
+
+$$
+\begin{aligned}
+\varepsilon_P &= \max_{s, a}\ \big\lVert P(\cdot \mid s, a) - \hat P(\cdot \mid s, a) \big\rVert_1, \\
+\varepsilon_R &= \max_{s, a}\ |r(s, a) - \hat r(s, a)|.
+\end{aligned}
+$$
+
+Each row of $\hat P$ is a mean of $N(s, a)$ draws, so its error shrinks like $1/\sqrt{N(s, a)}$: four times the data halves it.
+
+::: {.reference}
+**How fast, precisely.** Agarwal et al. use the bound $\lVert P(\cdot \mid s, a) - \hat P(\cdot \mid s, a) \rVert_1 \le c \sqrt{|\mathcal{S}| \log(1/\delta) / N}$, which holds with probability at least $1 - \delta$ for one pair, $c$ an absolute constant [@agarwal2022rltheory, §2.1, proof of Proposition 2.1]. The lab measures $\varepsilon_P$ directly, because there the true $P$ is known.
+:::
+
+**The simulation lemma.** Fix any policy $\pi$. Its value in the true model is $V^\pi$; its value in the estimated model, $\hat V^\pi$, is what the planner computes. Subtract their Bellman equations, $V^\pi = r_\pi + \gamma P_\pi V^\pi$ and $\hat V^\pi = \hat r_\pi + \gamma \hat P_\pi \hat V^\pi$, add and subtract $\gamma \hat P_\pi V^\pi$, and collect the $V^\pi - \hat V^\pi$ terms on the left:
+
+$$
+V^\pi - \hat V^\pi = \big(I - \gamma \hat P_\pi\big)^{-1} \Big[\, (r_\pi - \hat r_\pi) + \gamma\, (P_\pi - \hat P_\pi)\, V^\pi \Big].
+$$ {#eq-sim}
+
+This is an identity: it holds exactly, for every policy, with no assumption beyond $\gamma < 1$ and $\hat P$ being a transition matrix, which the counts make it. Read it from right to left: the one-step errors, in the reward and in where you land weighted by the true values, are *propagated through the estimated model* by $(I - \gamma \hat P_\pi)^{-1} = \sum_k \gamma^k \hat P_\pi^k$, which sums them over the whole horizon.
+
+::: {.reference}
+**The source.** Agarwal et al. state the simulation lemma for action values with the reward known, $Q^\pi - \hat Q^\pi = \gamma (I - \gamma \hat P^\pi)^{-1} (P - \hat P) V^\pi$ [@agarwal2022rltheory, §2.1, Lemma 2.2]. @eq-sim is the same calculation on state values with the reward estimated too, which adds the term $r_\pi - \hat r_\pi$; its proof is the collapsed note below.
+:::
+
+**The bound, and where the horizon enters twice.** Three facts turn @eq-sim into a bound. Multiplying by $(I - \gamma \hat P_\pi)^{-1}$ enlarges the max norm by at most $1 / (1 - \gamma)$ [@agarwal2022rltheory, §2.1, Lemma 2.3]. The reward term is at most $\varepsilon_R$. The transition term, $\gamma (P_\pi - \hat P_\pi) V^\pi$, weights $V^\pi$ with signed weights whose absolute values sum to at most $\varepsilon_P$ in each row, so it is at most $\gamma\, \varepsilon_P \lVert V^\pi \rVert_\infty$. With rewards in $[0, 1]$, the assumption throughout Agarwal et al., $\lVert V^\pi \rVert_\infty \le 1 / (1 - \gamma)$, and
+
+$$
+\big\lVert V^\pi - \hat V^\pi \big\rVert_\infty \ \le\ \frac{\varepsilon_R}{1 - \gamma} + \frac{\gamma\, \varepsilon_P}{(1 - \gamma)^2} \qquad \text{for every policy } \pi.
+$$ {#eq-sim-bound}
+
+The first horizon factor comes from propagation, the second from the size of the values the errors multiply. Now let $\hat\pi$ be the policy planned in the estimate, optimal there, so $\hat V^{\hat\pi} \ge \hat V^{\pi^*}$. Then, in every state,
+
+$$
+\begin{aligned}
+V^* - V^{\hat\pi} &= \underbrace{(V^{\pi^*} - \hat V^{\pi^*})}_{\le\ \text{bound}} + \underbrace{(\hat V^{\pi^*} - \hat V^{\hat\pi})}_{\le\ 0} \\
+&\phantom{{}={}} + \underbrace{(\hat V^{\hat\pi} - V^{\hat\pi})}_{\le\ \text{bound}} \\
+&\le \frac{2\, \varepsilon_R}{1 - \gamma} + \frac{2 \gamma\, \varepsilon_P}{(1 - \gamma)^2}.
+\end{aligned}
+$$ {#eq-plan-loss}
+
+With the reward known, Agarwal et al. state the action-value version of this bound in their Proposition 2.1 [@agarwal2022rltheory, §2.1].
+
+::: {.reference}
+**Why only twice.** The middle term is the reason the loss bound is only twice the value bound: @eq-sim-bound holds for $\hat\pi$ as well as for $\pi^*$, so no further horizon factor is paid. With the reward known ($\varepsilon_R = 0$), @eq-plan-loss reads $2 \gamma \varepsilon_P / (1 - \gamma)^2$. Agarwal et al.'s Proposition 2.1, "near optimal planning", states the action-value version, $\lVert Q^{\hat\pi} - Q^* \rVert_\infty \le 2\eta$ where $\eta$ bounds every policy's value error (they write $\epsilon$), and leaves that step as an exercise; the three-term argument above is the state-value version.
+:::
+
+::: {#predict-halve .predict}
+**Predict (3 min).** You estimate the shop's model from $N$ samples at every (stock, order) pair, plan in it, and measure the planned policy's true loss, $\max_s [V^*(s) - V^{\hat\pi}(s)]$. Halve $N$. Does the loss double? Does the bound of @eq-plan-loss double? What happens to the loss as $N$ grows large: does it shrink smoothly, or do something else?
+
+::: {.callout-tip collapse="true" title="Answer: does halving the data double the loss?"}
+No, and no. $\varepsilon_P$ and $\varepsilon_R$ shrink like $1 / \sqrt{N}$, so halving the data raises them, and with them the bound of @eq-plan-loss, by a factor of about $\sqrt 2$, not 2.
+
+The loss itself is not a smooth function of the data. It is 0 whenever the planned policy happens to be $\pi^*$, and it jumps to the loss of some other policy otherwise. Above some amount of data the planned policy is $\pi^*$ on most seeds, and the loss is exactly 0 there; below it, the loss steps between the values of a few wrong policies. With seeds 0 to 4 on the shop, at least three of the five seeds lose exactly 0 from ${N = 50}$ on, while at $N = 1$ every seed loses between about 25 and 59 (@fig-model-error).
+:::
+:::
+
+**What "95% accurate" buys.** Take $\varepsilon_P = 0.1$, a model whose worst row puts 5 percent of its probability in the wrong places, at $\gamma = 0.95$ with rewards in $[0, 1]$ and the reward known. Every value lies in $[0, 20]$, and @eq-sim-bound allows an error of $0.95 \times 0.1 / 0.0025 = 38$: the bound says nothing here. To guarantee a value error of 1, one twentieth of the range, you need $\varepsilon_P \le (1 - \gamma)^2 / \gamma \approx 0.0026$, about forty times more accurate. That is the content of the Gotcha "95%-accurate model → 95%-as-good plan": model error compounds over the horizon, and the horizon enters squared.
+
+**The shop's rewards are not in $[0, 1]$.** Rescaled to that range, the factor in front of $\varepsilon_P$ is about 19,200, against values near 80 to 105, so for the shop the bound says nothing at any $N$ the lab tries.
+
+::: {.reference}
+**The rescaling.** The shop's expected one-day rewards lie between about $-10.22$ and $15.03$. Shift every reward by a constant and every value shifts by the same constant over $1 - \gamma$, in both models, so no loss changes; scale every reward by a constant and every loss scales with it. So rescale: $r' = (r - r_{\min}) / (r_{\max} - r_{\min})$ lies in $[0, 1]$, apply @eq-plan-loss, and scale back. The transition term becomes $2 \gamma \varepsilon_P (r_{\max} - r_{\min}) / (1 - \gamma)^2$, and $\varepsilon_R$ is already in reward units, so its term is unchanged. For the shop, $r_{\max} - r_{\min} \approx 25.25$, and the factor $2 \times 0.95 \times 25.25 / 0.0025$ is about $19{,}200$. Lab 2's `planning_loss_bound` computes this bound, and the lab checks every measured loss against it.
+:::
+
+::: {#fig-model-error layout="[[62,38]]"}
+![True loss of the planned policy, every seed.](/images/02-model-error-loss.svg){#fig-model-error-loss fig-alt="The true loss of the policy planned in an estimated model against N, the number of samples per (stock, order) pair, from 1 to 200 on a log x-axis, and on a y-axis that is linear from 0 to 1 and logarithmic above. One hollow marker per seed for seeds 0 to 4, offset sideways at each N, and a line through their means: the mean falls from about 41 at N = 1 to 0.08 at N = 100 and 0.35 at N = 200, and at least three seeds sit at exactly 0 from N = 50 on. A dashed line far above is the rescaled planning-loss bound, falling from about 38,600 to about 5,500."}
+
+![Model error $\varepsilon_P$, mean of 5 seeds.](/images/02-model-error-eps.svg){#fig-model-error-eps fig-alt="The model error eps_P, the mean over seeds 0 to 4, against N on log-log axes: from 1.97 at N = 1, near its ceiling of 2, to 0.28 at N = 200, beside a dashed one-over-square-root-of-N reference matched at N = 200."}
+
+**What to notice:** the loss falls with $N$ in steps, not smoothly, and from ${N = 50}$ on at least three of the five seeds lose exactly 0: their plan is $\pi^*$. Every seed is shown, offset sideways at each $N$ so that equal losses stay visible. $\varepsilon_P$ falls like $1/\sqrt N$ (panel b); it cannot exceed 2, which is why it flattens at small $N$. The rescaled bound stays in the thousands: its shape is right, but its constant is far too large to be useful. Seeds 0 to 4; exact computations from `scripts/make_figures_m02.py`, not timings.
+:::
+
+**What the lemma does not say.** @eq-sim-bound and @eq-plan-loss are worst cases over every model with the same $\varepsilon_P$, and they charge the worst row even when the policy never visits it. With a log, an unvisited pair can make $\varepsilon_P = 2$: the model is not wrong there, it is missing.
+
+::: {.reference}
+**More limits.** A bound that weights pairs by how often $\hat\pi$ visits them is tighter, and Day 5 needs that idea. The lemma also assumes the planner solved the estimated model exactly; add the losses of sections 1 and 2 if it did not.
+
+**Why the shop beats the bound by so much.** The transition term in @eq-sim is $(P_\pi - \hat P_\pi) V^\pi$, and each row of $P_\pi - \hat P_\pi$ sums to 0. So adding a constant to $V^\pi$ changes nothing: the term sees only the *spread* of $V^\pi$, $\max_s V^\pi(s) - \min_s V^\pi(s)$, and is at most $\varepsilon_P$ times half of it. For $\pi^*$ the spread of $V^*$ is about 25, while the bound used $(r_{\max} - r_{\min}) / (1 - \gamma) \approx 505$: a factor of about 40 on that half of the bound. The measured loss is still far below what is left: the errors in different rows partly cancel, and a wrong model often still ranks the actions right.
+:::
+
+::: {.callout-tip collapse="true" title="Optional: the proof of the identity"}
+From $V^\pi = r_\pi + \gamma P_\pi V^\pi$ and $\hat V^\pi = \hat r_\pi + \gamma \hat P_\pi \hat V^\pi$,
+$$
+\begin{aligned}
+V^\pi - \hat V^\pi &= (r_\pi - \hat r_\pi) + \gamma P_\pi V^\pi - \gamma \hat P_\pi \hat V^\pi \\
+&= (r_\pi - \hat r_\pi) + \gamma (P_\pi - \hat P_\pi) V^\pi + \gamma \hat P_\pi (V^\pi - \hat V^\pi).
+\end{aligned}
+$$
+Move the last term to the left: $(I - \gamma \hat P_\pi)(V^\pi - \hat V^\pi)$ equals the bracket of @eq-sim, and $I - \gamma \hat P_\pi$ is invertible by Module 1's argument, because $\hat P_\pi$ is a stochastic matrix too. Agarwal et al.'s version is the same calculation on $Q$ with $\hat r = r$ [@agarwal2022rltheory, §2.1, Lemma 2.2]. For the norm bound, $\lVert (I - \gamma \hat P_\pi)^{-1} x \rVert_\infty \le \lVert x \rVert_\infty / (1 - \gamma)$: write $x = (I - \gamma \hat P_\pi) w$; then $\lVert x \rVert_\infty \ge \lVert w \rVert_\infty - \gamma \lVert \hat P_\pi w \rVert_\infty \ge (1 - \gamma) \lVert w \rVert_\infty$ [@agarwal2022rltheory, §2.1, Lemma 2.3].
+:::
+
+::: {.callout-note collapse="true" title="Code: estimate_model, plan_and_evaluate and planning_loss_bound (open after Lab 2)"}
+```python
+def estimate_model(log, n_states, n_actions):
+    """Counts -> (P_hat, R_hat, counts); unvisited pairs self-loop."""
+    counts = np.zeros((n_states, n_actions))
+    P_hat = np.zeros((n_states, n_actions, n_states))
+    R_hat = np.zeros((n_states, n_actions))
+    for s, a, r, s2 in log:  # tally N(s, a), N(s, a, s'), reward sums
+        s, a, s2 = int(s), int(a), int(s2)
+        counts[s, a] += 1
+        P_hat[s, a, s2] += 1
+        R_hat[s, a] += r
+    for s in range(n_states):
+        for a in range(n_actions):
+            if counts[s, a] > 0:  # eq-counts
+                P_hat[s, a] /= counts[s, a]
+                R_hat[s, a] /= counts[s, a]
+            else:  # unvisited: a self-loop with reward 0
+                P_hat[s, a, s] = 1.0
+    return P_hat, R_hat, counts
+
+
+def plan_and_evaluate(mdp, N, seed, tol=1e-6):
+    """Plan in an estimate from N samples per (s, a); evaluate in P."""
+    rng = np.random.default_rng(seed)
+    log = sample_transitions(mdp, N, rng)
+    P_hat, R_hat, _ = estimate_model(log, mdp.n_states, mdp.n_actions)
+    # Plan in the estimate.
+    _, Q_hat, _ = value_iteration(P_hat, R_hat, mdp.gamma, tol)
+    pi_hat = greedy(Q_hat)
+    # V*: the exact value of the true model's greedy policy.
+    _, Q_true, _ = value_iteration(mdp.P, mdp.R, mdp.gamma, tol)
+    pi_true = policy_matrix(greedy(Q_true), mdp.n_actions)
+    V_star = evaluate_exact(mdp.P, mdp.R, mdp.gamma, pi_true)
+    # Evaluate the plan in the TRUE model.
+    pi_plan = policy_matrix(pi_hat, mdp.n_actions)
+    V_plan = evaluate_exact(mdp.P, mdp.R, mdp.gamma, pi_plan)
+    loss = float(np.max(V_star - V_plan))
+    eps_P = float(np.abs(mdp.P - P_hat).sum(axis=2).max())
+    eps_R = float(np.abs(mdp.R - R_hat).max())
+    return loss, eps_P, eps_R
+
+
+def planning_loss_bound(eps_P, eps_R, r_range, gamma):
+    """eq-plan-loss with rewards of range r_range = r_max - r_min."""
+    reward_term = 2 * eps_R / (1 - gamma)
+    model_term = 2 * gamma * eps_P * r_range / (1 - gamma) ** 2
+    return reward_term + model_term
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 3** is `estimate_model(log, n_states, n_actions)`, @eq-counts, on a 200-day log under random orders; the checkpoint uses a fixed log that leaves pairs unvisited. **Exercise 4** is `plan_and_evaluate(mdp, N, seed)` (checkpoint 4.1: on seeds 0 to 4, the mean loss at $N = 2$ exceeds the mean at $N = 100$ by more than the spread at $N = 100$, and every loss, $\varepsilon_P$ and $\varepsilon_R$ equals the reference) and `planning_loss_bound`, @eq-plan-loss rescaled (checkpoint 4.2: the formula, and every measured loss below it).
+:::
+
+## 5. Bridge: from a model to experience
+
+**In this section:** take stock of what planning needs, and hand the problem to Module 3.
+
+With $P$ and $r$ in hand, finding the best policy is a solved problem: value iteration (@eq-vi) or policy iteration (@eq-improve), each with a guarantee and a stopping rule, and a greedy policy whose loss is bounded (@eq-greedy-loss). Without them, you can estimate a model from samples (@eq-counts) and plan in it, and the simulation lemma (@eq-sim) tells you what you risk: a loss bounded by the model error times the horizon squared (@eq-plan-loss).
+
+Three things are uncomfortable about this route. A model has $|\mathcal{S}|^2 |\mathcal{A}|$ numbers, and every row must be estimated before planning, even rows the best policy never visits. The planner trusts the model completely, defaults and all. And the sweeps of @eq-vi touch every state, which is out of reach when the state space cannot be enumerated.
+
+Module 3 keeps the samples and drops the model. The same transitions $(s, a, r, s')$ feed *sample backups*: the optimality backup of @eq-vi applied to one sampled next state instead of the sum over $P(\cdot \mid s, a)$, which is Q-learning, and a sampled version of policy evaluation and improvement, which is SARSA. A sample stands in for an expectation, so the estimates are noisier, and Module 3 starts by measuring that bias and variance.
+
+## Summary
+
+- Value iteration applies the optimality backup $V_{k+1} = T^* V_k$ (@eq-vi). $T^*$ is a $\gamma$-contraction in the max norm, so the sweep count grows like $1 / (1 - \gamma)$ and the stopping rule of @eq-vi-stop guarantees $\lVert V - V^* \rVert_\infty \le \gamma\, \mathrm{tol} / (1 - \gamma)$ and an optimality residual below $\gamma\, \mathrm{tol}$. On the shop: 299 sweeps at $\mathrm{tol} = 10^{-6}$.
+- The greedy policy $\pi_Q(s) = \arg\max_a Q(s, a)$ (@eq-greedy) of a $Q$ within $\eta$ of $Q^*$ loses at most $2\eta / (1 - \gamma)$ in every state (@eq-greedy-loss). It is often exactly optimal long before the values settle: on the shop the greedy policy of $Q_k$ is $\pi^*$ for every $k \ge 4$, while $\lVert V_4 - V^* \rVert_\infty$ is still about 68.
+- Policy iteration alternates exact evaluation with greedy improvement (@eq-improve). Each step improves the value in every state, by a three-line argument, and the loop ends at an optimal policy, usually in far fewer iterations than value iteration needs sweeps. Each iteration is an $|\mathcal{S}|^3$ solve, and its tie rule needs a tolerance.
+- The counts estimator (@eq-counts) builds $\hat P$ and $\hat r$ from a log; unvisited pairs get a self-loop with reward 0, a default the planner treats as fact. The row error $\varepsilon_P$ shrinks like $1 / \sqrt{N}$.
+- The simulation lemma (@eq-sim) is an exact identity for every policy's value error. Bounding it gives $\varepsilon_R / (1 - \gamma) + \gamma \varepsilon_P / (1 - \gamma)^2$ with rewards in $[0, 1]$ (@eq-sim-bound), and the policy planned in the estimate loses at most twice that (@eq-plan-loss). The horizon enters squared; the bound is a worst case, and on the shop the measured loss is far below it.
+
+### Equations and where you implement them
+
+| Equation | Lab 2 | Name in the notebook |
+|---|---|---|
+| Value iteration (@eq-vi) and its stopping rule and residual (@eq-vi-stop) | Exercise 1: `value_iteration`; Exercise 5: `optimality_residual`, then fix `value_iteration_suspect` | (VI update), (VI stopping rule) |
+| Greedy extraction (@eq-greedy) and the loss bound (@eq-greedy-loss) | Exercise 1: `greedy`; the perturbed-$Q$ table in the run cell | (greedy), (greedy loss) |
+| Policy improvement (@eq-improve) | Exercise 2: `policy_iteration`, with Module 1's `evaluate_exact` provided | (improvement) |
+| The counts estimator (@eq-counts) | Exercise 3: `estimate_model` | (counts) |
+| The simulation lemma (@eq-sim) and its bound (@eq-sim-bound) | Exercise 4: `plan_and_evaluate` returns $\varepsilon_P$ and $\varepsilon_R$ | (simulation lemma), (model error bound) |
+| The planning loss (@eq-plan-loss), rescaled for the shop's rewards | Exercise 4: `planning_loss_bound`; the run cell checks every measured loss against it | (planning loss) |
+| Modified policy iteration (section 3, collapsed) | Stretch | — |
+| Asynchronous value iteration (section 1, collapsed) | Not implemented here | — |
+
+## Gotchas and troubleshooting
+
+- **"95%-accurate model → 95%-as-good plan."** Model error compounds over the horizon. @eq-sim-bound carries $(1 - \gamma)^{-2}$: at $\gamma = 0.95$ an $\varepsilon_P$ of 0.1 allows a value error of 38 on values that lie in $[0, 20]$. The bound is a worst case, and the shop does far better, but nothing in the model's accuracy alone tells you so; only evaluating the planned policy in the truth does, and that is what the lab measures.
+- **"More data always lowers the loss."** Not seed by seed, and not always on average. The loss jumps between the values of a few policies. With seeds 0–4 the mean loss is 0.08 at $N = 100$ and 0.35 at $N = 200$. Show every seed; with five seeds per side, compare IQMs with bootstrap intervals and call a tie where they overlap. One seed per $N$ is a single seed, not a ranking.
+- **"PI is always faster."** Fewer iterations, usually: its guaranteed rate per iteration is at least value iteration's per sweep [@agarwal2022rltheory, §1.3.2, Lemma 1.13]. But each evaluation is a linear solve, about $|\mathcal{S}|^3$ operations, against $|\mathcal{S}|^2 |\mathcal{A}|$ for a sweep. For the shop both are 1,331. For a million states the solve is out of reach and the sweeps are not.
+- **"Stop on the mean change."** The guarantee of @eq-vi-stop needs the *max* over states. The mean is at least the max divided by $|\mathcal{S}|$, so stopping on it can return a $V$ whose residual is up to $|\mathcal{S}|$ times $\gamma\, \mathrm{tol}$. A model on which every state changes by about the same amount near the end cannot show the bug; one where most states have settled shows it loudly. Test the statistic the rule names, and test on more than one model. Section 1's "After the lab" note gives the counts on the lab's three models.
+- **"My values are converged, so my policy is optimal."** Converged to tolerance, not to $V^*$. What you can guarantee is @eq-greedy-loss with $\eta = \gamma^2 \mathrm{tol} / (1 - \gamma)$, a loss of $2 \gamma^2 \mathrm{tol} / (1 - \gamma)^2$: $7.2 \times 10^{-4}$ for the shop at $\mathrm{tol} = 10^{-6}$. To know the policy is exactly optimal, run one policy-improvement step on it: if nothing changes, it is (section 3).
+- **"The self-loop default is harmless."** It is harmless in the shop because every value is positive, so a zero-reward loop never looks attractive. Where values are negative, an unvisited action looks like a free escape and the planner will take it. Whatever you put in an unvisited row, the planner believes it; @eq-plan-loss charges up to $\varepsilon_P = 2$ for that row.
+- **"The loss is slightly negative."** $V^*$ computed by value iteration at $\mathrm{tol}$ is within $\gamma\, \mathrm{tol} / (1 - \gamma)$ of the truth, on either side. On the shop it lies $1.8 \times 10^{-5}$ below the exact $V^*$ in every state, so a planned policy that equals $\pi^*$ shows a loss of about $-2 \times 10^{-5}$ when compared with it. The lab's reference avoids this by evaluating the greedy policy of the true model exactly; a loss far below 0 means the comparison is not against $V^*$ at all.
+- **"Policy iteration never stops."** Two actions tie, on paper or to within rounding, and your improvement step switches between them, so the policy keeps changing without its value rising. An exact comparison, `>= Q.max(axis=1)`, lets rounding decide. Keep the current action when its $Q$ is within a small tolerance of the best, `tie_tol = 1e-9 * (1 + np.abs(Q).max())` (@eq-improve); then the policy changes only where an action is better by more than rounding can explain.
+- **"`P @ V` has the wrong shape."** With `P` of shape `(S, A, S)` and `V` of shape `(S,)`, `P @ V` is `(S, A)`: NumPy treats the first axis as a batch of `(A, S)` matrices. The max over actions is `axis=1`; `axis=0` would take a max over states and give a vector of the wrong length.
+- **"`NotImplementedError`."** The function still raises its TODO: you have not written it yet, or you have not run the cell that holds your code. Write the TODO and run its cell. To move on without it, run `lab.use_reference(N)` with the exercise number, and the lab continues with the reference solution; the exercise's solution cell must have run once. Running a solution cell alone does not replace your function.
+
+## Next steps
+
+[Module 3](/modules/03-model-free.qmd) keeps the samples and drops the model: Monte Carlo and TD(0) estimate values from experience, and SARSA and Q-learning learn policies, on the cliff gridworld of Module 1. Day 2 asks where the samples should come from; Module 6 returns to the unvisited rows of @eq-counts and replaces the self-loop default with optimism. Day 5 returns to planning in a model estimated from a log you did not collect, with the weighted version of @eq-sim-bound that section 4 only named.
+
+## Further reading
+
+1. @sutton2018rl, *Reinforcement Learning: An Introduction*, 2nd edition. Chapter 4 is this module in their notation: §4.2 for policy improvement and its theorem (Eqs. 4.7–4.8) and the greedy policy (Eq. 4.9), §4.3 for policy iteration, §4.4 for value iteration (Eq. 4.10), §4.5 for asynchronous updates and §4.6 for generalized policy iteration. They write dynamics as a joint distribution of next state and reward and the reward after $A_t$ as $R_{t+1}$; the equations are the same.
+2. @agarwal2022rltheory, *Reinforcement Learning: Theory and Algorithms*, working draft, version 3. §1.3.1 for the contraction (Lemma 1.10), the greedy-loss bound (Lemma 1.11) and the iteration count of value iteration (Theorem 1.12); §1.3.2 for policy iteration's monotone improvement (Lemma 1.13) and its rate (Theorem 1.14), with a table comparing the two with linear programming; §2.1 for the counts estimator, the simulation lemma (Lemma 2.2), the norm bound (Lemma 2.3) and the action-value form of the planning loss (Proposition 2.1, whose last step is left as an exercise). The book assumes rewards in $[0, 1]$ and, in chapter 2, a generative model with the reward known. These numbers are from version 3; later drafts may renumber.
+3. @puterman1994mdp, *Markov Decision Processes: Discrete Stochastic Dynamic Programming*. Background only: the book-length treatment of value iteration, policy iteration and their variants, including modified policy iteration, for readers who want more than this module needs. We cite it for no specific result.

@@ -9,7 +9,7 @@ Each entry gives our working default, who decides, and when. When an entry is re
 
 **Owners:** user (you), AD (academic director), PE (pedagogy expert), TE (technical expert), UI (UI expert), lead (the main session).
 
-Last updated 2026-10-17 (Module 3, second pass).
+Last updated 2026-10-17 (Phase 3, Day 1: Modules 2 and 3).
 
 **Phase 1 merged without its two human Colab smoke runs** (00-setup on Colab CPU and one
 `DPOTrainer` step on a T4); their records are not filed. Everything due at "Phase 1 exit"
@@ -146,7 +146,9 @@ They stay listed here until you confirm them.
 | # | Item | How it gets checked | Owner | When |
 |---|---|---|---|---|
 | B8 | Kakade & Langford 2002, performance-difference lemma. "Lemma 6.1" was inferred from the LaTeX source. | Cite "§6" until the published PDF is read | AD | Phase 3 (Day 4) |
-| B9 | Kearns & Singh 2002, the simulation lemma's number in the journal version | Cite AJKS V3 Lemma 2.2 instead | AD | Phase 2 |
+| B9 | Kearns & Singh 2002, the simulation lemma's number in the journal version. Module 2 cites AJKS V3 Lemma 2.2 (opened 2026-10-17) and does not cite Kearns & Singh. | Cite AJKS V3 Lemma 2.2 instead (done) | AD | Phase 5, if the journal version is ever opened |
+| B27 | Singh & Yee 1994, the origin of the greedy-loss bound according to AJKS V3 §1.6. Not opened; Module 2 cites AJKS Lemma 1.11 only and does not name Singh & Yee on the page. | Open the paper before adding it to the bib or the page | AD | Phase 5 |
+| B28 | Puterman 1994's treatment of modified policy iteration (section number). Not opened; Module 2's collapsed note describes the method without a section citation and the Further reading says "background only". | Open the book, or leave uncited | AD | Phase 5 |
 | B23 | ~~The greedy-policy loss lemma~~ **Resolved:** AJKS V3 Lemma 1.11 gives V^{π_Q} ≥ V* − 2‖Q − Q*‖∞/(1 − γ) (no γ in the numerator); PLAN Module 2 corrected | — | — | — |
 | B24 | Azar et al. 2024 §4.2, the exact statement about deterministic preferences (we say DPO pushes π(y_l) → 0) | Re-read §4.2 before quoting | AD | Phase 3 (Day 4) |
 
@@ -209,5 +211,6 @@ They stay listed here until you confirm them.
 | R8 | 2026-10-09 | d3rlpy dropped; MABWiser kept as an optional parity cell (TE review). |
 | R9 | 2026-10-09 | MBIE-EB form, the BC-on-expert source, the probe-environments source and the Base DLAMI SSM parameter verified (AD and TE reviews). |
 | R10 | 2026-10-09 | Phase 1 defaults applied for A1–A8, A10, A12–A13 and C3–C5 (you said "go"); revisit any at the Phase 1 gate. Probe environments stay out of `prl` (Module 9 participants write them). |
+| R11 | 2026-10-17 | C13 (Module 2's planted bug): keep PLAN's "stop on the mean change" bug. The pedagogy review found the slippery cliff's factor-2 symptom too quiet, so Lab 2's Exercise 5 runs the suspect on three models: the shop (invisible, the lesson), the slippery cliff (4 sweeps early, residual about 2× the guarantee) and a 100-state model with 99 settled states (90 sweeps early, residual about 98× the guarantee). The participant writes the optimality residual (checkpoint 5.1) before fixing the suspect (5.2). |
 | R12 | 2026-10-17 | C14 (Module 3 mutants a budgeted RMS cannot separate from the solution): resolved by `exact_only=True` mutants (change B). The threshold protocol leaves them out; verify mode runs them against the exact checkpoints 1.1 and 2a.1. |
 | R13 | 2026-10-17 | C15 (Module 3's planted-bug checkpoint): the lead accepts the deviation on the pedagogy expert's verdict. Checkpoint 6 requires the last move's Q to equal its reward (−1) and max Q(start) to equal V*(start), from Q₀ = 10; Q(goal, ·) stays at Q₀ after a correct fix, harmlessly. The lead updates PLAN §4. |
