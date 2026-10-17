@@ -503,6 +503,53 @@ a.btn-quiet[target="_blank"]:has(.visually-hidden)::after {
   }
 }
 
+// Room activities (`::: {.predict}`, `::: {.self-check}`; the Agenda's "In the room" links
+// land on them) and worked examples. The bold lead-in ("Predict (3 min).", "Check yourself
+// 3.1.", "Worked example: ...") names the block; the frame only marks where it starts and
+// ends, so color carries no meaning of its own. A folded answer inside keeps its own
+// disclosure style on the page background.
+.predict,
+.self-check,
+.worked-example {
+  margin: 1rem 0 1.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--prl-border-subtle);
+  border-left: 4px solid var(--prl-accent);
+  border-radius: 0 0.5rem 0.5rem 0;
+
+  > :last-child,
+  > .disclosure-wrap:last-child > details {
+    margin-bottom: 0;
+  }
+
+  // Phones: a narrower frame leaves more of the 309px column to the text and math. A folded
+  // answer inside sits in a second frame, so its side padding shrinks too (summary and
+  // body alike, so the marker stays in line with the text).
+  @media (max-width: 575.98px) {
+    padding: 0.625rem 0.75rem;
+
+    details.disclosure > summary,
+    details.disclosure > .disclosure-body {
+      padding-inline: 0.625rem;
+    }
+  }
+}
+
+.self-check {
+  border-left-color: var(--prl-chip-ok-fg);
+}
+
+.worked-example {
+  border-left-color: var(--prl-border);
+  background-color: var(--prl-surface);
+}
+
+// After an Agenda link, the block it lands on is tinted, so the eye finds where it starts.
+.predict:target,
+.self-check:target {
+  background-color: var(--prl-surface);
+}
+
 // ---------------------------------------------------------------- tables
 // Tabular figures only in cells that hold numbers. Inter's tnum also widens the hyphen,
 // comma, period, colon and parentheses, so in prose it spaces out "Pre-work" or "2-norm".
@@ -921,6 +968,40 @@ details.disclosure-tip {
   }
 }
 
+// Below 992px Quarto puts the breadcrumb in the fixed header, where a wrapped trail made
+// the header 216px tall on Module 1 at 360px. Keep it to one line: the current page only,
+// cut with an ellipsis. Its link keeps the full title as its name. The way up
+// stays one tap away: the sidebar button beside it, and on module pages the Day chip in
+// the header strip.
+@media (max-width: 991.98px) {
+  .quarto-secondary-nav nav.quarto-page-breadcrumbs {
+    min-width: 0;
+
+    .breadcrumb {
+      flex-wrap: nowrap;
+      min-width: 0;
+      margin-bottom: 0;
+    }
+
+    .breadcrumb-item:not(:last-child),
+    .breadcrumb-item + .breadcrumb-item::before {
+      display: none;
+    }
+
+    .breadcrumb-item {
+      min-width: 0;
+      padding-left: 0;
+    }
+
+    .breadcrumb-item a {
+      display: block;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+  }
+}
+
 .nav-footer {
   color: var(--prl-muted);
 }
@@ -1031,6 +1112,8 @@ details.disclosure-tip {
   .facts,
   .recap,
   .challenge,
+  .predict,
+  .self-check,
   .module-card,
   .katex-display,
   img,
@@ -1081,4 +1164,24 @@ img.paper {
   background: var(--prl-paper);
   border-radius: 0.4rem;
   padding: 0.4rem;
+}
+
+// Lightbox (GLightbox, `lightbox: auto`). It adds .glightbox-mobile at 768px and below, and
+// at any width in phone and tablet browsers (by user agent: iPhone, iPad, Android, ...),
+// and then lays the caption over the lower part of the image on a dark gradient. The page shows the same caption under the figure,
+// so there the lightbox shows the image alone. !important: GLightbox writes inline display
+// styles on this element.
+.glightbox-mobile .glightbox-container .gslide-description {
+  display: none !important;
+}
+
+// Elsewhere GLightbox showed an SVG figure at its natural size, the 680px it is drawn for,
+// so the lightbox did not enlarge it. Scale it to the window, up to 1100px wide. GLightbox
+// caps the height inline (max-height: 100vh minus the caption), and contain, not its
+// cover, makes a capped figure letterboxed rather than cropped; the figures' background is
+// the page color, as is the lightbox's. Raster images keep their natural size. (*=, not
+// $=: Quarto's theme scanner reads "$" as the start of a Sass variable and stops.)
+body:not(.glightbox-mobile) .glightbox-container .gslide-image img[src*=".svg"] {
+  width: min(92vw, 1100px);
+  object-fit: contain;
 }
