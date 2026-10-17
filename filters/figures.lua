@@ -23,6 +23,25 @@ link gets its own lightbox gallery, so the lightbox never steps from one copy to
 other. A local image without a twin gets the class `paper`, the hook for the light-card
 fallback in dark mode (img.paper in styles/prl.scss); tests/test_site_figures.py
 requires a twin for every images/*.svg unless it is listed there as theme-neutral.
+Subfigures (a `::: {#fig-x layout=...}` div with one image per panel) work the same
+way: each panel's image and lightbox link are paired, and the dark links get the gallery
+"fig-x-dark".
+
+Captions with math. Quarto copies a figure's caption into its lightbox link's title,
+as plain text, so the lightbox (and the browser's hover tooltip) showed raw TeX:
+"falls like 1/\sqrt N". For a figure (or subfigure) whose own caption contains math, a
+first pass
+  - copies the caption into a hidden element after the figure,
+    <div class="glightbox-desc lightbox-desc-ID" hidden> (Quarto's own markup for a
+    lightbox description; GLightbox's CSS also hides .glightbox-desc),
+  - points the figure's lightbox links at it with
+    data-glightbox="description: .lightbox-desc-ID": GLightbox shows that element's HTML
+    under the image, and Quarto's slide_after_load hook typesets the math in it,
+  - drops the title, and sets data-alt to the image's alt text, which names the image in
+    the lightbox in place of the title.
+It runs before the pairing pass, so the dark copy of each link carries the same
+attributes. A subfigure is a float of its own inside its parent, so each panel uses its
+own caption ("Figure 2 (a): ...") and the parent's caption reaches no panel's link.
 HTML pages only; slides are untouched.
 ]]
 
@@ -122,7 +141,122 @@ local function pair_lightbox(link)
   return pandoc.Inlines({ themed(link, "light-content"), themed(dark, "dark-content") })
 end
 
+-- ---------------------------------------------------------------- captions with math
+local function is_float(div)
+  return div.identifier ~= "" and div.classes:includes("quarto-float")
+end
+
+-- Walk a float's own content: never into a nested float (a subfigure).
+local function walk_own(blocks, filter)
+  filter.traverse = "topdown"
+  filter.Div = function(d)
+    if is_float(d) then
+      return nil, false
+    end
+  end
+  return blocks:walk(filter)
+end
+
+-- The inlines of the float's own caption: the Plain after its <figcaption ...>.
+local function own_caption(div)
+  local caption = nil
+  walk_own(div.content, {
+    Blocks = function(blocks)
+      for i = 1, #blocks - 1 do
+        local b = blocks[i]
+        if caption == nil and b.t == "RawBlock" and b.format == "html"
+          and b.text:match("^<figcaption") and blocks[i + 1].t == "Plain" then
+          caption = blocks[i + 1].content
+        end
+      end
+    end,
+  })
+  return caption
+end
+
+local function has_math(inlines)
+  local found = false
+  inlines:walk({
+    Math = function()
+      found = true
+    end,
+  })
+  return found
+end
+
+-- The lightbox reads like the title did. Quarto's title is "LABEL: TEXT", with LABEL
+-- "Figure 2" or "Figure 2 (a)"; the caption starts with its own form of the label
+-- ("Figure 2:" for a figure, "(a)" for a subfigure). Drop that and put LABEL first.
+-- If the two do not line up, the caption as it is.
+local function description(caption, title)
+  local label, rest = title:match("^(.-):%s(.*)$")
+  if label ~= nil then
+    for k = 1, #caption do
+      local tail = pandoc.Inlines({ table.unpack(caption, k) })
+      if pandoc.utils.stringify(tail) == rest then
+        local out = pandoc.Inlines({ pandoc.Str(label .. ":"), pandoc.Space() })
+        out:extend(tail)
+        return out
+      end
+    end
+  end
+  return caption:clone()
+end
+
+-- A copy must not repeat an id or a footnote.
+local function no_ids(e)
+  e.identifier = ""
+  return e
+end
+local function copy_safe(inlines)
+  return inlines:walk({
+    Note = function()
+      return {}
+    end,
+    Span = no_ids,
+    Link = no_ids,
+    Image = no_ids,
+    Code = no_ids,
+  })
+end
+
+local function caption_math(div)
+  if not (is_html_page() and is_float(div)) then
+    return nil
+  end
+  local caption = own_caption(div)
+  if caption == nil or not has_math(caption) then
+    return nil
+  end
+  local class = "lightbox-desc-" .. div.identifier:gsub("[^%w_-]", "-")
+  local title = nil
+  div.content = walk_own(div.content, {
+    Link = function(link)
+      if not link.classes:includes("lightbox") then
+        return nil
+      end
+      title = title or link.title
+      link.title = ""
+      link.attributes["data-glightbox"] = "description: ." .. class
+      local img = link.content[1]
+      if img ~= nil and img.t == "Image" and img.attributes["alt"] ~= nil then
+        link.attributes["data-alt"] = img.attributes["alt"]
+      end
+      return link
+    end,
+  })
+  if title == nil then
+    return nil -- no lightbox link of its own (lightbox off, or only subfigures)
+  end
+  local desc = pandoc.Div(
+    { pandoc.Plain(copy_safe(description(caption, title))) },
+    pandoc.Attr("", { "glightbox-desc", class }, { hidden = "" })
+  )
+  return { div, desc }
+end
+
 return {
+  { Div = caption_math },
   {
     traverse = "topdown",
     Span = function(span)
