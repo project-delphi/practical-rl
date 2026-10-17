@@ -303,7 +303,7 @@ def room_code(
 
     ``ROOM m03 seat=7 checks=9/9 quick=0 td_rms=1.23``: the module, the seat (the
     lab's SEED), core checkpoints passed, whether QUICK budgets ran, then every
-    scalar metric the lab recorded, to 6 significant digits. Non-scalar metrics are
+    scalar metric the lab recorded, to 4 significant digits. Non-scalar metrics are
     left out. A metric named like a fixed field gets the prefix ``m_``.
     """
     parts = [
@@ -320,10 +320,10 @@ def room_code(
         elif isinstance(value, int):
             text = str(value)
         elif isinstance(value, float):
-            text = format(value, ".6g")
+            text = format(value, ".4g")
         else:
             try:  # numpy scalars
-                text = format(float(value), ".6g") if getattr(value, "ndim", None) == 0 else ""
+                text = format(float(value), ".4g") if getattr(value, "ndim", None) == 0 else ""
             except (TypeError, ValueError):
                 text = ""
         if not text:
