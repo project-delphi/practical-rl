@@ -208,16 +208,36 @@ def _exact_value(P, R, gamma, pi):
     return np.linalg.solve(np.eye(S) - gamma * P_pi, r_pi)
 
 
-def _policy_iteration(P, R, gamma, pi0):
-    """Exact evaluation and greedy improvement (keep the current action on ties); (V, pi, k)."""
+#: Ties. Orders the capacity caps to the same delivery are identical actions (bitwise equal
+#: rows of P and R), so the shop's Q ties exactly on paper. A BLAS may still split such a tie
+#: by a few units in the last place: OpenBLAS computes some rows of P @ V along a different
+#: kernel path. Every tie decision here therefore compares within _tie_tol(Q) =
+#: TIE_TOL * (1 + max|Q|), about 1.06e-7 on the shop: six orders of magnitude above rounding
+#: (about 1e-13 at |Q| near 100) and six below the smallest real gap between distinct
+#: deliveries (0.032 in value iteration's Q_0 = R, 0.125 along policy iteration's path).
+TIE_TOL = 1e-9
+
+
+def _tie_tol(Q):
+    return TIE_TOL * (1.0 + float(np.abs(Q).max()))
+
+
+def _greedy(Q):
+    """The FIRST action within _tie_tol of each row's max: the same choice on every platform."""
+    return (Q >= Q.max(axis=1, keepdims=True) - _tie_tol(Q)).argmax(axis=1)
+
+
+def _policy_iteration(P, R, gamma, pi0, *, tie_tol=True):
+    """Exact evaluation and greedy improvement, keeping the current action when it is within
+    _tie_tol of the best (tie_tol=False: the exact comparison, for an assertion only)."""
     S = P.shape[0]
     pi, k = np.asarray(pi0, dtype=int).copy(), 0
     while True:
         V = _exact_value(P, R, gamma, pi)
         k += 1
         Q = R + gamma * P @ V
-        keep = Q[np.arange(S), pi] >= Q.max(axis=1)
-        pi_new = np.where(keep, pi, Q.argmax(axis=1))
+        keep = Q[np.arange(S), pi] >= Q.max(axis=1) - (_tie_tol(Q) if tie_tol else 0.0)
+        pi_new = np.where(keep, pi, _greedy(Q))
         if np.array_equal(pi_new, pi):
             return V, pi, k
         pi = pi_new
@@ -228,21 +248,21 @@ def _modified_policy_iteration(P, R, gamma, m, tol):
     V, rounds = np.zeros(S), 0
     while True:
         Q = R + gamma * P @ V
-        pi = Q.argmax(axis=1)
+        pi = _greedy(Q)
         V_new = Q.max(axis=1)
         P_pi, r_pi = P[np.arange(S), pi], R[np.arange(S), pi]
         for _ in range(m - 1):
             V_new = r_pi + gamma * P_pi @ V_new
         rounds += 1
         if np.max(np.abs(V_new - V)) < tol:
-            return V_new, (R + gamma * P @ V_new).argmax(axis=1), rounds
+            return V_new, _greedy(R + gamma * P @ V_new), rounds
         V = V_new
 
 
 def _optimal(P, R, gamma, tol=1e-6):
     """(V*, pi*, Q*, k_vi): pi* from value iteration, V* by the exact solve of pi*."""
     _, Q_vi, k, _ = _value_iteration(P, R, gamma, tol)
-    pi_star = Q_vi.argmax(axis=1)
+    pi_star = _greedy(Q_vi)
     V_star = _exact_value(P, R, gamma, pi_star)
     return V_star, pi_star, R + gamma * P @ V_star, k
 
@@ -273,6 +293,9 @@ def _estimate_model(log, n_states, n_actions):
             else:
                 P_hat[s, a, s] = 1.0
     return P_hat, R_hat, counts
+
+
+DUP_DELTA = 1e-13
 
 
 def m02_plan() -> bytes:
@@ -341,16 +364,22 @@ def m02_plan() -> bytes:
         greedy_tie_Q=Q_tie,
         greedy_tie_row=np.array(2, dtype=np.int64),
     )
-    # Duplicate actions: action 3 is a copy of the action pi* uses most. Started from
-    # 'always 3', the tie rule keeps 3 where it is optimal; argmax alone returns the copy's
-    # original index.
+    # A near-duplicate action: action 3 is a copy of the action pi* uses most, with its
+    # reward lowered by DUP_DELTA = 1e-13, the size of a difference rounding can make. Started
+    # from 'always 3', a tie rule with a tolerance keeps 3 where it is optimal; an exact
+    # comparison (or argmax alone) switches to the original, on every platform: 1e-13 is
+    # about 25 ulps of the random MDP's Q (|Q| < 10), far above the few ulps a BLAS adds.
+    # Action 4, a copy of action 0 with a reward 1 lower, is never chosen; it makes A = S = 5,
+    # so a mistaken max over states (axis 0) gives a wrong policy rather than a shape error.
     _, pi_r, _, _ = _optimal(P, R, 0.9, tol)
     dup_of = int(np.bincount(pi_r, minlength=3).argmax())
-    P_d = np.concatenate([P, P[:, dup_of : dup_of + 1]], axis=1)
-    R_d = np.concatenate([R, R[:, dup_of : dup_of + 1]], axis=1)
+    P_d = np.concatenate([P, P[:, dup_of : dup_of + 1], P[:, :1]], axis=1)
+    R_d = np.concatenate([R, R[:, dup_of : dup_of + 1] - DUP_DELTA, R[:, :1] - 1.0], axis=1)
     pi0_d = np.full(5, 3)
     V_d, pi_d, k_d = _policy_iteration(P_d, R_d, 0.9, pi0_d)
-    assert np.any(pi_d == 3) and not np.any(pi_d == dup_of)
+    assert np.any(pi_d == 3) and not np.any(pi_d == dup_of) and not np.any(pi_d == 4)
+    exact_pi = _policy_iteration(P_d, R_d, 0.9, pi0_d, tie_tol=False)[1]
+    assert not np.any(exact_pi == 3) and np.abs(R_d).max() < 10
     out.update(
         dup_P=P_d,
         dup_R=R_d,
@@ -436,11 +465,10 @@ def m02_plan_eval() -> bytes:
             log = _sample_transitions(inv, int(N), np.random.default_rng(int(seed)))
             P_hat, R_hat, _ = _estimate_model(log, S, A)
             _, Q_hat, _, _ = _value_iteration(P_hat, R_hat, 0.95, 1e-6)
+            pi_hat = _greedy(Q_hat)
             for s in range(S):
-                best = Q_hat[s].max()
-                rivals = Q_hat[s][eff[s] != eff[s, Q_hat[s].argmax()]]
-                assert rivals.size == 0 or best - rivals.max() > 1e-6, (N, seed, s)
-            pi_hat = Q_hat.argmax(axis=1)
+                rivals = Q_hat[s][eff[s] != eff[s, pi_hat[s]]]
+                assert rivals.size == 0 or Q_hat[s].max() - rivals.max() > 1e-6, (N, seed, s)
             loss[i, j] = np.max(V_star - _exact_value(inv.P, inv.R, 0.95, pi_hat))
             eps_P[i, j] = np.abs(inv.P - P_hat).sum(axis=2).max()
             eps_R[i, j] = np.abs(inv.R - R_hat).max()
@@ -546,7 +574,7 @@ def same_content(old: bytes, new: bytes) -> bool:
         if x.dtype != y.dtype or x.shape != y.shape:
             return False
         if np.issubdtype(x.dtype, np.floating):
-            if not np.allclose(x, y, rtol=1e-12, atol=1e-12):
+            if not np.allclose(x, y, rtol=1e-12, atol=1e-12, equal_nan=True):
                 return False
         elif not np.array_equal(x, y):
             return False
