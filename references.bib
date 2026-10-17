@@ -41,7 +41,12 @@
                s6.4 Eq. 6.7 (Sarsa; the quintuple gives the name; Q(S_{t+1}, A_{t+1}) = 0 if terminal); s6.5 Eq. 6.8 (Q-learning,
                Watkins 1989; the box initializes Q(terminal, .) = 0); Example 6.6 (undiscounted cliff, epsilon = 0.1: Q-learning
                learns the optimal-policy values and its online performance is worse than Sarsa's; with epsilon decayed both converge);
-               s7.1 Eq. 7.1 (n-step return; G_{t:t+n} = G_t when t + n >= T), Eq. 7.2 (n-step TD), Eq. 7.3 (error reduction);
+               s7.1 Eq. 7.1 (n-step return; G_{t:t+n} = G_t when t + n >= T), Eq. 7.2 (n-step TD), Eq. 7.3 (error reduction),
+               Figure 7.2 (19-state random walk, values initialized to 0, error averaged over the first 10 episodes and 100 runs:
+               an intermediate n works best); convergence conditions (Module 3 sign-off, 2026-10-17): s6.4, Sarsa converges w.p. 1 to an
+               optimal policy and Q under the usual step-size conditions if all pairs are visited infinitely often and the policy
+               becomes greedy in the limit (e.g. epsilon = 1/t); s6.5, Q-learning converges w.p. 1 to q* if all pairs keep being updated,
+               under a variant of the usual step-size conditions;
                the s6.1 text places TD(lambda) in Chapter 12; the Chapter 6 bibliographical notes (book p. 139): Sarsa introduced by
                Rummery and Niranjan (1994) as Modified Connectionist Q-learning, the name Sarsa introduced by Sutton (1996).}
 }
