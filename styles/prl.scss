@@ -1158,3 +1158,12 @@ img.paper {
   border-radius: 0.4rem;
   padding: 0.4rem;
 }
+
+// Lightbox (GLightbox, `lightbox: auto`). It adds .glightbox-mobile at 768px and below, and
+// at any width in phone and tablet browsers (by user agent: iPhone, iPad, Android, ...),
+// and then lays the caption over the lower part of the image on a dark gradient. The page shows the same caption under the figure,
+// so there the lightbox shows the image alone. !important: GLightbox writes inline display
+// styles on this element.
+.glightbox-mobile .glightbox-container .gslide-description {
+  display: none !important;
+}
