@@ -7,7 +7,7 @@ Rules it enforces:
   (PRL_WORKED=1, or the WORKED checkbox) binds the reference.
 - `lab.use_reference(n)` lets a stuck participant continue with the reference.
 - `lab.check(n, fn, *objs)` runs a checkpoint and reports whose code ran.
-- `lab.finish()` writes the run record.
+- `lab.finish()` prints the room code and writes the run record.
 
 State lives as plain data in ns["__prl_lab__"], so rerunning the init cell or
 reloading prl keeps the stored references.
@@ -357,6 +357,22 @@ class Lab:
         if missing:
             print(f"  Not reached: {', '.join(missing)}")
 
+    def room_code(self) -> str:
+        """This run's one-line room code (see prl.record.room_code)."""
+        checks = self._s["checks"]
+        expected_labels = self._s["checkpoints"] or list(dict.fromkeys(r["label"] for r in checks))
+        passed = {r["label"] for r in checks if r["pass"] and r["label"] in expected_labels}
+        nb = self.notebook
+        module = f"m{nb[:2]}" if nb[:2].isdigit() else nb
+        return record.room_code(
+            module,
+            seat=self._s["seat"],
+            passed=len(passed),
+            total=len(expected_labels),
+            quick=bool(self._s["quick"]),
+            metrics=self._s["metrics"],
+        )
+
     def status(self) -> str:
         checks = {r["label"]: r for r in self._s["checks"]}
         expected_labels = self._s["checkpoints"] or list(checks)
@@ -423,6 +439,7 @@ class Lab:
     def finish(self, **kwargs: Any) -> dict[str, Any]:
         """Print the summary and emit this run's record."""
         self.summary()
+        print(f"Your room code (paste it where your instructor says): {self.room_code()}")
         rec = self.build_record(**kwargs)
         record.emit(rec)
         return rec
