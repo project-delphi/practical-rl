@@ -183,7 +183,199 @@ def m01_eval() -> bytes:
     return _save("m01_eval", **out)
 
 
-FIXTURES = {"m01_returns": m01_returns, "m01_eval": m01_eval}
+# ---------------------------------------------------------------- Module 3 (model-free)
+# Hand-made episodes: (states s_0..s_T, rewards r_0..r_{T-1}, terminated, truncated).
+# Repeated states within an episode (so every-visit differs from first-visit) and an
+# episode of length 1. n_states = 5; state 4 is the terminal state.
+M03_MC_EPISODES = [
+    ([0, 1, 0, 4], [-1.0, -1.0, -1.0], True, False),  # knowledge check Q3.1 (gamma 0.5)
+    ([0, 2, 2, 4], [-1.0, -3.0, 2.0], True, False),  # a repeat of state 2 in a row
+    ([1, 0, 4], [5.0, -1.0], True, False),
+    ([3, 4], [1.0], True, False),  # length 1
+]
+# TD(0) sees the same episodes in order, then one cut by a step limit: its last transition
+# (1 -> 3) must bootstrap from V[3], which the episode before has already moved.
+M03_TD_EPISODES = M03_MC_EPISODES + [([2, 1, 3], [-1.0, 0.5], False, True)]
+# The page's worked example: corridor A -> B -> goal, two identical episodes.
+M03_CORRIDOR = [([0, 1, 2], [-1.0, -1.0], True, False)] * 2
+M03_MC_GAMMAS = (0.5, 0.9)
+# (episode set, alpha, gamma, n_states, v0); v0 != 0 makes a bootstrap through the terminal show.
+M03_TD_CASES = [("corridor", 0.5, 0.9, 3, 0.0), ("td", 0.5, 0.9, 5, 0.0), ("td", 0.5, 0.9, 5, 1.0)]
+M03_TD_CASES.append(("td", 0.5, 0.5, 5, 1.0))
+M03_NSTEP_TD = [(0.5, 0.9, 2), (0.5, 0.9, 3)]  # stretch: (alpha, gamma, n)
+
+
+def _returns(rewards, gamma):
+    G, out = 0.0, [0.0] * len(rewards)
+    for t in reversed(range(len(rewards))):
+        G = rewards[t] + gamma * G
+        out[t] = G
+    return out
+
+
+def _mc(episodes, gamma, n_states, *, first_visit=True):
+    """Monte Carlo averages of the returns after visits (fixture code; never shipped in prl)."""
+    total, count = np.zeros(n_states), np.zeros(n_states)
+    for states, rewards, _term, _trunc in episodes:
+        seen = set()
+        for s, G in zip(states[:-1], _returns(rewards, gamma), strict=True):
+            if first_visit and s in seen:
+                continue
+            seen.add(s)
+            total[s] += G
+            count[s] += 1
+    return np.divide(total, count, out=np.zeros(n_states), where=count > 0)
+
+
+def _td0(episodes, alpha, gamma, n_states, v0):
+    V = np.full(n_states, float(v0))
+    for states, rewards, terminated, _trunc in episodes:
+        T = len(rewards)
+        for t in range(T):
+            s, s2 = states[t], states[t + 1]
+            boot = 0.0 if (terminated and t == T - 1) else V[s2]
+            V[s] += alpha * (rewards[t] + gamma * boot - V[s])
+    return V
+
+
+def _nstep_target(rewards, states, t, n, V, gamma, terminated):
+    T = len(rewards)
+    end = min(t + n, T)
+    G = sum(gamma ** (k - t) * rewards[k] for k in range(t, end))
+    if end < T or not terminated:
+        G += gamma ** (end - t) * V[states[end]]
+    return G
+
+
+def _nstep_td(episodes, alpha, gamma, n_states, n):
+    """Offline n-step TD in time order: each target uses V as it stands when t is processed."""
+    V = np.zeros(n_states)
+    for states, rewards, terminated, _trunc in episodes:
+        for t in range(len(rewards)):
+            G = _nstep_target(rewards, states, t, n, V, gamma, terminated)
+            V[states[t]] += alpha * (G - V[states[t]])
+    return V
+
+
+def _pack(episodes) -> dict[str, np.ndarray]:
+    width = max(len(r) for _, r, _, _ in episodes)
+    states = np.full((len(episodes), width + 1), -1, dtype=np.int64)
+    rewards = np.zeros((len(episodes), width))
+    for i, (s, r, _, _) in enumerate(episodes):
+        states[i, : len(s)] = s
+        rewards[i, : len(r)] = r
+    return {
+        "states": states,
+        "rewards": rewards,
+        "lengths": np.array([len(r) for _, r, _, _ in episodes], dtype=np.int64),
+        "terminated": np.array([e[2] for e in episodes]),
+        "truncated": np.array([e[3] for e in episodes]),
+    }
+
+
+def m03_safe_route(gamma: float = 0.95, epsilon: float = 0.1):
+    """The lab's epsilon-soft safe route on the 4x12 cliff: (mdp, pi, route, V_pi)."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import CliffGridworld
+
+    mdp = CliffGridworld(4, 12, gamma=gamma)
+    S, A, cols = mdp.n_states, mdp.n_actions, mdp.cols
+    pi = np.full((S, A), epsilon / A)
+    for s in range(S):
+        r, c = divmod(s, cols)
+        pi[s, 2 if c == cols - 1 else (1 if r == 0 else 0)] += 1.0 - epsilon  # down, right, up
+    s, route = mdp.start, [mdp.start]
+    while s != mdp.goal:
+        s = int(np.argmax(mdp.P[s, int(np.argmax(pi[s]))]))
+        route.append(s)
+    V_pi, _, _ = _policy_eval(mdp.P, mdp.R, gamma, pi)
+    return mdp, pi, np.array(route[:-1], dtype=np.int64), V_pi
+
+
+def m03_prediction() -> bytes:
+    out: dict[str, np.ndarray] = {}
+    out.update({f"mc_{k}": v for k, v in _pack(M03_MC_EPISODES).items()})
+    out.update({f"td_{k}": v for k, v in _pack(M03_TD_EPISODES).items()})
+    out.update({f"corridor_{k}": v for k, v in _pack(M03_CORRIDOR).items()})
+    gammas = np.array(M03_MC_GAMMAS)
+    out["mc_gammas"] = gammas
+    out["mc_first_V"] = np.array([_mc(M03_MC_EPISODES, g, 5) for g in gammas])
+    out["mc_every_V"] = np.array([_mc(M03_MC_EPISODES, g, 5, first_visit=False) for g in gammas])
+    out["mc_one_V"] = _mc(M03_MC_EPISODES[:1], 0.5, 5)  # the first episode alone, gamma 0.5
+    out["mc_one_every_V"] = _mc(M03_MC_EPISODES[:1], 0.5, 5, first_visit=False)
+    sets = {"corridor": M03_CORRIDOR, "td": M03_TD_EPISODES}
+    out["td_case_set"] = np.array([c[0] for c in M03_TD_CASES])
+    out["td_case_alpha"] = np.array([c[1] for c in M03_TD_CASES])
+    out["td_case_gamma"] = np.array([c[2] for c in M03_TD_CASES])
+    out["td_case_n_states"] = np.array([c[3] for c in M03_TD_CASES], dtype=np.int64)
+    out["td_case_v0"] = np.array([c[4] for c in M03_TD_CASES])
+    width = max(c[3] for c in M03_TD_CASES)
+    td_V = np.full((len(M03_TD_CASES), width), np.nan)
+    for i, (name, alpha, gamma, n_states, v0) in enumerate(M03_TD_CASES):
+        td_V[i, :n_states] = _td0(sets[name], alpha, gamma, n_states, v0)
+    out["td_case_V"] = td_V
+    out["nstep_td_alpha"] = np.array([c[0] for c in M03_NSTEP_TD])
+    out["nstep_td_gamma"] = np.array([c[1] for c in M03_NSTEP_TD])
+    out["nstep_td_n"] = np.array([c[2] for c in M03_NSTEP_TD], dtype=np.int64)
+    out["nstep_td_V"] = np.array(
+        [_nstep_td(M03_TD_EPISODES, a, g, 5, n) for a, g, n in M03_NSTEP_TD]
+    )
+    _mdp, pi, route, V_pi = m03_safe_route()
+    out.update(route=route, V_pi=V_pi, pi=pi, gamma=np.array(0.95), epsilon=np.array(0.1))
+    return _save("m03_prediction", **out)
+
+
+def m03_nstep() -> bytes:
+    # Trajectory 0: T = 6, a revisit of state 1, non-constant V with V[s_T] != 0 (so a
+    # bootstrap from the end shows). Trajectory 1: the page's corridor, V = -2 everywhere.
+    trajs = [
+        (
+            [0, 1, 2, 3, 1, 4, 5],
+            [-1.0, 2.0, -0.5, 3.0, -2.0, 1.0],
+            [0.3, -1.2, 2.5, -0.7, 1.1, 4.0],
+        ),
+        ([0, 1, 2, 3, 4], [-1.0] * 4, [-2.0] * 5 + [0.0]),
+    ]
+    states = np.full((2, 7), -1, dtype=np.int64)
+    rewards = np.zeros((2, 6))
+    V = np.array([v for _, _, v in trajs])
+    for i, (s, r, _) in enumerate(trajs):
+        states[i, : len(s)] = s
+        rewards[i, : len(r)] = r
+    cases = []
+    for gamma in (0.9, 0.5):
+        for terminated in (True, False):
+            for t in (0, 1, 3, 5):
+                for n in (1, 2, 3, 6, 100):
+                    cases.append((0, t, n, gamma, terminated))
+    for terminated in (True, False):
+        for t in range(4):
+            cases.append((1, t, 2, 0.9, terminated))
+    expected = []
+    for k, t, n, gamma, terminated in cases:
+        s, r, v = trajs[k]
+        expected.append(_nstep_target(r, s, t, n, np.array(v), gamma, terminated))
+    return _save(
+        "m03_nstep",
+        states=states,
+        rewards=rewards,
+        lengths=np.array([len(r) for _, r, _ in trajs], dtype=np.int64),
+        V=V,
+        case_traj=np.array([c[0] for c in cases], dtype=np.int64),
+        case_t=np.array([c[1] for c in cases], dtype=np.int64),
+        case_n=np.array([c[2] for c in cases], dtype=np.int64),
+        case_gamma=np.array([c[3] for c in cases]),
+        case_terminated=np.array([c[4] for c in cases]),
+        expected=np.array(expected),
+    )
+
+
+FIXTURES = {
+    "m01_returns": m01_returns,
+    "m01_eval": m01_eval,
+    "m03_prediction": m03_prediction,
+    "m03_nstep": m03_nstep,
+}
 
 
 def same_content(old: bytes, new: bytes) -> bool:
