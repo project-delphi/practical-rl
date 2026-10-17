@@ -41,7 +41,8 @@
                (neither opened). Module 2 cites s4.2-4.6.
                Also opened (academic director, Module 2 third pass, 2026-10-17, same PDF): s4.3, Exercise 4.4 (book p. 82, PDF p. 104): the policy iteration
                pseudocode 'may never terminate if the policy continually switches between two or more policies that are equally good'.
-               Module 2 cites it for the tie rule's tolerance.}
+               Module 2 cites it for the tie rule's tolerance.
+               Same page, s4.3: 'Policy iteration often converges in surprisingly few iterations'; Module 2 cites it in s3.}
 }
 
 @book{lattimore2020bandit,
@@ -78,7 +79,8 @@
             iteration, Lemma 1.13 (Q^{pi_{k+1}} >= T Q^{pi_k} >= Q^{pi_k}; ||Q^{pi_{k+1}} - Q*||_inf <= gamma ||Q^{pi_k} - Q*||_inf), Theorem 1.14
             (policy iteration convergence: k >= log(1/((1-gamma) eps))/(1-gamma)), Table 0.1 (VI, PI, LP complexities); s1.6 attributes Lemma 1.11 to
             Singh and Yee [1994] (not opened; OPEN_QUESTIONS B27); s2.1 (pp. 21-23) generative model, P_hat = count/N, Proposition 2.1 (model accuracy,
-            uniform value accuracy ||Q^pi - Q_hat^pi||_inf <= eps, near optimal planning ||Q^{pi_hat} - Q*||_inf <= 2 eps), Lemma 2.2 (simulation lemma,
+            uniform value accuracy ||Q^pi - Q_hat^pi||_inf <= eps, near optimal planning ||Q^{pi_hat} - Q*||_inf <= 2 eps;
+            the proof leaves this last inequality 'as an exercise to the reader', so Module 2 proves its state-value form itself), Lemma 2.2 (simulation lemma,
             reward known, rewards deterministic in chapter 2), Lemma 2.3 (||(I - gamma P^pi)^{-1} v||_inf <= ||v||_inf/(1 - gamma)); the proof of
             Proposition 2.1 bounds ||Q^pi - Q_hat^pi||_inf <= gamma/(1-gamma)^2 max_{s,a} ||P(.|s,a) - P_hat(.|s,a)||_1 and uses
             ||P(.|s,a) - P_hat(.|s,a)||_1 <= c sqrt(|S| log(1/delta)/m). Module 2 cites all of these.
