@@ -522,9 +522,16 @@ a.btn-quiet[target="_blank"]:has(.visually-hidden)::after {
     margin-bottom: 0;
   }
 
-  // Phones: a narrower frame leaves more of the 309px column to the text and math.
+  // Phones: a narrower frame leaves more of the 309px column to the text and math. A folded
+  // answer inside sits in a second frame, so its side padding shrinks too (summary and
+  // body alike, so the marker stays in line with the text).
   @media (max-width: 575.98px) {
     padding: 0.625rem 0.75rem;
+
+    details.disclosure > summary,
+    details.disclosure > .disclosure-body {
+      padding-inline: 0.625rem;
+    }
   }
 }
 
