@@ -1,17 +1,22 @@
 """Plausible wrong versions of Module 3's functions.
 
 scripts/check_notebooks.py --mode verify swaps each one into the notebook and requires
-every checkpoint that calls the function to reject it; scripts/threshold_protocol.py
-requires every mutant of a stochastic checkpoint's function to fail its threshold at
-every seed, with a stated gap. Each mutant is a mistake a participant could plausibly
-make; `why` says which. `id="random"` is the never-learns version the protocol needs.
+every exact checkpoint that calls the function to reject it; stochastic checkpoints are
+skipped there, because scripts/threshold_protocol.py has already required every mutant of
+a stochastic checkpoint's functions to fail its threshold at every seed, with a stated
+gap. Each mutant is a mistake a participant could plausibly make; `why` says which.
+`id="random"` is the never-learns version the protocol needs.
 
-Not listed, on purpose (OPEN_QUESTIONS C14): wrong versions that a budgeted RMS cannot
-separate from the solution but that the exact checkpoints reject by construction:
-every-visit MC (checkpoint 1.1 uses episodes with repeated states); TD(0) without the
-discount or treating a truncation as terminal (checkpoint 2.1 uses v0 != 0 and a truncated
-episode); and a Q-learning fix that masks on `truncated` too, which no cliff episode
-distinguishes from the solution.
+`exact_only=True` marks wrong versions that a budgeted RMS cannot separate from the
+solution but that the exact checkpoints reject by construction (OPEN_QUESTIONS C14):
+every-visit MC (checkpoint 1.1 uses episodes with repeated states); MC that keeps only the
+latest return (its error does not shrink with the budget and overlaps the solution's at
+QUICK; checkpoint 1.1 averages over several episodes); TD(0) without the
+discount, treating a truncation as terminal, or bootstrapping through the terminal
+(checkpoint 2.1 uses v0 != 0 and a truncated episode). The protocol leaves them out.
+
+Not listed: a Q-learning fix that masks on `truncated` too. No cliff episode is ever
+truncated at this budget, so no checkpoint can tell it from the solution.
 """
 
 import numpy as np
@@ -37,7 +42,13 @@ def mc_prediction(episodes, gamma, n_states):
     return V
 
 
-@mutant(ex=1, replaces="mc_prediction", id="last-return", why="overwrites V with the latest return")
+@mutant(
+    ex=1,
+    replaces="mc_prediction",
+    id="last-return",
+    why="overwrites V with the latest return",
+    exact_only=True,
+)
 def mc_prediction(episodes, gamma, n_states):  # noqa: F811
     V = np.zeros(n_states)
     for ep in episodes:
@@ -51,6 +62,26 @@ def mc_prediction(episodes, gamma, n_states):  # noqa: F811
                 continue
             seen.add(s)
             V[s] = returns[t]
+    return V
+
+
+@mutant(
+    ex=1,
+    replaces="mc_prediction",
+    id="every-visit",
+    why="averages the return after every visit, not only the first",
+    exact_only=True,
+)
+def mc_prediction(episodes, gamma, n_states):  # noqa: F811
+    V, N = np.zeros(n_states), np.zeros(n_states)
+    for ep in episodes:
+        G, returns = 0.0, [0.0] * len(ep.rewards)
+        for t in reversed(range(len(ep.rewards))):
+            G = ep.rewards[t] + gamma * G
+            returns[t] = G
+        for t, s in enumerate(ep.states[:-1]):
+            N[s] += 1
+            V[s] += (returns[t] - V[s]) / N[s]
     return V
 
 
@@ -77,6 +108,57 @@ def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):  # noqa: F811
             terminal = ep.terminated and t == last
             target = r + gamma * (0.0 if terminal else V[s2])
             V[s2] += alpha * (target - V[s])
+    return V
+
+
+@mutant(
+    ex=2,
+    replaces="td0_prediction",
+    id="no-discount",
+    why="bootstraps from V[s2] without gamma",
+    exact_only=True,
+)
+def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):  # noqa: F811
+    V = np.full(n_states, float(v0))
+    for ep in episodes:
+        last = len(ep.rewards) - 1
+        for t, (s, r, s2) in enumerate(zip(ep.states[:-1], ep.rewards, ep.states[1:], strict=True)):
+            terminal = ep.terminated and t == last
+            target = r + (0.0 if terminal else V[s2])
+            V[s] += alpha * (target - V[s])
+    return V
+
+
+@mutant(
+    ex=2,
+    replaces="td0_prediction",
+    id="truncation-as-terminal",
+    why="drops the bootstrap at the end of every episode, truncated or not",
+    exact_only=True,
+)
+def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):  # noqa: F811
+    V = np.full(n_states, float(v0))
+    for ep in episodes:
+        last = len(ep.rewards) - 1
+        for t, (s, r, s2) in enumerate(zip(ep.states[:-1], ep.rewards, ep.states[1:], strict=True)):
+            terminal = (ep.terminated or ep.truncated) and t == last
+            target = r + gamma * (0.0 if terminal else V[s2])
+            V[s] += alpha * (target - V[s])
+    return V
+
+
+@mutant(
+    ex=2,
+    replaces="td0_prediction",
+    id="bootstraps-through-terminal",
+    why="always bootstraps from V[s2], even when s2 is terminal",
+    exact_only=True,
+)
+def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):  # noqa: F811
+    V = np.full(n_states, float(v0))
+    for ep in episodes:
+        for s, r, s2 in zip(ep.states[:-1], ep.rewards, ep.states[1:], strict=True):
+            V[s] += alpha * (r + gamma * V[s2] - V[s])
     return V
 
 
