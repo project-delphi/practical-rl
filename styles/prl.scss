@@ -503,6 +503,46 @@ a.btn-quiet[target="_blank"]:has(.visually-hidden)::after {
   }
 }
 
+// Room activities (`::: {.predict}`, `::: {.self-check}`; the Agenda's "In the room" links
+// land on them) and worked examples. The bold lead-in ("Predict (3 min).", "Check yourself
+// 3.1.", "Worked example: ...") names the block; the frame only marks where it starts and
+// ends, so color carries no meaning of its own. A folded answer inside keeps its own
+// disclosure style on the page background.
+.predict,
+.self-check,
+.worked-example {
+  margin: 1rem 0 1.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--prl-border-subtle);
+  border-left: 4px solid var(--prl-accent);
+  border-radius: 0 0.5rem 0.5rem 0;
+
+  > :last-child,
+  > .disclosure-wrap:last-child > details {
+    margin-bottom: 0;
+  }
+
+  // Phones: a narrower frame leaves more of the 309px column to the text and math.
+  @media (max-width: 575.98px) {
+    padding: 0.625rem 0.75rem;
+  }
+}
+
+.self-check {
+  border-left-color: var(--prl-chip-ok-fg);
+}
+
+.worked-example {
+  border-left-color: var(--prl-border);
+  background-color: var(--prl-surface);
+}
+
+// After an Agenda link, the block it lands on is tinted, so the eye finds where it starts.
+.predict:target,
+.self-check:target {
+  background-color: var(--prl-surface);
+}
+
 // ---------------------------------------------------------------- tables
 // Tabular figures only in cells that hold numbers. Inter's tnum also widens the hyphen,
 // comma, period, colon and parentheses, so in prose it spaces out "Pre-work" or "2-norm".
@@ -1031,6 +1071,8 @@ details.disclosure-tip {
   .facts,
   .recap,
   .challenge,
+  .predict,
+  .self-check,
   .module-card,
   .katex-display,
   img,
