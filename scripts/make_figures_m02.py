@@ -17,7 +17,9 @@ values rounded before plotting.
 
 The sampler, the seeds and the solver code are the lab's (reproduced in
 scripts/make_expected.py, which this script imports), so the numbers equal the lab's.
-The script asserts every count and number the page's captions and the m02 Predict
+Every action choice uses make_expected's _greedy (the first action within a tolerance
+of the row's max), so ties that rounding splits differently on another machine are broken
+the same way everywhere. The script asserts every count and number the page's captions and the m02 Predict
 answers quote, the figures' and the rest of the page's (page_numbers, run by --check too). The numbers are exact computations on a known model, not run
 measurements. This script may contain solver code; prl may not.
 """
@@ -39,10 +41,12 @@ from make_expected import (  # noqa: E402
     M01_INVENTORY,
     _estimate_model,
     _exact_value,
+    _greedy,
     _optimal,
     _policy_iteration,
     _random_log,
     _sample_transitions,
+    _tie_tol,
     _value_iteration,
 )
 from make_figures_m01 import MIN_FONT, WIDTH_IN, Theme, rc, svg_bytes, themes  # noqa: E402
@@ -87,7 +91,7 @@ def vi_pi_data() -> dict:
     V, optimal_at = np.zeros(mdp.n_states), []
     for _ in range(k_vi):
         V = (R + GAMMA * P @ V).max(axis=1)
-        optimal_at.append(_greedy_is_optimal((R + GAMMA * P @ V).argmax(axis=1), Q_star))
+        optimal_at.append(_greedy_is_optimal(_greedy(R + GAMMA * P @ V), Q_star))
     first_for_good = next(k for k in range(1, k_vi + 1) if all(optimal_at[k - 1 :]))
     first_ever = optimal_at.index(True) + 1
     assert first_for_good == 4, f"greedy(Q_k) is pi* for every k >= {first_for_good}, not 4"
@@ -106,8 +110,8 @@ def vi_pi_data() -> dict:
         dists.append(float(np.max(np.abs(V_pi - V_star))))
         policies.append(pi.copy())
         Q = R + GAMMA * P @ V_pi
-        keep = Q[np.arange(S), pi] >= Q.max(axis=1)
-        pi_new = np.where(keep, pi, Q.argmax(axis=1))
+        keep = Q[np.arange(S), pi] >= Q.max(axis=1) - _tie_tol(Q)
+        pi_new = np.where(keep, pi, _greedy(Q))
         if np.array_equal(pi_new, pi):
             break
         pi = pi_new
@@ -219,7 +223,7 @@ def model_error_data() -> dict:
             log = _sample_transitions(mdp, N, np.random.default_rng(seed))
             P_hat, R_hat, _ = _estimate_model(log, S, A)
             _, Q_hat, _, _ = _value_iteration(P_hat, R_hat, GAMMA, TOL)
-            V_plan = _exact_value(P, R, GAMMA, Q_hat.argmax(axis=1))
+            V_plan = _exact_value(P, R, GAMMA, _greedy(Q_hat))
             loss[i, j] = float(np.max(V_star - V_plan))
             eps_P[i, j] = float(np.abs(P - P_hat).sum(axis=2).max())
             eps_R[i, j] = float(np.abs(R - R_hat).max())
@@ -377,14 +381,16 @@ def page_numbers(computed: dict[str, dict]) -> dict:
     assert round(gap.max()) == 45 and gap.argmax() == 6, gap
     out["dV_6_7"] = V_star[7] - V_star[6]
     assert round(out["dV_6_7"], 2) == 2.54, out["dV_6_7"]
-    assert Q_star[1, 9] == Q_star[1, 10] and np.all(Q_star[10] == Q_star[10, 0])
+    # The ties are exact: capped orders have bitwise equal rows of P and R.
+    assert np.array_equal(P[1, 9], P[1, 10]) and R[1, 9] == R[1, 10]
+    assert all(np.array_equal(P[10, a], P[10, 0]) and R[10, a] == R[10, 0] for a in range(11))
     deliver = np.minimum(pi_star, mdp.capacity - np.arange(S))
     assert deliver.tolist() == [10, 9, 8, 7, 0, 0, 0, 0, 0, 0, 0], "fill the shelf from 0 to 3"
     # The greedy policy of Q_k: pi* at k = 2, stock 3 stops ordering at k = 3.
     V = np.zeros(S)
     for _ in range(3):
         V = (R + GAMMA * P @ V).max(axis=1)
-    assert (R + GAMMA * P @ V).argmax(axis=1)[3] == 0, "at k = 3, stock 3 stops ordering"
+    assert _greedy(R + GAMMA * P @ V)[3] == 0, "at k = 3, stock 3 stops ordering"
     # Policy iteration: the page's sequence of policies (as deliveries) and 3 evaluations from pi7.
     fill = [
         np.minimum(pol, mdp.capacity - np.arange(S)).tolist()
@@ -395,7 +401,7 @@ def page_numbers(computed: dict[str, dict]) -> dict:
     assert _policy_iteration(P, R, GAMMA, pi7)[2] == 3
     # Exercise 1's Explain: at tol = 1.0 value iteration stops after 29 sweeps with pi*.
     _, Q1, k1, _ = _value_iteration(P, R, GAMMA, 1.0)
-    assert k1 == 29 and _greedy_is_optimal(Q1.argmax(axis=1), Q_star), k1
+    assert k1 == 29 and _greedy_is_optimal(_greedy(Q1), Q_star), k1
     # Section 2: the greedy-loss guarantee at tol = 1e-3.
     assert round(2 * GAMMA**2 * 1e-3 / (1 - GAMMA) ** 2, 2) == 0.72
     out.update(k_tol1=k1)
