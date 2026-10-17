@@ -275,12 +275,12 @@ Total: 28 + 12. **Reference** (on the page, not read aloud): the worked reward e
 |---|---|---|
 | 1 | VI as repeated optimality backups | 7 (cold call 1) |
 | 2 | Greedy extraction; loss bound stated | 7 (chk 2) |
-| 3 | PI; improvement argument in 3 lines | 8 (chk 2) |
+| 3 | PI; improvement argument in 3 lines; ties need a tolerance | 9 (chk 2) |
 | 4 | Counts → P̂; simulation lemma and horizon factor | 13 (predict 3) |
-| 5 | Bridge | 3 |
+| 5 | Bridge | 2 |
 | — | Setup | 2 |
 
-Total: 30 + 8 + 2. The section split changed in Phase 3 after the pedagogy review (2026-10-17): §4 was about twice its exposition budget. **Collapsed:** modified policy iteration; asynchronous VI; the lemma's proof; "After the lab: the shop's counts" (the VI/PI figure, so the main path does not answer Exercises 1 and 2's Predicts).
+Total: 30 + 8 + 2. The section split changed in Phase 3 after the pedagogy review (2026-10-17): §4 was about twice its exposition budget. §3 gained the tie-tolerance paragraph (Sutton & Barto Exercise 4.4) after Linux CI showed exact ties splitting by a few ulps. **Collapsed:** modified policy iteration; asynchronous VI; the lemma's proof; "After the lab: the shop's counts" (the VI/PI figure, so the main path does not answer Exercises 1 and 2's Predicts).
 
 **Lab (core 3 + 50):**
 

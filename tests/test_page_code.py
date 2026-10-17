@@ -3,7 +3,7 @@
 Module pages show reference code in ```python blocks (for example "Code: value_iteration
 (open after Lab 2)"). Every top-level function there whose name matches a solution in the
 lab (labs/src/NN-slug.py, cells exN-sol and stretch-sol) must equal that solution, token
-for token, decorators aside. So the page can never show code that fails the lab's
+for token, decorators and docstrings aside. So the page can never show code that fails the lab's
 checkpoints (the Module 2 UI review found the page's policy_iteration had drifted).
 """
 
@@ -20,21 +20,28 @@ ROOT = Path(__file__).resolve().parents[1]
 PAGES = sorted((ROOT / "modules").glob("[0-9][0-9]-*.qmd"))
 BLOCK = re.compile(r"^```python\n(.*?)^```", re.S | re.M)
 
-# Pages whose code predates this test. strict=True: once the page is fixed the test
-# passes, xfail turns that into a failure, and the entry must be removed.
-KNOWN_DRIFT = {
-    "01-mdps-bellman": "evaluate_exact, evaluate_iterative and bellman_residual on the page differ "
-    "from Lab 1's solutions (r_pi and P_pi in the other order, an extra local S, no float() in "
-    "bellman_residual); same results, but the page should show the solution itself",
-}
+# Pages whose code predates this test (strict xfail: remove an entry once its page is fixed).
+KNOWN_DRIFT: dict[str, str] = {}
 
 
 def _defs(source: str) -> dict[str, str]:
-    """Top-level function definitions, decorators removed, as ast dumps keyed by name."""
+    """Top-level function definitions as ast dumps keyed by name.
+
+    Decorators and the docstring are removed: a page may show the code without the lab's
+    docstring, but every statement must be the solution's.
+    """
     out = {}
     for node in ast.parse(source).body:
         if isinstance(node, ast.FunctionDef):
             node.decorator_list = []
+            body = node.body
+            if (
+                body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
+                node.body = body[1:] or [ast.Pass()]
             out[node.name] = ast.dump(node, include_attributes=False)
     return out
 
