@@ -1,3 +1,4 @@
+# origin: labs/src/01-mdps-bellman.py
 # The reference version of your Lab 1 code (Exercise 4): exact policy evaluation.
 def evaluate_exact(P, R, gamma, pi):
     """V^pi from (I - gamma P_pi) V = r_pi, where pi is an (S, A) matrix of probabilities."""
