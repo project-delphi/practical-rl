@@ -9,7 +9,7 @@
 # and policy iteration, and check that they agree. Then you take the model away: you
 # estimate P and R from samples, plan in the estimate, and measure in the true model what
 # the estimate cost you, as the data shrinks. You finish by finding a bug in someone else's
-# value iteration from its own log.
+# value iteration with a check that needs no reference answer.
 #
 # The briefing's equations are named in brackets, for example (VI update) or (greedy loss).
 # Its table "Equations and where you implement them" gives each name's equation number.
@@ -20,6 +20,7 @@ import numpy as np
 
 from prl import envs
 from prl.checks import m02
+from prl.evaluate import bootstrap_ci, iqm
 
 # The shop of Lab 1, with the same numbers (the briefing uses them too).
 INVENTORY = dict(
@@ -100,7 +101,7 @@ def value_iteration(P, R, gamma, tol):
 
 def greedy(Q):
     """The greedy policy for Q: the action with the largest Q[s, a] in each state, as an int array (S,)."""
-    # TODO 1 (part 2): one argmax per state (which axis?).
+    # TODO 1 (part 2): one action per state.
     raise NotImplementedError(
         "TODO 1: write greedy, or run lab.use_reference(1) to continue with the solution"
     )
@@ -108,7 +109,7 @@ def greedy(Q):
 
 # %% [markdown] role="ex1-hint"
 # `P @ V` has shape (S, A): NumPy treats the first axis of `P` as a batch of (A, S)
-# matrices. The max over actions is `Q.max(axis=1)` and the greedy action `Q.argmax(axis=1)`.
+# matrices. Q has shape (S, A); the max and the argmax you need run along the action axis.
 # Keep the old `V` until the test has run, then set `V = V_new`. The Q you return is built
 # from the V you return.
 
@@ -140,6 +141,12 @@ pi_star = greedy(Q_star)
 print(f"value iteration: {k_vi} sweeps to tol = {tol:g}")
 print("V*(stock):      ", np.round(V_star, 2))
 print("pi*(stock):     order", pi_star, " -> shelf after ordering", pi_star + np.arange(S))
+print(f"V*(7) - V*(6) = {V_star[7] - V_star[6]:.2f}")
+V_loose, Q_loose, k_loose = value_iteration(P, R, gamma, 1.0)
+print(
+    f"tol = 1.0: {k_loose} sweeps; greedy policy equals pi*: "
+    f"{np.array_equal(greedy(Q_loose), pi_star)}; max |V - V*| = {np.max(np.abs(V_loose - V_star)):.1f}"
+)
 pi7 = np.maximum(0, 7 - np.arange(S))
 V7 = evaluate_exact(P, R, gamma, policy_matrix(pi7, A))
 print(
@@ -151,27 +158,27 @@ ax.plot(range(S), V7, marker="s", label='Lab 1: "order up to 7"')
 ax.set(xlabel="stock", ylabel="value", title="The best policy against Lab 1's policy")
 ax.legend()
 plt.show()
-# The greedy-loss bound (greedy loss) on a perturbed Q: ||Q_noisy - Q*|| <= eps + the error
-# left in Q_star by the stopping rule, so the bound is 2 (eps + gamma tol / (1 - gamma)) / (1 - gamma).
+# The bound (greedy loss) on a perturbed Q: ||Q_noisy - Q*|| <= eta + the error the stopping
+# rule leaves in Q_star (gamma^2 tol / (1 - gamma)), so the bound is
+# 2 (eta + gamma^2 tol / (1 - gamma)) / (1 - gamma).
 rng = np.random.default_rng(SEED)
-print("Greedy policy of Q* + noise in [-eps, eps]: worst true loss over 20 draws, and the bound")
-for eps in (0.5, 1.0, 2.0, 5.0):
+print("Greedy policy of Q* + noise in [-eta, eta]: worst true loss over 20 draws, and the bound")
+for eta in (0.5, 1.0, 2.0, 5.0):
     worst = 0.0
     for _ in range(20):
-        Q_noisy = Q_star + rng.uniform(-eps, eps, size=Q_star.shape)
+        Q_noisy = Q_star + rng.uniform(-eta, eta, size=Q_star.shape)
         V_noisy = evaluate_exact(P, R, gamma, policy_matrix(greedy(Q_noisy), A))
         worst = max(worst, float(np.max(V_star - V_noisy)))
-    bound = 2 * (eps + gamma * tol / (1 - gamma)) / (1 - gamma)
-    print(f"  eps = {eps:3.1f}: worst loss {worst:6.2f}   bound {bound:6.1f}")
+    bound = 2 * (eta + gamma**2 * tol / (1 - gamma)) / (1 - gamma)
+    print(f"  eta = {eta:3.1f}: worst loss {worst:6.2f}   bound {bound:6.1f}")
 
 # %% [markdown] role="ex1-explain"
-# The optimal policy orders from stocks 0 to 3 only, and each order fills the shelf: fewer,
-# larger deliveries, because every delivery costs a fixed 5. Lab 1's policy pays that fixed
-# cost almost every day. Now run `value_iteration(P, R, gamma, 1.0)` and read off its policy:
-# how many sweeps did it take, and is the policy already π*? The values are still far from
-# V*, yet the policy is right. The bound (greedy loss) is what you can *guarantee* from a
-# value error; read the table: it holds at every eps, and it is loose. What is the guarantee
-# for the policy you just extracted at tol = 1e−6? (Use ‖Q − Q*‖ ≤ γ · tol / (1 − γ).)
+# The optimal policy fills the shelf from stocks 0 to 3 and orders nothing from stock 4 up:
+# fewer, larger deliveries, because every delivery costs a fixed 5. Lab 1 asked whether one
+# unit at stock 6 is really worth 7. Read V*(7) − V*(6) from the printout: what is a unit
+# worth when you act optimally afterwards? At tol = 1.0 the values are still far from V*: is
+# the policy already π*? Read the table: (greedy loss) holds at every eta, and it is loose.
+# Why can a bound on ‖Q − Q*‖ not see that the policy is already right?
 
 # %% role="ex1-chk1"
 lab.check(1, m02.check_value_iteration, value_iteration, label="1.1")
@@ -183,8 +190,8 @@ lab.check(1, m02.check_greedy, greedy, label="1.2")
 # Policy iteration alternates two steps from a starting policy: evaluate it exactly (Lab 1's
 # linear solve, included above), then improve it by acting greedily with respect to its Q
 # (improvement). It stops when the greedy policy is the one it already has. Ties: when the
-# current action is among the best, keep it; otherwise the loop could alternate between two
-# equally good policies forever.
+# current action is among the best, keep it. Then the policy changes only where some action
+# is strictly better, so its value rises at every change and the loop must end.
 
 # %% [markdown] role="ex2-predict"
 # Start from "never order" (action 0 in every state). How many evaluations, that is linear
@@ -212,9 +219,9 @@ def policy_iteration(P, R, gamma, pi0):
 
 
 # %% [markdown] role="ex2-hint"
-# `Q[np.arange(S), pi]` picks each state's current action value. `np.where(keep, pi,
-# greedy(Q))` keeps the current action where `keep` is true. Compare the new and the old
-# policy with `np.array_equal`.
+# Build Q from V as in Exercise 1. `Q[np.arange(S), pi]` is each state's current action
+# value; a state keeps its action when that equals the row's max, and takes `greedy(Q)`
+# otherwise. Stop when the new policy equals the old one.
 
 
 # %% role="ex2-sol"
@@ -250,11 +257,12 @@ print(
 )
 
 # %% [markdown] role="ex2-explain"
-# Four evaluations against a few hundred sweeps, and the same policy. Each evaluation is a
+# A few evaluations against a few hundred sweeps, and the same policy. Each evaluation is a
 # linear solve, about S³ multiply-adds, where a sweep costs about S²A: for the shop both are
 # tiny. Now imagine S = 10⁶ states and A = 11: how many multiply-adds is one solve, and how
 # many is one sweep? Which method can you still afford? (Gotcha: "PI is always faster".)
-# Why does keeping the current action on ties matter for termination?
+# At stock 1, orders 9 and 10 both deliver 9 units: the shop has the same action twice.
+# Why does the checkpoint start an MDP with two identical actions on the second copy?
 
 # %% role="ex2-chk"
 lab.check(2, m02.check_policy_iteration, policy_iteration)
@@ -281,10 +289,9 @@ def random_log(mdp, days, rng):
 
 
 # %% [markdown] role="ex3-predict"
-# 200 days of random orders over 121 (stock, order) pairs: will the log miss some pairs, and
-# roughly how many? For a missed pair the rule gives P̂(s | s, a) = 1 and R̂ = 0. If the
-# planner's V̂(s) is positive, will it ever choose that action? (Compare Q̂(s, a) = 0 + γ V̂(s)
-# with V̂(s).)
+# 200 days of random orders, 121 (stock, order) pairs. If every pair were equally likely,
+# about 121 · (1 − 1/121)²⁰⁰ ≈ 23 pairs would be missed. Will your log miss more or fewer
+# than that? Which stock levels will the missed pairs be at?
 
 
 # %% role="ex3-stub"
@@ -340,6 +347,8 @@ envs.TabularMDP(P_hat, R_hat, gamma).validate()
 print(
     f"visited {int((counts > 0).sum())} of {S * A} (stock, order) pairs; most visits to one pair: {int(counts.max())}"
 )
+print("days at each stock:     ", counts.sum(axis=1).astype(int))
+print("missed pairs per stock: ", (counts == 0).sum(axis=1))
 eps_P = np.max(np.abs(P - P_hat).sum(axis=2))
 eps_R = np.max(np.abs(R - R_hat))
 print(
@@ -357,14 +366,13 @@ plt.colorbar(im, label="count")
 plt.show()
 
 # %% [markdown] role="ex3-explain"
-# Look at the heat map: which pairs are unvisited, and why those? (Where does random
-# ordering from an empty shelf spend its days?) The estimator (counts) is exact for what it
-# saw and silent about the rest; the self-loop is our choice, and the planner treats it as a
-# fact. In the shop every value is positive, so Q̂(s, a) = γ V̂(s) < V̂(s) and an unvisited
-# action is never chosen. In a world where values are negative (the cliff of Lab 1), the same
-# default looks like a free safe harbor. Module 6 turns this default into a deliberate
-# choice. Your planned policy's true loss is the number printed above; Exercise 4 measures
-# how it shrinks with data.
+# Look at the heat map and the two printed rows: where are the unvisited pairs, and why
+# there? (How often does random ordering reach a full shelf?) The estimator (counts) is
+# exact for what it saw and silent about the rest; the self-loop is our choice, and the
+# planner treats it as a fact. In the shop every value is positive, so an unvisited action
+# has Q̂(s, a) = γ V̂(s) < V̂(s) and is never chosen. In a world where values are negative
+# (the cliff of Lab 1), the same default looks like a free safe harbor. Module 6 turns this
+# default into a deliberate choice. Exercise 4 measures how the true loss shrinks with data.
 
 # %% role="ex3-chk"
 lab.check(3, m02.check_estimate_model, estimate_model)
@@ -373,8 +381,12 @@ lab.check(3, m02.check_estimate_model, estimate_model)
 # The experiment of the briefing's section 4. The sampler below asks the shop for N
 # transitions from every (stock, order) pair, so each P̂(· | s, a) is a mean of N draws and
 # nothing is unvisited. You plan in the estimate and evaluate the plan in the truth, then
-# repeat over N and over 5 seeds. The simulation lemma bounds the loss by a multiple of
-# ε_P = max_(s,a) ‖P(· | s, a) − P̂(· | s, a)‖₁ (planning loss); the experiment measures it.
+# repeat over N and over 5 seeds. The simulation lemma (simulation lemma) gives every
+# policy's value error from ε_P = max_(s,a) ‖P(· | s, a) − P̂(· | s, a)‖₁ and
+# ε_R = max_(s,a) |R[s, a] − R̂[s, a]| (model error bound), and the planned policy loses at
+# most twice that (planning loss). The shop's rewards are not in [0, 1], so the bound uses
+# their range r_max − r_min in place of 1. You write that bound too, and the run cell checks
+# every measured loss against it.
 
 
 # %%
@@ -390,33 +402,45 @@ def sample_transitions(mdp, N, rng):
 
 
 # %% [markdown] role="ex4-predict"
-# From N = 20 samples per pair to N = 10: does the mean loss double? Does the bound
-# (planning loss) double? And at N = 200, will the planned policy still lose anything?
+# Your seat's five seeds are not the briefing's seeds 0–4. At N = 200, will all five of your
+# seeds lose exactly 0? And will your mean loss fall at every step from N = 1 to N = 200, or
+# rise somewhere?
 
 
 # %% role="ex4-stub"
 def plan_and_evaluate(mdp, N, seed, tol=1e-6):
     """Plan in a model estimated from N samples per (s, a); evaluate the plan in the truth.
 
-    Returns (loss, eps_P): loss = max_s [V*(s) - V^pi_hat(s)] with V^pi_hat computed in the
-    TRUE model (mdp.P, mdp.R), and eps_P = max_(s,a) ||P(.|s,a) - P_hat(.|s,a)||_1.
+    Returns (loss, eps_P, eps_R): loss = max_s [V*(s) - V^pi_hat(s)] with V^pi_hat computed
+    in the TRUE model (mdp.P, mdp.R); eps_P = max_(s,a) ||P(.|s,a) - P_hat(.|s,a)||_1 and
+    eps_R = max_(s,a) |R[s, a] - R_hat[s, a]|.
     """
     rng = np.random.default_rng(seed)
     log = sample_transitions(mdp, N, rng)
-    # TODO 4: estimate_model from the log; value_iteration and greedy in the estimate;
-    # evaluate_exact of that policy in mdp.P, mdp.R. For V*, plan in the true model the same
-    # way and evaluate ITS greedy policy exactly, so the loss is exactly 0 when the plans agree.
+    # TODO 4 (part 1): estimate_model from the log; value_iteration and greedy in the
+    # estimate; evaluate_exact of that policy in mdp.P, mdp.R. For V*, plan in the true model
+    # the same way and evaluate ITS greedy policy exactly, so the loss is exactly 0 when the
+    # plans agree.
     raise NotImplementedError(
         "TODO 4: write plan_and_evaluate, or run lab.use_reference(4) to continue with the solution"
     )
 
 
+def planning_loss_bound(eps_P, eps_R, r_range, gamma):
+    """The planning-loss bound for rewards with range r_range = r_max - r_min:
+    2 eps_R / (1 - gamma) + 2 gamma eps_P r_range / (1 - gamma)^2."""
+    # TODO 4 (part 2): one line (planning loss).
+    raise NotImplementedError(
+        "TODO 4: write planning_loss_bound, or run lab.use_reference(4) to continue with the solution"
+    )
+
+
 # %% [markdown] role="ex4-hint"
-# Four calls you already have: `estimate_model(log, mdp.n_states, mdp.n_actions)`,
-# `value_iteration(P_hat, R_hat, mdp.gamma, tol)`, `greedy(Q_hat)`, and
-# `evaluate_exact(mdp.P, mdp.R, mdp.gamma, policy_matrix(pi_hat, mdp.n_actions))`. Do the
-# same with `mdp.P, mdp.R` in place of the estimate to get π* and its exact value V*.
-# `eps_P` is `np.abs(mdp.P - P_hat).sum(axis=2).max()`.
+# Each step is a function you already have: estimate the model from the log, plan in the
+# estimate (value iteration, then greedy), and evaluate that plan with Lab 1's evaluator in
+# `mdp.P, mdp.R`. Compute V* the same way from the true model. ε_P is an ℓ1 distance: a sum
+# over the next-state axis, then a max. The bound is the docstring's formula; check it by
+# hand at ε_P = 0.1, ε_R = 0, r_range = 1, γ = 0.95, where it is 76.
 
 
 # %% role="ex4-sol"
@@ -435,26 +459,46 @@ def plan_and_evaluate(mdp, N, seed, tol=1e-6):
     V_hat_true = evaluate_exact(mdp.P, mdp.R, mdp.gamma, policy_matrix(pi_hat, mdp.n_actions))
     loss = float(np.max(V_star_true - V_hat_true))
     eps_P = float(np.abs(mdp.P - P_hat).sum(axis=2).max())
-    return loss, eps_P
+    eps_R = float(np.abs(mdp.R - R_hat).max())
+    return loss, eps_P, eps_R
+
+
+@lab.solution(4)
+def planning_loss_bound(eps_P, eps_R, r_range, gamma):
+    """The planning-loss bound for rewards with range r_range = r_max - r_min."""
+    return 2 * eps_R / (1 - gamma) + 2 * gamma * eps_P * r_range / (1 - gamma) ** 2
 
 
 # %% role="ex4-run"
 Ns = [1, 2, 5, 10, 20, 50, 100, 200]
+r_range = float(R.max() - R.min())
 losses = np.zeros((len(SEEDS), len(Ns)))
 eps = np.zeros_like(losses)
-print("Budget: 5 seeds per N; the shop's 121 pairs times N samples each; your seat's seeds.")
-print("   N | true loss per seed (every seed shown)      | mean   | eps_P mean")
+bounds = np.zeros_like(losses)
+print(
+    f"Budget: 5 seeds per N (your seat's: {SEEDS[0]}-{SEEDS[-1]}); N samples at each of 121 pairs."
+)
+print(
+    "   N | true loss per seed (every seed shown) |  mean | IQM [95% bootstrap CI] | eps_P | min bound"
+)
 for j, N in enumerate(Ns):
     for i, seed in enumerate(SEEDS):
-        losses[i, j], eps[i, j] = plan_and_evaluate(mdp, N, seed)
+        losses[i, j], eps[i, j], eps_R_ij = plan_and_evaluate(mdp, N, seed)
+        bounds[i, j] = planning_loss_bound(eps[i, j], eps_R_ij, r_range, gamma)
+    x = losses[:, j]
+    lo, hi = bootstrap_ci(x, iqm)
     print(
-        f"{N:4d} | {np.array2string(losses[:, j], precision=2, floatmode='fixed')} | {losses[:, j].mean():6.2f} | {eps[:, j].mean():.3f}"
+        f"{N:4d} | {' '.join(f'{v:6.2f}' for v in x)}  | {x.mean():5.2f} |"
+        f" {iqm(x):5.2f} [{lo:5.2f}, {hi:5.2f}]   | {eps[:, j].mean():.3f} | {bounds[:, j].min():9,.0f}"
     )
+print("every loss is below its own seed's bound:", bool(np.all(losses <= bounds)))
 lab.metric("loss_by_N", {str(N): losses[:, j].round(4).tolist() for j, N in enumerate(Ns)})
-r_range = float(R.max() - R.min())
+# Appendix C's three data sizes, for the room: your five seeds' mean loss at N = 2, 20, 200.
+for N in (2, 20, 200):
+    lab.metric(f"loss_N{N}", round(float(losses[:, Ns.index(N)].mean()), 4))
 print(
-    f"At N = {Ns[-1]}: the bound 2 gamma eps_P (r_max - r_min) / (1 - gamma)^2 = "
-    f"{2 * gamma * eps[:, -1].mean() * r_range / (1 - gamma) ** 2:,.0f}, against a largest V* of {V_star.max():.0f}"
+    "room code values (mean loss over your 5 seeds): "
+    + ", ".join(f"N = {N}: {losses[:, Ns.index(N)].mean():.2f}" for N in (2, 20, 200))
 )
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
 for i, seed in enumerate(SEEDS):
@@ -486,41 +530,45 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown] role="ex4-explain"
-# Read your table. Did halving N from 20 to 10 double the mean loss? ε_P shrinks like
-# 1 / √N (right panel), so the bound (planning loss) rises by a factor of about √2 when N
-# halves, and the loss itself does whatever the policy does: above some N the planned
-# policy is π* on most seeds and the loss is exactly 0, below it the loss jumps in steps.
-# The printed bound is thousands against values near 100: it is a worst case over every
-# MDP with that ε_P, with two factors of the horizon 1 / (1 − γ) = 20 in it. With five
-# seeds, the comparison rule is: show every seed, and call a tie when the ranges overlap.
-# Which pairs of N are ties in your table? (Gotcha: "95%-accurate model → 95%-as-good plan".)
+# Check your Predict against your own table. The loss is 0 when the plan is π* and jumps
+# between the losses of a few wrong policies otherwise, so it need not fall at every step.
+# ε_P shrinks like 1/√N (right panel), so the bound (planning loss) rises by only about √2
+# when N halves, and it sits in the thousands against values near 100: a worst case with two
+# factors of the horizon 1/(1 − γ) = 20. You have five seeds per N, all shown. At five
+# seeds the workshop reports the IQM with a 95% bootstrap interval (Module 9 has you compute
+# both yourself). Where the intervals of two N overlap, call a tie. Which neighboring N are
+# ties in your table? (Gotcha: "More data always lowers the loss".)
 
-# %% role="ex4-chk"
-lab.check(4, m02.check_plan_and_evaluate, plan_and_evaluate)
+# %% role="ex4-chk1"
+lab.check(4, m02.check_plan_and_evaluate, plan_and_evaluate, label="4.1")
+
+# %% role="ex4-chk2"
+lab.check(4, m02.check_planning_loss_bound, planning_loss_bound, label="4.2")
 
 # %% [markdown] role="ex5-head"
 # **Planted bug.** A colleague's `value_iteration_suspect` logs max |V_new − V| at every
 # sweep and returns finite, plausible values. Whether a value function solves the
-# optimality equation can be tested without a reference answer: the optimality residual,
-# max_s |max_a Q(s, a) − V(s)| with Q = R + γ P V, is zero only at V*, and value iteration
-# that stops when max |ΔV| < tol returns a V with residual below γ · tol (VI stopping rule).
-# The helper below computes it. Run the suspect on the shop, then on a cliff gridworld whose
-# moves slip, with the residual as the diagnostic. Then fix the one wrong line.
-
-
-# %%
-def optimality_residual(P, R, gamma, V):
-    """max over states of |max_a (R + gamma P V)[s, a] - V[s]|: zero exactly at V*."""
-    return float(np.max(np.abs((R + gamma * P @ V).max(axis=1) - V)))
-
+# optimality equation can be tested without a reference answer, with its **optimality
+# residual** max_s |max_a Q(s, a) − V(s)|, where Q = R + γ P V: zero only at V*. Value
+# iteration that stops when max |ΔV| < tol returns a V with residual below γ · tol (VI
+# stopping rule). Write the residual, use it as the diagnostic on three models, then fix the
+# one wrong line.
 
 # %% [markdown] role="ex5-predict"
-# A correct value iteration stopping at tol = 1e−6 returns a V whose optimality residual is
-# below γ · tol = 9.5e−7 (why?). The suspect prints the last entry of its own log. If that
-# number is above tol, what has happened?
+# The suspect stops when the *mean* change is below tol; yours stops on the max. On the shop,
+# will it stop earlier than your value iteration, later, or at the same sweep? On the
+# slippery cliff? On a 100-state model where 99 states have already settled?
 
 
 # %% role="ex5-stub"
+def optimality_residual(P, R, gamma, V):
+    """max over states of |max_a (R + gamma P V)[s, a] - V[s]|: zero exactly at V*."""
+    # TODO 5 (part 1): one optimality backup of V, then compare it with V in the max norm.
+    raise NotImplementedError(
+        "TODO 5: write optimality_residual, or run lab.use_reference(5, 'optimality_residual')"
+    )
+
+
 def value_iteration_suspect(P, R, gamma, tol):
     """A colleague's value iteration. Returns (V, Q, k, log): log[i] is max|V_new - V| at sweep i + 1."""
     V, k, log = np.zeros(P.shape[0]), 0, []
@@ -530,20 +578,28 @@ def value_iteration_suspect(P, R, gamma, tol):
         k += 1
         change = np.abs(V_new - V)
         log.append(float(change.max()))
-        # TODO 5: once the residual shows the problem, fix the one wrong line below, then
-        # rerun this cell and the run cell.
+        # TODO 5 (part 2): once your residual shows the problem, fix the one wrong line below,
+        # then rerun this cell and the run cell.
         if change.mean() < tol:
             return V_new, R + gamma * P @ V_new, k, log
         V = V_new
 
 
 # %% [markdown] role="ex5-hint"
-# Compare the suspect's last logged max |ΔV| with tol, and its residual with γ · tol. The
-# log records one statistic of the change; the `if` tests another. Which statistic does the
-# stopping rule (VI stopping rule) need?
+# The residual is Lab 1's Bellman residual with a max over actions inside: back V up once,
+# take the max over the action axis, subtract V, and take the largest absolute entry. For
+# the bug, compare the suspect's last logged max |ΔV| with tol. The log records one
+# statistic of the change; the `if` tests another. Which statistic does the stopping rule
+# (VI stopping rule) need?
 
 
 # %% role="ex5-sol"
+@lab.solution(5)
+def optimality_residual(P, R, gamma, V):
+    """max over states of |max_a (R + gamma P V)[s, a] - V[s]|: zero exactly at V*."""
+    return float(np.max(np.abs((R + gamma * P @ V).max(axis=1) - V)))
+
+
 @lab.solution(5)
 def value_iteration_suspect(P, R, gamma, tol):
     """The colleague's value iteration, fixed: stop on the max change, not the mean."""
@@ -561,54 +617,60 @@ def value_iteration_suspect(P, R, gamma, tol):
 
 # %% role="ex5-run"
 tol = 1e-6
-V_s, _, k_s, log_s = value_iteration_suspect(P, R, gamma, tol)
-print(
-    f"shop:  suspect stopped after {k_s} sweeps (yours: {k_vi}); last logged max|dV| = {log_s[-1]:.2e};"
-    f" residual = {optimality_residual(P, R, gamma, V_s):.2e}"
-)
 cliff = envs.CliffGridworld(4, 12, slip=0.2, gamma=0.95)
-V_c, _, k_c, log_c = value_iteration_suspect(cliff.P, cliff.R, cliff.gamma, tol)
-V_ok, _, k_ok = value_iteration(cliff.P, cliff.R, cliff.gamma, tol)
-print(
-    f"cliff: suspect stopped after {k_c} sweeps (yours: {k_ok}); last logged max|dV| = {log_c[-1]:.2e}"
-    f" (tol = {tol:.0e})"
-)
-print(
-    f"       residual: suspect {optimality_residual(cliff.P, cliff.R, cliff.gamma, V_c):.2e},"
-    f" yours {optimality_residual(cliff.P, cliff.R, cliff.gamma, V_ok):.2e}, guarantee gamma * tol = {cliff.gamma * tol:.2e}"
-)
+# 100 states, 99 already settled at 0 and one still moving: the mean divides its change by 100.
+S_m = 100
+P_m = np.zeros((S_m, 2, S_m))
+P_m[np.arange(S_m), :, np.arange(S_m)] = 1.0
+R_m = np.zeros((S_m, 2))
+R_m[0] = [1.0, 0.5]
+models = {
+    "shop": (P, R, gamma),
+    "slippery cliff": (cliff.P, cliff.R, cliff.gamma),
+    "mostly settled": (P_m, R_m, 0.95),
+}
+print(f"guarantee: residual below gamma * tol = {0.95 * tol:.2e} (gamma = 0.95 for all three)")
+logs = {}
+for name, (P_x, R_x, g_x) in models.items():
+    V_x, _, k_x, logs[name] = value_iteration_suspect(P_x, R_x, g_x, tol)
+    V_ok, _, k_ok = value_iteration(P_x, R_x, g_x, tol)
+    print(
+        f"{name:15s}: suspect stopped after {k_x:3d} sweeps (yours: {k_ok:3d}); last logged "
+        f"max|dV| {logs[name][-1]:.2e}; residual: suspect {optimality_residual(P_x, R_x, g_x, V_x):.2e},"
+        f" yours {optimality_residual(P_x, R_x, g_x, V_ok):.2e}"
+    )
 fig, ax = plt.subplots()
-ax.semilogy(
-    range(1, len(log_c) + 1), log_c, marker=".", label="suspect's logged max|dV| per sweep (cliff)"
-)
+for name, lg in logs.items():
+    ax.semilogy(range(1, len(lg) + 1), lg, label=f"{name} (stopped at sweep {len(lg)})")
 ax.axhline(tol, ls="--", color="gray", label="tol")
-ax.set(xlabel="sweep", ylabel="max |V_new - V|", title="Where the suspect stopped")
+ax.set(xlabel="sweep", ylabel="logged max |V_new - V|", title="Where the suspect stopped")
 ax.legend()
 plt.show()
 
 # %% [markdown] role="ex5-explain"
-# Before your fix: on the shop the suspect stopped at the same sweep as your value
-# iteration, with the same residual. On the cliff it stopped a few sweeps early, while its
-# own log still read above tol, and its residual broke the guarantee γ · tol. Why does the
-# shop hide the bug? (Near the end, every state's change is almost the same number, so the
-# mean equals the max.) The mean is at least the max divided by the number of states, so the
-# residual can reach S times γ · tol: on an MDP where most states have settled, that is the
-# whole factor. (Gotcha: "Stop on the mean change".)
+# Before your fix, where did the suspect stop on each model, and how did its residual
+# compare with γ · tol? Why does the shop hide the bug, and why does the settled model show
+# it so loudly? The mean is at least the max divided by the number of states, so how large
+# can the residual get? (Gotcha: "Stop on the mean change".)
 #
 # **Diagnostics for this lab.** Every value function you compute has a residual you can
-# check without a reference: the Bellman residual of Lab 1 for a policy's value, the
-# optimality residual above for V*. Healthy value iteration: a residual below γ · tol, a
-# logged max |ΔV| that falls by about a factor γ per sweep once past the first few, and a
-# greedy policy that stops changing long before the values settle. Broken: a residual above
-# γ · tol (the stopping statistic is wrong, as here); a sweep count that does not grow with
-# 1 / (1 − γ) (the test never fires, or fires on the wrong quantity); a greedy policy that
-# differs between value iteration and policy iteration (one of the two is wrong). For an
-# estimated model, `validate()` checks that P̂ is a model, and ε_P and ε_R say how far it is
-# from the truth when you have the truth to compare with; the true loss of the planned
-# policy is the number that matters, and only the true model can give it.
+# check without a reference: the Bellman residual of Lab 1 for a policy's value, your
+# optimality residual for V*. Healthy value iteration: a residual below γ · tol, a logged
+# max |ΔV| that falls by about a factor γ per sweep once past the first few, and a greedy
+# policy that settles long before the values do. Broken: a residual above γ · tol (the
+# stopping statistic is wrong, as here); a sweep count that does not grow with 1 / (1 − γ)
+# (the test never fires, or fires on the wrong quantity); a greedy policy from value
+# iteration that is not a maximizer of policy iteration's Q (one of the two is wrong). A
+# testbed can hide a bug, as the shop hid this one: run every check on a second model that
+# behaves differently. For an estimated model, `validate()` checks that P̂ is a model, and ε_P
+# and ε_R say how far it is from the truth when you have the truth to compare with; the true
+# loss of the planned policy is the number that matters, and only the true model can give it.
 
-# %% role="ex5-chk"
-lab.check(5, m02.check_value_iteration_suspect, value_iteration_suspect)
+# %% role="ex5-chk1"
+lab.check(5, m02.check_optimality_residual, optimality_residual, label="5.1")
+
+# %% role="ex5-chk2"
+lab.check(5, m02.check_value_iteration_suspect, value_iteration_suspect, label="5.2")
 
 # %% [markdown] role="stretch"
 # **Modified policy iteration.** Policy iteration's solve costs about S³; value iteration's
