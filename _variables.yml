@@ -304,7 +304,7 @@ modules:
         title: Plan in the estimate, evaluate in the truth
         minutes: 13
         writes: [plan_and_evaluate, planning_loss_bound]
-        predict_answer: "Not necessarily, and it varies by seat. Seat 0 (seeds 0–4): three of five lose exactly 0 at N = 200, and the other two lose 1.39 and 0.38; the mean rises once, from 0.08 at N = 100 to 0.35 at N = 200. Look for exact zeros above some N, then a noisy tail."
+        predict_answer: "Not necessarily, and it varies by seat. Seat 0 (seeds 1000–1004): at N = 200 only one of five loses exactly 0 (the others lose 0.38 to 1.39), and the mean rises once, from 0.62 at N = 100 to 0.77 at N = 200. Across seats 0–25, 7 of 26 have all five seeds at exactly 0 at N = 200, and 13 of 26 have a mean that rises somewhere."
         explain_ref: "(planning loss)"
       - n: 5
         title: "Planted bug: a stopping rule"

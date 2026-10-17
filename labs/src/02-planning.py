@@ -35,8 +35,10 @@ INVENTORY = dict(
     gamma=0.95,
 )
 # Room pooling: SEED is your seat number (set in the setup cell), so every seat samples
-# different data in Exercises 3 and 4 and the room's results can be pooled.
-SEEDS = [SEED * 1000 + i for i in range(5)]
+# different data in Exercises 3 and 4 and the room's results can be pooled. Seat s runs
+# Exercise 4 with seeds (s + 1) * 1000 to (s + 1) * 1000 + 4: no seat reuses the
+# briefing's seeds 0-4.
+SEEDS = [(SEED + 1) * 1000 + i for i in range(5)]
 lab.seeds(SEEDS)
 
 # %% [markdown] role="ex0-head"
@@ -106,7 +108,9 @@ def value_iteration(P, R, gamma, tol):
 
 
 def greedy(Q):
-    """The greedy policy for Q: the action with the largest Q[s, a] in each state, as an int array (S,)."""
+    """The greedy policy for Q: the action with the largest Q[s, a] in each state, as an int
+    array (S,). Where actions tie, any of them will do (the reference takes the first one
+    within rounding of the max)."""
     # TODO 1 (part 2): one action per state.
     raise NotImplementedError(
         "TODO 1: write greedy, or run lab.use_reference(1) to continue with the solution"
@@ -123,21 +127,23 @@ def greedy(Q):
 # %% role="ex1-sol"
 @lab.solution(1)
 def value_iteration(P, R, gamma, tol):
-    """Sweep V <- max_a [R + gamma P V] from V = 0 until max|V_new - V| < tol."""
-    V, k = np.zeros(P.shape[0]), 0
+    """Value iteration from V = 0; stop when max|V_new - V| < tol."""
+    V, k = np.zeros(P.shape[0]), 0  # V_0 = 0; k counts sweeps
     while True:
-        Q = R + gamma * P @ V
-        V_new = Q.max(axis=1)
+        Q = R + gamma * P @ V  # Q_k, shape (S, A) (eq-vi)
+        V_new = Q.max(axis=1)  # V_{k+1} = T* V_k
         k += 1
-        if np.max(np.abs(V_new - V)) < tol:
+        if np.max(np.abs(V_new - V)) < tol:  # eq-vi-stop
+            # Return the Q of the returned V, for greedy().
             return V_new, R + gamma * P @ V_new, k
         V = V_new
 
 
 @lab.solution(1)
 def greedy(Q):
-    """The greedy policy for Q: argmax over actions in each state."""
-    return np.argmax(Q, axis=1)
+    """The first action within rounding of each row's max."""
+    tie_tol = 1e-9 * (1 + np.abs(Q).max())
+    return (Q >= Q.max(axis=1, keepdims=True) - tie_tol).argmax(axis=1)
 
 
 # %% role="ex1-run"
@@ -196,8 +202,9 @@ lab.check(1, m02.check_greedy, greedy, label="1.2")
 # Policy iteration alternates two steps from a starting policy: evaluate it exactly (Lab 1's
 # linear solve, included above), then improve it by acting greedily with respect to its Q
 # (improvement). It stops when the greedy policy is the one it already has. Ties: when the
-# current action is among the best, keep it. Then the policy changes only where some action
-# is strictly better, so its value rises at every change and the loop must end.
+# current action's Q is within a small tolerance of the best, keep it. Then the policy
+# changes only where some action is better by more than rounding, so its value rises at
+# every change and the loop must end.
 
 # %% [markdown] role="ex2-predict"
 # Start from "never order" (action 0 in every state). How many evaluations, that is linear
@@ -237,14 +244,15 @@ def policy_iteration(P, R, gamma, pi0):
 # %% role="ex2-sol"
 @lab.solution(2)
 def policy_iteration(P, R, gamma, pi0):
-    """Alternate exact evaluation and greedy improvement from the deterministic policy pi0."""
+    """Exact evaluation and greedy improvement from the policy pi0."""
     S, A = R.shape
     pi, k = np.asarray(pi0, dtype=int).copy(), 0
     while True:
         V = evaluate_exact(P, R, gamma, policy_matrix(pi, A))
         k += 1
-        Q = R + gamma * P @ V
-        tie_tol = 1e-9 * (1 + np.abs(Q).max())  # far above rounding, far below real gaps
+        Q = R + gamma * P @ V  # Q^pi from V^pi
+        # Tie rule of eq-improve: keep pi[s] within rounding of the max.
+        tie_tol = 1e-9 * (1 + np.abs(Q).max())
         keep = Q[np.arange(S), pi] >= Q.max(axis=1) - tie_tol
         pi_new = np.where(keep, pi, greedy(Q))
         if np.array_equal(pi_new, pi):
@@ -272,8 +280,10 @@ print(
 # linear solve, about S³ multiply-adds, where a sweep costs about S²A: for the shop both are
 # tiny. Now imagine S = 10⁶ states and A = 11: how many multiply-adds is one solve, and how
 # many is one sweep? Which method can you still afford? (Gotcha: "PI is always faster".)
-# At stock 1, orders 9 and 10 both deliver 9 units: the shop has the same action twice.
-# Why does the checkpoint start an MDP with two identical actions on the second copy?
+# At stock 1, orders 9 and 10 both deliver 9 units: the shop has the same action twice,
+# and on some machines rounding makes their Q values differ by a few units in the last
+# place. Why does the checkpoint include an action that copies another to within 1e−13,
+# and start on it? What would an exact comparison do there?
 
 # %% role="ex2-chk"
 lab.check(2, m02.check_policy_iteration, policy_iteration)
@@ -332,21 +342,21 @@ def estimate_model(log, n_states, n_actions):
 # %% role="ex3-sol"
 @lab.solution(3)
 def estimate_model(log, n_states, n_actions):
-    """Counts -> (P_hat, R_hat, counts) from rows (s, a, r, s2); unvisited pairs self-loop with reward 0."""
+    """Counts -> (P_hat, R_hat, counts); unvisited pairs self-loop."""
     counts = np.zeros((n_states, n_actions))
     P_hat = np.zeros((n_states, n_actions, n_states))
     R_hat = np.zeros((n_states, n_actions))
-    for s, a, r, s2 in log:
+    for s, a, r, s2 in log:  # tally N(s, a), N(s, a, s'), reward sums
         s, a, s2 = int(s), int(a), int(s2)
         counts[s, a] += 1
         P_hat[s, a, s2] += 1
         R_hat[s, a] += r
     for s in range(n_states):
         for a in range(n_actions):
-            if counts[s, a] > 0:
+            if counts[s, a] > 0:  # eq-counts
                 P_hat[s, a] /= counts[s, a]
                 R_hat[s, a] /= counts[s, a]
-            else:
+            else:  # unvisited: a self-loop with reward 0
                 P_hat[s, a, s] = 1.0
     return P_hat, R_hat, counts
 
@@ -457,18 +467,21 @@ def planning_loss_bound(eps_P, eps_R, r_range, gamma):
 # %% role="ex4-sol"
 @lab.solution(4)
 def plan_and_evaluate(mdp, N, seed, tol=1e-6):
-    """Plan in a model estimated from N samples per (s, a); evaluate the plan in the truth."""
+    """Plan in an estimate from N samples per (s, a); evaluate in P."""
     rng = np.random.default_rng(seed)
     log = sample_transitions(mdp, N, rng)
     P_hat, R_hat, _ = estimate_model(log, mdp.n_states, mdp.n_actions)
+    # Plan in the estimate.
     _, Q_hat, _ = value_iteration(P_hat, R_hat, mdp.gamma, tol)
     pi_hat = greedy(Q_hat)
+    # V*: the exact value of the true model's greedy policy.
     _, Q_true, _ = value_iteration(mdp.P, mdp.R, mdp.gamma, tol)
-    V_star_true = evaluate_exact(
-        mdp.P, mdp.R, mdp.gamma, policy_matrix(greedy(Q_true), mdp.n_actions)
-    )
-    V_hat_true = evaluate_exact(mdp.P, mdp.R, mdp.gamma, policy_matrix(pi_hat, mdp.n_actions))
-    loss = float(np.max(V_star_true - V_hat_true))
+    pi_true = policy_matrix(greedy(Q_true), mdp.n_actions)
+    V_star = evaluate_exact(mdp.P, mdp.R, mdp.gamma, pi_true)
+    # Evaluate the plan in the TRUE model.
+    pi_plan = policy_matrix(pi_hat, mdp.n_actions)
+    V_plan = evaluate_exact(mdp.P, mdp.R, mdp.gamma, pi_plan)
+    loss = float(np.max(V_star - V_plan))
     eps_P = float(np.abs(mdp.P - P_hat).sum(axis=2).max())
     eps_R = float(np.abs(mdp.R - R_hat).max())
     return loss, eps_P, eps_R
@@ -476,8 +489,10 @@ def plan_and_evaluate(mdp, N, seed, tol=1e-6):
 
 @lab.solution(4)
 def planning_loss_bound(eps_P, eps_R, r_range, gamma):
-    """The planning-loss bound for rewards with range r_range = r_max - r_min."""
-    return 2 * eps_R / (1 - gamma) + 2 * gamma * eps_P * r_range / (1 - gamma) ** 2
+    """eq-plan-loss with rewards of range r_range = r_max - r_min."""
+    reward_term = 2 * eps_R / (1 - gamma)
+    model_term = 2 * gamma * eps_P * r_range / (1 - gamma) ** 2
+    return reward_term + model_term
 
 
 # %% role="ex4-run"
@@ -607,8 +622,9 @@ def value_iteration_suspect(P, R, gamma, tol):
 # %% role="ex5-sol"
 @lab.solution(5)
 def optimality_residual(P, R, gamma, V):
-    """max over states of |max_a (R + gamma P V)[s, a] - V[s]|: zero exactly at V*."""
-    return float(np.max(np.abs((R + gamma * P @ V).max(axis=1) - V)))
+    """max_s |max_a (R + gamma P V)[s, a] - V[s]|: zero only at V*."""
+    backup = (R + gamma * P @ V).max(axis=1)  # T* V
+    return float(np.max(np.abs(backup - V)))
 
 
 @lab.solution(5)
