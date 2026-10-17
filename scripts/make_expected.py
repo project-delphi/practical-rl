@@ -396,7 +396,7 @@ def same_content(old: bytes, new: bytes) -> bool:
         if x.dtype != y.dtype or x.shape != y.shape:
             return False
         if np.issubdtype(x.dtype, np.floating):
-            if not np.allclose(x, y, rtol=1e-12, atol=1e-12):
+            if not np.allclose(x, y, rtol=1e-12, atol=1e-12, equal_nan=True):
                 return False
         elif not np.array_equal(x, y):
             return False
