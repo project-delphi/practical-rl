@@ -37,8 +37,9 @@ START, GOAL = mdp.start, mdp.goal
 ABOVE_GOAL = GOAL - COLS  # the cell whose "down" is the final move of every route
 
 # Budgets. Lab code reads them from here and never branches on QUICK. The control budget is
-# the same in both: the design scan found the learners' greedy paths unreliable below about
-# 1000 episodes at alpha 0.1, and 1000 episodes cost well under a second of compute.
+# the same in both, 1000 episodes: the threshold protocol set the control checkpoints at that
+# budget (runs/2026-10-17-local-threshold-m03-*), where the reference greedy paths reached the
+# goal on every seed.
 budget = lab.use_settings(
     prl.runtime.settings(
         dict(
@@ -266,8 +267,9 @@ def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):
 
 
 # %% [markdown] role="ex2a-hint"
-# `zip(ep.states[:-1], ep.rewards, ep.states[1:], strict=True)` walks the transitions. The next state is
-# terminal only on the last transition of an episode whose `terminated` flag is True.
+# `zip(ep.states[:-1], ep.rewards, ep.states[1:], strict=True)` walks the transitions.
+# The next state is terminal only on the last transition of an episode whose `terminated`
+# flag is True.
 
 
 # %% role="ex2a-sol"
