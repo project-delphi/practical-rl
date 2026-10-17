@@ -7,7 +7,8 @@
 - filters/figures.lua, rendered with Quarto on fixture pages, emits each paired figure
   as a light and a dark copy inside one figure: one number, one caption, one id. The same
   holds for each panel of a subfigure layout, and a caption with math reaches the
-  lightbox as HTML rather than as raw TeX in the link's title.
+  lightbox as HTML rather than as raw TeX in the link's title, for numbered and
+  unnumbered figures alike.
 - The OJS demos follow the demo rules that can be read from the source.
 
 The rendering tests are skipped when Quarto is not on PATH; how the copies switch with
@@ -133,7 +134,7 @@ def render_fixture(
     (tmp / "images").mkdir()
     for name in images:
         (tmp / "images" / name).write_text(SVG)
-    (tmp / "fixture.qmd").write_text(text.format(filter=FILTER))
+    (tmp / "fixture.qmd").write_text(text.format(filter=FILTER, filters=FILTER.parent))
     out = subprocess.run(
         [quarto, "render", "fixture.qmd", "--to", "html"],
         cwd=tmp,
@@ -311,6 +312,127 @@ def test_subfigure_math_caption_keeps_its_label(subfig_page: str) -> None:
     assert not any("data-glightbox" in x for x in eps)
     # the parent's caption is not on any panel's link
     assert 'lightbox-desc-fig-two"' not in subfig_page
+
+
+# ------------------------------------------------------------------ unnumbered figures
+# An image with a caption and no #fig- id is an unnumbered figure. Module 2's VI/PI pair is
+# one: an unnumbered two-panel layout inside a collapsed "After the lab" note (copied
+# here from modules/02-planning.qmd). With no id to key on, the description is keyed on
+# the image's file name, made unique on the page.
+UNNUMBERED_FIXTURE = r"""---
+title: "Unnumbered figures fixture"
+format:
+  html:
+    lightbox: auto
+    html-math-method: katex
+filters:
+  - {filters}/disclosure.lua
+  - path: {filter}
+    at: post-render
+---
+
+![The error $\lVert V_k - V^* \rVert_\infty$ of each sweep: it falls like $\gamma^k$.](images/solo.svg){{fig-alt="One unnumbered figure whose caption has math before its colon."}}
+
+![The same image again, with $\pi^*$ in its caption.](images/solo.svg){{fig-alt="The same image a second time, with another caption."}}
+
+::: {{.callout-note collapse="true" title="After the lab: the shop's counts"}}
+These are exact counts from a deterministic computation on the shop.
+
+::: {{layout="[[62,38]]"}}
+![Value iteration on the shop: the change at sweep $k$, $\lVert V_k - V_{{k-1}} \rVert_\infty$, log scale.](/images/02-vi-vs-pi-vi.svg){{fig-alt="Value iteration's largest change per sweep against sweep k, on a log scale: 15.0 at sweep 1, then a nearly straight line from about 3.6 at sweep 5 down to the tolerance line, 1e-6, which it crosses at sweep 299. A shaded region from sweep 4 on, where the greedy policy equals the optimal policy."}}
+
+![Policy iteration from 'never order': each policy's distance to the optimum.](/images/02-vi-vs-pi-pi.svg){{fig-alt="Policy iteration's distance to the optimal value, for the four policies it evaluates, pi_0 to pi_3: 159.8, 38.9, 0.38 and 0."}}
+:::
+
+**What to notice:** value iteration's change at sweep $k$ falls by about a factor $\gamma = 0.95$ per sweep.
+:::
+"""
+
+
+@pytest.fixture(scope="module")
+def unnumbered_page(tmp_path_factory: pytest.TempPathFactory) -> str:
+    names = ("solo", "02-vi-vs-pi-vi", "02-vi-vs-pi-pi")
+    images = tuple(f"{n}{dark}.svg" for n in names for dark in ("", ".dark"))
+    return render_fixture(tmp_path_factory, UNNUMBERED_FIXTURE, images)
+
+
+def unnumbered_figures(html: str) -> list[str]:
+    """Each unnumbered figure (a quarto-figure div with no id), in page order."""
+    return re.findall(
+        r'<div class="quarto-figure quarto-figure-center">.*?</figure>\s*</div>', html, re.S
+    )
+
+
+def figcaption(fig: str) -> str:
+    m = re.search(r"<figcaption>\s*(.*?)\s*</figcaption>", fig, re.S)
+    assert m, "no <figcaption>"
+    return m.group(1)
+
+
+def description(html: str, key: str) -> str:
+    found = re.findall(
+        rf'<div class="glightbox-desc lightbox-desc-{key}" hidden="">\s*(.*?)\s*</div>',
+        html,
+        re.S,
+    )
+    assert len(found) == 1, f"expected one description for {key}, found {len(found)}"
+    return found[0]
+
+
+def test_no_lightbox_title_shows_tex(unnumbered_page: str) -> None:
+    titles = re.findall(r'<a [^>]*class="lightbox"[^>]*title="([^"]*)"', unnumbered_page)
+    assert titles, "the caption without math keeps its title"
+    assert not [t for t in titles if "\\" in t], f"raw TeX in a lightbox title: {titles}"
+
+
+@pytest.mark.parametrize(
+    ("index", "key", "alt"),
+    [
+        (0, "img-solo", "One unnumbered figure whose caption has math before its colon."),
+        (1, "img-solo-2", "The same image a second time, with another caption."),
+    ],
+)
+def test_unnumbered_math_caption_reaches_the_lightbox_as_html(
+    unnumbered_page: str, index: int, key: str, alt: str
+) -> None:
+    fig = unnumbered_figures(unnumbered_page)[index]
+    links = lightbox_links(fig)
+    assert [(x["theme"], x["href"]) for x in links] == [
+        ("light", "images/solo.svg"),
+        ("dark", "images/solo.dark.svg"),
+    ]
+    for x in links:
+        assert "title" not in x, "the title would show raw TeX"
+        assert x["data-glightbox"] == f"description: .lightbox-desc-{key}"
+        assert x["data-alt"] == alt
+    # The whole caption, math and all: no "Figure N:" label to rebuild, and the text
+    # before the caption's own colon keeps its math.
+    assert description(unnumbered_page, key) == figcaption(fig)
+    assert '<span class="math inline">' in figcaption(fig)
+
+
+def test_unnumbered_layout_panels_in_a_disclosure(unnumbered_page: str) -> None:
+    figs = unnumbered_figures(unnumbered_page)[2:]
+    assert len(figs) == 2
+    vi, pi = figs
+    assert '<details class="disclosure' in unnumbered_page, "the note became <details>"
+    vi_links = lightbox_links(vi)
+    # Quarto resolves the site-absolute /images/... against the page
+    assert [(x["theme"], x["img"].split("images/")[-1]) for x in vi_links] == [
+        ("light", "02-vi-vs-pi-vi.svg"),
+        ("dark", "02-vi-vs-pi-vi.dark.svg"),
+    ]
+    assert {x["data-glightbox"] for x in vi_links} == {
+        "description: .lightbox-desc-img-02-vi-vs-pi-vi"
+    }
+    assert not any("title" in x for x in vi_links)
+    assert description(unnumbered_page, "img-02-vi-vs-pi-vi") == figcaption(vi)
+    assert figcaption(vi).count('<span class="math inline">') == 2
+    # no math in this panel's caption: the plain title stays
+    pi_links = lightbox_links(pi)
+    assert len(pi_links) == 2
+    assert {x["title"] for x in pi_links} == {figcaption(pi)}
+    assert not any("data-glightbox" in x for x in pi_links)
 
 
 # ------------------------------------------------------------------ OJS demos

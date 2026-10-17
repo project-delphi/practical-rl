@@ -32,16 +32,20 @@ as plain text, so the lightbox (and the browser's hover tooltip) showed raw TeX:
 "falls like 1/\sqrt N". For a figure (or subfigure) whose own caption contains math, a
 first pass
   - copies the caption into a hidden element after the figure,
-    <div class="glightbox-desc lightbox-desc-ID" hidden> (Quarto's own markup for a
-    lightbox description; GLightbox's CSS also hides .glightbox-desc),
+    <div class="glightbox-desc lightbox-desc-KEY" hidden> (Quarto's own markup for a
+    lightbox description; GLightbox's CSS also hides .glightbox-desc). KEY is the
+    figure's id, or for an unnumbered figure (no #fig- id) "img-" and the image's file
+    name, with "-2", "-3", ... if that name is already taken on the page,
   - points the figure's lightbox links at it with
-    data-glightbox="description: .lightbox-desc-ID": GLightbox shows that element's HTML
+    data-glightbox="description: .lightbox-desc-KEY": GLightbox shows that element's HTML
     under the image, and Quarto's slide_after_load hook typesets the math in it,
   - drops the title, and sets data-alt to the image's alt text, which names the image in
     the lightbox in place of the title.
 It runs before the pairing pass, so the dark copy of each link carries the same
 attributes. A subfigure is a float of its own inside its parent, so each panel uses its
-own caption ("Figure 2 (a): ...") and the parent's caption reaches no panel's link.
+own caption ("Figure 2 (a): ...") and the parent's caption reaches no panel's link. An
+unnumbered layout (`::: {layout=...}` with no id) is not a figure; each image in it is
+an unnumbered figure of its own.
 HTML pages only; slides are untouched.
 ]]
 
@@ -142,36 +146,72 @@ local function pair_lightbox(link)
 end
 
 -- ---------------------------------------------------------------- captions with math
-local function is_float(div)
+-- A numbered figure (or subfigure) is a Div with its id and the class quarto-float. An
+-- unnumbered one (an image with a caption and no #fig- id) is a Div with the class
+-- quarto-figure and no id.
+local function is_numbered(div)
   return div.identifier ~= "" and div.classes:includes("quarto-float")
 end
 
--- Walk a float's own content: never into a nested float (a subfigure).
+local function is_figure(div)
+  return is_numbered(div) or div.classes:includes("quarto-figure")
+end
+
+-- Walk a figure's own content: never into a nested figure (a subfigure).
 local function walk_own(blocks, filter)
   filter.traverse = "topdown"
   filter.Div = function(d)
-    if is_float(d) then
+    if is_figure(d) then
       return nil, false
     end
   end
   return blocks:walk(filter)
 end
 
--- The inlines of the float's own caption: the Plain after its <figcaption ...>.
+local function is_raw_html(e, pattern)
+  return (e.t == "RawBlock" or e.t == "RawInline") and e.format == "html" and e.text:match(pattern)
+end
+
+-- The inlines of the figure's own caption. Numbered: the Plain after a <figcaption ...>
+-- block. Unnumbered: the inlines between <figcaption> and </figcaption> in one Plain.
 local function own_caption(div)
   local caption = nil
   walk_own(div.content, {
     Blocks = function(blocks)
-      for i = 1, #blocks - 1 do
+      for i = 1, #blocks do
         local b = blocks[i]
-        if caption == nil and b.t == "RawBlock" and b.format == "html"
-          and b.text:match("^<figcaption") and blocks[i + 1].t == "Plain" then
+        if caption ~= nil then
+          break
+        elseif is_raw_html(b, "^<figcaption") and blocks[i + 1] and blocks[i + 1].t == "Plain" then
           caption = blocks[i + 1].content
+        elseif b.t == "Plain" and #b.content >= 2 and is_raw_html(b.content[1], "^<figcaption")
+          and is_raw_html(b.content[#b.content], "^</figcaption>") then
+          caption = pandoc.Inlines({ table.unpack(b.content, 2, #b.content - 1) })
         end
       end
     end,
   })
   return caption
+end
+
+-- One description class per figure on the page: the figure's id, or for an unnumbered
+-- figure "img-" and the image's file name ("images/02-vi-vs-pi-vi.svg" ->
+-- "img-02-vi-vs-pi-vi"). A name already taken gets "-2", "-3", ...
+local taken = {}
+local function description_key(div, link)
+  local key = div.identifier
+  if key == "" then
+    local name = (link.target:match("([^/]*)$") or ""):gsub("[?#].*$", ""):gsub("%.[^.]*$", "")
+    key = "img-" .. name
+  end
+  key = key:gsub("[^%w_-]", "-")
+  local unique, n = key, 1
+  while taken[unique] do
+    n = n + 1
+    unique = key .. "-" .. n
+  end
+  taken[unique] = true
+  return unique
 end
 
 local function has_math(inlines)
@@ -184,12 +224,17 @@ local function has_math(inlines)
   return found
 end
 
--- The lightbox reads like the title did. Quarto's title is "LABEL: TEXT", with LABEL
--- "Figure 2" or "Figure 2 (a)"; the caption starts with its own form of the label
--- ("Figure 2:" for a figure, "(a)" for a subfigure). Drop that and put LABEL first.
--- If the two do not line up, the caption as it is.
-local function description(caption, title)
-  local label, rest = title:match("^(.-):%s(.*)$")
+-- The lightbox reads like the title did. For a numbered figure, Quarto's title is
+-- "LABEL: TEXT", with LABEL "Figure 2" or "Figure 2 (a)"; the caption starts with its
+-- own form of the label ("Figure 2:" for a figure, "(a)" for a subfigure). Drop that and
+-- put LABEL first. An unnumbered figure's title is its caption, with no label, so its
+-- caption is used as it is (a colon in it is not a label). Also as it is: a caption
+-- that does not line up with the title.
+local function description(caption, title, numbered)
+  local label, rest = nil, nil
+  if numbered then
+    label, rest = title:match("^(.-):%s(.*)$")
+  end
   if label ~= nil then
     for k = 1, #caption do
       local tail = pandoc.Inlines({ table.unpack(caption, k) })
@@ -221,20 +266,20 @@ local function copy_safe(inlines)
 end
 
 local function caption_math(div)
-  if not (is_html_page() and is_float(div)) then
+  if not (is_html_page() and is_figure(div)) then
     return nil
   end
   local caption = own_caption(div)
   if caption == nil or not has_math(caption) then
     return nil
   end
-  local class = "lightbox-desc-" .. div.identifier:gsub("[^%w_-]", "-")
-  local title = nil
+  local class, title = nil, nil
   div.content = walk_own(div.content, {
     Link = function(link)
       if not link.classes:includes("lightbox") then
         return nil
       end
+      class = class or ("lightbox-desc-" .. description_key(div, link))
       title = title or link.title
       link.title = ""
       link.attributes["data-glightbox"] = "description: ." .. class
@@ -249,7 +294,7 @@ local function caption_math(div)
     return nil -- no lightbox link of its own (lightbox off, or only subfigures)
   end
   local desc = pandoc.Div(
-    { pandoc.Plain(copy_safe(description(caption, title))) },
+    { pandoc.Plain(copy_safe(description(caption, title, is_numbered(div)))) },
     pandoc.Attr("", { "glightbox-desc", class }, { hidden = "" })
   )
   return { div, desc }
