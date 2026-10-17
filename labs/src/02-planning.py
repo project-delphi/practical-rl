@@ -72,6 +72,12 @@ def policy_matrix(actions, n_actions):
     return pi
 
 
+def shelf(actions):
+    """Stock after ordering. The shelf caps an order, so two orders that fill it are the same
+    decision (at stock 1, orders 9 and 10): compare policies by shelf, not by order."""
+    return np.minimum(np.arange(len(actions)) + np.asarray(actions), INVENTORY["capacity"])
+
+
 # %% [markdown] role="ex1-head"
 # Value iteration sweeps the optimality backup from V = 0: Q_k(s, a) = R[s, a] +
 # γ Σ_s' P[s, a, s'] V_k(s') and V_{k+1}(s) = max_a Q_k(s, a) (VI update). It stops when
@@ -140,12 +146,12 @@ V_star, Q_star, k_vi = value_iteration(P, R, gamma, tol)
 pi_star = greedy(Q_star)
 print(f"value iteration: {k_vi} sweeps to tol = {tol:g}")
 print("V*(stock):      ", np.round(V_star, 2))
-print("pi*(stock):     order", pi_star, " -> shelf after ordering", pi_star + np.arange(S))
+print("pi*(stock):     order", pi_star, " -> shelf after ordering", shelf(pi_star))
 print(f"V*(7) - V*(6) = {V_star[7] - V_star[6]:.2f}")
 V_loose, Q_loose, k_loose = value_iteration(P, R, gamma, 1.0)
 print(
     f"tol = 1.0: {k_loose} sweeps; greedy policy equals pi*: "
-    f"{np.array_equal(greedy(Q_loose), pi_star)}; max |V - V*| = {np.max(np.abs(V_loose - V_star)):.1f}"
+    f"{np.array_equal(shelf(greedy(Q_loose)), shelf(pi_star))}; max |V - V*| = {np.max(np.abs(V_loose - V_star)):.1f}"
 )
 pi7 = np.maximum(0, 7 - np.arange(S))
 V7 = evaluate_exact(P, R, gamma, policy_matrix(pi7, A))
@@ -204,7 +210,8 @@ def policy_iteration(P, R, gamma, pi0):
     """Alternate exact evaluation and greedy improvement from the deterministic policy pi0.
 
     pi0 is an int array (S,). Returns (V, pi, k): the value and the policy at the end, and
-    the number of evaluations k. Keep the current action when it ties for the best.
+    the number of evaluations k. Keep the current action when it ties for the best, within a
+    small tolerance: rounding can split an exact tie by a few units in the last place.
     """
     S, A = R.shape
     pi, k = np.asarray(pi0, dtype=int).copy(), 0
@@ -212,7 +219,8 @@ def policy_iteration(P, R, gamma, pi0):
         V = evaluate_exact(P, R, gamma, policy_matrix(pi, A))
         k += 1
         # TODO 2: Q from V, then the improved policy: greedy(Q), except keep pi[s] where
-        # Q[s, pi[s]] already equals the row's max. Return (V, pi, k) once nothing changes.
+        # Q[s, pi[s]] is within tie_tol = 1e-9 * (1 + max|Q|) of the row's max (not an exact
+        # ==). Return (V, pi, k) once nothing changes.
         raise NotImplementedError(
             "TODO 2: write policy_iteration, or run lab.use_reference(2) to continue with the solution"
         )
@@ -220,8 +228,10 @@ def policy_iteration(P, R, gamma, pi0):
 
 # %% [markdown] role="ex2-hint"
 # Build Q from V as in Exercise 1. `Q[np.arange(S), pi]` is each state's current action
-# value; a state keeps its action when that equals the row's max, and takes `greedy(Q)`
-# otherwise. Stop when the new policy equals the old one.
+# value; a state keeps its action when that is at least the row's max minus `tie_tol`, and
+# takes `greedy(Q)` otherwise. The shop's capped orders tie exactly on paper, but `P @ V` can
+# round two equal rows differently on some machines, so an exact test may flip between them.
+# Stop when the new policy equals the old one.
 
 
 # %% role="ex2-sol"
@@ -234,7 +244,8 @@ def policy_iteration(P, R, gamma, pi0):
         V = evaluate_exact(P, R, gamma, policy_matrix(pi, A))
         k += 1
         Q = R + gamma * P @ V
-        keep = Q[np.arange(S), pi] >= Q.max(axis=1)
+        tie_tol = 1e-9 * (1 + np.abs(Q).max())  # far above rounding, far below real gaps
+        keep = Q[np.arange(S), pi] >= Q.max(axis=1) - tie_tol
         pi_new = np.where(keep, pi, greedy(Q))
         if np.array_equal(pi_new, pi):
             return V, pi, k
@@ -244,7 +255,7 @@ def policy_iteration(P, R, gamma, pi0):
 # %% role="ex2-run"
 V_pi, pi_pi, k_pi = policy_iteration(P, R, gamma, np.zeros(S, dtype=int))
 print(f"policy iteration: {k_pi} evaluations (linear solves); value iteration: {k_vi} sweeps")
-print("same policy as value iteration:", np.array_equal(pi_pi, pi_star))
+print("same policy as value iteration:", np.array_equal(shelf(pi_pi), shelf(pi_star)))
 print(
     f"max |V_PI - V_VI| = {np.max(np.abs(V_pi - V_star)):.2e}  (the stopping rule allows {gamma * tol / (1 - gamma):.2e})"
 )
@@ -714,7 +725,7 @@ def modified_policy_iteration(P, R, gamma, m, tol):
 for m in (1, 5, 20, 100):
     V_m, pi_m, rounds = modified_policy_iteration(P, R, gamma, m, 1e-6)
     print(
-        f"m = {m:3d}: {rounds:4d} rounds = {rounds * m:5d} sweeps; policy equals pi*: {np.array_equal(pi_m, pi_star)};"
+        f"m = {m:3d}: {rounds:4d} rounds = {rounds * m:5d} sweeps; policy equals pi*: {np.array_equal(shelf(pi_m), shelf(pi_star))};"
         f" max |V - V*| = {np.max(np.abs(V_m - V_star)):.1e}"
     )
 lab.check(
