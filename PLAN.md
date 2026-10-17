@@ -267,31 +267,31 @@ Total: 28 + 12. **Reference** (on the page, not read aloud): the worked reward e
 1. Implement value iteration (VI) and policy iteration (PI), and compare their iteration counts.
 2. Extract a greedy policy. Check that if ‖Q−Q*‖∞ ≤ ε, the greedy policy loses at most 2ε/(1−γ) (AJKS V3, Lemma 1.11; opened by the academic director on 2026-10-10).
 3. Estimate a model from samples. Measure the true loss of the policy planned in it as the data shrinks, over 5 seeds.
-4. State the simulation lemma (AJKS V3 Lemma 2.2, in identity form). With rewards in [0,1] and ε_P = max‖P(·|s,a)−P̂(·|s,a)‖₁, every policy's value error is at most γε_P/(1−γ)², and the planned policy loses at most 2γε_P/(1−γ)².
+4. State the simulation lemma (AJKS V3 Lemma 2.2, in identity form). With rewards in [0,1] and ε_P = max‖P(·|s,a)−P̂(·|s,a)‖₁, every policy's value error is at most γε_P/(1−γ)², and the planned policy loses at most 2γε_P/(1−γ)². With an estimated reward too (ε_R = max|r − r̂|), the planned policy loses at most 2ε_R/(1−γ) + 2γε_P/(1−γ)². Check measured losses against this bound; the shop's rewards are rescaled from their range, which makes the bound true but vacuous there.
 
 **Briefing:**
 
 | § | Topic | Min |
 |---|---|---|
-| 1 | VI as repeated optimality backups | 8 |
+| 1 | VI as repeated optimality backups | 7 (cold call 1) |
 | 2 | Greedy extraction; loss bound stated | 7 (chk 2) |
 | 3 | PI; improvement argument in 3 lines | 8 (chk 2) |
-| 4 | Counts → P̂; simulation lemma and horizon factor | 11 (predict 4) |
-| 5 | Bridge | 4 |
+| 4 | Counts → P̂; simulation lemma and horizon factor | 13 (predict 3) |
+| 5 | Bridge | 3 |
 | — | Setup | 2 |
 
-Total: 30 + 8 + 2. **Collapsed:** modified policy iteration; asynchronous VI; the lemma's proof.
+Total: 30 + 8 + 2. The section split changed in Phase 3 after the pedagogy review (2026-10-17): §4 was about twice its exposition budget. **Collapsed:** modified policy iteration; asynchronous VI; the lemma's proof; "After the lab: the shop's counts" (the VI/PI figure, so the main path does not answer Exercises 1 and 2's Predicts).
 
-**Lab (core 3 + 49):**
+**Lab (core 3 + 50):**
 
 | # | Exercise | Writes | Checkpoint | Min |
 |---|---|---|---|---|
 | 0 | Reconnect, rerun setup | — | Setup check | 3 |
 | 1 | VI and greedy extraction | `value_iteration` (1a), `greedy` (1b) | V\* and π\* equal the fixture; greedy-loss bound holds on a perturbed Q | 12 |
-| 2 | Policy iteration | `policy_iteration` | Same π\*; fewer iterations than VI | 9 |
+| 2 | Policy iteration (the reference `evaluate_exact` from Lab 1 is included) | `policy_iteration` | Same π\*; exact evaluation counts | 8 |
 | 3 | Estimate the model. Unvisited (s,a) becomes a self-loop with R̂ = 0, which is also the Predict. | `estimate_model` | Exact on a fixed sample | 8 |
-| 4 | Plan in P̂, evaluate in P (runner provided) | `plan_and_evaluate` | At the smallest N, mean loss exceeds the mean at the largest N by more than the seed spread | 12 |
-| 5 | **Planted bug**: VI stops on mean \|ΔV\|, not max | Diagnose from the logged max\|ΔV\| per sweep | Residual of the returned V < tol | 8 |
+| 4 | Plan in P̂, evaluate in P (runner provided), over 5 seeds with every seed shown and the IQM with a bootstrap CI | `plan_and_evaluate` (4.1), `planning_loss_bound` (4.2) | 4.1: at the smallest N, mean loss exceeds the mean at the largest N by more than the seed spread, and the per-seed losses, ε_P and ε_R equal the fixture; 4.2: the bound on fixed cases, and every measured loss is below its bound | 13 |
+| 5 | **Planted bug**: VI stops on mean \|ΔV\|, not max. Shown on the shop (invisible: the mean and the max cross tol together), a slippery cliff gridworld and a mostly settled 100-state model | `optimality_residual` (5.1), then fix `value_iteration_suspect` (5.2) | 5.1: residuals on fixed V; 5.2: the returned V is within γ·tol/(1−γ) of V\* and the sweep count matches, on all three models | 9 |
 
 - **Compare:** exact fixtures.
 - **Stretch:** modified policy iteration.
