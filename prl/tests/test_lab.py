@@ -156,3 +156,28 @@ def test_fixtures_are_copies():
     a = expected("m01_eval")["rand_R"]
     a[:] = 0
     assert expected("m01_eval")["rand_R"].any()
+
+
+def test_finish_prints_the_room_code(monkeypatch, capsys, tmp_path):
+    monkeypatch.setenv("PRL_WORKED", "0")
+    monkeypatch.delenv("PRL_QUICK", raising=False)
+    monkeypatch.setattr(harness.record, "emit", lambda rec, **_: None)
+    ns = {}
+    lab = harness.init(
+        "03-test",
+        "0123456789abcdef",
+        designed="colab-cpu",
+        api=1,
+        ns=ns,
+        checkpoints=["1", "2"],
+        seat=4,
+    )
+
+    def ok(fn):
+        pass
+
+    lab.check(1, ok, lambda: None)
+    lab.metric("rms", 0.5)
+    lab.finish()
+    out = capsys.readouterr().out
+    assert out.rstrip().splitlines()[-1] == "ROOM m03 seat=4 checks=1/2 quick=0 rms=0.5"

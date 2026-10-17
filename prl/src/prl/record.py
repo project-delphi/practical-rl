@@ -237,6 +237,77 @@ def emit(rec: dict[str, Any], *, inbox: Path | None = None) -> Path | None:
     return path
 
 
+ROOM = "ROOM"
+_ROOM_RESERVED = {"seat", "checks", "quick"}
+_ROOM_KEY = re.compile(r"[^A-Za-z0-9_]+")
+_ROOM_LINE = re.compile(r"\bROOM (m\d\d)((?: [A-Za-z0-9_]+=\S+)*)")
+
+
+def room_code(
+    module: str,
+    *,
+    seat: int | None,
+    passed: int,
+    total: int,
+    quick: bool,
+    metrics: dict[str, Any],
+) -> str:
+    """The one line a participant pastes for the debrief's room pooling (PLAN.md §3.7).
+
+    ``ROOM m03 seat=7 checks=9/9 quick=0 td_rms=1.23``: the module, the seat (the
+    lab's SEED), core checkpoints passed, whether QUICK budgets ran, then every
+    scalar metric the lab recorded, to 4 significant digits. Non-scalar metrics are
+    left out. A metric named like a fixed field gets the prefix ``m_``.
+    """
+    parts = [
+        ROOM,
+        module,
+        f"seat={'-' if seat is None else int(seat)}",
+        f"checks={int(passed)}/{int(total)}",
+        f"quick={int(bool(quick))}",
+    ]
+    for key in sorted(metrics):
+        value = metrics[key]
+        if isinstance(value, bool):
+            text = str(int(value))
+        elif isinstance(value, int):
+            text = str(value)
+        elif isinstance(value, float):
+            text = format(value, ".4g")
+        else:
+            try:  # numpy scalars
+                text = format(float(value), ".4g") if getattr(value, "ndim", None) == 0 else ""
+            except (TypeError, ValueError):
+                text = ""
+        if not text:
+            continue
+        name = _ROOM_KEY.sub("_", str(key)).strip("_") or "metric"
+        if name in _ROOM_RESERVED:
+            name = f"m_{name}"
+        parts.append(f"{name}={text}")
+    return " ".join(parts)
+
+
+def parse_room_codes(text: str) -> list[dict[str, Any]]:
+    """Every room code in pasted text, as dicts: module, seat, passed, total, quick, metrics."""
+    out = []
+    for m in _ROOM_LINE.finditer(text):
+        row: dict[str, Any] = {"module": m.group(1), "metrics": {}}
+        for pair in m.group(2).split():
+            key, _, value = pair.partition("=")
+            if key == "seat":
+                row["seat"] = None if value == "-" else int(value)
+            elif key == "checks":
+                passed, _, total = value.partition("/")
+                row["passed"], row["total"] = int(passed), int(total)
+            elif key == "quick":
+                row["quick"] = value == "1"
+            else:
+                row["metrics"][key] = float(value)
+        out.append(row)
+    return out
+
+
 def parse_printed(text: str) -> list[dict[str, Any]]:
     """Extract every record printed between BEGIN and END markers."""
     out = []
