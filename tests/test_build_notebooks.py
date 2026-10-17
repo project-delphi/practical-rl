@@ -26,7 +26,10 @@ def test_build_is_deterministic():
 def test_generated_cells_and_solution_folds():
     nb = json.loads(built("00-setup.py")["text"])
     ids = [c["id"] for c in nb["cells"]]
-    assert ids[:3] == ["gen-header", "gen-setup", "gen-init"] and ids[-1] == "gen-finish"
+    assert ids[:3] == ["gen-header", "gen-setup", "gen-init"] and ids[-2:] == [
+        "gen-finish",
+        "gen-next",
+    ]
     sol = next(c for c in nb["cells"] if c["id"] == "ex1-sol")
     assert sol["metadata"]["cellView"] == "form" and sol["metadata"]["jupyter"]["source_hidden"]
     assert "".join(sol["source"]).startswith("#@title Solution 1")
@@ -68,3 +71,15 @@ def test_lint_requires_predict_answer_and_cited_explain_ref(tmp_path):
     problems = bn.lint(bn.build(target, v)[1], v)
     assert any("exercise 1: the Explain does not cite" in p for p in problems)
     assert any("exercise 2: _variables.yml needs a predict_answer" in p for p in problems)
+
+
+def test_notebooks_end_with_a_link_to_the_next_module():
+    """PLAN §8: the last cell links to the next module, also right after the finish cell."""
+    import json
+
+    for path in sorted((ROOT / "notebooks").glob("*.ipynb")):
+        cells = json.loads(path.read_text())["cells"]
+        ids = [c["id"] for c in cells]
+        assert ids[ids.index("gen-finish") + 1] == "gen-next", path.name
+        assert ids[-1] in ("gen-next", "gen-next-end"), path.name
+        assert "**Next:** [Module" in "".join(cells[-1]["source"]), path.name
