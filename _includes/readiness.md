@@ -55,7 +55,8 @@
 - `2026-10-09-local-01-mdps-bellman-5960c215.json`: 2026-10-09 · local · 0 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::
 
-::: {.callout-note collapse="true" title="2 · Planning: value iteration, policy iteration and model error: 2 record(s)"}
-- `2026-10-17-local-02-planning-b87b6aeb.json`: 2026-10-17 · local · 7 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
+::: {.callout-note collapse="true" title="2 · Planning: value iteration, policy iteration and model error: 3 record(s)"}
+- `2026-10-17-local-02-planning-76a9f95c.json`: 2026-10-17 · local · 7 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
+- `2026-10-17-local-02-planning-b87b6aeb.json`: 2026-10-17 · local · 7 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-17-local-02-planning-f885bca6.json`: 2026-10-17 · local · 5 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::
