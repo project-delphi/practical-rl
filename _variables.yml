@@ -297,24 +297,56 @@ modules:
     objectives:
       - Measure the RMS error, squared bias and variance of MC and TD(0) estimates over 10 seeds against the exact V.
       - Implement SARSA and Q-learning and explain the cliff contrast under a constant epsilon.
-      - Diagnose a terminal-bootstrap bug from a learning curve and the Q-values.
+      - Diagnose a terminal-bootstrap bug from a value curve and the Q-values.
       - Compute n-step TD targets and place them between MC and TD.
     runtime: colab-cpu
     cost: Free (Google account)
     without_gpu: The whole lab runs.
     scaffold: S3
     testbeds: [CliffGridworld]
-    compared_with: {kind: truth, what: "exact V and the optimal policy"}
-    planted_bug: {what: "bootstrapping through the terminal state", diagnostic: "Q(goal) not 0 under optimistic initialization; a flattened learning curve"}
-    stretch: An n-step sweep
+    compared_with: {kind: truth, what: "exact V and the optimal route"}
+    planted_bug: {what: "Q-learning that bootstraps through the terminal state", diagnostic: "from an optimistic start, the final transition's Q is -1 + gamma*Q0 instead of its reward, and the value curve of the start flattens above V*"}
+    stretch: An n-step sweep over n and alpha
     exercises:
-      - {n: 1, title: First-visit Monte Carlo prediction, minutes: 9, writes: [mc_prediction]}
-      - {n: 2, title: TD(0) and its bias and variance, minutes: 10, writes: [td0_prediction]}
-      - {n: 3, title: The n-step target, minutes: 5, writes: [n_step_target]}
-      - {n: 4, title: SARSA, minutes: 8, writes: [sarsa]}
-      - {n: 5, title: Q-learning and the cliff, minutes: 9, writes: [q_learning]}
-      - {n: 6, title: "Planted bug: bootstrapping through the terminal", minutes: 8, writes: []}
-    status: {briefing: placeholder, lab: planned}
+      # predict_answer: the answer to the Predict prompt (for the pace sheet).
+      # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
+      - n: 1
+        title: First-visit Monte Carlo prediction
+        minutes: 9
+        writes: [mc_prediction]
+        predict_answer: "N, one per episode (every episode starts there); −(1 − 0.95^17)/0.05 ≈ −11.64, above the exact −15.37"
+        explain_ref: "(MC)"
+      - n: 2
+        title: TD(0) and its bias and variance
+        minutes: 10
+        writes: [td0_prediction]
+        predict_answer: "−0.05 = α·(−1 + γ·0): the goal is terminal, so the target is the reward alone"
+        explain_ref: "(TD bias)"
+      - n: 3
+        title: The n-step target
+        minutes: 5
+        writes: [n_step_target]
+        predict_answer: "−3.52 = −1 − 0.9 + 0.81·(−2); −1.9 = −1 − 0.9 (runs into the terminal, no bootstrap)"
+        explain_ref: "(n-step)"
+      - n: 4
+        title: SARSA
+        minutes: 8
+        writes: [sarsa]
+        predict_answer: "ε/4 = 0.025; times 100 is 2.5 per visit"
+        explain_ref: "(SARSA)"
+      - n: 5
+        title: Q-learning and the cliff contrast
+        minutes: 9
+        writes: [q_learning]
+        predict_answer: "13 moves (the edge route); fewer than SARSA's; SARSA's online return is higher"
+        explain_ref: 'Gotcha: "Q-learning is better than SARSA."'
+      - n: 6
+        title: "Planted bug: bootstrapping through the terminal"
+        minutes: 8
+        writes: [q_learning_suspect]
+        predict_answer: "−1 with the mask; −1 + 0.95·10 = 8.5 without it"
+        explain_ref: "(terminal mask)"
+    status: {briefing: draft, lab: draft}
 
   m04:
     n: 4

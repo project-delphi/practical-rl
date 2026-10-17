@@ -6,15 +6,15 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 ::: {.lab-steps}
 | # | Exercise | Min |
 |---|---|---|
-| 1 | First-visit Monte Carlo prediction | 9 |
-| 2 | TD(0) and its bias and variance | 10 |
-| 3 | The n-step target | 5 |
-| 4 | SARSA | 8 |
-| 5 | Q-learning and the cliff | 9 |
-| 6 | Planted bug: bootstrapping through the terminal [Planted bug]{.chip .chip-stale} | 8 |
+| 1 | [First-visit Monte Carlo prediction [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} | 9 |
+| 2 | [TD(0) and its bias and variance [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 10 |
+| 3 | [The n-step target [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 5 |
+| 4 | [SARSA [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex4-head){target="_blank" rel="noopener"} | 8 |
+| 5 | [Q-learning and the cliff contrast [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 9 |
+| 6 | [Planted bug: bootstrapping through the terminal [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex6-head){target="_blank" rel="noopener"} [Planted bug]{.chip .chip-stale} | 8 |
 | | **Core** | **49 of 70** |
 :::
 
 ::: {.challenge}
-**Stretch (optional).** An n-step sweep. For anyone who finishes early; nothing later depends on it.
+**Stretch (optional).** An n-step sweep over n and alpha. For anyone who finishes early; nothing later depends on it.
 :::
