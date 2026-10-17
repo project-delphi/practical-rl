@@ -1,31 +1,35 @@
-"""Module 2 figures: deterministic light and dark SVGs (PLAN.md §8).
+"""Module 2 figures: deterministic light and dark SVGs, one per panel (PLAN.md §8).
 
   uv run python scripts/make_figures_m02.py           # write images/02-*.svg and print the numbers
   uv run python scripts/make_figures_m02.py --check   # fail if a committed SVG differs from a fresh build
 
-Same conventions as scripts/make_figures_m01.py, whose theme, rcParams and SVG writer
-this script reuses: a light and a dark copy of each figure, colors from prl._palette and
-the brand tokens, 510 pt wide, text drawn as paths, no date in the metadata, computed
-values rounded before plotting.
+Same conventions as scripts/make_figures_m01.py, whose theme and rcParams this script
+reuses: a light and a dark copy of each panel, colors from prl._palette and the brand
+tokens, text drawn as paths at 12 pt or more, no date in the metadata, computed values
+rounded before plotting. Each panel is its own SVG (340 to 420 or 260 CSS px wide, not the full
+510 pt column), and the page lays the panels out as subfigures, so on a phone they stack.
+The SVGs say "subfigure panel" in their metadata, which tests/test_site_figures.py reads.
 
-  02-vi-vs-pi       Value iteration on the shop: max|V_k - V_(k-1)| per sweep (log scale)
-                    against tol, with the sweep from which the greedy policy of Q_k stays
-                    pi*; policy iteration from "never order": ||V^(pi_k) - V*|| per evaluation.
-  02-model-error    Plan in a model estimated from N samples per (stock, order), evaluate in
-                    the true shop: the true loss of every seed (seeds 0-4), their mean, the
-                    rescaled bound of eq-plan-loss; and eps_P against a 1/sqrt(N) reference.
+  02-vi-vs-pi-vi       Value iteration on the shop: max|V_k - V_(k-1)| per sweep (log scale)
+                       against tol, shaded from the sweep where greedy(Q_k) stays pi*.
+  02-vi-vs-pi-pi       Policy iteration from "never order": ||V^(pi_k) - V*|| for pi_0..pi_3.
+  02-model-error-loss  The true loss of the plan from an estimated model, every seed (0-4),
+                       their mean and the rescaled bound of eq-plan-loss, against N.
+  02-model-error-eps   eps_P (mean of the 5 seeds) against N, with a 1/sqrt(N) reference.
 
 The sampler, the seeds and the solver code are the lab's (reproduced in
 scripts/make_expected.py, which this script imports), so the numbers equal the lab's.
-Every action choice uses make_expected's _greedy (the first action within a tolerance
-of the row's max), so ties that rounding splits differently on another machine are broken
-the same way everywhere. The script asserts every count and number the page's captions and the m02 Predict
-answers quote, the figures' and the rest of the page's (page_numbers, run by --check too). The numbers are exact computations on a known model, not run
-measurements. This script may contain solver code; prl may not.
+Every action choice uses make_expected's _greedy (the first action within a tolerance of
+the row's max), so ties that rounding splits differently on another machine are broken
+the same way everywhere. The script asserts every count and number the page's captions,
+alt texts and the m02 Predict answers quote (page_numbers runs in --check too). The
+numbers are exact computations on a known model, not run measurements. This script may
+contain solver code; prl may not.
 """
 
 from __future__ import annotations
 
+import io
 import math
 import sys
 from pathlib import Path
@@ -34,7 +38,7 @@ import matplotlib as mpl
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from matplotlib.ticker import FixedLocator, FuncFormatter, LogLocator, NullFormatter
+from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from make_expected import (  # noqa: E402
@@ -49,7 +53,7 @@ from make_expected import (  # noqa: E402
     _tie_tol,
     _value_iteration,
 )
-from make_figures_m01 import MIN_FONT, WIDTH_IN, Theme, rc, svg_bytes, themes  # noqa: E402
+from make_figures_m01 import MIN_FONT, Theme, rc, themes  # noqa: E402
 from prl.envs import CliffGridworld, InventoryMDP  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -137,28 +141,35 @@ def _style_axes(ax) -> None:
     ax.set_axisbelow(True)
 
 
-def vi_pi_figure(t: Theme, data: dict) -> Figure:
-    fig = Figure(figsize=(WIDTH_IN, 3.9))  # 680 x 374 px, aspect 1.82
-    left = fig.add_axes((0.105, 0.155, 0.505, 0.70))
-    right = fig.add_axes((0.735, 0.155, 0.25, 0.70))
+# Each panel is its own SVG, laid out on the page as subfigures: on a phone they stack, so
+# each keeps 12 pt text at a readable scale. Sizes in CSS px (1 pt = 4/3 px): the wide
+# panels 420 x 300, the narrow ones 260 x 300.
+PX = 1 / 96
+WIDE, NARROW, HEIGHT = 420 * PX, 260 * PX, 300 * PX
+# The VI panel sits inside a collapsed note, which is narrower on a phone (about 250 px):
+# drawn at 340 px it shows at about 0.74 there, like the loss panel in the full column.
+VI_WIDE = 340 * PX
 
+
+def vi_panel(t: Theme, data: dict) -> Figure:
+    fig = Figure(figsize=(VI_WIDE, HEIGHT))
+    ax = fig.add_axes((0.25, 0.16, 0.71, 0.8))
     log = data["log"]
     k = np.arange(1, len(log) + 1)
-    left.plot(k, log, color=t.series[0], lw=2.0, zorder=3)
-    left.axhline(TOL, color=t.neutral, lw=1.6, ls=(0, (5, 2.5)), zorder=2)
-    left.text(150, TOL * 1.6, r"tol $= 10^{-6}$", ha="center", va="bottom", color=t.text)
     mark = data["mark"]
-    left.axvline(mark, color=t.series[1], lw=1.8, ls=(0, (1.5, 1.5)), zorder=2)
-    left.annotate(
-        f"greedy policy $= \\pi^*$\nfrom sweep {mark} on",
-        xy=(mark, 3.0),
-        xytext=(mark + 22, 3.0),
+    ax.axvspan(mark, data["k_vi"], color=t.series[1], alpha=0.10, lw=0, zorder=1)
+    ax.plot(k, log, color=t.series[0], lw=2.0, zorder=3)
+    ax.axhline(TOL, color=t.neutral, lw=1.6, ls=(0, (5, 2.5)), zorder=2)
+    ax.text(150, TOL * 1.8, r"tol $= 10^{-6}$", ha="center", va="bottom", color=t.text)
+    ax.text(
+        mark + 10,
+        25,
+        f"greedy policy $= \\pi^*$\nfrom sweep {mark} on (shaded)",
         ha="left",
-        va="center",
+        va="top",
         color=t.text,
-        arrowprops={"arrowstyle": "-|>", "color": t.series[1], "lw": 1.4, "shrinkA": 2},
     )
-    left.annotate(
+    ax.annotate(
         f"stops at sweep {data['k_vi']}",
         xy=(data["k_vi"], log[-1]),
         xytext=(-4, -9),
@@ -167,44 +178,51 @@ def vi_pi_figure(t: Theme, data: dict) -> Figure:
         va="top",
         color=t.text,
     )
-    left.set_yscale("log")
-    left.set_ylim(3e-8, 60)
-    left.set_xlim(0, 305)
-    left.xaxis.set_major_locator(FixedLocator([1, 50, 100, 150, 200, 250, 299]))
-    left.yaxis.set_major_locator(LogLocator(base=10, numticks=12))
-    left.yaxis.set_major_formatter(
+    ax.set_yscale("log")
+    ax.set_ylim(3e-8, 60)
+    ax.set_xlim(0, 305)
+    ax.xaxis.set_major_locator(FixedLocator([1, 100, 200, 299]))
+    ax.yaxis.set_major_locator(FixedLocator([1e-6, 1e-4, 1e-2, 1e0]))
+    ax.yaxis.set_major_formatter(
         FuncFormatter(lambda v, _p: f"$10^{{{int(round(math.log10(v)))}}}$")
     )
-    left.yaxis.set_minor_formatter(NullFormatter())
-    left.grid(True, which="major", axis="y", lw=0.8)
-    _style_axes(left)
-    left.set_xlabel("Sweep $k$")
-    left.set_ylabel(r"$\|V_k - V_{k-1}\|_\infty$ (log scale)")
-    left.set_title("Value iteration", loc="left", fontsize=13, color=t.text)
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.grid(True, which="major", axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("Sweep $k$")
+    ax.set_ylabel(r"$\|V_k - V_{k-1}\|_\infty$ (log scale)")
+    return fig
 
+
+def pi_panel(t: Theme, data: dict) -> Figure:
+    fig = Figure(figsize=(NARROW, HEIGHT))
+    ax = fig.add_axes((0.3, 0.2, 0.65, 0.76))
     d = data["dists"]
-    ev = np.arange(1, len(d) + 1)
-    right.plot(ev, d, color=t.series[0], lw=2.0, marker="o", ms=8, mec=t.bg, mew=1.2, zorder=3)
+    ev = np.arange(len(d))  # pi_0 ... pi_3: policy iteration evaluates pi_k at evaluation k + 1
+    ax.plot(ev, d, color=t.series[0], lw=2.0, marker="o", ms=8, mec=t.bg, mew=1.2, zorder=3)
     for x, y in zip(ev, d, strict=True):
         label = "0" if y == 0 else (f"{y:.2f}" if y < 1 else f"{y:.1f}")
-        right.annotate(
+        # right of the point, clear of the line that comes down from the left; 0.38 a little
+        # higher, so it does not run into the 0 beside it
+        offset, ha = ((5, 9), "left") if 0 < y < 1 else ((7, 4), "left")
+        ax.annotate(
             label,
             (x, y),
-            xytext=(7, 4) if y > 1 else (0, 10),
+            xytext=offset,
             textcoords="offset points",
-            ha="left" if y > 1 else "center",
+            ha=ha,
             va="bottom",
             color=t.text,
         )
-    right.set_xlim(0.6, len(d) + 0.4)
-    right.set_ylim(-8, 185)
-    right.xaxis.set_major_locator(FixedLocator(list(ev)))
-    right.yaxis.set_major_locator(FixedLocator([0, 50, 100, 150]))
-    right.grid(True, which="major", axis="y", lw=0.8)
-    _style_axes(right)
-    right.set_xlabel("Evaluation $k$")
-    right.set_ylabel(r"$\|V^{\pi_k} - V^*\|_\infty$")
-    right.set_title("Policy iteration", loc="left", fontsize=13, color=t.text)
+    ax.set_xlim(-0.4, len(d) - 0.5)
+    ax.set_ylim(-8, 185)
+    ax.xaxis.set_major_locator(FixedLocator(list(ev)))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"$\\pi_{int(round(v))}$"))
+    ax.yaxis.set_major_locator(FixedLocator([0, 50, 100, 150]))
+    ax.grid(True, which="major", axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("Policy evaluated")
+    ax.set_ylabel(r"$\|V^{\pi_k} - V^*\|_\infty$")
     return fig
 
 
@@ -245,6 +263,13 @@ def model_error_data() -> dict:
     slope = float(np.polyfit(np.log([NS[j] for j in big]), np.log(eps_P.mean(axis=0)[big]), 1)[0])
     assert -0.6 < slope < -0.4, f"eps_P falls like N^{slope:.2f}, not 1/sqrt(N)"
     assert abs(float(eps_P[:, NS.index(2)].mean()) - 1.869) < 5e-4
+    # The panels' alt texts: mean loss about 41 at N = 1, bound about 38,600 down to about
+    # 5,500, eps_P 1.97 at N = 1 and 0.28 at N = 200.
+    assert round(float(loss[:, 0].mean())) == 41
+    assert round(float(bound[0]), -2) == 38_600 and round(float(bound[-1]), -2) == 5_500, bound
+    assert (
+        round(float(eps_P[:, 0].mean()), 2) == 1.97 and round(float(eps_P[:, -1].mean()), 2) == 0.28
+    )
     return {
         "loss": np.round(loss, 4),
         "eps_P": np.round(eps_P, 6),
@@ -260,28 +285,26 @@ def model_error_data() -> dict:
 SYMLOG_TICKS = [0, 1, 10, 100, 1_000, 10_000, 100_000]
 
 
-def model_error_figure(t: Theme, data: dict) -> Figure:
-    fig = Figure(figsize=(WIDTH_IN, 4.0))  # 680 x 384 px, aspect 1.77
-    left = fig.add_axes((0.175, 0.145, 0.455, 0.76))
-    right = fig.add_axes((0.775, 0.145, 0.215, 0.76))
+def loss_panel(t: Theme, data: dict) -> Figure:
+    fig = Figure(figsize=(WIDE, HEIGHT))
+    ax = fig.add_axes((0.31, 0.16, 0.66, 0.8))
     Ns = np.array(NS, dtype=float)
     loss = data["loss"]
-
-    # Every seed, dodged sideways on the log x-axis so equal values (the zeros) stay visible.
+    # Every seed, offset sideways on the log x-axis so equal values (the zeros) stay visible.
     dodge = 10.0 ** (np.linspace(-0.06, 0.06, len(SEEDS)))
     for i in range(len(SEEDS)):
-        left.plot(
+        ax.plot(
             Ns * dodge[i],
             loss[i],
             ls="none",
             marker="o",
-            ms=6.5,
+            ms=6,
             mfc="none",
             mec=t.series[0],
-            mew=1.4,
+            mew=1.3,
             zorder=3,
         )
-    left.plot(
+    ax.plot(
         Ns,
         loss.mean(axis=0),
         color=t.series[0],
@@ -292,59 +315,61 @@ def model_error_figure(t: Theme, data: dict) -> Figure:
         mew=1.0,
         zorder=4,
     )
-    left.plot(Ns, data["bound"], color=t.neutral, lw=2.0, ls=(0, (5, 2.5)), zorder=2)
-    left.text(1.0, 1.0e5, "Bound of the planning loss, rescaled", color=t.text, va="center")
-    left.set_xscale("log")
-    left.set_yscale("symlog", linthresh=1.0, linscale=0.6)
-    left.set_ylim(-0.25, 4e5)
-    left.set_xlim(0.75, 270)
-    left.xaxis.set_major_locator(FixedLocator(list(NS)))
-    left.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
-    left.xaxis.set_minor_formatter(NullFormatter())
-    left.yaxis.set_major_locator(FixedLocator(SYMLOG_TICKS))
-    left.yaxis.set_major_formatter(FuncFormatter(_count))
-    left.yaxis.set_minor_locator(FixedLocator([]))
-    left.grid(True, which="major", axis="y", lw=0.8)
-    _style_axes(left)
-    left.set_xlabel("Samples per (stock, order), $N$")
-    left.set_ylabel(r"$\max_s\, V^*(s) - V^{\hat\pi}(s)$")
-    left.set_title("True loss of the planned policy", loc="left", fontsize=13, color=t.text)
-
-    eps = data["eps_P"].mean(axis=0)
-    right.plot(Ns, eps, color=t.series[1], lw=2.0, marker="o", ms=7, mec=t.bg, mew=1.0, zorder=3)
-    ref = eps[-1] * np.sqrt(Ns[-1] / Ns)
-    right.plot(Ns, ref, color=t.neutral, lw=1.8, ls=(0, (5, 2.5)), zorder=2)
-    right.set_xscale("log")
-    right.set_yscale("log")
-    right.set_xlim(0.75, 270)
-    right.set_ylim(0.2, 5.5)
-    right.xaxis.set_major_locator(FixedLocator([1, 10, 100]))
-    right.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
-    right.xaxis.set_minor_formatter(NullFormatter())
-    right.yaxis.set_major_locator(FixedLocator([0.25, 0.5, 1, 2, 4]))
-    right.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
-    right.yaxis.set_minor_formatter(NullFormatter())
-    right.grid(True, which="major", axis="y", lw=0.8)
-    _style_axes(right)
-    right.set_xlabel("$N$")
-    right.set_ylabel(r"$\varepsilon_P$, mean of 5 seeds")
-    right.set_title("Model error", loc="left", fontsize=13, color=t.text)
-    right.text(1.6, 4.2, r"$1/\sqrt{N}$", color=t.text, va="center")
-    right.text(1.0, 1.35, r"$\varepsilon_P$", color=t.text, va="center")
-
-    marker = {"ls": "none", "marker": "o", "ms": 6.5, "mfc": "none", "mec": t.series[0]}
-    left.legend(
+    ax.plot(Ns, data["bound"], color=t.neutral, lw=2.0, ls=(0, (5, 2.5)), zorder=2)
+    ax.text(1.0, 1.1e5, "Rescaled bound", color=t.text, va="center")
+    ax.set_xscale("log")
+    ax.set_yscale("symlog", linthresh=1.0, linscale=1.0)
+    ax.set_ylim(-0.25, 4e5)
+    ax.set_xlim(0.75, 270)
+    ax.xaxis.set_major_locator(FixedLocator(list(NS)))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
+    ax.xaxis.set_minor_formatter(NullFormatter())
+    ax.yaxis.set_major_locator(FixedLocator(SYMLOG_TICKS))
+    ax.yaxis.set_major_formatter(FuncFormatter(_count))
+    ax.yaxis.set_minor_locator(FixedLocator([]))
+    ax.grid(True, which="major", axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("Samples per (stock, order), $N$")
+    ax.set_ylabel("$\\max_s\\, V^*(s) - V^{\\hat\\pi}(s)$\n(linear 0 to 1, log above)")
+    marker = {"ls": "none", "marker": "o", "ms": 6, "mfc": "none", "mec": t.series[0], "mew": 1.3}
+    ax.legend(
         [
-            Line2D([], [], mew=1.4, **marker),
+            Line2D([], [], **marker),
             Line2D([], [], color=t.series[0], lw=2.2, marker="D", ms=6, mec=t.bg),
         ],
-        ["One seed (seeds 0 to 4)", "Mean of 5 seeds"],
+        ["One seed (0 to 4)", "Mean of 5 seeds"],
         loc="upper right",
-        bbox_to_anchor=(1.0, 0.70),
+        bbox_to_anchor=(1.0, 0.71),
         frameon=False,
-        handlelength=2.4,
+        handlelength=2.2,
         fontsize=MIN_FONT,
     )
+    return fig
+
+
+def eps_panel(t: Theme, data: dict) -> Figure:
+    fig = Figure(figsize=(NARROW, HEIGHT))
+    ax = fig.add_axes((0.3, 0.16, 0.65, 0.8))
+    Ns = np.array(NS, dtype=float)
+    eps = data["eps_P"].mean(axis=0)
+    ax.plot(Ns, eps, color=t.series[1], lw=2.0, marker="o", ms=7, mec=t.bg, mew=1.0, zorder=3)
+    ax.plot(Ns, eps[-1] * np.sqrt(Ns[-1] / Ns), color=t.neutral, lw=1.8, ls=(0, (5, 2.5)), zorder=2)
+    ax.text(1.6, 4.2, r"$1/\sqrt{N}$", color=t.text, va="center")
+    ax.text(1.0, 1.35, r"$\varepsilon_P$", color=t.text, va="center")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlim(0.75, 270)
+    ax.set_ylim(0.2, 5.5)
+    ax.xaxis.set_major_locator(FixedLocator([1, 10, 100]))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
+    ax.xaxis.set_minor_formatter(NullFormatter())
+    ax.yaxis.set_major_locator(FixedLocator([0.25, 0.5, 1, 2, 4]))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.grid(True, which="major", axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("$N$")
+    ax.set_ylabel(r"$\varepsilon_P$, mean of 5 seeds")
     return fig
 
 
@@ -524,21 +549,31 @@ def page_numbers(computed: dict[str, dict]) -> dict:
 
 
 # ------------------------------------------------------------------ build and check
-FIGURES = {
-    "02-vi-vs-pi": (vi_pi_data, vi_pi_figure),
-    "02-model-error": (model_error_data, model_error_figure),
+DATA = {"02-vi-vs-pi": vi_pi_data, "02-model-error": model_error_data}
+# Each panel: (its data, how to draw it). The page lays them out as subfigures.
+PANELS = {
+    "02-vi-vs-pi-vi": ("02-vi-vs-pi", vi_panel),
+    "02-vi-vs-pi-pi": ("02-vi-vs-pi", pi_panel),
+    "02-model-error-loss": ("02-model-error", loss_panel),
+    "02-model-error-eps": ("02-model-error", eps_panel),
 }
+
+
+def panel_svg_bytes(fig: Figure) -> bytes:
+    """Deterministic SVG that declares itself a subfigure panel (tests/test_site_figures.py
+    then allows a width below the full 510 pt column)."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="svg", metadata={"Date": None, "Description": "subfigure panel"})
+    return buf.getvalue()
 
 
 def build() -> tuple[dict[Path, bytes], dict[str, dict]]:
     out: dict[Path, bytes] = {}
-    computed: dict[str, dict] = {}
-    for name, (make_data, draw) in FIGURES.items():
-        data = make_data()
-        computed[name] = data
+    computed = {name: make() for name, make in DATA.items()}
+    for name, (key, draw) in PANELS.items():
         for t in themes():
             with mpl.rc_context(rc(name, t)):
-                out[IMAGES / f"{name}{t.suffix}.svg"] = svg_bytes(draw(t, data))
+                out[IMAGES / f"{name}{t.suffix}.svg"] = panel_svg_bytes(draw(t, computed[key]))
     computed["page"] = page_numbers(computed)
     return out, computed
 

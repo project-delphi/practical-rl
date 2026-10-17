@@ -1,8 +1,9 @@
 """Figures and demos on the site (PLAN.md §8).
 
 - Every images/*.svg has a dark twin (NAME.dark.svg), or is listed in THEME_NEUTRAL.
-- The committed SVGs are current (scripts/make_figures_m01.py --check) and sized for
-  the 680 px column with an aspect ratio of at most 2:1.
+- The committed SVGs are current (scripts/make_figures_m*.py --check) and sized for
+  the 680 px column with an aspect ratio of at most 2:1. An SVG whose metadata says
+  "subfigure panel" is one panel of a subfigure layout and may be narrower.
 - filters/figures.lua, rendered with Quarto on fixture pages, emits each paired figure
   as a light and a dark copy inside one figure: one number, one caption, one id. The same
   holds for each panel of a subfigure layout, and a caption with math reaches the
@@ -80,7 +81,14 @@ def test_svg_is_sized_for_the_column(svg: Path) -> None:
     m = re.search(r'<svg[^>]*\bwidth="([\d.]+)pt"[^>]*\bheight="([\d.]+)pt"', head)
     assert m, "the root <svg> needs width and height in pt (matplotlib's SVG output)"
     width, height = float(m.group(1)), float(m.group(2))
-    assert abs(width - 510) < 0.5, f"width {width} pt; the 680 px column is 510 pt"
+    if "<dc:description>subfigure panel</dc:description>" in head:
+        # A panel of a subfigure layout: narrower than the column, so that when panels stack
+        # on a phone each keeps its text at a readable scale (Module 2 UI review, item 10).
+        assert 150 <= width <= 510.5, (
+            f"panel width {width} pt; between 150 pt and the 510 pt column"
+        )
+    else:
+        assert abs(width - 510) < 0.5, f"width {width} pt; the 680 px column is 510 pt"
     assert width / height <= 2.0 + 1e-9, f"aspect {width / height:.2f} is wider than 2:1"
     assert "<dc:date>" not in head, "a date in the metadata makes the file change on every build"
 
