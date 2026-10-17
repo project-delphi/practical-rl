@@ -352,7 +352,7 @@ modules:
         writes: [q_learning_suspect]
         predict_answer: "−1, the move's reward (the next state is the goal, worth 0); no: every move costs at least 1, so no well-visited Q can settle above −1"
         explain_ref: "(terminal mask)"
-    status: {briefing: draft, lab: draft}
+    status: {briefing: reviewed, lab: reviewed}
 
   m04:
     n: 4

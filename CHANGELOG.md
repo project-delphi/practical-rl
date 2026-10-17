@@ -17,6 +17,10 @@ All notable changes to this workshop. Dates are UTC.
   - Lab: seven exercises and a stretch, with a planted bug (an evaluator that uses `P_pi.T`).
   - `prl.checks.m01` with fixtures from `scripts/make_expected.py`; 28 mutants in `labs/mutants/m01.py`; a verify mode that must reject every stub and mutant.
   - Eight knowledge checks for Module 1. Technical, academic and pedagogy reviews applied.
+- Phase 3, Day 1 (2026-10-17): Module 3, "Model-free prediction and control".
+  - Briefing on MC, TD(0) with its bias and variance, SARSA vs Q-learning on the 4 × 12 cliff, terminated vs truncated, and the n-step dial, with two figures drawn from recorded experiments.
+  - Lab: seven exercises (core 50) and a stretch (an n-step sweep). The planted bug, Q-learning that bootstraps through the terminal, is visible only from an optimistic start; its return curve shows nothing.
+  - `prl.checks.m03`: exact checks plus six stochastic checkpoints with thresholds from 100-seed protocol runs at both budgets (arm64; colab-sim still owed). Verify mode skips stochastic checkpoints, and `exact_only` mutants are left to the exact checks. Knowledge checks and laptop run records. Pedagogy, UI and academic reviews applied.
 - `health.yml` (weekly): the locked-environment run on Linux and macOS arm64 with live budgets; `colab_constraints.py bump`, which refreshes the Colab freeze, runs colab-compat and colab-sim on it and opens a PR with their results; and a `uv lock --upgrade` report. The colab-sim steps moved to a composite action, with the same checks (2026-10-10).
 - `scripts/threshold_protocol.py` and `prl.checks.StochasticCheck`: thresholds for stochastic checkpoints, set from at least 100 (QUICK) or 20 (live) seeds of the solution and its mutants, and recorded as experiment records (2026-10-10).
 

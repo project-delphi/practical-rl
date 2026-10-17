@@ -329,7 +329,7 @@ Total: 30 + 10. The section split changed in Phase 3 after the pedagogy review (
 | 2a | TD(0) | `td0_prediction` | 2a.1 exact on fixed episodes, including a truncated one; 2a.2 RMS below the protocol threshold | 6 |
 | 2b | Bias² and variance over 10 seeds (the 10-seed runner is provided) | `bias2_variance` | Exact on fixed estimates; bias² + variance = MSE | 5 |
 | 3 | n-step TD target | `n_step_target` | Exact on a fixed trajectory, into the terminal and into a truncation | 6 |
-| 4 | SARSA (ε-greedy provided) | `sarsa` | Greedy path is the safe path (protocol) | 8 |
+| 4 | SARSA (ε-greedy provided) | `sarsa` | Greedy path keeps off the edge: at most 6 cells directly above the cliff (protocol) | 8 |
 | 5 | Q-learning and the cliff contrast | `q_learning` | Greedy path optimal; online return below SARSA's (both protocol) | 8 |
 | 6 | **Planted bug**: bootstraps through the terminal, visible only from an optimistic start (Q₀ = 10); the return curve shows nothing | `q_learning_suspect` (fix) | From Q₀ = 10: the last move's Q equals its reward −1, and max Q(start) equals V\*(start) (protocol). Not "Q(goal, ·) = 0": with the terminal mask as the fix, Q(goal, ·) is never updated and stays at Q₀ (OPEN_QUESTIONS R13, 2026-10-17) | 8 |
 
