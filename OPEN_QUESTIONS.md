@@ -9,7 +9,7 @@ Each entry gives our working default, who decides, and when. When an entry is re
 
 **Owners:** user (you), AD (academic director), PE (pedagogy expert), TE (technical expert), UI (UI expert), lead (the main session).
 
-Last updated 2026-10-10 (after Phase 2).
+Last updated 2026-10-17 (Module 2 draft).
 
 **Phase 1 merged without its two human Colab smoke runs** (00-setup on Colab CPU and one
 `DPOTrainer` step on a T4); their records are not filed. Everything due at "Phase 1 exit"
@@ -146,7 +146,9 @@ They stay listed here until you confirm them.
 | # | Item | How it gets checked | Owner | When |
 |---|---|---|---|---|
 | B8 | Kakade & Langford 2002, performance-difference lemma. "Lemma 6.1" was inferred from the LaTeX source. | Cite "§6" until the published PDF is read | AD | Phase 3 (Day 4) |
-| B9 | Kearns & Singh 2002, the simulation lemma's number in the journal version | Cite AJKS V3 Lemma 2.2 instead | AD | Phase 2 |
+| B9 | Kearns & Singh 2002, the simulation lemma's number in the journal version. Module 2 cites AJKS V3 Lemma 2.2 (opened 2026-10-17) and does not cite Kearns & Singh. | Cite AJKS V3 Lemma 2.2 instead (done) | AD | Phase 5, if the journal version is ever opened |
+| B27 | Singh & Yee 1994, the origin of the greedy-loss bound according to AJKS V3 §1.6. Not opened; Module 2 cites AJKS Lemma 1.11 only and does not name Singh & Yee on the page. | Open the paper before adding it to the bib or the page | AD | Phase 5 |
+| B28 | Puterman 1994's treatment of modified policy iteration (section number). Not opened; Module 2's collapsed note describes the method without a section citation and the Further reading says "background only". | Open the book, or leave uncited | AD | Phase 5 |
 | B23 | ~~The greedy-policy loss lemma~~ **Resolved:** AJKS V3 Lemma 1.11 gives V^{π_Q} ≥ V* − 2‖Q − Q*‖∞/(1 − γ) (no γ in the numerator); PLAN Module 2 corrected | — | — | — |
 | B24 | Azar et al. 2024 §4.2, the exact statement about deterministic preferences (we say DPO pushes π(y_l) → 0) | Re-read §4.2 before quoting | AD | Phase 3 (Day 4) |
 
@@ -192,6 +194,7 @@ They stay listed here until you confirm them.
 | C10 | Turn on the repository setting "Allow GitHub Actions to create and approve pull requests" so `health.yml` can open Colab-freeze PRs? It is off today; until then the job pushes the branch, links a compare page in its summary and fails. | Yes | user | Before the first upstream freeze change |
 | C11 | The threshold protocol runs in colab-sim and on arm64, but a check holds one threshold per budget. Which platform sets it? | colab-sim sets it; the arm64 record must show zero solution failures and zero passing mutants at that threshold | TE | Phase 3, Day 1 (M3) |
 | C12 | Where do participants send their Module 0 run record, and who collects it (email, form or shared folder)? Module 0's objective says "submit", but no channel exists; the page and notebook say "keep the file; your instructor will say where to send it". | — | user | Before pre-work is sent out |
+| C13 | Module 2's planted bug (value iteration that stops on the mean change) is invisible on the shop at tol = 1e−6: near convergence every state's change is nearly the same, so the mean stops at the same sweep as the max (299). Lab 2 shows the symptom on `CliffGridworld(4, 12, slip=0.2)` at γ = 0.95, where the suspect stops at sweep 72 of 76 with a residual about twice the guarantee; the checkpoint uses a constructed MDP (1 live state among 100 settled ones: 90 sweeps early, residual 93 tol). Is a factor-2 symptom in the lab enough, or should the lab also run the constructed MDP? | Keep PLAN's bug; the lab prints the log and residual on both the shop and the cliff, and the Explain says why the shop hides it | PE / user | Phase 3 review of Module 2 |
 
 ## Resolved
 
