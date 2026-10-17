@@ -283,7 +283,7 @@ def m02_plan() -> bytes:
     tol = 1e-6
     # The shop (Module 1's numbers), gamma 0.95.
     inv = InventoryMDP(**M01_INVENTORY)
-    S, A = inv.n_states, inv.n_actions
+    S = inv.n_states
     V_star, pi_star, Q_star, k_vi = _optimal(inv.P, inv.R, 0.95, tol)
     assert k_vi == 299 and pi_star.tolist() == [10, 9, 8, 7, 0, 0, 0, 0, 0, 0, 0]
     pi7 = np.maximum(0, 7 - np.arange(S))
