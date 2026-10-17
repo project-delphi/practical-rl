@@ -3,8 +3,10 @@
 - Every images/*.svg has a dark twin (NAME.dark.svg), or is listed in THEME_NEUTRAL.
 - The committed SVGs are current (scripts/make_figures_m01.py --check) and sized for
   the 680 px column with an aspect ratio of at most 2:1.
-- filters/figures.lua, rendered with Quarto on a fixture page, emits each paired figure
-  as a light and a dark copy inside one figure: one number, one caption, one id.
+- filters/figures.lua, rendered with Quarto on fixture pages, emits each paired figure
+  as a light and a dark copy inside one figure: one number, one caption, one id. The same
+  holds for each panel of a subfigure layout, and a caption with math reaches the
+  lightbox as HTML rather than as raw TeX in the link's title.
 - The OJS demos follow the demo rules that can be read from the source.
 
 The rendering tests are skipped when Quarto is not on PATH; how the copies switch with
@@ -112,16 +114,18 @@ Inline ![inline pair](images/pair.svg){{width=40}} and remote ![remote](https://
 SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>\n'
 
 
-@pytest.fixture(scope="module")
-def page(tmp_path_factory: pytest.TempPathFactory) -> str:
+def render_fixture(
+    tmp_path_factory: pytest.TempPathFactory, text: str, images: tuple[str, ...]
+) -> str:
+    """Render one fixture page (never part of the site) with the filter; return its HTML."""
     quarto = shutil.which("quarto")
     if quarto is None:
         pytest.skip("quarto not on PATH")
     tmp = tmp_path_factory.mktemp("figures")
     (tmp / "images").mkdir()
-    for name in ("pair.svg", "pair.dark.svg", "solo.svg"):
+    for name in images:
         (tmp / "images" / name).write_text(SVG)
-    (tmp / "fixture.qmd").write_text(FIXTURE.format(filter=FILTER))
+    (tmp / "fixture.qmd").write_text(text.format(filter=FILTER))
     out = subprocess.run(
         [quarto, "render", "fixture.qmd", "--to", "html"],
         cwd=tmp,
@@ -132,6 +136,11 @@ def page(tmp_path_factory: pytest.TempPathFactory) -> str:
     )
     assert out.returncode == 0, out.stderr[-2000:]
     return (tmp / "fixture.html").read_text()
+
+
+@pytest.fixture(scope="module")
+def page(tmp_path_factory: pytest.TempPathFactory) -> str:
+    return render_fixture(tmp_path_factory, FIXTURE, ("pair.svg", "pair.dark.svg", "solo.svg"))
 
 
 def figure(html: str, fig_id: str) -> str:
@@ -156,6 +165,7 @@ def test_pair_is_one_figure_with_a_light_and_a_dark_copy(page: str) -> None:
     assert {c[4] for c in copies} == {"A light and a dark copy of one figure."}
     assert fig.count("<figcaption") == 1
     assert len(re.findall(r"Figure&nbsp;1:", fig)) == 3  # caption + one lightbox title per copy
+    assert "data-glightbox" not in fig, "a caption without math keeps the plain title"
 
 
 def test_numbering_and_ids_are_unchanged(page: str) -> None:
@@ -180,6 +190,119 @@ def test_inline_and_remote_images(page: str) -> None:
         page,
     )
     assert re.search(r'<img src="https://example.org/r.svg" class="img-fluid" alt="remote">', page)
+
+
+# ------------------------------------------------------------------ subfigures, math captions
+# A two-panel figure is laid out as subfigures (one SVG per panel, each with its own
+# fig-alt), so on a phone the panels stack. Each panel must still get its dark twin and
+# its lightbox links. A caption with math reaches the lightbox as HTML (typeset when the
+# slide opens), not as raw TeX in the link's title.
+SUBFIG_FIXTURE = r"""---
+title: "Subfigures fixture"
+format:
+  html:
+    lightbox: auto
+    html-math-method: katex
+filters:
+  - path: {filter}
+    at: post-render
+---
+
+See @fig-math, @fig-two and @fig-two-loss.
+
+![What to notice: $\varepsilon_P$ falls like $1/\sqrt N$.](images/pair.svg){{#fig-math fig-alt="A figure whose caption has math in it."}}
+
+::: {{#fig-two layout="[[62,38]]"}}
+![True loss of $\hat\pi$](images/loss.svg){{#fig-two-loss fig-alt="The left panel: true loss against N."}}
+
+![Model error](images/eps.svg){{#fig-two-eps fig-alt="The right panel: model error against N."}}
+
+What to notice: both panels, with $\gamma = 0.95$.
+:::
+"""
+
+PANELS = {
+    "fig-two-loss": ("loss", "The left panel: true loss against N."),
+    "fig-two-eps": ("eps", "The right panel: model error against N."),
+}
+
+
+@pytest.fixture(scope="module")
+def subfig_page(tmp_path_factory: pytest.TempPathFactory) -> str:
+    names = ("pair", "loss", "eps")
+    images = tuple(f"{n}{dark}.svg" for n in names for dark in ("", ".dark"))
+    return render_fixture(tmp_path_factory, SUBFIG_FIXTURE, images)
+
+
+def lightbox_links(fig: str) -> list[dict[str, str]]:
+    """Each lightbox link in a figure: its theme span, attributes and image."""
+    out = []
+    for theme, attrs, img in re.findall(
+        r'<span class="(light|dark)-content"><a ([^>]*)><img ([^>]*)>', fig
+    ):
+        a = dict(re.findall(r'([\w-]+)="([^"]*)"', attrs))
+        i = dict(re.findall(r'([\w-]+)="([^"]*)"', img))
+        out.append({"theme": theme, **a, "img": i["src"], "alt": i["alt"]})
+    return out
+
+
+@pytest.mark.parametrize("panel", PANELS)
+def test_each_subfigure_panel_is_paired_with_lightbox_links(subfig_page: str, panel: str) -> None:
+    stem, alt = PANELS[panel]
+    links = lightbox_links(figure(subfig_page, panel))
+    assert [(x["theme"], x["href"], x["img"]) for x in links] == [
+        ("light", f"images/{stem}.svg", f"images/{stem}.svg"),
+        ("dark", f"images/{stem}.dark.svg", f"images/{stem}.dark.svg"),
+    ]
+    assert [x["class"] for x in links] == ["lightbox", "lightbox"]
+    # Quarto groups a figure's panels in one gallery named after it; the dark copies
+    # get a gallery of their own, so the lightbox never steps from one copy to the other.
+    assert [x["data-gallery"] for x in links] == ["fig-two", "fig-two-dark"]
+    assert {x["alt"] for x in links} == {alt}, "each panel keeps its own fig-alt"
+    assert subfig_page.count(f'id="{panel}"') == 1
+
+
+def test_subfigures_keep_one_number(subfig_page: str) -> None:
+    assert re.findall(r'class="quarto-xref">([^<]+)<', subfig_page) == [
+        "Figure&nbsp;1",
+        "Figure&nbsp;2",
+        "Figure&nbsp;2 (a)",
+    ]
+    assert subfig_page.count('id="fig-two"') == 1
+
+
+def test_math_caption_reaches_the_lightbox_as_html(subfig_page: str) -> None:
+    links = lightbox_links(figure(subfig_page, "fig-math"))
+    assert len(links) == 2
+    for x in links:
+        assert "title" not in x, "the title would show raw TeX"
+        assert x["data-glightbox"] == "description: .lightbox-desc-fig-math"
+        assert x["data-alt"] == "A figure whose caption has math in it."
+    desc = re.findall(
+        r'<div class="glightbox-desc lightbox-desc-fig-math" hidden="">\s*(.*?)\s*</div>',
+        subfig_page,
+        re.S,
+    )
+    assert desc == [
+        'Figure&nbsp;1: What to notice: <span class="math inline">\\varepsilon_P</span> '
+        'falls like <span class="math inline">1/\\sqrt N</span>.'
+    ]
+
+
+def test_subfigure_math_caption_keeps_its_label(subfig_page: str) -> None:
+    loss = lightbox_links(figure(subfig_page, "fig-two-loss"))
+    assert {x["data-glightbox"] for x in loss} == {"description: .lightbox-desc-fig-two-loss"}
+    assert re.search(
+        r'<div class="glightbox-desc lightbox-desc-fig-two-loss" hidden="">\s*'
+        r'Figure&nbsp;2&nbsp;\(a\): True loss of <span class="math inline">\\hat\\pi</span>\s*</div>',
+        subfig_page,
+    )
+    # no math in this panel's caption: the plain title stays
+    eps = lightbox_links(figure(subfig_page, "fig-two-eps"))
+    assert {x["title"] for x in eps} == {"Figure&nbsp;2&nbsp;(b): Model error"}
+    assert not any("data-glightbox" in x for x in eps)
+    # the parent's caption is not on any panel's link
+    assert 'lightbox-desc-fig-two"' not in subfig_page
 
 
 # ------------------------------------------------------------------ OJS demos
