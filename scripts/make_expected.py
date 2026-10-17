@@ -183,7 +183,229 @@ def m01_eval() -> bytes:
     return _save("m01_eval", **out)
 
 
-FIXTURES = {"m01_returns": m01_returns, "m01_eval": m01_eval}
+# ---------------------------------------------------------------- Module 2 (planning)
+# Solver code for the fixtures: value iteration, policy iteration, modified policy
+# iteration and the counts estimator. It lives here, never in prl.
+
+
+def _value_iteration(P, R, gamma, tol):
+    """V <- max_a [R + gamma P V] from V = 0 until max|V_new - V| < tol; (V, Q, k, log)."""
+    V, k, log = np.zeros(P.shape[0]), 0, []
+    while True:
+        Q = R + gamma * P @ V
+        V_new = Q.max(axis=1)
+        k += 1
+        log.append(float(np.max(np.abs(V_new - V))))
+        if log[-1] < tol:
+            return V_new, R + gamma * P @ V_new, k, log
+        V = V_new
+
+
+def _exact_value(P, R, gamma, pi):
+    """V^pi of a deterministic policy by a linear solve."""
+    S = P.shape[0]
+    P_pi, r_pi = P[np.arange(S), pi], R[np.arange(S), pi]
+    return np.linalg.solve(np.eye(S) - gamma * P_pi, r_pi)
+
+
+def _policy_iteration(P, R, gamma, pi0):
+    """Exact evaluation and greedy improvement (keep the current action on ties); (V, pi, k)."""
+    S = P.shape[0]
+    pi, k = np.asarray(pi0, dtype=int).copy(), 0
+    while True:
+        V = _exact_value(P, R, gamma, pi)
+        k += 1
+        Q = R + gamma * P @ V
+        keep = Q[np.arange(S), pi] >= Q.max(axis=1)
+        pi_new = np.where(keep, pi, Q.argmax(axis=1))
+        if np.array_equal(pi_new, pi):
+            return V, pi, k
+        pi = pi_new
+
+
+def _modified_policy_iteration(P, R, gamma, m, tol):
+    S = P.shape[0]
+    V, rounds = np.zeros(S), 0
+    while True:
+        Q = R + gamma * P @ V
+        pi = Q.argmax(axis=1)
+        V_new = Q.max(axis=1)
+        P_pi, r_pi = P[np.arange(S), pi], R[np.arange(S), pi]
+        for _ in range(m - 1):
+            V_new = r_pi + gamma * P_pi @ V_new
+        rounds += 1
+        if np.max(np.abs(V_new - V)) < tol:
+            return V_new, (R + gamma * P @ V_new).argmax(axis=1), rounds
+        V = V_new
+
+
+def _optimal(P, R, gamma, tol=1e-6):
+    """(V*, pi*, Q*, k_vi): pi* from value iteration, V* by the exact solve of pi*."""
+    _, Q_vi, k, _ = _value_iteration(P, R, gamma, tol)
+    pi_star = Q_vi.argmax(axis=1)
+    V_star = _exact_value(P, R, gamma, pi_star)
+    return V_star, pi_star, R + gamma * P @ V_star, k
+
+
+def _loud_mdp(S=100, gamma=0.95):
+    """The 'mostly settled' MDP: every state absorbing, R = 0 except R[0] = [1, 0.5]."""
+    P = np.zeros((S, 2, S))
+    P[np.arange(S), :, np.arange(S)] = 1.0
+    R = np.zeros((S, 2))
+    R[0] = [1.0, 0.5]
+    return P, R, gamma
+
+
+def _estimate_model(log, n_states, n_actions):
+    counts = np.zeros((n_states, n_actions))
+    P_hat = np.zeros((n_states, n_actions, n_states))
+    R_hat = np.zeros((n_states, n_actions))
+    for s, a, r, s2 in log:
+        s, a, s2 = int(s), int(a), int(s2)
+        counts[s, a] += 1
+        P_hat[s, a, s2] += 1
+        R_hat[s, a] += r
+    for s in range(n_states):
+        for a in range(n_actions):
+            if counts[s, a] > 0:
+                P_hat[s, a] /= counts[s, a]
+                R_hat[s, a] /= counts[s, a]
+            else:
+                P_hat[s, a, s] = 1.0
+    return P_hat, R_hat, counts
+
+
+def m02_plan() -> bytes:
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import CliffGridworld, InventoryMDP
+
+    out: dict[str, np.ndarray] = {}
+    tol = 1e-6
+    # The shop (Module 1's numbers), gamma 0.95.
+    inv = InventoryMDP(**M01_INVENTORY)
+    S, A = inv.n_states, inv.n_actions
+    V_star, pi_star, Q_star, k_vi = _optimal(inv.P, inv.R, 0.95, tol)
+    assert k_vi == 299 and pi_star.tolist() == [10, 9, 8, 7, 0, 0, 0, 0, 0, 0, 0]
+    pi7 = np.maximum(0, 7 - np.arange(S))
+    out.update(
+        inv_V_star=V_star,
+        inv_pi_star=pi_star.astype(np.int64),
+        inv_Q_star=Q_star,
+        inv_pi7=pi7.astype(np.int64),
+        inv_k_vi=np.array(k_vi, dtype=np.int64),
+        inv_k_pi_zero=np.array(_policy_iteration(inv.P, inv.R, 0.95, np.zeros(S, int))[2]),
+        inv_k_pi_7=np.array(_policy_iteration(inv.P, inv.R, 0.95, pi7)[2]),
+        inv_k_mpi_1=np.array(_modified_policy_iteration(inv.P, inv.R, 0.95, 1, tol)[2]),
+        inv_k_mpi_5=np.array(_modified_policy_iteration(inv.P, inv.R, 0.95, 5, tol)[2]),
+    )
+    # A seeded random MDP (5 states, 3 actions), gamma 0.9, and its negated-rewards twin
+    # (the optimality backup does not commute with a sign flip, so both get fixtures).
+    rng = np.random.default_rng(20261017)
+    P = rng.dirichlet(np.ones(5), size=(5, 3))
+    R = rng.normal(size=(5, 3))
+    out.update(rand_P=P, rand_R=R, rand_gamma=np.array(0.9))
+    for prefix, sign in (("rand", 1.0), ("rand_neg", -1.0)):
+        V, pi, _, k = _optimal(P, sign * R, 0.9, tol)
+        out[f"{prefix}_V_star"] = V
+        out[f"{prefix}_pi_star"] = pi.astype(np.int64)
+        out[f"{prefix}_k_vi"] = np.array(k, dtype=np.int64)
+    out["rand_k_pi"] = np.array(_policy_iteration(P, R, 0.9, np.zeros(5, int))[2])
+    # The 3x4 cliff gridworld at gamma 0.9 (in-place updates stop earlier).
+    g = CliffGridworld(3, 4, gamma=0.9)
+    V_g, _, _, k_g = _optimal(g.P, g.R, 0.9, tol)
+    out.update(grid_V_star=V_g, grid_k_vi=np.array(k_g, dtype=np.int64))
+    # The 'mostly settled' MDP: stopping on the mean change stops at sweep 181 of 271.
+    P_l, R_l, gamma_l = _loud_mdp()
+    V_l, _, _, k_l = _optimal(P_l, R_l, gamma_l, tol)
+    assert k_l == 271 and np.allclose(V_l, np.r_[1 / (1 - gamma_l), np.zeros(99)])
+    out.update(
+        loud_S=np.array(100, dtype=np.int64),
+        loud_gamma=np.array(gamma_l),
+        loud_V_star=V_l,
+        loud_k_vi=np.array(k_l, dtype=np.int64),
+    )
+    # The 4x12 cliff with slip 0.2 at gamma 0.95: the mean-stop bug shows (72 of 76 sweeps).
+    c = CliffGridworld(4, 12, slip=0.2, gamma=0.95)
+    V_c, _, _, k_c = _optimal(c.P, c.R, 0.95, tol)
+    assert k_c == 76
+    out.update(cliff_V_star=V_c, cliff_k_vi=np.array(k_c, dtype=np.int64))
+    # Greedy cases: random (6, 4) arrays with distinct row maxima, and one with an exact tie.
+    Qs = rng.normal(size=(4, 6, 4)).round(3)
+    for Q in Qs:
+        assert all(np.sum(row == row.max()) == 1 for row in Q)
+    Q_tie = rng.normal(size=(6, 4)).round(3)
+    Q_tie[2, 1] = Q_tie[2, 3] = Q_tie[2].max() + 1.0
+    out.update(
+        greedy_Q=Qs,
+        greedy_expected=Qs.argmax(axis=2).astype(np.int64),
+        greedy_tie_Q=Q_tie,
+        greedy_tie_row=np.array(2, dtype=np.int64),
+    )
+    # Duplicate actions: action 3 is a copy of the action pi* uses most. Started from
+    # 'always 3', the tie rule keeps 3 where it is optimal; argmax alone returns the copy's
+    # original index.
+    _, pi_r, _, _ = _optimal(P, R, 0.9, tol)
+    dup_of = int(np.bincount(pi_r, minlength=3).argmax())
+    P_d = np.concatenate([P, P[:, dup_of : dup_of + 1]], axis=1)
+    R_d = np.concatenate([R, R[:, dup_of : dup_of + 1]], axis=1)
+    pi0_d = np.full(5, 3)
+    V_d, pi_d, k_d = _policy_iteration(P_d, R_d, 0.9, pi0_d)
+    assert np.any(pi_d == 3) and not np.any(pi_d == dup_of)
+    out.update(
+        dup_P=P_d,
+        dup_R=R_d,
+        dup_pi0=pi0_d.astype(np.int64),
+        dup_V_star=V_d,
+        dup_pi_star=pi_d.astype(np.int64),
+        dup_k_pi=np.array(k_d, dtype=np.int64),
+    )
+    return _save("m02_plan", **out)
+
+
+def _random_log(mdp, days, rng):
+    """random_log of the Module 2 lab, reproduced exactly: uniform orders from stock 0."""
+    rows, s = [], 0
+    for _ in range(days):
+        a = int(rng.integers(0, mdp.n_actions))
+        s2, r, _ = mdp.sample_step(s, a, rng)
+        rows.append((s, a, r, s2))
+        s = s2
+    return np.array(rows, dtype=float)
+
+
+def m02_model() -> bytes:
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import InventoryMDP
+
+    inv = InventoryMDP(**M01_INVENTORY)
+    log = _random_log(inv, 200, np.random.default_rng(0))
+    P_hat, R_hat, counts = _estimate_model(log, inv.n_states, inv.n_actions)
+    assert int((counts > 0).sum()) == 83
+    # The five-row hand log of knowledge check 2.5: 2 states, 2 actions.
+    hand = np.array(
+        [[0, 1, -2, 1], [1, 0, 3, 1], [1, 0, 3, 0], [0, 1, -2, 1], [1, 0, 3, 1]], dtype=float
+    )
+    hP, hR, hc = _estimate_model(hand, 2, 2)
+    assert np.allclose(hP[1, 0], [1 / 3, 2 / 3]) and hR[1, 0] == 3
+    return _save(
+        "m02_model",
+        log=log,
+        P_hat=P_hat,
+        R_hat=R_hat,
+        counts=counts,
+        hand_log=hand,
+        hand_P_hat=hP,
+        hand_R_hat=hR,
+        hand_counts=hc,
+    )
+
+
+FIXTURES = {
+    "m01_returns": m01_returns,
+    "m01_eval": m01_eval,
+    "m02_plan": m02_plan,
+    "m02_model": m02_model,
+}
 
 
 def same_content(old: bytes, new: bytes) -> bool:
