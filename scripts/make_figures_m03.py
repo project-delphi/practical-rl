@@ -12,13 +12,20 @@ live budget) runs in-process up to the stretch's run cell, as scripts/threshold_
 does, and its `sarsa`, `q_learning`, `n_step_td_prediction`, `collect` and `rms_on_route`
 do the work. Nothing here reimplements a learner.
 
-  03-cliff-contrast  SARSA and Q-learning on the 4x12 cliff (gamma 0.95), 1000 episodes,
-                     alpha 0.1, epsilon 0.1, seeds 0-9. Left: both greedy paths of seed 0.
-                     Right: online return per episode, moving average of 20, mean over the
-                     seeds with the min-max band.
-  03-nstep-dial      Offline n-step TD on 1000 episodes of the epsilon-soft safe route:
-                     RMS error on the route against n, one line per alpha, the IQM over
-                     seeds 0-9 with a 95% bootstrap interval.
+  03-cliff-contrast-paths    SARSA and Q-learning on the 4x12 cliff (gamma 0.95), 1000
+  03-cliff-contrast-returns  episodes, alpha 0.1, epsilon 0.1, seeds 0-9, as two subfigure
+                             panels (420 and 300 px; on a phone they stack). Paths: both
+                             greedy paths of seed 0, legend inside. Returns: online return per
+                             episode, moving average of 20, mean over the seeds with the
+                             min-max band, direct labels.
+  03-nstep-dial              Offline n-step TD on 1000 episodes of the epsilon-soft safe
+                             route: RMS error on the route against n, one line per alpha, the
+                             IQM over seeds 0-9 with dodged 95% bootstrap error bars.
+
+Panel SVGs say "subfigure panel" in their metadata, so tests/test_site_figures.py allows
+them to be narrower than the 510 pt column. Every build also runs quoted_numbers(): each
+number the page or a predict_answer quotes from these records or from an exact computation
+on the lab's MDP is asserted, so a changed record fails here before the page is wrong.
 
 One more experiment has no figure: m03-suspect-returns, the planted-bug suspect (the
 notebook's ex6-stub cell) against the reference q_learning from Q0 = 10, both trained by the
@@ -398,6 +405,7 @@ def dial_data() -> dict:
 # ------------------------------------------------------------------ figure 1: the cliff contrast
 ROWS, COLS = 4, 12
 STYLES = {"sarsa": "solid", "q": (0, (3.2, 1.6))}
+LABEL_TAIL = 300  # direct labels sit by the last 300 smoothed episodes
 NAMES = {"sarsa": "SARSA", "q": "Q-learning"}
 
 
@@ -446,19 +454,24 @@ def _grid(ax, t: Theme) -> None:
         )
 
 
-def contrast_figure(t: Theme, data: dict) -> Figure:
-    fig = Figure(figsize=(WIDTH_IN, 3.6))  # 680 x 346 px, aspect 1.97
+PANEL_PATHS_IN = 420 / 96  # 420 px: the left subfigure (layout 55:45 of the 778 px column)
+PANEL_RETURNS_IN = 300 / 96  # 300 px: the right subfigure
+
+
+def paths_panel(t: Theme, data: dict) -> Figure:
+    """Seed 0's greedy paths on the grid, with a line-style legend inside the panel."""
     colors = {"sarsa": t.series[0], "q": t.series[1]}
-    # Left: the grid and the two greedy paths of seed 0.
-    ax = fig.add_axes((0.01, 0.34, 0.52, 0.56))
+    fig = Figure(figsize=(PANEL_PATHS_IN, 2.3))  # 420 x 230 px, aspect 1.83
+    ax = fig.add_axes((0.015, 0.31, 0.97, 0.67))
     ax.set_xlim(-0.05, COLS + 0.05)
     ax.set_ylim(-0.05, ROWS + 0.05)
     ax.set_aspect("equal")
     ax.set_axis_off()
     _grid(ax, t)
     offsets = {"sarsa": (-0.13, 0.13), "q": (0.13, -0.13)}
+    handles, labels = [], []
     for key in ("sarsa", "q"):
-        path, _ = data["paths"][key]
+        path, reached = data["paths"][key]
         pts = _cells(path)
         dx, dy = offsets[key]
         xs = [x + dx for x, _ in pts]
@@ -479,49 +492,51 @@ def contrast_figure(t: Theme, data: dict) -> Figure:
                 "shrinkB": 0,
             },
         )
-    ax.set_title("Greedy paths after learning, seed 0", fontsize=13, color=t.text, pad=6)
-    # Right: the online return while learning.
-    ax2 = fig.add_axes((0.655, 0.155, 0.305, 0.715))
-    x = data["x"]
-    for key in ("q", "sarsa"):
-        cur = data["curves"][key]
-        ax2.fill_between(x, cur["lo"], cur["hi"], color=colors[key], alpha=0.18, lw=0)
-        ax2.plot(x, cur["mean"], color=colors[key], lw=2.0, ls=STYLES[key])
-    ax2.set_xlim(0, x[-1])
-    ax2.set_ylim(-120, 0)
-    ax2.xaxis.set_major_locator(FixedLocator([0, 500, 1000]))
-    ax2.yaxis.set_major_locator(FixedLocator([-120, -80, -40, 0]))
-    ax2.yaxis.set_major_formatter(
-        FuncFormatter(lambda v, _p: f"{v:g}".replace("-", "\N{MINUS SIGN}"))
-    )
-    ax2.grid(True, axis="y", lw=0.8)
-    ax2.set_axisbelow(True)
-    for side in ("top", "right"):
-        ax2.spines[side].set_visible(False)
-    ax2.set_xlabel("Episode")
-    ax2.set_title("Online return per episode", fontsize=13, color=t.text, pad=6)
-    n = len(data["rec"]["seeds"])
-    handles, labels = [], []
-    for key in ("sarsa", "q"):
-        path, reached = data["paths"][key]
-        moves = f"{len(path) - 1} moves" if reached else "does not reach G"
         handles.append(Line2D([], [], color=colors[key], lw=2.6, ls=STYLES[key]))
-        labels.append(f"{NAMES[key]} (greedy path: {moves})")
+        labels.append(f"{NAMES[key]} ({len(path) - 1} moves)" if reached else NAMES[key])
     fig.legend(
         handles,
         labels,
         loc="lower left",
-        bbox_to_anchor=(0.01, 0.0),
+        bbox_to_anchor=(0.0, 0.0),
         frameon=False,
         handlelength=3.0,
         fontsize=MIN_FONT,
-        title=(
-            f"Right: mean of {n} seeds, band min\N{EN DASH}max;\n"
-            f"each a moving average of {SMOOTH} episodes"
-        ),
-        title_fontsize=MIN_FONT,
-        alignment="left",
     )
+    return fig
+
+
+def returns_panel(t: Theme, data: dict) -> Figure:
+    """Online return per episode: mean of the seeds, min-max band, direct labels."""
+    colors = {"sarsa": t.series[0], "q": t.series[1]}
+    fig = Figure(figsize=(PANEL_RETURNS_IN, 2.7))  # 300 x 259 px, aspect 1.16
+    ax = fig.add_axes((0.255, 0.21, 0.665, 0.765))
+    x = data["x"]
+    for key in ("q", "sarsa"):
+        cur = data["curves"][key]
+        ax.fill_between(x, cur["lo"], cur["hi"], color=colors[key], alpha=0.18, lw=0)
+        ax.plot(x, cur["mean"], color=colors[key], lw=2.0, ls=STYLES[key])
+    ax.set_xlim(0, x[-1])
+    ax.set_ylim(-120, 0)
+    ax.xaxis.set_major_locator(FixedLocator([0, 500, 1000]))
+    ax.yaxis.set_major_locator(FixedLocator([-120, -80, -40, 0]))
+    ax.yaxis.set_major_formatter(
+        FuncFormatter(lambda v, _p: f"{v:g}".replace("-", "\N{MINUS SIGN}"))
+    )
+    ax.grid(True, axis="y", lw=0.8)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.set_xlabel("Episode")
+    ax.set_ylabel("Online return")
+    # Direct labels at the right end: SARSA's above its band, Q-learning's below its own
+    # lowest late mean (its band covers SARSA's, so a page-colored box keeps the text legible).
+    tail = slice(-LABEL_TAIL, None)
+    sarsa_top = float(np.max(data["curves"]["sarsa"]["hi"][tail]))
+    q_low = float(np.min(data["curves"]["q"]["mean"][tail]))
+    box = {"boxstyle": "square,pad=0.15", "facecolor": t.bg, "edgecolor": "none", "alpha": 0.85}
+    ax.text(x[-1] - 15, sarsa_top + 2, "SARSA", ha="right", va="bottom", color=t.text, bbox=box)
+    ax.text(x[-1] - 15, q_low - 4, "Q-learning", ha="right", va="top", color=t.text, bbox=box)
     return fig
 
 
@@ -534,11 +549,22 @@ def dial_figure(t: Theme, data: dict) -> Figure:
     ax = fig.add_axes((0.105, 0.135, 0.585, 0.81))
     ns = data["ns"]
     handles, labels = [], []
+    # Each alpha's points sit slightly left or right of n, so the four bars do not overlap.
+    dodge = 2 ** np.linspace(-0.1, 0.1, len(data["lines"]))
     for i, (a, line) in enumerate(data["lines"].items()):
-        color = t.series[i]
-        ax.fill_between(ns, line["lo"], line["hi"], color=color, alpha=0.15, lw=0)
-        (h,) = ax.plot(
-            ns, line["iqm"], color=color, lw=2.0, marker=MARKERS[i], ms=7, mec=t.bg, mew=1.0
+        c, lo, hi = (np.asarray(line[k], dtype=float) for k in ("iqm", "lo", "hi"))
+        h = ax.errorbar(
+            np.asarray(ns, dtype=float) * dodge[i],
+            c,
+            yerr=[c - lo, hi - c],
+            color=t.series[i],
+            lw=2.0,
+            marker=MARKERS[i],
+            ms=7,
+            mec=t.bg,
+            mew=1.0,
+            capsize=3,
+            elinewidth=1.2,
         )
         handles.append(h)
         labels.append(f"\N{GREEK SMALL LETTER ALPHA} = {a:g}")
@@ -560,7 +586,7 @@ def dial_figure(t: Theme, data: dict) -> Figure:
         loc="upper left",
         bbox_to_anchor=(0.715, 0.95),
         frameon=False,
-        title=f"Step size\nIQM of {n} seeds;\nband: 95% bootstrap\ninterval of the IQM",
+        title=f"Step size\nIQM of {n} seeds;\nbars: 95% bootstrap\ninterval of the IQM",
         title_fontsize=MIN_FONT,
         alignment="left",
         handlelength=2.4,
@@ -569,22 +595,146 @@ def dial_figure(t: Theme, data: dict) -> Figure:
 
 
 # ------------------------------------------------------------------ build, report, check
+DATA = {"03-cliff-contrast": contrast_data, "03-nstep-dial": dial_data}
+# name: (its data, how to draw it, a subfigure panel?). The cliff contrast is two panels,
+# laid out on the page as subfigures: on a phone they stack and keep their text readable.
 FIGURES = {
-    "03-cliff-contrast": (contrast_data, contrast_figure),
-    "03-nstep-dial": (dial_data, dial_figure),
+    "03-cliff-contrast-paths": ("03-cliff-contrast", paths_panel, True),
+    "03-cliff-contrast-returns": ("03-cliff-contrast", returns_panel, True),
+    "03-nstep-dial": ("03-nstep-dial", dial_figure, False),
 }
 
 
+def panel_svg_bytes(fig: Figure) -> bytes:
+    """Deterministic SVG that declares itself a subfigure panel (tests/test_site_figures.py
+    then allows it to be narrower than the column)."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="svg", metadata={"Date": None, "Description": "subfigure panel"})
+    return buf.getvalue()
+
+
 def build() -> tuple[dict[Path, bytes], dict[str, dict]]:
+    computed = {name: make() for name, make in DATA.items()}
+    quoted_numbers(computed)
     out: dict[Path, bytes] = {}
-    computed: dict[str, dict] = {}
-    for name, (make_data, draw) in FIGURES.items():
-        data = make_data()
-        computed[name] = data
+    for name, (key, draw, panel) in FIGURES.items():
         for t in themes():
             with mpl.rc_context(rc(name, t)):
-                out[IMAGES / f"{name}{t.suffix}.svg"] = svg_bytes(draw(t, data))
+                fig = draw(t, computed[key])
+                out[IMAGES / f"{name}{t.suffix}.svg"] = (panel_svg_bytes if panel else svg_bytes)(
+                    fig
+                )
     return out, computed
+
+
+# ------------------------------------------------------------------ numbers the page quotes
+def _round_range(values: list[float], digits: int = 1) -> tuple[float, float]:
+    return round(min(values), digits), round(max(values), digits)
+
+
+def exact_numbers() -> dict[str, float]:
+    """Exact computations on the lab's MDP and policy (fixture m03_prediction)."""
+    from prl.checks import expected
+    from prl.envs import CliffGridworld
+
+    fx = expected("m03_prediction")
+    pi, gamma = fx["pi"], float(fx["gamma"])
+    mdp = CliffGridworld(4, 12, gamma=gamma)
+    S, start, goal = mdp.n_states, mdp.start, mdp.goal
+    P_pi = np.einsum("sa,sat->st", pi, mdp.P)
+    alive = [s for s in range(S) if s != goal]
+    P_alive = P_pi[np.ix_(alive, alive)]
+    steps = np.linalg.solve(np.eye(len(alive)) - P_alive, np.ones(len(alive)))
+    dist = np.zeros(len(alive))
+    dist[alive.index(start)] = 1.0
+    surv = [1.0]
+    for _ in range(50):
+        dist = dist @ P_alive
+        surv.append(float(dist.sum()))
+    # Episodes without a fall: drop every transition that falls (reward -100, back to S).
+    no_fall = np.zeros_like(P_pi)
+    for s in range(S):
+        for a in range(mdp.n_actions):
+            if mdp.R[s, a] > -100 + 1e-9:
+                no_fall[s] += pi[s, a] * mdp.P[s, a]
+    dist, first = np.zeros(S), []
+    dist[start] = 1.0
+    for _ in range(17):
+        dist = dist @ no_fall
+        first.append(float(dist[goal]))
+        dist[goal] = 0.0
+    route = {k: -(1 - gamma**k) / (1 - gamma) for k in (13, 15, 17)}
+    return {
+        "V_pi_start": float(fx["V_pi"][start]),
+        "mean_length": float(steps[alive.index(start)]),
+        "p_longer_than_50": surv[50],
+        "p_clean_17": first[16],
+        "p_clean_shorter": sum(first[:16]),
+        "route_13": route[13],
+        "route_15": route[15],
+        "route_17": route[17],
+        "p_fall_edge": 1 - (1 - 0.1 / 4) ** 11,
+        "bug_start": route[13] + gamma**13 * 10.0,
+        "bug_last_move": -1 + gamma * 10.0,
+        "mcc_equivalent": (2 - 0.05) / 0.05,
+    }
+
+
+def quoted_numbers(computed: dict[str, dict]) -> None:
+    """Every number modules/03-model-free.qmd or a predict_answer quotes from a record or an
+    exact computation. If a record or the lab changes, this fails before the page is wrong."""
+    ex = exact_numbers()
+    assert round(ex["V_pi_start"], 2) == -15.37, ex["V_pi_start"]
+    assert round(ex["mean_length"], 1) == 19.4, ex["mean_length"]
+    assert round(ex["p_longer_than_50"] * 1e6) == 8, ex["p_longer_than_50"]  # "about 8 x 10^-6"
+    assert round(ex["p_clean_17"], 2) == 0.28, ex["p_clean_17"]
+    assert round(ex["p_clean_shorter"] * 1e17) == 3, ex["p_clean_shorter"]  # "about 3 x 10^-17"
+    assert [round(ex[f"route_{k}"], 2) for k in (13, 15, 17)] == [-9.73, -10.73, -11.64]
+    assert round(ex["p_fall_edge"], 2) == 0.24, ex["p_fall_edge"]
+    assert round(ex["bug_start"], 2) == -4.60 and ex["bug_last_move"] == 8.5
+    assert round(ex["mcc_equivalent"]) == 39
+    # The cliff contrast (figure, caption, alt text, Exercise 5's predict_answer).
+    c = computed["03-cliff-contrast"]
+    per, window = c["rec"]["per_seed"], c["rec"]["budget"]["window"]
+    moves = {k: [len(p) - 1 for p in per[f"{k}_path"]] for k in ("sarsa", "q")}
+    assert all(per["sarsa_reached"]) and all(per["q_reached"])
+    assert set(moves["q"]) == {13} and set(moves["sarsa"]) <= {15, 17}, moves
+    i0 = c["rec"]["seeds"].index(0)
+    assert (moves["sarsa"][i0], moves["q"][i0]) == (17, 13)  # the paths panel and its alt text
+    assert _round_range(c["curves"]["sarsa"]["last"]) == (-24.1, -19.6)
+    assert _round_range(c["curves"]["q"]["last"]) == (-52.1, -46.4)
+    lead = [
+        s - q for s, q in zip(c["curves"]["sarsa"]["last"], c["curves"]["q"]["last"], strict=True)
+    ]
+    assert _round_range(lead) == (23.8, 31.1)
+    assert all(len(o) == 1000 for o in per["sarsa_online"]) and window == 500
+    assert min(c["curves"]["sarsa"]["mean"].min(), c["curves"]["q"]["mean"].min()) < -120
+    # The n-step dial: "0.93 at n = 1 to 0.37 at n = 4" for alpha 0.02; its n = 1 interval
+    # lies above its others; for every larger alpha the intervals share a point.
+    d = computed["03-nstep-dial"]
+    ns, lines = d["ns"], d["lines"]
+    small = lines[0.02]
+    assert (
+        round(float(small["iqm"][ns.index(1)]), 2),
+        round(float(small["iqm"][ns.index(4)]), 2),
+    ) == (0.93, 0.37)
+    assert small["lo"][0] > max(small["hi"][1:])
+    for a in (0.05, 0.1, 0.2):
+        assert max(lines[a]["lo"]) <= min(lines[a]["hi"]), a
+    # The planted bug's recorded returns (the 'After the lab' fold).
+    _, srec = newest_record(SUSPECT_EXPERIMENT)
+    sp, b = srec["per_seed"], srec["budget"]
+    first, last = slice(0, b["first"]), slice(-b["last"], None)
+    s_first = [float(np.mean(o[first])) for o in sp["suspect_online"]]
+    f_first = [float(np.mean(o[first])) for o in sp["fixed_online"]]
+    s_last = [float(np.mean(o[last])) for o in sp["suspect_online"]]
+    f_last = [float(np.mean(o[last])) for o in sp["fixed_online"]]
+    assert _round_range(s_first) == (-167.6, -140.6) and _round_range(f_first) == (-332.4, -285.9)
+    assert sum(s > f for s, f in zip(s_first, f_first, strict=True)) == 10
+    assert _round_range(s_last) == (-56.9, -46.4) and _round_range(f_last) == (-56.8, -46.7)
+    assert sum(s > f for s, f in zip(s_last, f_last, strict=True)) == 4
+    assert all(abs(v - 8.5) < 1e-6 for v in sp["suspect_q_last_move"])
+    assert all(abs(c[-1] - ex["bug_start"]) < 0.005 for c in sp["suspect_max_q_start"])
 
 
 def report(computed: dict[str, dict]) -> None:
