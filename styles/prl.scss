@@ -1174,3 +1174,14 @@ img.paper {
 .glightbox-mobile .glightbox-container .gslide-description {
   display: none !important;
 }
+
+// Elsewhere GLightbox showed an SVG figure at its natural size, the 680px it is drawn for,
+// so the lightbox did not enlarge it. Scale it to the window, up to 1100px wide. GLightbox
+// caps the height inline (max-height: 100vh minus the caption), and contain, not its
+// cover, makes a capped figure letterboxed rather than cropped; the figures' background is
+// the page color, as is the lightbox's. Raster images keep their natural size. (*=, not
+// $=: Quarto's theme scanner reads "$" as the start of a Sass variable and stops.)
+body:not(.glightbox-mobile) .glightbox-container .gslide-image img[src*=".svg"] {
+  width: min(92vw, 1100px);
+  object-fit: contain;
+}
