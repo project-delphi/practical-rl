@@ -400,11 +400,58 @@ def m02_model() -> bytes:
     )
 
 
+def _sample_transitions(mdp, N, rng):
+    """sample_transitions of the Module 2 lab, reproduced exactly: N draws at every (s, a)."""
+    rows = []
+    for s in range(mdp.n_states):
+        for a in range(mdp.n_actions):
+            for _ in range(N):
+                s2, r, _ = mdp.sample_step(s, a, rng)
+                rows.append((s, a, r, s2))
+    return np.array(rows, dtype=float)
+
+
+def m02_plan_eval() -> bytes:
+    """Exercise 4's loss and eps_P for seeds 0-4 at N = 2 and N = 100 (the lab's sampler).
+
+    The loss is max_s [V*(s) - V^pi_hat(s)] in the true shop. Orders that the capacity caps
+    to the same delivery are identical actions, so a different tie-break in greedy changes
+    pi_hat but not the loss. The assert below checks that no other near-tie (within 1e-6)
+    decides pi_hat, so a correct solution reproduces these losses to 1e-6.
+    """
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import InventoryMDP
+
+    inv = InventoryMDP(**M01_INVENTORY)
+    S, A, cap = inv.n_states, inv.n_actions, inv.capacity
+    V_star, _, _, _ = _optimal(inv.P, inv.R, 0.95)
+    eff = np.minimum(np.arange(A)[None, :], cap - np.arange(S)[:, None])  # delivered units
+    Ns = np.array([2, 100], dtype=np.int64)
+    seeds = np.arange(5, dtype=np.int64)
+    loss = np.zeros((len(Ns), len(seeds)))
+    eps_P = np.zeros_like(loss)
+    for i, N in enumerate(Ns):
+        for j, seed in enumerate(seeds):
+            log = _sample_transitions(inv, int(N), np.random.default_rng(int(seed)))
+            P_hat, R_hat, _ = _estimate_model(log, S, A)
+            _, Q_hat, _, _ = _value_iteration(P_hat, R_hat, 0.95, 1e-6)
+            for s in range(S):
+                best = Q_hat[s].max()
+                rivals = Q_hat[s][eff[s] != eff[s, Q_hat[s].argmax()]]
+                assert rivals.size == 0 or best - rivals.max() > 1e-6, (N, seed, s)
+            pi_hat = Q_hat.argmax(axis=1)
+            loss[i, j] = np.max(V_star - _exact_value(inv.P, inv.R, 0.95, pi_hat))
+            eps_P[i, j] = np.abs(inv.P - P_hat).sum(axis=2).max()
+    assert abs(eps_P[0].mean() - 1.869) < 5e-4 and abs(loss[0].mean() - 31.54) < 5e-3
+    return _save("m02_plan_eval", Ns=Ns, seeds=seeds, loss=loss, eps_P=eps_P)
+
+
 FIXTURES = {
     "m01_returns": m01_returns,
     "m01_eval": m01_eval,
     "m02_plan": m02_plan,
     "m02_model": m02_model,
+    "m02_plan_eval": m02_plan_eval,
 }
 
 
