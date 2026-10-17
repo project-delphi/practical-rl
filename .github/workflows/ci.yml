@@ -33,6 +33,11 @@ jobs:
           enable-cache: true
       - name: Install (dev group only; no torch)
         run: uv sync --locked --no-default-groups --group dev
+      # The figure and filter fixture tests render small pages; tests/conftest.py fails
+      # them in CI instead of skipping when quarto is missing.
+      - uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
+        with:
+          version: 1.10.19
       - name: Ruff
         run: |
           uv run ruff check .
