@@ -248,7 +248,7 @@ check_td0_rms = StochasticCheck(
         # 3.0% (rule of three).
         "live": (
             4.4,
-            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_td0_rms-live-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_td0_rms-live-n100-exp-2.json",
         ),
         # threshold_protocol.py, quick budget {"alpha": 0.05, "episodes": 200}, N = 100 seeds
         # (0-99), 2026-10-17, local (Apple M1 Pro, arm64). Solution p99 2.934; strongest wrong
@@ -257,7 +257,7 @@ check_td0_rms = StochasticCheck(
         # 3.0% (rule of three).
         "quick": (
             5.1,
-            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_td0_rms-quick-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-17-local-threshold-m03-check_td0_rms-quick-n100-exp-2.json",
         ),
     },
 )
