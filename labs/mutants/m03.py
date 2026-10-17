@@ -13,7 +13,7 @@ every-visit MC (checkpoint 1.1 uses episodes with repeated states); MC that keep
 latest return (its error does not shrink with the budget and overlaps the solution's at
 QUICK; checkpoint 1.1 averages over several episodes); TD(0) without the
 discount, treating a truncation as terminal, or bootstrapping through the terminal
-(checkpoint 2.1 uses v0 != 0 and a truncated episode). The protocol leaves them out.
+(checkpoint 2a.1 uses v0 != 0 and a truncated episode). The protocol leaves them out.
 
 Not listed: a Q-learning fix that masks on `truncated` too. No cliff episode is ever
 truncated at this budget, so no checkpoint can tell it from the solution.

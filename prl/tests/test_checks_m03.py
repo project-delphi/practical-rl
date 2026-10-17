@@ -57,6 +57,9 @@ def test_greedy_path_follows_argmax_and_detects_loops():
         (m03.check_td0_prediction, lambda *a, **k: np.full(5, np.nan)),
         (m03.check_n_step_target, lambda *a: None),
         (m03.check_n_step_td_prediction, lambda *a: [0.0] * 5),
+        (m03.check_bias2_variance, lambda *a: None),
+        (m03.check_bias2_variance, lambda *a: (0.0, 0.0, 0.0)),
+        (m03.check_bias2_variance, lambda *a: (float("inf"), 0.0)),
     ],
 )
 def test_exact_checks_reject_wrong_answers(check, bad):

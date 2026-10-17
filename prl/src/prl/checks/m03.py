@@ -196,7 +196,7 @@ check_mc_rms = StochasticCheck(
 )
 
 
-# ------------------------------------------------------------------ 2.1 TD(0) (exact)
+# ------------------------------------------------------------------ 2a.1 TD(0) (exact)
 def check_td0_prediction(fn: Callable[..., Any]) -> None:
     fx = expected("m03_prediction")
     for i, name in enumerate(fx["td_case_set"]):
@@ -223,7 +223,7 @@ def check_td0_prediction(fn: Callable[..., Any]) -> None:
         )
 
 
-# ------------------------------------------------------------------ 2.2 TD(0) at the budget
+# ------------------------------------------------------------------ 2a.2 TD(0) at the budget
 def _td0_rms(
     td0_prediction: Callable[..., Any], *, seed: int, episodes: int, alpha: float
 ) -> float:
@@ -232,7 +232,7 @@ def _td0_rms(
 
 
 check_td0_rms = StochasticCheck(
-    ex=2,
+    ex="2a",
     functions="td0_prediction",
     metric=_td0_rms,
     live={"episodes": 1000, "alpha": 0.05},
@@ -261,6 +261,57 @@ check_td0_rms = StochasticCheck(
         ),
     },
 )
+
+
+# ------------------------------------------------------------------ 2b bias^2 and variance (exact)
+def check_bias2_variance(fn: Callable[..., Any]) -> None:
+    fx = expected("m03_decomposition")
+    for i in range(int(fx["n_cases"])):
+        est, v_true = fx[f"est_{i}"], fx[f"v_{i}"]
+        seeds, states = est.shape
+        what = f"bias2_variance on {seeds} seeds x {states} state(s)"
+        out = fn(est.copy(), v_true.copy())
+        if out is None:
+            raise CheckFailed(f"{what} returned None. Did you forget `return bias2, variance`?")
+        if not isinstance(out, (tuple, list)) or len(out) != 2:
+            raise CheckFailed(f"{what} should return a pair (bias2, variance).")
+        try:
+            bias2, var = float(out[0]), float(out[1])
+        except (TypeError, ValueError):
+            raise CheckFailed(f"{what} should return two numbers (bias2, variance).") from None
+        if not (np.isfinite(bias2) and np.isfinite(var)):
+            raise CheckFailed(f"{what} returned NaN or infinity.")
+        mse = float(fx[f"mse_{i}"])
+        if np.isclose(var, float(fx[f"var_ddof1_{i}"]), rtol=1e-9, atol=1e-12):
+            hint = (
+                f"your variance divides by seeds - 1 = {seeds - 1}. The decomposition needs the "
+                f"spread divided by the number of seeds, {seeds}: estimates.var(axis=0)."
+            )
+        elif np.isclose(var, mse, rtol=1e-9, atol=1e-12) and not np.isclose(var, fx[f"var_{i}"]):
+            hint = (
+                "your variance is the spread around v_true, which is the MSE itself. The "
+                "variance is the spread around the mean over seeds."
+            )
+        elif np.isclose(bias2, float(fx[f"bias2_pooled_{i}"]), rtol=1e-9, atol=1e-12) and (
+            not np.isclose(bias2, fx[f"bias2_{i}"])
+        ):
+            hint = (
+                "your bias^2 averages the errors over states before squaring, so errors of "
+                "opposite sign cancel. Square each state's error, then average."
+            )
+        else:
+            hint = (
+                "bias^2 = mean over states of (estimates.mean(axis=0) - v_true)^2; variance = "
+                "mean over states of estimates.var(axis=0)."
+            )
+        if not np.isclose(bias2 + var, mse, rtol=1e-9, atol=1e-12):
+            raise CheckFailed(
+                f"{what}: bias^2 + variance = {bias2:.6g} + {var:.6g} = {bias2 + var:.6g}, but "
+                f"the mean squared error over seeds and states is {mse:.6g}; the two must be "
+                f"equal (decomposition). Hint: {hint}"
+            )
+        assert_close(bias2, fx[f"bias2_{i}"], atol=1e-12, what=f"{what}: bias2", hint=hint)
+        assert_close(var, fx[f"var_{i}"], atol=1e-12, what=f"{what}: variance", hint=hint)
 
 
 # ------------------------------------------------------------------ 3 the n-step target (exact)
@@ -564,6 +615,7 @@ def check_n_step_td_prediction(fn: Callable[..., Any]) -> None:
 
 __all__ = [
     "Episode",
+    "check_bias2_variance",
     "check_cliff_contrast",
     "check_mc_prediction",
     "check_mc_rms",

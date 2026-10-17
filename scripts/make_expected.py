@@ -370,11 +370,40 @@ def m03_nstep() -> bytes:
     )
 
 
+def m03_decomposition() -> bytes:
+    """Exercise 2b: bias^2 and variance over seeds, plus the values of the usual mistakes."""
+    rng = np.random.default_rng(20261017)
+    cases = [
+        # The knowledge check's one-state row: 3 seeds, so dividing by seeds - 1 is 1.5x off.
+        (np.array([[-15.0], [-16.0], [-15.5]]), np.array([-15.37])),
+    ]
+    # 4 seeds x 5 states: per-state errors of both signs that cancel on average, and unequal
+    # spreads.
+    v = rng.normal(-10.0, 3.0, size=5)
+    offsets = np.array([1.5, -1.5, 0.5, -0.5, 0.0])
+    scales = np.array([0.1, 0.5, 1.0, 2.0, 0.3])
+    cases.append((v + offsets + scales * rng.normal(size=(4, 5)), v))
+    # The lab's shape: 10 seeds x 17 route states.
+    v = rng.normal(-12.0, 2.0, size=17)
+    cases.append((v + rng.normal(0.3, 0.6, size=17) + rng.normal(size=(10, 17)), v))
+    out: dict[str, np.ndarray] = {"n_cases": np.array(len(cases), dtype=np.int64)}
+    for i, (est, v_true) in enumerate(cases):
+        mean = est.mean(axis=0)
+        out[f"est_{i}"], out[f"v_{i}"] = est, v_true
+        out[f"bias2_{i}"] = np.array(np.mean((mean - v_true) ** 2))
+        out[f"var_{i}"] = np.array(np.mean(est.var(axis=0)))
+        out[f"mse_{i}"] = np.array(np.mean((est - v_true) ** 2))
+        out[f"var_ddof1_{i}"] = np.array(np.mean(est.var(axis=0, ddof=1)))
+        out[f"bias2_pooled_{i}"] = np.array(np.mean(mean - v_true) ** 2)
+    return _save("m03_decomposition", **out)
+
+
 FIXTURES = {
     "m01_returns": m01_returns,
     "m01_eval": m01_eval,
     "m03_prediction": m03_prediction,
     "m03_nstep": m03_nstep,
+    "m03_decomposition": m03_decomposition,
 }
 
 
