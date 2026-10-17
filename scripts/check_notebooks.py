@@ -13,7 +13,12 @@ Modes:
            labs/mutants/<module>.py. Each swaps the wrong code in and reruns checkpoint
            cells: the stub must be rejected by every checkpoint of its exercise, a
            mutant by every checkpoint that calls the function it replaces. Rejection
-           means a CheckFailed (a NameError or a crash does not count).
+           means a CheckFailed (a NameError or a crash does not count). A stochastic
+           checkpoint (a prl.checks.StochasticCheck) is skipped: its wrong versions are
+           rejected once, by scripts/threshold_protocol.py, whose threshold must exist
+           for the budget in use. A wrong version that only stochastic checkpoints call
+           is reported as "covered by the threshold protocol"; one marked exact_only
+           must be rejected by an exact checkpoint, since the protocol leaves it out.
 
 Usage:
   uv run python scripts/check_notebooks.py [--mode worked|learner] [--record] [NOTEBOOK ...]
@@ -45,7 +50,7 @@ MUTANTS = ROOT / "labs" / "mutants"
 
 
 def load_mutants(module: str, directory: Path | None = None) -> list[dict]:
-    """Mutants declared with @mutant(ex=..., replaces=..., id=..., why=...) in labs/mutants/<module>.py."""
+    """Mutants declared with @mutant(ex=..., replaces=..., id=..., why=..., exact_only=...) in labs/mutants/<module>.py."""
     path = (directory or MUTANTS) / f"{module}.py"
     if not path.exists():
         return []
@@ -73,6 +78,7 @@ def load_mutants(module: str, directory: Path | None = None) -> list[dict]:
                         "why": kw.get("why", ""),
                         "sources": {kw["replaces"]: ast.unparse(clean)},
                         "stub": False,
+                        "exact_only": bool(kw.get("exact_only", False)),
                     }
                 )
     return out
@@ -93,6 +99,7 @@ def stub_mutants(nb: nbformat.NotebookNode) -> list[dict]:
                     "why": "the unwritten TODO",
                     "sources": {name: cell.source for name in names},
                     "stub": True,
+                    "exact_only": False,
                 }
             )
     return out
@@ -128,7 +135,8 @@ def inject_mutants(nb: nbformat.NotebookNode, module: str) -> tuple[nbformat.Not
                 raise ValueError(f"{module}: no checkpoint of exercise {w['ex']} calls {names}")
         sources = [nb.cells[i].source for i in cells]
         code = (
-            f"lab._mutant_begin({w['ex']!r}, {w['id']!r}, {w['sources']!r}, stub={w['stub']})\n"
+            f"lab._mutant_begin({w['ex']!r}, {w['id']!r}, {w['sources']!r}, stub={w['stub']}, "
+            f"exact_only={w['exact_only']})\n"
             f"for _src in {sources!r}:\n"
             "    try:\n"
             "        exec(_src, globals())\n"
@@ -143,6 +151,34 @@ def inject_mutants(nb: nbformat.NotebookNode, module: str) -> tuple[nbformat.Not
     for idx in sorted(inserts, reverse=True):
         nb.cells[idx + 1 : idx + 1] = inserts[idx]
     return nb, len(wrongs)
+
+
+def verify_summary(nb: nbformat.NotebookNode, n_wrong: int) -> str:
+    """What the verify cells printed: wrong versions rejected by exact checkpoints, those
+    covered by the threshold protocol, and how many stochastic checkpoints were skipped."""
+    rejected = covered = skipped = 0
+    for cell in nb.cells:
+        if not cell.get("id", "").startswith("verify-"):
+            continue
+        text = "".join(
+            o.get("text", "") for o in cell.get("outputs", []) if o.get("output_type") == "stream"
+        )
+        if "covered by the threshold protocol" in text:
+            covered += 1
+        elif " rejected by " in text:
+            rejected += 1
+        m = re.search(r"\((\d+) stochastic checkpoint\(s\) skipped\)", text) or re.search(
+            r", (\d+) skipped as stochastic", text
+        )
+        skipped += int(m.group(1)) if m else 0
+    out = (
+        f"{n_wrong} wrong version(s) (stubs and mutants): {rejected} rejected by exact checkpoints"
+    )
+    if covered:
+        out += f", {covered} covered by the threshold protocol"
+    if skipped:
+        out += f"; {skipped} stochastic checkpoint run(s) skipped"
+    return out
 
 
 def _first_todo_exercise(nb: nbformat.NotebookNode) -> str | None:
@@ -178,7 +214,7 @@ def run_notebook(path: Path, *, mode: str, timeout: int, record_dir: Path | None
             else:
                 result["ok"] = True
                 if mode == "verify":
-                    result["detail"] = f"{n_wrong} wrong version(s) rejected (stubs and mutants)"
+                    result["detail"] = verify_summary(nb, n_wrong)
         except CellExecutionError as exc:
             failed = _failed_cell(nb)
             text = str(exc)
