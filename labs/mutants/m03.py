@@ -8,7 +8,7 @@ gap. Each mutant is a mistake a participant could plausibly make; `why` says whi
 `id="random"` is the never-learns version the protocol needs.
 
 `exact_only=True` marks wrong versions that a budgeted RMS cannot separate from the
-solution but that the exact checkpoints reject by construction (OPEN_QUESTIONS C14):
+solution but that the exact checkpoints reject by construction (change B; OPEN_QUESTIONS C14, resolved):
 every-visit MC (checkpoint 1.1 uses episodes with repeated states); MC that keeps only the
 latest return (its error does not shrink with the budget and overlaps the solution's at
 QUICK; checkpoint 1.1 averages over several episodes); TD(0) without the
@@ -90,7 +90,7 @@ def mc_prediction(episodes, gamma, n_states):  # noqa: F811
     return np.random.default_rng(0).normal(size=n_states)
 
 
-@mutant(ex=2, replaces="td0_prediction", id="no-bootstrap", why="the target is the reward alone")
+@mutant(ex="2a", replaces="td0_prediction", id="no-bootstrap", why="the target is the reward alone")
 def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):
     V = np.full(n_states, float(v0))
     for ep in episodes:
@@ -99,7 +99,9 @@ def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):
     return V
 
 
-@mutant(ex=2, replaces="td0_prediction", id="updates-next-state", why="moves V[s2] instead of V[s]")
+@mutant(
+    ex="2a", replaces="td0_prediction", id="updates-next-state", why="moves V[s2] instead of V[s]"
+)
 def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):  # noqa: F811
     V = np.full(n_states, float(v0))
     for ep in episodes:
@@ -112,7 +114,7 @@ def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):  # noqa: F811
 
 
 @mutant(
-    ex=2,
+    ex="2a",
     replaces="td0_prediction",
     id="no-discount",
     why="bootstraps from V[s2] without gamma",
@@ -130,7 +132,7 @@ def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):  # noqa: F811
 
 
 @mutant(
-    ex=2,
+    ex="2a",
     replaces="td0_prediction",
     id="truncation-as-terminal",
     why="drops the bootstrap at the end of every episode, truncated or not",
@@ -148,7 +150,7 @@ def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):  # noqa: F811
 
 
 @mutant(
-    ex=2,
+    ex="2a",
     replaces="td0_prediction",
     id="bootstraps-through-terminal",
     why="always bootstraps from V[s2], even when s2 is terminal",
@@ -162,9 +164,45 @@ def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):  # noqa: F811
     return V
 
 
-@mutant(ex=2, replaces="td0_prediction", id="random", why="never looks at the episodes")
+@mutant(ex="2a", replaces="td0_prediction", id="random", why="never looks at the episodes")
 def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):  # noqa: F811
     return np.random.default_rng(0).normal(size=n_states)
+
+
+@mutant(
+    ex="2b",
+    replaces="bias2_variance",
+    id="sample-variance",
+    why="divides the spread by seeds - 1, so bias^2 + variance is not the MSE",
+)
+def bias2_variance(estimates, v_true):
+    estimates, v_true = np.asarray(estimates, dtype=float), np.asarray(v_true, dtype=float)
+    mean = estimates.mean(axis=0)
+    return float(np.mean((mean - v_true) ** 2)), float(np.mean(estimates.var(axis=0, ddof=1)))
+
+
+@mutant(
+    ex="2b",
+    replaces="bias2_variance",
+    id="spread-around-truth",
+    why="measures the spread around v_true, which is the MSE, not the variance",
+)
+def bias2_variance(estimates, v_true):  # noqa: F811
+    estimates, v_true = np.asarray(estimates, dtype=float), np.asarray(v_true, dtype=float)
+    mean = estimates.mean(axis=0)
+    return float(np.mean((mean - v_true) ** 2)), float(np.mean((estimates - v_true) ** 2))
+
+
+@mutant(
+    ex="2b",
+    replaces="bias2_variance",
+    id="bias-of-pooled-mean",
+    why="averages over states before squaring, so errors of opposite sign cancel",
+)
+def bias2_variance(estimates, v_true):  # noqa: F811
+    estimates, v_true = np.asarray(estimates, dtype=float), np.asarray(v_true, dtype=float)
+    mean = estimates.mean(axis=0)
+    return float(np.mean(mean - v_true) ** 2), float(np.mean(estimates.var(axis=0)))
 
 
 @mutant(
