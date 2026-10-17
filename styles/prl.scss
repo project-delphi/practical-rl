@@ -961,6 +961,40 @@ details.disclosure-tip {
   }
 }
 
+// Below 992px Quarto puts the breadcrumb in the fixed header, where a wrapped trail made
+// the header 216px tall on Module 1 at 360px. Keep it to one line: the current page only,
+// cut with an ellipsis. Its link keeps the full title as its name. The way up
+// stays one tap away: the sidebar button beside it, and on module pages the Day chip in
+// the header strip.
+@media (max-width: 991.98px) {
+  .quarto-secondary-nav nav.quarto-page-breadcrumbs {
+    min-width: 0;
+
+    .breadcrumb {
+      flex-wrap: nowrap;
+      min-width: 0;
+      margin-bottom: 0;
+    }
+
+    .breadcrumb-item:not(:last-child),
+    .breadcrumb-item + .breadcrumb-item::before {
+      display: none;
+    }
+
+    .breadcrumb-item {
+      min-width: 0;
+      padding-left: 0;
+    }
+
+    .breadcrumb-item a {
+      display: block;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+  }
+}
+
 .nav-footer {
   color: var(--prl-muted);
 }
