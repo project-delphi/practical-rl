@@ -17,7 +17,7 @@
 | []{#m00}[0 · Setup and hello RL](/modules/00-setup.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-10 | — | — |
 | []{#m01}[1 · MDPs, returns and the Bellman equation](/modules/01-mdps-bellman.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-10 | — | — |
 | []{#m02}[2 · Planning: value iteration, policy iteration and model error](/modules/02-planning.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| []{#m03}[3 · Model-free prediction and control](/modules/03-model-free.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale} newest 2026-10-17 |
+| []{#m03}[3 · Model-free prediction and control](/modules/03-model-free.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-17 | — | — |
 | []{#m04}[4 · Bandits from first principles](/modules/04-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m05}[5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m06}[6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
@@ -55,11 +55,13 @@
 - `2026-10-09-local-01-mdps-bellman-5960c215.json`: 2026-10-09 · local · 0 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::
 
-::: {.callout-note collapse="true" title="3 · Model-free prediction and control: 6 record(s)"}
+::: {.callout-note collapse="true" title="3 · Model-free prediction and control: 8 record(s)"}
 - `2026-10-17-local-03-model-free-07fece85-2.json`: 2026-10-17 · local · 6 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-17-local-03-model-free-07fece85.json`: 2026-10-17 · local · 4 s · QUICK · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-17-local-03-model-free-14abfe2a-2.json`: 2026-10-17 · local · 6 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-17-local-03-model-free-14abfe2a.json`: 2026-10-17 · local · 4 s · QUICK · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-17-local-03-model-free-9132d79f-2.json`: 2026-10-17 · local · 6 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-17-local-03-model-free-9132d79f.json`: 2026-10-17 · local · 4 s · QUICK · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
+- `2026-10-17-local-03-model-free-fa84b727-2.json`: 2026-10-17 · local · 6 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
+- `2026-10-17-local-03-model-free-fa84b727.json`: 2026-10-17 · local · 4 s · QUICK · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
 :::
