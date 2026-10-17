@@ -17,10 +17,12 @@
 # %%
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
 
 from prl import envs
 from prl.checks import m02
 from prl.evaluate import bootstrap_ci, iqm
+from prl.plot import NEUTRAL_LIGHT, SERIES
 
 # The shop of Lab 1, with the same numbers (the briefing uses them too).
 INVENTORY = dict(
@@ -151,8 +153,9 @@ tol = 1e-6
 V_star, Q_star, k_vi = value_iteration(P, R, gamma, tol)
 pi_star = greedy(Q_star)
 print(f"value iteration: {k_vi} sweeps to tol = {tol:g}")
-print("V*(stock):      ", np.round(V_star, 2))
-print("pi*(stock):     order", pi_star, " -> shelf after ordering", shelf(pi_star))
+print("stock | order | shelf after |     V*")
+for s in range(S):
+    print(f"{s:5d} | {pi_star[s]:5d} | {shelf(pi_star)[s]:11d} | {V_star[s]:6.2f}")
 print(f"V*(7) - V*(6) = {V_star[7] - V_star[6]:.2f}")
 V_loose, Q_loose, k_loose = value_iteration(P, R, gamma, 1.0)
 print(
@@ -372,9 +375,8 @@ print("days at each stock:     ", counts.sum(axis=1).astype(int))
 print("missed pairs per stock: ", (counts == 0).sum(axis=1))
 eps_P = np.max(np.abs(P - P_hat).sum(axis=2))
 eps_R = np.max(np.abs(R - R_hat))
-print(
-    f"eps_P = max_(s,a) ||P - P_hat||_1 = {eps_P:.3f} (2 is the largest possible); eps_R = max |R - R_hat| = {eps_R:.2f}"
-)
+print(f"eps_P = max_(s,a) ||P - P_hat||_1 = {eps_P:.3f} (2 is the largest possible)")
+print(f"eps_R = max_(s,a) |R - R_hat| = {eps_R:.2f}")
 V_hat, Q_hat, _ = value_iteration(P_hat, R_hat, gamma, tol)
 pi_hat = greedy(Q_hat)
 V_hat_true = evaluate_exact(P, R, gamma, policy_matrix(pi_hat, A))
@@ -382,7 +384,16 @@ print("planned policy (order by stock):", pi_hat)
 print(f"its TRUE loss, max_s V*(s) - V^pi_hat(s): {np.max(V_star - V_hat_true):.2f}")
 fig, ax = plt.subplots()
 im = ax.imshow(counts, origin="lower", aspect="auto")
-ax.set(xlabel="order size", ylabel="stock", title="Visits per (stock, order) in the 200-day log")
+s0, a0 = np.nonzero(counts == 0)
+ax.plot(a0, s0, ls="none", marker="X", ms=8, mfc="white", mec="black", mew=0.8)
+ax.grid(False)
+ax.set_xticks(range(A))
+ax.set_yticks(range(S))
+ax.set(
+    xlabel="order size",
+    ylabel="stock",
+    title="Visits per (stock, order) in the 200-day log; X = never visited",
+)
 plt.colorbar(im, label="count")
 plt.show()
 
@@ -526,32 +537,52 @@ print(
     "room code values (mean loss over your 5 seeds): "
     + ", ".join(f"N = {N}: {losses[:, Ns.index(N)].mean():.2f}" for N in (2, 20, 200))
 )
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
-for i, seed in enumerate(SEEDS):
-    ax1.plot(Ns, losses[i], marker="o", alpha=0.6, label=f"seed {seed}")
-ax1.plot(Ns, losses.mean(axis=0), color="black", lw=2.5, label="mean of 5 seeds")
+# Every seed is shown, offset sideways at each N so equal losses (the zeros) stay visible.
+# The loss axis is linear from 0 to 1 and logarithmic above, so 0 stays on the axis.
+blue, orange = SERIES[0], SERIES[1]
+plain = FuncFormatter(lambda v, _: f"{v:g}")
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.8), width_ratios=[3, 2])
+dodge = 10 ** np.linspace(-0.04, 0.04, len(SEEDS))
+for i in range(len(SEEDS)):
+    ax1.plot(
+        np.array(Ns) * dodge[i],
+        losses[i],
+        ls="none",
+        marker="o",
+        mfc="none",
+        mec=blue,
+        label="one seed (all 5 shown)" if i == 0 else None,
+    )
+ax1.plot(Ns, losses.mean(axis=0), color=blue, marker="D", label="mean of 5 seeds")
+ax1.set_xscale("log")
+ax1.set_yscale("symlog", linthresh=1.0, linscale=1.0)
+ax1.set_ylim(-0.15, max(100.0, 1.5 * losses.max()))
+ax1.yaxis.set_major_locator(FixedLocator([0, 1, 10, 100]))
+ax1.yaxis.set_major_formatter(plain)
+ax1.yaxis.set_minor_locator(NullLocator())
 ax1.set(
-    xscale="log",
-    xlabel="samples per (stock, order)",
-    ylabel="true loss  max_s V*(s) - V^pi_hat(s)",
-    title="Plan in P_hat, evaluate in P",
+    xlabel="samples per (stock, order), N",
+    ylabel="true loss (linear 0-1, log above)",
+    title=r"Plan in $\hat P$, evaluate in $P$",
 )
-ax1.legend(fontsize=8)
-ax2.plot(Ns, eps.mean(axis=0), marker="o", label="eps_P, mean of 5 seeds")
+ax1.legend()
+ax2.plot(Ns, eps.mean(axis=0), color=orange, marker="o", label=r"$\varepsilon_P$, mean of 5")
 ax2.plot(
     Ns,
     eps[:, -1].mean() * np.sqrt(Ns[-1] / np.array(Ns)),
     ls="--",
-    label="1 / sqrt(N), matched at N = 200",
+    color=NEUTRAL_LIGHT,
+    label=r"$1/\sqrt{N}$, matched at N = 200",
 )
-ax2.set(
-    xscale="log",
-    yscale="log",
-    xlabel="samples per (stock, order)",
-    ylabel="eps_P",
-    title="Model error",
-)
-ax2.legend(fontsize=8)
+ax2.set(xscale="log", yscale="log", xlabel="N", ylabel=r"$\varepsilon_P$", title="Model error")
+ax2.legend()
+for ax, ticks in ((ax1, Ns), (ax2, [1, 10, 100])):
+    ax.xaxis.set_major_locator(FixedLocator(ticks))
+    ax.xaxis.set_major_formatter(plain)
+    ax.xaxis.set_minor_locator(NullLocator())
+ax2.yaxis.set_major_locator(FixedLocator([0.25, 0.5, 1, 2, 4]))
+ax2.yaxis.set_major_formatter(plain)
+ax2.yaxis.set_minor_locator(NullLocator())
 plt.tight_layout()
 plt.show()
 
@@ -657,19 +688,24 @@ models = {
     "mostly settled": (P_m, R_m, 0.95),
 }
 print(f"guarantee: residual below gamma * tol = {0.95 * tol:.2e} (gamma = 0.95 for all three)")
+print(
+    f"{'model':14s} | {'sweeps: suspect':>15s} {'yours':>5s} | "
+    f"{'residual: suspect':>17s} {'yours':>9s} | last max|dV|"
+)
 logs = {}
 for name, (P_x, R_x, g_x) in models.items():
     V_x, _, k_x, logs[name] = value_iteration_suspect(P_x, R_x, g_x, tol)
     V_ok, _, k_ok = value_iteration(P_x, R_x, g_x, tol)
+    res = optimality_residual(P_x, R_x, g_x, V_x)
+    res_ok = optimality_residual(P_x, R_x, g_x, V_ok)
+    flag = "  > gamma*tol" if res > g_x * tol else ""
     print(
-        f"{name:15s}: suspect stopped after {k_x:3d} sweeps (yours: {k_ok:3d}); last logged "
-        f"max|dV| {logs[name][-1]:.2e}; residual: suspect {optimality_residual(P_x, R_x, g_x, V_x):.2e},"
-        f" yours {optimality_residual(P_x, R_x, g_x, V_ok):.2e}"
+        f"{name:14s} | {k_x:15d} {k_ok:5d} | {res:17.2e} {res_ok:9.2e} | {logs[name][-1]:.2e}{flag}"
     )
 fig, ax = plt.subplots()
-for name, lg in logs.items():
-    ax.semilogy(range(1, len(lg) + 1), lg, label=f"{name} (stopped at sweep {len(lg)})")
-ax.axhline(tol, ls="--", color="gray", label="tol")
+for (name, lg), ls in zip(logs.items(), ["-", "-.", ":"], strict=True):
+    ax.semilogy(range(1, len(lg) + 1), lg, ls=ls, label=f"{name} (stopped at sweep {len(lg)})")
+ax.axhline(tol, ls="--", color=NEUTRAL_LIGHT, label="tol")
 ax.set(xlabel="sweep", ylabel="logged max |V_new - V|", title="Where the suspect stopped")
 ax.legend()
 plt.show()
