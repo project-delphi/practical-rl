@@ -21,6 +21,7 @@ and note the paper's original symbol here.
 | $V^\pi, Q^\pi, A^\pi$ | state value, action value, advantage | |
 | $V$, $Q$ | learned estimates of $V^\pi$ (or $V^*$) and of $Q^\pi$ (or $Q^*$); the arrays `V[s]` and `Q[s, a]` (Sutton and Barto's $V$, $Q$ against their $v_\pi$, $q_\pi$) | |
 | $N(s)$ | number of first visits to $s$ averaged by Monte Carlo (Module 3) | |
+| $Q_0$, $v_0$ | the starting value of every entry of $Q$ or $V$ (`q0`, `v0` in code); Module 3's optimistic start is $Q_0 = 10$ | |
 | $T$ | the number of transitions in an episode: states $s_0, \dots, s_T$, rewards $r_0, \dots, r_{T-1}$ | |
 | $G_t^{(n)}$ | the $n$-step return: $n$ sampled rewards, then $\gamma^n V(s_{t+n})$ (Module 3) | Sutton and Barto's $G_{t:t+n}$ |
 | `terminated`, `truncated` | Gymnasium's two episode ends: a terminal state (no bootstrap) and a cut (bootstrap) | |

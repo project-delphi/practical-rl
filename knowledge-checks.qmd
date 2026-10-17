@@ -107,12 +107,14 @@ Work backward: $G_2 = -1$, $G_1 = -1 + 0.5 \cdot (-1) = -1.5$, $G_0 = -1 + 0.5 \
 **Evidence:** Lab 3, checkpoint 1.1 (exact, on fixed episodes with repeated states).
 :::
 
-[**3.2**]{#q3-2} The lab's TD(0) starts from $V = 0$ and bootstraps. Explain, from the bias of the TD target, why its estimate at a state far from the goal is too close to 0 after a small number of episodes, and why MC's is not. Which term of the 10-seed decomposition does this show up in, and what happens to it as the budget grows?
+[**3.2**]{#q3-2} The lab's TD(0) starts from $V = 0$ and bootstraps. Explain, from the bias of the TD target, why its estimate at a state far from the goal is too close to 0 after a small number of episodes, and why MC's is not. Which term of the 10-seed decomposition does this show up in, and what happens to it as the budget grows? Then a computation: three seeds give $V(\text{start}) = -15.0, -16.0, -15.5$ against an exact $-15.37$. Compute bias², variance and MSE, and check that they add up.
 
 ::: {.callout-tip collapse="true" title="Answer to 3.2"}
 The TD target $r_t + \gamma V(s_{t+1})$ is biased by $\gamma\, \mathbb{E}[V(s_{t+1}) - V^\pi(s_{t+1})]$. With $V = 0$ and negative true values, every next-state value is too high, so every target is too high (too close to 0), and a state $d$ steps from the goal only learns the truth after information has propagated $d$ steps back, one step per update. MC's target is the full return, whose expectation is $V^\pi(s)$ from the first episode. The effect is the same across seeds, so it appears as bias$^2$, not variance. As the budget grows, $V$ at the next state improves and the bias shrinks toward 0; the variance of a constant-$\alpha$ estimate does not shrink below a floor set by $\alpha$.
 
-**Evidence:** Lab 3, checkpoint 2.1 and the provided decomposition cell of Exercise 2 (its numbers are reported, not checked).
+The computation: the mean of the three estimates is $-15.5$, so bias² $= (-15.5 + 15.37)^2 = 0.13^2 = 0.0169$. The variance, dividing by the number of seeds, is $(0.5^2 + 0.5^2 + 0^2)/3 = 0.1667$. The MSE is $(0.37^2 + 0.63^2 + 0.13^2)/3 = (0.1369 + 0.3969 + 0.0169)/3 = 0.1836$, which equals $0.0169 + 0.1667$.
+
+**Evidence:** Lab 3, checkpoint 2a.1, and checkpoint 2b (the decomposition, exact on a fixed array).
 :::
 
 ### Objective 2: implement SARSA and Q-learning and explain the cliff contrast
@@ -148,23 +150,25 @@ No action is ever taken in the goal, so $Q(\text{goal}, \cdot)$ is never updated
 ::: {.callout-tip collapse="true" title="Answer to 3.6"}
 At step 499 the episode is cut, not ended: the state has a future like any other. The learner's target is 1, so $V(s_{499})$ is pulled toward 1, and every earlier state bootstraps from a value that is far too small. The right target is $1 + 0.99\, V(s_{500})$, which for an agent that never fails moves $V$ toward $1/(1-\gamma) = 100$. The mask uses `terminated` only; `truncated` ends the loop and nothing else.
 
-**Evidence:** Lab 3, checkpoint 2.1 (a truncated episode in the fixed set) and checkpoint 3 (a target that runs into a truncation).
+**Evidence:** Lab 3, checkpoint 2a.1 (a truncated episode in the fixed set) and checkpoint 3 (a target that runs into a truncation).
 :::
 
 ### Objective 4: compute n-step TD targets and place them between MC and TD
 
-[**3.7**]{#q3-7} An episode has rewards $-1, -1, -1, -1$ and terminates; every nonterminal state has $V = -2$ and $\gamma = 0.9$. Compute the 2-step target at $t = 0$ and at $t = 2$. Then compute the same two targets if the episode had been truncated after those four steps instead.
+[**3.7**]{#q3-7} An episode has rewards $-1, -2, -1, -1$ and is truncated after these four steps; every state has $V = -3$ and $\gamma = 0.5$. Compute the 3-step targets at $t = 0$ and at $t = 2$. What would the target at $t = 2$ be if the episode had terminated instead?
 
 ::: {.callout-tip collapse="true" title="Answer to 3.7"}
-Terminated. At $t = 0$: $G_0^{(2)} = -1 + 0.9 \cdot (-1) + 0.9^2 \cdot V(s_2) = -1.9 - 1.62 = -3.52$. At $t = 2$ the two steps reach the end ($t + n = 4 = T$), so there is nothing to bootstrap from: $G_2^{(2)} = -1 - 0.9 = -1.9$. Truncated. $t = 0$ is unchanged, $-3.52$, because its target never reaches the cut. At $t = 2$ the sum reaches the cut state $s_4$, which is not terminal, so add $\gamma^{2} V(s_4) = 0.81 \cdot (-2)$: $G_2^{(2)} = -1.9 - 1.62 = -3.52$.
+At $t = 0$ the three rewards end before the cut ($t + n = 3 < T = 4$), so bootstrap from $s_3$: $G_0^{(3)} = -1 + 0.5 \cdot (-2) + 0.25 \cdot (-1) + 0.125 \cdot (-3) = -1 - 1 - 0.25 - 0.375 = -2.625$. At $t = 2$ only two rewards remain ($t + n = 5 > T$). The episode was cut in $s_4$, which is not terminal, so the target keeps a bootstrap, discounted by $\gamma^{T - t} = 0.25$: $G_2^{(3)} = -1 + 0.5 \cdot (-1) + 0.25 \cdot (-3) = -2.25$. Had the episode terminated, $s_4$ would be worth 0: $G_2^{(3)} = -1 - 0.5 = -1.5$.
 
 **Evidence:** Lab 3, checkpoint 3 (exact, with a target past the end of a terminated episode and one into a truncation).
 :::
 
-[**3.8**]{#q3-8} Explain why the bias of the expected $n$-step target falls like $\gamma^n$ and why its variance rises with $n$. In the lab's figure of RMS error against $n$ at several $\alpha$, why does each curve have a minimum, and why does the best $n$ move when $\alpha$ changes?
+[**3.8**]{#q3-8} Explain why the bias of the expected $n$-step target falls like $\gamma^n$ and why its variance rises with $n$. In the briefing's figure of RMS error against $n$ after 1000 episodes, the curve for $\alpha = 0.02$ falls steeply from $n = 1$ to $n = 4$, while the curves for larger $\alpha$ are nearly flat. Explain both.
 
 ::: {.callout-tip collapse="true" title="Answer to 3.8"}
-The $n$-step target's only estimated part is $\gamma^n V(s_{t+n})$, so its bias is $\gamma^n$ times the error of $V$ there (Sutton and Barto's error-reduction property bounds the worst case by exactly that factor). The sampled part, $n$ rewards, grows with $n$ and carries the randomness of $n$ steps, so the variance rises; at $n \ge T$ it is the variance of the full return. Small $n$ is bias-dominated, large $n$ variance-dominated, so the error has a minimum in between. A larger $\alpha$ forgets the zero start faster (less bias at every $n$) but amplifies target noise (more variance at every $n$), so the point where the two effects balance moves: with larger $\alpha$ the best $n$ is smaller.
+The $n$-step target's only estimated part is $\gamma^n V(s_{t+n})$, so its bias is $\gamma^n$ times the error of $V$ there (Sutton and Barto's error-reduction property bounds the worst case by exactly that factor). The sampled part, $n$ rewards, grows with $n$ and carries the randomness of $n$ steps, so the variance rises; at $n \ge T$ it is the variance of the full return.
 
-**Evidence:** Lab 3, checkpoint 3, and the stretch sweep (its curves are reported, not checked).
+With $\alpha = 0.02$ each update moves $V$ only 2% of the way, so after 1000 episodes TD(0)'s estimates still carry the zero start: their error is mostly bias, and $n$ sampled rewards cut that bias by a factor $\gamma^n$ at once. With a larger $\alpha$ the zero start fades faster, so a longer target has less left to remove, and more of the error is the noise of a constant step size, which grows only a little with $n$ on this task. Which $n$ is best depends on the task and the budget: on Sutton and Barto's 19-state random walk, over its first 10 episodes, an intermediate $n$ does best.
+
+**Evidence:** Lab 3, checkpoint 3, and the stretch sweep (its curves are reported, not checked); the figure is the recorded experiment `runs/2026-10-17-local-m03-nstep-dial-exp.json`.
 :::
