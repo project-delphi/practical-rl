@@ -1,0 +1,648 @@
+"""Module 2 figures: deterministic light and dark SVGs, one per panel (PLAN.md §8).
+
+  uv run python scripts/make_figures_m02.py           # write images/02-*.svg and print the numbers
+  uv run python scripts/make_figures_m02.py --check   # fail if a committed SVG differs from a fresh build
+
+Same conventions as scripts/make_figures_m01.py, whose theme and rcParams this script
+reuses: a light and a dark copy of each panel, colors from prl._palette and the brand
+tokens, text drawn as paths at 12 pt or more, no date in the metadata, computed values
+rounded before plotting. Each panel is its own SVG (340 to 420 or 260 CSS px wide, not the full
+510 pt column), and the page lays the panels out as subfigures, so on a phone they stack.
+The SVGs say "subfigure panel" in their metadata, which tests/test_site_figures.py reads.
+
+  02-vi-vs-pi-vi       Value iteration on the shop: max|V_k - V_(k-1)| per sweep (log scale)
+                       against tol, shaded from the sweep where greedy(Q_k) stays pi*.
+  02-vi-vs-pi-pi       Policy iteration from "never order": ||V^(pi_k) - V*|| for pi_0..pi_3.
+  02-model-error-loss  The true loss of the plan from an estimated model, every seed (0-4),
+                       their mean and the rescaled bound of eq-plan-loss, against N.
+  02-model-error-eps   eps_P (mean of the 5 seeds) against N, with a 1/sqrt(N) reference.
+
+The sampler, the seeds and the solver code are the lab's (reproduced in
+scripts/make_expected.py, which this script imports), so the numbers equal the lab's.
+Every action choice uses make_expected's _greedy (the first action within a tolerance of
+the row's max), so ties that rounding splits differently on another machine are broken
+the same way everywhere. The script asserts every count and number the page's captions,
+alt texts and the m02 Predict answers quote (page_numbers runs in --check too). The
+numbers are exact computations on a known model, not run measurements. This script may
+contain solver code; prl may not.
+"""
+
+from __future__ import annotations
+
+import io
+import math
+import sys
+from pathlib import Path
+
+import matplotlib as mpl
+import numpy as np
+from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from make_expected import (  # noqa: E402
+    M01_INVENTORY,
+    _estimate_model,
+    _exact_value,
+    _greedy,
+    _optimal,
+    _policy_iteration,
+    _random_log,
+    _sample_transitions,
+    _tie_tol,
+    _value_iteration,
+)
+from make_figures_m01 import MIN_FONT, Theme, rc, themes  # noqa: E402
+from prl.envs import CliffGridworld, InventoryMDP  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
+IMAGES = ROOT / "images"
+
+GAMMA = 0.95
+TOL = 1e-6
+NS = (1, 2, 5, 10, 20, 50, 100, 200)
+SEEDS = (0, 1, 2, 3, 4)
+
+
+def _sig(x: float, digits: int = 4) -> float:
+    """Round to significant digits, so the SVG does not depend on last-bit differences."""
+    return float(f"{x:.{digits}g}")
+
+
+def _count(v: float, _pos: int | None = None) -> str:
+    return f"{v:,.0f}"
+
+
+def _greedy_is_optimal(pi: np.ndarray, Q_star: np.ndarray) -> bool:
+    """pi picks a maximizer of Q* everywhere (the shop's capped orders tie exactly)."""
+    S = Q_star.shape[0]
+    return bool(np.all(Q_star[np.arange(S), pi] >= Q_star.max(axis=1) - 1e-9))
+
+
+# ------------------------------------------------------------------ figure 1: VI against PI
+def vi_pi_data() -> dict:
+    mdp = InventoryMDP(**M01_INVENTORY)
+    P, R = mdp.P, mdp.R
+    V_star, pi_star, Q_star, _ = _optimal(P, R, GAMMA, TOL)
+    _, _, k_vi, log = _value_iteration(P, R, GAMMA, TOL)
+    assert k_vi == 299, f"value iteration takes {k_vi} sweeps, not 299"
+    assert [round(x, 2) for x in log[:5]] == [15.03, 12.76, 5.72, 4.03, 3.59], log[:5]
+    ratios = np.array(log[20:]) / np.array(log[19:-1])
+    assert abs(float(np.median(ratios)) - GAMMA) < 0.01, "the change should fall by about gamma"
+
+    # The greedy policy of Q_k = R + gamma P V_k (the Q value_iteration returns after k sweeps).
+    V, optimal_at = np.zeros(mdp.n_states), []
+    for _ in range(k_vi):
+        V = (R + GAMMA * P @ V).max(axis=1)
+        optimal_at.append(_greedy_is_optimal(_greedy(R + GAMMA * P @ V), Q_star))
+    first_for_good = next(k for k in range(1, k_vi + 1) if all(optimal_at[k - 1 :]))
+    first_ever = optimal_at.index(True) + 1
+    assert first_for_good == 4, f"greedy(Q_k) is pi* for every k >= {first_for_good}, not 4"
+    assert first_ever == 2 and not optimal_at[2], "greedy(Q_2) is pi*, greedy(Q_3) is not"
+    V_k = np.zeros(mdp.n_states)
+    for _ in range(first_for_good):
+        V_k = (R + GAMMA * P @ V_k).max(axis=1)
+    err_at_mark = float(np.max(np.abs(V_k - V_star)))
+    assert round(err_at_mark) == 68, err_at_mark
+
+    # Policy iteration from "never order": the policy of each evaluation and its distance to V*.
+    S = mdp.n_states
+    pi, dists, policies = np.zeros(S, dtype=int), [], []
+    while True:
+        V_pi = _exact_value(P, R, GAMMA, pi)
+        dists.append(float(np.max(np.abs(V_pi - V_star))))
+        policies.append(pi.copy())
+        Q = R + GAMMA * P @ V_pi
+        keep = Q[np.arange(S), pi] >= Q.max(axis=1) - _tie_tol(Q)
+        pi_new = np.where(keep, pi, _greedy(Q))
+        if np.array_equal(pi_new, pi):
+            break
+        pi = pi_new
+    k_pi = _policy_iteration(P, R, GAMMA, np.zeros(S, dtype=int))[2]
+    assert len(dists) == k_pi == 4, f"policy iteration takes {k_pi} evaluations, not 4"
+    assert round(dists[0], 2) == 159.75 and dists[-1] < 1e-9, dists
+    return {
+        "log": [_sig(x) for x in log],
+        "k_vi": k_vi,
+        "mark": first_for_good,
+        "first_ever": first_ever,
+        "err_at_mark": err_at_mark,
+        "median_ratio": float(np.median(ratios)),
+        "dists": [round(d, 4) if d > 1e-9 else 0.0 for d in dists],
+        "policies": policies,
+        "pi_star": pi_star,
+    }
+
+
+def _style_axes(ax) -> None:
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.set_axisbelow(True)
+
+
+# Each panel is its own SVG, laid out on the page as subfigures: on a phone they stack, so
+# each keeps 12 pt text at a readable scale. Sizes in CSS px (1 pt = 4/3 px): the wide
+# panels 420 x 300, the narrow ones 260 x 300.
+PX = 1 / 96
+WIDE, NARROW, HEIGHT = 420 * PX, 260 * PX, 300 * PX
+# The VI panel sits inside a collapsed note, which is narrower on a phone (about 250 px):
+# drawn at 340 px it shows at about 0.74 there, like the loss panel in the full column.
+VI_WIDE = 340 * PX
+
+
+def vi_panel(t: Theme, data: dict) -> Figure:
+    fig = Figure(figsize=(VI_WIDE, HEIGHT))
+    ax = fig.add_axes((0.25, 0.16, 0.71, 0.8))
+    log = data["log"]
+    k = np.arange(1, len(log) + 1)
+    mark = data["mark"]
+    ax.axvspan(mark, data["k_vi"], color=t.series[1], alpha=0.10, lw=0, zorder=1)
+    ax.plot(k, log, color=t.series[0], lw=2.0, zorder=3)
+    ax.axhline(TOL, color=t.neutral, lw=1.6, ls=(0, (5, 2.5)), zorder=2)
+    ax.text(150, TOL * 1.8, r"tol $= 10^{-6}$", ha="center", va="bottom", color=t.text)
+    ax.text(
+        mark + 10,
+        25,
+        f"greedy policy $= \\pi^*$\nfrom sweep {mark} on (shaded)",
+        ha="left",
+        va="top",
+        color=t.text,
+    )
+    ax.annotate(
+        f"stops at sweep {data['k_vi']}",
+        xy=(data["k_vi"], log[-1]),
+        xytext=(-4, -9),
+        textcoords="offset points",
+        ha="right",
+        va="top",
+        color=t.text,
+    )
+    ax.set_yscale("log")
+    ax.set_ylim(3e-8, 60)
+    ax.set_xlim(0, 305)
+    ax.xaxis.set_major_locator(FixedLocator([1, 100, 200, 299]))
+    ax.yaxis.set_major_locator(FixedLocator([1e-6, 1e-4, 1e-2, 1e0]))
+    ax.yaxis.set_major_formatter(
+        FuncFormatter(lambda v, _p: f"$10^{{{int(round(math.log10(v)))}}}$")
+    )
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.grid(True, which="major", axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("Sweep $k$")
+    ax.set_ylabel(r"$\|V_k - V_{k-1}\|_\infty$ (log scale)")
+    return fig
+
+
+def pi_panel(t: Theme, data: dict) -> Figure:
+    fig = Figure(figsize=(NARROW, HEIGHT))
+    ax = fig.add_axes((0.3, 0.2, 0.65, 0.76))
+    d = data["dists"]
+    ev = np.arange(len(d))  # pi_0 ... pi_3: policy iteration evaluates pi_k at evaluation k + 1
+    ax.plot(ev, d, color=t.series[0], lw=2.0, marker="o", ms=8, mec=t.bg, mew=1.2, zorder=3)
+    for x, y in zip(ev, d, strict=True):
+        label = "0" if y == 0 else (f"{y:.2f}" if y < 1 else f"{y:.1f}")
+        # right of the point, clear of the line that comes down from the left; 0.38 a little
+        # higher, so it does not run into the 0 beside it
+        offset, ha = ((5, 9), "left") if 0 < y < 1 else ((7, 4), "left")
+        ax.annotate(
+            label,
+            (x, y),
+            xytext=offset,
+            textcoords="offset points",
+            ha=ha,
+            va="bottom",
+            color=t.text,
+        )
+    ax.set_xlim(-0.4, len(d) - 0.5)
+    ax.set_ylim(-8, 185)
+    ax.xaxis.set_major_locator(FixedLocator(list(ev)))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"$\\pi_{int(round(v))}$"))
+    ax.yaxis.set_major_locator(FixedLocator([0, 50, 100, 150]))
+    ax.grid(True, which="major", axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("Policy evaluated")
+    ax.set_ylabel(r"$\|V^{\pi_k} - V^*\|_\infty$")
+    return fig
+
+
+# ------------------------------------------------------------------ figure 2: model error
+def model_error_data() -> dict:
+    mdp = InventoryMDP(**M01_INVENTORY)
+    P, R = mdp.P, mdp.R
+    S, A = mdp.n_states, mdp.n_actions
+    _, pi_star, _, _ = _optimal(P, R, GAMMA, TOL)
+    V_star = _exact_value(P, R, GAMMA, pi_star)
+    loss = np.zeros((len(SEEDS), len(NS)))
+    eps_P = np.zeros_like(loss)
+    eps_R = np.zeros_like(loss)
+    for j, N in enumerate(NS):
+        for i, seed in enumerate(SEEDS):
+            log = _sample_transitions(mdp, N, np.random.default_rng(seed))
+            P_hat, R_hat, _ = _estimate_model(log, S, A)
+            _, Q_hat, _, _ = _value_iteration(P_hat, R_hat, GAMMA, TOL)
+            V_plan = _exact_value(P, R, GAMMA, _greedy(Q_hat))
+            loss[i, j] = float(np.max(V_star - V_plan))
+            eps_P[i, j] = float(np.abs(P - P_hat).sum(axis=2).max())
+            eps_R[i, j] = float(np.abs(R - R_hat).max())
+    r_range = float(R.max() - R.min())
+    factor = 2 * GAMMA * r_range / (1 - GAMMA) ** 2
+    bound = 2 * eps_R.mean(axis=0) / (1 - GAMMA) + factor * eps_P.mean(axis=0)
+
+    # What the page and _variables.yml quote.
+    n1 = loss[:, NS.index(1)]
+    assert round(float(n1.min())) == 25 and round(float(n1.max())) == 59, n1
+    zeros = (loss == 0.0).sum(axis=0)
+    for j, N in enumerate(NS):
+        if N >= 50:
+            assert zeros[j] >= 3, f"N = {N}: only {zeros[j]} of 5 seeds lose exactly 0"
+    assert zeros[NS.index(20)] < 3, "the page says the zeros start at N = 50"
+    assert bound.min() >= 1_000, f"the rescaled bound drops to {bound.min():.0f}"
+    assert round(factor, -2) == 19_200, factor
+    big = [j for j, N in enumerate(NS) if N >= 10]
+    slope = float(np.polyfit(np.log([NS[j] for j in big]), np.log(eps_P.mean(axis=0)[big]), 1)[0])
+    assert -0.6 < slope < -0.4, f"eps_P falls like N^{slope:.2f}, not 1/sqrt(N)"
+    assert abs(float(eps_P[:, NS.index(2)].mean()) - 1.869) < 5e-4
+    # The panels' alt texts: mean loss about 41 at N = 1, bound about 38,600 down to about
+    # 5,500, eps_P 1.97 at N = 1 and 0.28 at N = 200.
+    assert round(float(loss[:, 0].mean())) == 41
+    assert round(float(bound[0]), -2) == 38_600 and round(float(bound[-1]), -2) == 5_500, bound
+    assert (
+        round(float(eps_P[:, 0].mean()), 2) == 1.97 and round(float(eps_P[:, -1].mean()), 2) == 0.28
+    )
+    return {
+        "loss": np.round(loss, 4),
+        "eps_P": np.round(eps_P, 6),
+        "eps_R": np.round(eps_R, 4),
+        "bound": np.round(bound, 1),
+        "factor": factor,
+        "r_range": r_range,
+        "zeros": zeros,
+        "slope": slope,
+    }
+
+
+SYMLOG_TICKS = [0, 1, 10, 100, 1_000, 10_000, 100_000]
+
+
+def loss_panel(t: Theme, data: dict) -> Figure:
+    fig = Figure(figsize=(WIDE, HEIGHT))
+    ax = fig.add_axes((0.31, 0.16, 0.66, 0.8))
+    Ns = np.array(NS, dtype=float)
+    loss = data["loss"]
+    # Every seed, offset sideways on the log x-axis so equal values (the zeros) stay visible.
+    dodge = 10.0 ** (np.linspace(-0.06, 0.06, len(SEEDS)))
+    for i in range(len(SEEDS)):
+        ax.plot(
+            Ns * dodge[i],
+            loss[i],
+            ls="none",
+            marker="o",
+            ms=6,
+            mfc="none",
+            mec=t.series[0],
+            mew=1.3,
+            zorder=3,
+        )
+    ax.plot(
+        Ns,
+        loss.mean(axis=0),
+        color=t.series[0],
+        lw=2.2,
+        marker="D",
+        ms=6,
+        mec=t.bg,
+        mew=1.0,
+        zorder=4,
+    )
+    ax.plot(Ns, data["bound"], color=t.neutral, lw=2.0, ls=(0, (5, 2.5)), zorder=2)
+    ax.text(1.0, 1.1e5, "Rescaled bound", color=t.text, va="center")
+    ax.set_xscale("log")
+    ax.set_yscale("symlog", linthresh=1.0, linscale=1.0)
+    ax.set_ylim(-0.25, 4e5)
+    ax.set_xlim(0.75, 270)
+    ax.xaxis.set_major_locator(FixedLocator(list(NS)))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
+    ax.xaxis.set_minor_formatter(NullFormatter())
+    ax.yaxis.set_major_locator(FixedLocator(SYMLOG_TICKS))
+    ax.yaxis.set_major_formatter(FuncFormatter(_count))
+    ax.yaxis.set_minor_locator(FixedLocator([]))
+    ax.grid(True, which="major", axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("Samples per (stock, order), $N$")
+    ax.set_ylabel("$\\max_s\\, V^*(s) - V^{\\hat\\pi}(s)$\n(linear 0 to 1, log above)")
+    marker = {"ls": "none", "marker": "o", "ms": 6, "mfc": "none", "mec": t.series[0], "mew": 1.3}
+    ax.legend(
+        [
+            Line2D([], [], **marker),
+            Line2D([], [], color=t.series[0], lw=2.2, marker="D", ms=6, mec=t.bg),
+        ],
+        ["One seed (0 to 4)", "Mean of 5 seeds"],
+        loc="upper right",
+        bbox_to_anchor=(1.0, 0.71),
+        frameon=False,
+        handlelength=2.2,
+        fontsize=MIN_FONT,
+    )
+    return fig
+
+
+def eps_panel(t: Theme, data: dict) -> Figure:
+    fig = Figure(figsize=(NARROW, HEIGHT))
+    ax = fig.add_axes((0.3, 0.16, 0.65, 0.8))
+    Ns = np.array(NS, dtype=float)
+    eps = data["eps_P"].mean(axis=0)
+    ax.plot(Ns, eps, color=t.series[1], lw=2.0, marker="o", ms=7, mec=t.bg, mew=1.0, zorder=3)
+    ax.plot(Ns, eps[-1] * np.sqrt(Ns[-1] / Ns), color=t.neutral, lw=1.8, ls=(0, (5, 2.5)), zorder=2)
+    ax.text(1.6, 4.2, r"$1/\sqrt{N}$", color=t.text, va="center")
+    ax.text(1.0, 1.35, r"$\varepsilon_P$", color=t.text, va="center")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlim(0.75, 270)
+    ax.set_ylim(0.2, 5.5)
+    ax.xaxis.set_major_locator(FixedLocator([1, 10, 100]))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
+    ax.xaxis.set_minor_formatter(NullFormatter())
+    ax.yaxis.set_major_locator(FixedLocator([0.25, 0.5, 1, 2, 4]))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.grid(True, which="major", axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("$N$")
+    ax.set_ylabel(r"$\varepsilon_P$, mean of 5 seeds")
+    return fig
+
+
+# ------------------------------------------------------------------ other numbers the page quotes
+def _vi_stop(P, R, gamma, tol, stat):
+    """Value iteration from V = 0 that stops when stat(|V_new - V|) < tol; (V, k)."""
+    V, k = np.zeros(P.shape[0]), 0
+    while True:
+        V_new = (R + gamma * P @ V).max(axis=1)
+        k += 1
+        if stat(np.abs(V_new - V)) < tol:
+            return V_new, k
+        V = V_new
+
+
+def _residual(P, R, gamma, V):
+    return float(np.max(np.abs((R + gamma * P @ V).max(axis=1) - V)))
+
+
+def _fast_sample(mdp, N, rng):
+    """sample_transitions of the lab, vectorized: the same rows from the same rng stream.
+
+    InventoryMDP.sample_step draws one uniform per call (Generator.choice with p searches the
+    normalized cdf), in the loop order (s, a, n), so one rng.random(S * A * N) gives the same
+    demands. page_numbers asserts the equality against the loop before using it.
+    """
+    S, A, p = mdp.n_states, mdp.n_actions, mdp.params
+    cdf = mdp.pmf.cumsum()
+    cdf /= cdf[-1]
+    d = cdf.searchsorted(rng.random(S * A * N), side="right")
+    s = np.repeat(np.arange(S), A * N)
+    a = np.tile(np.repeat(np.arange(A), N), S)
+    q = np.minimum(a, mdp.capacity - s)
+    y = s + q
+    sales = np.minimum(y, d)
+    left = y - sales
+    order = np.where(q > 0, p["fixed_cost"], 0.0) + p["unit_cost"] * q
+    r = (
+        p["price"] * sales
+        - order
+        - p["holding_cost"] * left
+        - p["lost_sales_penalty"] * (d - sales)
+    )
+    return np.column_stack([s, a, r, left]).astype(float)
+
+
+def _fast_estimate(log, S, A):
+    """The counts estimator, vectorized; np.add.at sums in log order, as the loop does."""
+    s, a, s2 = (log[:, i].astype(int) for i in (0, 1, 3))
+    counts, P_hat, R_hat = np.zeros((S, A)), np.zeros((S, A, S)), np.zeros((S, A))
+    np.add.at(counts, (s, a), 1)
+    np.add.at(P_hat, (s, a, s2), 1)
+    np.add.at(R_hat, (s, a), log[:, 2])
+    seen = counts > 0
+    P_hat[seen] /= counts[seen][:, None]
+    R_hat[seen] /= counts[seen]
+    i, j = np.nonzero(~seen)
+    P_hat[i, j, i] = 1.0
+    return P_hat, R_hat, counts
+
+
+def _seat_losses(mdp, V_star, seat):
+    """Exercise 4's table for one seat: seeds (seat + 1) * 1000 + i, every N; (5, len(NS))."""
+    S, A = mdp.n_states, mdp.n_actions
+    loss = np.zeros((5, len(NS)))
+    for i in range(5):
+        for j, N in enumerate(NS):
+            log = _fast_sample(mdp, N, np.random.default_rng((seat + 1) * 1000 + i))
+            P_hat, R_hat, _ = _fast_estimate(log, S, A)
+            _, Q_hat, _, _ = _value_iteration(P_hat, R_hat, GAMMA, TOL)
+            loss[i, j] = np.max(V_star - _exact_value(mdp.P, mdp.R, GAMMA, _greedy(Q_hat)))
+    return loss
+
+
+def page_numbers(computed: dict[str, dict]) -> dict:
+    """Assert the numbers modules/02-planning.qmd and _variables.yml (m02) quote outside the
+    figures, so a change to the model or the samplers cannot leave them stale."""
+    mdp = InventoryMDP(**M01_INVENTORY)
+    P, R = mdp.P, mdp.R
+    S = mdp.n_states
+    V_star, pi_star, Q_star, _ = _optimal(P, R, GAMMA, TOL)
+    out: dict = {}
+    # Section 3: Module 1's "order up to 7" against pi*, and the exact ties in Q*.
+    pi7 = np.maximum(0, 7 - np.arange(S))
+    V7 = _exact_value(P, R, GAMMA, pi7)
+    gap = V_star - V7
+    out.update(V7_0=V7[0], gap_0=gap[0], gap_max=gap.max(), gap_argmax=int(gap.argmax()))
+    assert round(V7[0], 2) == 38.23 and round(gap[0]) == 42, (V7[0], gap[0])
+    assert round(gap.max()) == 45 and gap.argmax() == 6, gap
+    out["dV_6_7"] = V_star[7] - V_star[6]
+    assert round(out["dV_6_7"], 2) == 2.54, out["dV_6_7"]
+    # The ties are exact: capped orders have bitwise equal rows of P and R.
+    assert np.array_equal(P[1, 9], P[1, 10]) and R[1, 9] == R[1, 10]
+    assert all(np.array_equal(P[10, a], P[10, 0]) and R[10, a] == R[10, 0] for a in range(11))
+    deliver = np.minimum(pi_star, mdp.capacity - np.arange(S))
+    assert deliver.tolist() == [10, 9, 8, 7, 0, 0, 0, 0, 0, 0, 0], "fill the shelf from 0 to 3"
+    # The greedy policy of Q_k: pi* at k = 2, stock 3 stops ordering at k = 3.
+    V = np.zeros(S)
+    for _ in range(3):
+        V = (R + GAMMA * P @ V).max(axis=1)
+    assert _greedy(R + GAMMA * P @ V)[3] == 0, "at k = 3, stock 3 stops ordering"
+    # Policy iteration: the page's sequence of policies (as deliveries) and 3 evaluations from pi7.
+    fill = [
+        np.minimum(pol, mdp.capacity - np.arange(S)).tolist()
+        for pol in computed["02-vi-vs-pi"]["policies"]
+    ]
+    want = [[0] * 11] + [[10 - s if s <= top else 0 for s in range(S)] for top in (7, 2, 3)]
+    assert fill == want, fill
+    assert _policy_iteration(P, R, GAMMA, pi7)[2] == 3
+    # Exercise 1's Explain: at tol = 1.0 value iteration stops after 29 sweeps with pi*.
+    _, Q1, k1, _ = _value_iteration(P, R, GAMMA, 1.0)
+    assert k1 == 29 and _greedy_is_optimal(_greedy(Q1), Q_star), k1
+    # Section 2: the greedy-loss guarantee at tol = 1e-3.
+    assert round(2 * GAMMA**2 * 1e-3 / (1 - GAMMA) ** 2, 2) == 0.72
+    out.update(k_tol1=k1)
+    # Exercise 3: missed pairs of random_log(mdp, 200, default_rng(seat)), seats 0-30.
+    missed = []
+    for seat in range(31):
+        log = _random_log(mdp, 200, np.random.default_rng(seat))
+        counts = _estimate_model(log, S, mdp.n_actions)[2]
+        missed.append(int((counts == 0).sum()))
+        if seat == 0:
+            per_stock = (counts == 0).sum(axis=1)
+            assert missed[0] == 38 and per_stock[9:].sum() == 16, per_stock
+    assert min(missed) == 20 and max(missed) == 38, missed
+    assert sum(m > 23 for m in missed) == 30, missed
+    out.update(missed=missed)
+    # Exercise 4: seeds 0-4, the mean falls at every step but one (N = 100 to 200).
+    me = computed["02-model-error"]
+    means = me["loss"].mean(axis=0)
+    assert round(means[NS.index(100)], 2) == 0.08 and round(means[NS.index(200)], 2) == 0.35
+    assert me["loss"][:, NS.index(200)].round(2).tolist() == [0.0, 1.39, 0.0, 0.38, 0.0]
+    rises = [NS[j + 1] for j in range(len(NS) - 1) if means[j + 1] > means[j]]
+    assert rises == [200], rises
+    # Exercise 4 at the seats' own seeds, (seat + 1) * 1000 + i (the Predict answer).
+    for N, seed in ((1, 0), (2, 1001), (50, 3)):
+        loop = _sample_transitions(mdp, N, np.random.default_rng(seed))
+        fast = _fast_sample(mdp, N, np.random.default_rng(seed))
+        assert np.array_equal(loop, fast), "the vectorized sampler drifted from the lab's"
+        a, b = _estimate_model(loop, S, mdp.n_actions), _fast_estimate(fast, S, mdp.n_actions)
+        assert all(np.array_equal(x, y) for x, y in zip(a, b, strict=True))
+    seat0 = _seat_losses(mdp, V_star, 0)
+    m0 = seat0.mean(axis=0)
+    assert m0.round(2).tolist() == [43.91, 25.48, 11.64, 5.07, 3.81, 0.98, 0.62, 0.77], m0
+    assert seat0[:, -1].round(2).tolist() == [0.38, 0.0, 0.93, 1.39, 1.12], seat0[:, -1]
+    assert int((seat0[:, -1] == 0.0).sum()) == 1
+    assert [NS[j + 1] for j in range(len(NS) - 1) if m0[j + 1] > m0[j]] == [200]
+    all_zero = rise = 0
+    for seat in range(26):
+        loss = seat0 if seat == 0 else _seat_losses(mdp, V_star, seat)
+        all_zero += bool(np.all(loss[:, -1] == 0.0))
+        rise += bool(np.any(np.diff(loss.mean(axis=0)) > 0))
+    assert (all_zero, rise) == (7, 13), (all_zero, rise)
+    out.update(seat0_means=m0, seats_all_zero=all_zero, seats_rise=rise)
+    # Exercise 5: the suspect (stop on the mean) against value iteration, and its residual.
+    cliff = CliffGridworld(4, 12, slip=0.2, gamma=0.95)
+    settled_P = np.zeros((100, 2, 100))
+    settled_P[np.arange(100), :, np.arange(100)] = 1.0
+    settled_R = np.zeros((100, 2))
+    settled_R[0] = [1.0, 0.5]
+    models = {
+        "shop": (P, R, (299, 299), None),
+        "slippery cliff": (cliff.P, cliff.R, (72, 76), 1.9),
+        "mostly settled": (settled_P, settled_R, (181, 271), 97.8),
+    }
+    for name, (P_x, R_x, (k_mean, k_max), ratio) in models.items():
+        V_mean, km = _vi_stop(P_x, R_x, GAMMA, TOL, np.mean)
+        _, kx = _vi_stop(P_x, R_x, GAMMA, TOL, np.max)
+        assert (km, kx) == (k_mean, k_max), (name, km, kx)
+        r = _residual(P_x, R_x, GAMMA, V_mean) / (GAMMA * TOL)
+        if ratio is None:
+            assert r < 1, (name, r)
+        else:
+            assert round(r, 1) == ratio, (name, r)
+        out[f"ex5_{name}"] = (km, kx, r)
+    return out
+
+
+# ------------------------------------------------------------------ build and check
+DATA = {"02-vi-vs-pi": vi_pi_data, "02-model-error": model_error_data}
+# Each panel: (its data, how to draw it). The page lays them out as subfigures.
+PANELS = {
+    "02-vi-vs-pi-vi": ("02-vi-vs-pi", vi_panel),
+    "02-vi-vs-pi-pi": ("02-vi-vs-pi", pi_panel),
+    "02-model-error-loss": ("02-model-error", loss_panel),
+    "02-model-error-eps": ("02-model-error", eps_panel),
+}
+
+
+def panel_svg_bytes(fig: Figure) -> bytes:
+    """Deterministic SVG that declares itself a subfigure panel (tests/test_site_figures.py
+    then allows a width below the full 510 pt column)."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="svg", metadata={"Date": None, "Description": "subfigure panel"})
+    return buf.getvalue()
+
+
+def build() -> tuple[dict[Path, bytes], dict[str, dict]]:
+    out: dict[Path, bytes] = {}
+    computed = {name: make() for name, make in DATA.items()}
+    for name, (key, draw) in PANELS.items():
+        for t in themes():
+            with mpl.rc_context(rc(name, t)):
+                out[IMAGES / f"{name}{t.suffix}.svg"] = panel_svg_bytes(draw(t, computed[key]))
+    computed["page"] = page_numbers(computed)
+    return out, computed
+
+
+def report(computed: dict[str, dict]) -> None:
+    vp = computed["02-vi-vs-pi"]
+    print(
+        "The shop (Module 1's InventoryMDP), gamma 0.95, tol 1e-6. Exact computations, not timings."
+    )
+    print(
+        f"value iteration: {vp['k_vi']} sweeps; first changes {vp['log'][:5]}; last {vp['log'][-1]:.3g}; "
+        f"median ratio per sweep after sweep 20: {vp['median_ratio']:.4f}"
+    )
+    print(
+        f"greedy(Q_k), Q_k = R + gamma P V_k: pi* at k = {vp['first_ever']}, not at k = 3, "
+        f"pi* for every k >= {vp['mark']}; ||V_{vp['mark']} - V*|| = {vp['err_at_mark']:.2f}"
+    )
+    print(f"policy iteration from 'never order': {len(vp['dists'])} evaluations")
+    for pol, d in zip(vp["policies"], vp["dists"], strict=True):
+        print(f"  policy {pol.tolist()}  ||V^pi - V*|| = {d:g}")
+    me = computed["02-model-error"]
+    print()
+    print(
+        f"model error (seeds {SEEDS[0]}-{SEEDS[-1]}): r_max - r_min = {me['r_range']:.3f}, "
+        f"factor on eps_P = {me['factor']:,.0f}"
+    )
+    print(f"{'N':>4} | loss per seed{'':27} | mean   | zeros | eps_P mean | eps_R mean | bound")
+    for j, N in enumerate(NS):
+        loss = me["loss"][:, j]
+        print(
+            f"{N:4d} | {np.array2string(loss, precision=2, floatmode='fixed'):40} | {loss.mean():6.2f} | "
+            f"{me['zeros'][j]:5d} | {me['eps_P'][:, j].mean():10.3f} | {me['eps_R'][:, j].mean():10.2f} | "
+            f"{me['bound'][j]:,.0f}"
+        )
+    print(f"eps_P against N (N >= 10): slope {me['slope']:.3f} on log-log axes (1/sqrt(N) is -0.5)")
+    pg = computed["page"]
+    print()
+    print(
+        f"order up to 7: V(0) = {pg['V7_0']:.2f}, loses {pg['gap_0']:.2f} at stock 0 and at most "
+        f"{pg['gap_max']:.2f} (stock {pg['gap_argmax']}); V*(7) - V*(6) = {pg['dV_6_7']:.3f}"
+    )
+    print(f"tol 1.0: {pg['k_tol1']} sweeps, greedy policy optimal")
+    print(
+        f"seat 0 (seeds 1000-1004), mean loss by N: {np.round(pg['seat0_means'], 2).tolist()}; "
+        f"seats 0-25: {pg['seats_all_zero']} of 26 all zero at N = 200, "
+        f"{pg['seats_rise']} of 26 with a mean that rises"
+    )
+    print(f"random_log, 200 days, seats 0-30: missed pairs {pg['missed']}")
+    for name in ("shop", "slippery cliff", "mostly settled"):
+        km, kx, r = pg[f"ex5_{name}"]
+        print(f"suspect on the {name}: {km} sweeps against {kx}; residual {r:.2f} x gamma tol")
+
+
+def main(argv: list[str]) -> int:
+    check = "--check" in argv
+    files, computed = build()
+    if check:
+        stale = [p for p, data in files.items() if not p.exists() or p.read_bytes() != data]
+        for p in stale:
+            print(f"{p.relative_to(ROOT)} is out of date; run scripts/make_figures_m02.py")
+        return 1 if stale else 0
+    IMAGES.mkdir(exist_ok=True)
+    for p, data in files.items():
+        p.write_bytes(data)
+        print(f"wrote {p.relative_to(ROOT)} ({len(data) / 1024:.0f} KiB)")
+    print()
+    report(computed)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

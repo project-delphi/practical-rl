@@ -5,7 +5,7 @@ title: "Knowledge checks"
 The entry check (three questions in each of four areas), one or two questions per learning objective with folded answers naming their evidence, and five-question warm-up sets for Days 2–5.
 
 ::: {.callout-note}
-Module 1 is written below. The entry check, the other modules and the warm-up sets are written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+Modules 1 and 2 are written below. The entry check, the other modules and the warm-up sets are written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
 :::
 
 ## Module 1 {#m01}
@@ -91,4 +91,82 @@ Compute the Bellman residual $\lVert T^\pi V - V \rVert_\infty = \lVert r_\pi + 
 $P_\pi$ is square, so `P_pi.T @ V` has the same shape as `P_pi @ V`, and nothing fails. The two products agree for every $V$ only when $P_\pi$ is symmetric, so a test MDP with a symmetric $P_\pi$ hides the bug. The buggy evaluator solves $V = r_\pi + \gamma P_\pi^\top V$, which is not the Bellman equation, so the true residual $\lVert r_\pi + \gamma P_\pi V - V \rVert_\infty$ of its output is not zero. In the two-state shop of the briefing it returns $(1.25, 8.75)$ instead of $(5, 10)$, with a residual of 1.75. The fix is to use the rows of $P_\pi$: row $s$ is the distribution of the next state from $s$.
 
 **Evidence:** Lab 1, checkpoint 6.2.
+:::
+
+## Module 2 {#m02}
+
+Questions for [Module 2 · Planning: value iteration, policy iteration and model error](/modules/02-planning.qmd), two per objective. Each answer ends with the Lab 2 checkpoint that is its evidence.
+
+### Objective 1: implement value iteration and policy iteration and compare their iteration counts
+
+[**2.1**]{#q2-1} The two-state shop: states 0 = empty and 1 = stocked, actions 0 = wait and 1 = order, rewards $r(0, \cdot) = (0, -2)$ and $r(1, \cdot) = (3, 1)$, next-state rows $P(\cdot \mid 0, \text{wait}) = (1, 0)$, $P(\cdot \mid 0, \text{order}) = (0, 1)$, $P(\cdot \mid 1, \text{wait}) = (1/4, 3/4)$, $P(\cdot \mid 1, \text{order}) = (0, 1)$. The briefing ran value iteration at $\gamma = 0.8$. Run two sweeps at $\gamma = 0.5$ from $V_0 = (0, 0)$: give $Q_0$, $V_1$, $Q_1$, $V_2$ and the greedy policy of $Q_1$. At $\gamma = 0.5$ the optimal policy is still (order, wait), with $V^* = (4/9,\ 44/9)$. Is the greedy policy of $Q_1$ optimal? When does it become optimal, and why later than at $\gamma = 0.8$?
+
+::: {.callout-tip collapse="true" title="Answer to 2.1"}
+Sweep 1: $Q_0 = R$ since $V_0 = 0$, so $Q_0 = \begin{pmatrix} 0 & -2 \\ 3 & 1 \end{pmatrix}$ and $V_1 = (0, 3)$. Sweep 2: $Q_1(0, \text{wait}) = 0 + 0.5 \cdot 0 = 0$, $Q_1(0, \text{order}) = -2 + 0.5 \cdot 3 = -0.5$, $Q_1(1, \text{wait}) = 3 + 0.5\,(\tfrac14 \cdot 0 + \tfrac34 \cdot 3) = 4.125$, $Q_1(1, \text{order}) = 1 + 0.5 \cdot 3 = 2.5$. So $V_2 = (0, 4.125)$, and the greedy policy of $Q_1$ is (wait, wait): not optimal. The next sweep gives $Q_2(0, \text{order}) = -2 + 0.5 \cdot 4.125 = 0.0625 > 0 = Q_2(0, \text{wait})$, so the greedy policy of $Q_2$ is (order, wait), the optimal policy. At $\gamma = 0.8$ it was optimal already at $Q_1$. With the shorter horizon, ordering on an empty shelf pays only a little more than waiting ($Q^*(0, \cdot) = (2/9,\ 4/9)$), so the sweeps need longer before the stocked state's value is large enough to show it.
+
+**Evidence:** Lab 2, checkpoints 1.1 (value iteration) and 1.2 (greedy extraction).
+:::
+
+[**2.2**]{#q2-2} On the same two-state shop at $\gamma = 0.8$, run policy iteration from "always order". Give the value of "always order", its $Q^\pi$, the improved policy, and the number of evaluations until the policy stops changing. Value iteration needs 66 sweeps to reach $\mathrm{tol} = 10^{-6}$ on this MDP. Which method did less arithmetic here, and would that still hold with $10^6$ states?
+
+::: {.callout-tip collapse="true" title="Answer to 2.2"}
+Under "always order", $V(1) = 1 + 0.8\, V(1)$, so $V(1) = 5$, and $V(0) = -2 + 0.8 \cdot 5 = 2$: $V^\pi = (2, 5)$. Then $Q^\pi(0, \cdot) = (0 + 0.8 \cdot 2,\ -2 + 0.8 \cdot 5) = (1.6,\ 2)$ and $Q^\pi(1, \cdot) = (3 + 0.8\,(\tfrac14 \cdot 2 + \tfrac34 \cdot 5),\ 1 + 0.8 \cdot 5) = (6.4,\ 5)$. The empty state keeps "order" and the stocked state switches to "wait": the new policy is (order, wait). Its value is $(20/3,\ 65/6)$, and the next improvement step changes nothing: two evaluations.
+
+Here policy iteration did less: two solves of a $2 \times 2$ system against 66 sweeps. With $10^6$ states each solve costs about $|\mathcal{S}|^3 = 10^{18}$ operations, while a sweep costs about $|\mathcal{S}|^2 |\mathcal{A}| = 2 \times 10^{12}$, so even hundreds of sweeps are cheaper than one solve (Gotcha "PI is always faster").
+
+**Evidence:** Lab 2, checkpoint 2 (the reference count of evaluations) and Exercise 2's run cell (both counts side by side).
+:::
+
+### Objective 2: extract a greedy policy and check the greedy-loss bound
+
+[**2.3**]{#q2-3} $Q = \begin{pmatrix} 1.0 & 1.2 & 0.9 \\ 2.0 & 2.0 & 1.5 \end{pmatrix}$ (two states, three actions). Give the greedy policy. A colleague computes it with `np.argmax(Q, axis=0)`: what do they get, and what shape does it have? What should happen in state 1?
+
+::: {.callout-tip collapse="true" title="Answer to 2.3"}
+The greedy policy picks the largest entry in each row: action 1 in state 0 and, after the tie in state 1, action 0 under `np.argmax`'s rule of the first maximizer. `np.argmax(Q, axis=0)` picks the largest entry in each *column*, giving `[1, 1, 1]`, a vector of length 3, one per action: the wrong shape for a policy over two states. In state 1 the tie is real: both actions are equally good, and either is a correct greedy choice; inside policy iteration the tie rule keeps the current action.
+
+**Evidence:** Lab 2, checkpoint 1.2 (greedy extraction on several arrays).
+:::
+
+[**2.4**]{#q2-4} Value iteration stops at $\mathrm{tol} = 10^{-4}$ with $\gamma = 0.9$ and returns $V$ and $Q = R + \gamma P V$. Bound $\lVert V - V^* \rVert_\infty$, then $\lVert Q - Q^* \rVert_\infty$, then the loss of the greedy policy of $Q$. Does the greedy policy's loss ever exceed this bound on a correct implementation?
+
+::: {.callout-tip collapse="true" title="Answer to 2.4"}
+The stopping rule gives $\lVert V - V^* \rVert_\infty \le \gamma\, \mathrm{tol} / (1 - \gamma) = 0.9 \times 10^{-4} / 0.1 = 9 \times 10^{-4}$. Building $Q$ from $V$ multiplies the error by at most $\gamma$: $\lVert Q - Q^* \rVert_\infty \le 8.1 \times 10^{-4}$. The greedy-loss bound then gives $2 \times 8.1 \times 10^{-4} / 0.1 = 0.0162$. No: it is a proven upper bound; the measured loss is usually far smaller, and often exactly 0, but a correct implementation never exceeds it. A loss above the bound means a bug, in the sweep, in the stopping test or in the evaluation.
+
+**Evidence:** Lab 2, checkpoint 1.1 (the stopping guarantee) and the perturbed-$Q$ table of Exercise 1's run cell.
+:::
+
+### Objective 3: measure the true loss of a policy planned in an estimated model as the data shrinks
+
+[**2.5**]{#q2-5} A log of the two-state shop of Module 1 holds five rows $(s, a, r, s')$: $(0, 1, -2, 1)$, $(1, 0, 3, 1)$, $(1, 0, 3, 0)$, $(0, 1, -2, 1)$, $(1, 0, 3, 1)$. Give $N(s, a)$ for all four pairs, $\hat P(\cdot \mid 1, 0)$, $\hat r(1, 0)$, and the rows of $\hat P$ and $\hat r$ for the pairs the log never visited.
+
+::: {.callout-tip collapse="true" title="Answer to 2.5"}
+$N(0, 1) = 2$, $N(1, 0) = 3$, $N(0, 0) = N(1, 1) = 0$. From the three visits to $(1, 0)$, two went to state 1 and one to state 0, so $\hat P(\cdot \mid 1, 0) = (1/3, 2/3)$ and $\hat r(1, 0) = 3$. The unvisited pairs get self-loops with reward 0: $\hat P(\cdot \mid 0, 0) = (1, 0)$, $\hat P(\cdot \mid 1, 1) = (0, 1)$, $\hat r(0, 0) = \hat r(1, 1) = 0$. Compared with that shop's true $P(\cdot \mid 1, 0) = (1/4, 3/4)$ the row error is $|1/3 - 1/4| + |2/3 - 3/4| = 1/6$.
+
+**Evidence:** Lab 2, checkpoint 3 (exact on a fixed log with unvisited pairs).
+:::
+
+[**2.6**]{#q2-6} You plan in a model estimated from $N$ samples per pair and measure the planned policy's true loss for $N = 10$ and $N = 20$, one seed each: $4.2$ and $7.0$. A colleague concludes that more data made the plan worse. What is wrong with the conclusion, what does the workshop's comparison rule require, and what would you expect to see with 5 seeds at each $N$?
+
+::: {.callout-tip collapse="true" title="Answer to 2.6"}
+One seed per side is "single seed, not a ranking": the loss at a fixed $N$ varies from seed to seed by more than the difference quoted, because the loss jumps between the values of a few policies depending on which rows the sample got wrong. The rule requires at least 3 seeds per side with every seed shown, and ties called when the ranges overlap; with 5 seeds, the interquartile mean with a bootstrap interval. With 5 seeds you would expect overlapping ranges at $N = 10$ and $20$ (a tie), a clearly lower mean at the largest $N$ than at the smallest, and losses of exactly 0 on several seeds once $N$ is large enough for the planned policy to be $\pi^*$.
+
+**Evidence:** Lab 2, checkpoint 4.1 (on seeds 0 to 4, the mean loss at $N = 2$ exceeds the mean at $N = 100$ by more than the spread at $N = 100$) and Exercise 4's table, which prints every seed and the IQM with its bootstrap interval.
+:::
+
+### Objective 4: state the simulation lemma with its assumptions and horizon factor, and check measured losses against its bound
+
+[**2.7**]{#q2-7} Write the simulation lemma as an identity for $V^\pi - \hat V^\pi$ when both the transitions and the rewards are estimated, and derive from it the bound $\varepsilon_R / (1 - \gamma) + \gamma \varepsilon_P / (1 - \gamma)^2$. Name the step where each factor of $1 / (1 - \gamma)$ enters and the assumption it needs.
+
+::: {.callout-tip collapse="true" title="Answer to 2.7"}
+$V^\pi - \hat V^\pi = (I - \gamma \hat P_\pi)^{-1} \big[ (r_\pi - \hat r_\pi) + \gamma (P_\pi - \hat P_\pi) V^\pi \big]$, from subtracting the two Bellman equations and collecting the $V^\pi - \hat V^\pi$ terms. The first factor: multiplying by $(I - \gamma \hat P_\pi)^{-1} = \sum_k \gamma^k \hat P_\pi^k$ enlarges the max norm by at most $1 / (1 - \gamma)$, because each $\hat P_\pi^k$ averages; this needs $\gamma < 1$ and $\hat P_\pi$ stochastic. The reward term is at most $\varepsilon_R$. The transition term, $\gamma (P_\pi - \hat P_\pi) V^\pi$, is at most $\gamma\, \varepsilon_P \lVert V^\pi \rVert_\infty$ (signed weights whose absolute values sum to at most $\varepsilon_P$ in each row, applied to $V^\pi$), and the second factor enters here: with rewards in $[0, 1]$, $\lVert V^\pi \rVert_\infty \le 1 / (1 - \gamma)$. For rewards in $[r_{\min}, r_{\max}]$, replace that by $(r_{\max} - r_{\min}) / (1 - \gamma)$ after shifting, which leaves every loss unchanged.
+
+**Evidence:** Lab 2, checkpoint 4.2 (`planning_loss_bound`: the rescaled bound, and every measured loss below it).
+:::
+
+[**2.8**]{#q2-8} The reward is known, $\gamma = 0.9$, rewards lie in $[0, 1]$, and the estimated model has $\varepsilon_P = 0.2$. What does the simulation lemma guarantee for the value error of any policy, and for the loss of the policy planned in the estimate? Compare with the largest possible value. What does the bound still tell you about going from $\varepsilon_P = 0.2$ to $0.1$?
+
+::: {.callout-tip collapse="true" title="Answer to 2.8"}
+Value error: at most $\gamma \varepsilon_P / (1 - \gamma)^2 = 0.9 \times 0.2 / 0.01 = 18$, for every policy. Planned-policy loss: at most twice that, 36. The largest possible value is $1 / (1 - \gamma) = 10$, so both bounds say nothing at this accuracy: an $\ell_1$ row error of 0.2 is far too large for a horizon of 10. The bound is linear in $\varepsilon_P$, so halving the model error halves the guaranteed loss, from 36 to 18, which still says nothing; it becomes informative only once $\varepsilon_P$ is well below $(1 - \gamma)^2 / \gamma \approx 0.011$. The scaling is the useful content: the loss you can guarantee grows with the horizon squared, so a model good enough for $\gamma = 0.9$ is not good enough for $\gamma = 0.99$.
+
+**Evidence:** Lab 2, checkpoint 4.2 (the bound's formula, with its two horizon factors) and Exercise 4's table (the bound next to the measured loss).
 :::

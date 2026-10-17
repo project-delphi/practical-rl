@@ -1,0 +1,170 @@
+{
+  "badge_ref": "main",
+  "checkpoints": [
+    {
+      "exercise": 1,
+      "label": "1.1",
+      "pass": true,
+      "seconds": 0.038,
+      "whose": "reference"
+    },
+    {
+      "exercise": 1,
+      "label": "1.2",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4.1",
+      "pass": true,
+      "seconds": 0.424,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4.2",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5.1",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5.2",
+      "pass": true,
+      "seconds": 0.009,
+      "whose": "reference"
+    }
+  ],
+  "colab_release": null,
+  "content_sha": "39ac50fbadcaae3c",
+  "date": "2026-10-17",
+  "dirty": false,
+  "env": "local",
+  "git_sha": "37f46660c3311896c965bfadb6a870b3ec27e1c7",
+  "hardware": {
+    "accel": "cpu",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "notebook",
+  "metrics": {
+    "loss_N2": 25.4823,
+    "loss_N20": 3.8078,
+    "loss_N200": 0.7655,
+    "loss_by_N": {
+      "1": [
+        39.586,
+        55.7068,
+        51.3341,
+        38.3928,
+        34.5284
+      ],
+      "10": [
+        3.1333,
+        14.5148,
+        1.0498,
+        0.0,
+        6.6377
+      ],
+      "100": [
+        0.0,
+        1.0498,
+        1.1239,
+        0.9319,
+        0.0
+      ],
+      "2": [
+        21.3268,
+        13.0123,
+        45.9875,
+        30.9509,
+        16.1339
+      ],
+      "20": [
+        1.0498,
+        9.3576,
+        0.0,
+        7.5079,
+        1.1239
+      ],
+      "200": [
+        0.3811,
+        0.0,
+        0.9319,
+        1.3909,
+        1.1239
+      ],
+      "5": [
+        11.7829,
+        5.6189,
+        15.3807,
+        1.3909,
+        24.0168
+      ],
+      "50": [
+        2.1337,
+        1.3909,
+        0.0,
+        1.3909,
+        0.0
+      ]
+    }
+  },
+  "notebook": "02-planning",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "torch": "2.14.1"
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "quick": false,
+  "quick_reason": "designed for colab-cpu; running full settings",
+  "schema": 1,
+  "scope": "notebook",
+  "seat": 0,
+  "seconds": 6.6,
+  "seeds": [
+    1000,
+    1001,
+    1002,
+    1003,
+    1004
+  ],
+  "settings": {},
+  "shims": [],
+  "solutions_bound": true,
+  "source": "tool",
+  "status": "pass",
+  "test_doubles": [],
+  "torch_threads": null
+}

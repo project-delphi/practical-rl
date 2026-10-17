@@ -183,7 +183,377 @@ def m01_eval() -> bytes:
     return _save("m01_eval", **out)
 
 
-FIXTURES = {"m01_returns": m01_returns, "m01_eval": m01_eval}
+# ---------------------------------------------------------------- Module 2 (planning)
+# Solver code for the fixtures: value iteration, policy iteration, modified policy
+# iteration and the counts estimator. It lives here, never in prl.
+
+
+def _value_iteration(P, R, gamma, tol):
+    """V <- max_a [R + gamma P V] from V = 0 until max|V_new - V| < tol; (V, Q, k, log)."""
+    V, k, log = np.zeros(P.shape[0]), 0, []
+    while True:
+        Q = R + gamma * P @ V
+        V_new = Q.max(axis=1)
+        k += 1
+        log.append(float(np.max(np.abs(V_new - V))))
+        if log[-1] < tol:
+            return V_new, R + gamma * P @ V_new, k, log
+        V = V_new
+
+
+def _exact_value(P, R, gamma, pi):
+    """V^pi of a deterministic policy by a linear solve."""
+    S = P.shape[0]
+    P_pi, r_pi = P[np.arange(S), pi], R[np.arange(S), pi]
+    return np.linalg.solve(np.eye(S) - gamma * P_pi, r_pi)
+
+
+#: Ties. Orders the capacity caps to the same delivery are identical actions (bitwise equal
+#: rows of P and R), so the shop's Q ties exactly on paper. A BLAS may still split such a tie
+#: by a few units in the last place: OpenBLAS computes some rows of P @ V along a different
+#: kernel path. Every tie decision here therefore compares within _tie_tol(Q) =
+#: TIE_TOL * (1 + max|Q|), about 1.06e-7 on the shop: six orders of magnitude above rounding
+#: (about 1e-13 at |Q| near 100) and six below the smallest real gap between distinct
+#: deliveries (0.032 in value iteration's Q_0 = R, 0.125 along policy iteration's path).
+TIE_TOL = 1e-9
+
+
+def _tie_tol(Q):
+    return TIE_TOL * (1.0 + float(np.abs(Q).max()))
+
+
+def _greedy(Q):
+    """The FIRST action within _tie_tol of each row's max: the same choice on every platform."""
+    return (Q >= Q.max(axis=1, keepdims=True) - _tie_tol(Q)).argmax(axis=1)
+
+
+def _policy_iteration(P, R, gamma, pi0, *, tie_tol=True):
+    """Exact evaluation and greedy improvement, keeping the current action when it is within
+    _tie_tol of the best (tie_tol=False: the exact comparison, for an assertion only)."""
+    S = P.shape[0]
+    pi, k = np.asarray(pi0, dtype=int).copy(), 0
+    while True:
+        V = _exact_value(P, R, gamma, pi)
+        k += 1
+        Q = R + gamma * P @ V
+        keep = Q[np.arange(S), pi] >= Q.max(axis=1) - (_tie_tol(Q) if tie_tol else 0.0)
+        pi_new = np.where(keep, pi, _greedy(Q))
+        if np.array_equal(pi_new, pi):
+            return V, pi, k
+        pi = pi_new
+
+
+def _modified_policy_iteration(P, R, gamma, m, tol):
+    S = P.shape[0]
+    V, rounds = np.zeros(S), 0
+    while True:
+        Q = R + gamma * P @ V
+        pi = _greedy(Q)
+        V_new = Q.max(axis=1)
+        P_pi, r_pi = P[np.arange(S), pi], R[np.arange(S), pi]
+        for _ in range(m - 1):
+            V_new = r_pi + gamma * P_pi @ V_new
+        rounds += 1
+        if np.max(np.abs(V_new - V)) < tol:
+            return V_new, _greedy(R + gamma * P @ V_new), rounds
+        V = V_new
+
+
+def _optimal(P, R, gamma, tol=1e-6):
+    """(V*, pi*, Q*, k_vi): pi* from value iteration, V* by the exact solve of pi*."""
+    _, Q_vi, k, _ = _value_iteration(P, R, gamma, tol)
+    pi_star = _greedy(Q_vi)
+    V_star = _exact_value(P, R, gamma, pi_star)
+    return V_star, pi_star, R + gamma * P @ V_star, k
+
+
+def _loud_mdp(S=100, gamma=0.95):
+    """The 'mostly settled' MDP: every state absorbing, R = 0 except R[0] = [1, 0.5]."""
+    P = np.zeros((S, 2, S))
+    P[np.arange(S), :, np.arange(S)] = 1.0
+    R = np.zeros((S, 2))
+    R[0] = [1.0, 0.5]
+    return P, R, gamma
+
+
+def _estimate_model(log, n_states, n_actions):
+    counts = np.zeros((n_states, n_actions))
+    P_hat = np.zeros((n_states, n_actions, n_states))
+    R_hat = np.zeros((n_states, n_actions))
+    for s, a, r, s2 in log:
+        s, a, s2 = int(s), int(a), int(s2)
+        counts[s, a] += 1
+        P_hat[s, a, s2] += 1
+        R_hat[s, a] += r
+    for s in range(n_states):
+        for a in range(n_actions):
+            if counts[s, a] > 0:
+                P_hat[s, a] /= counts[s, a]
+                R_hat[s, a] /= counts[s, a]
+            else:
+                P_hat[s, a, s] = 1.0
+    return P_hat, R_hat, counts
+
+
+DUP_DELTA = 1e-13
+
+
+def m02_plan() -> bytes:
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import CliffGridworld, InventoryMDP
+
+    out: dict[str, np.ndarray] = {}
+    tol = 1e-6
+    # The shop (Module 1's numbers), gamma 0.95.
+    inv = InventoryMDP(**M01_INVENTORY)
+    S = inv.n_states
+    V_star, pi_star, Q_star, k_vi = _optimal(inv.P, inv.R, 0.95, tol)
+    assert k_vi == 299 and pi_star.tolist() == [10, 9, 8, 7, 0, 0, 0, 0, 0, 0, 0]
+    pi7 = np.maximum(0, 7 - np.arange(S))
+    out.update(
+        inv_V_star=V_star,
+        inv_pi_star=pi_star.astype(np.int64),
+        inv_Q_star=Q_star,
+        inv_pi7=pi7.astype(np.int64),
+        inv_k_vi=np.array(k_vi, dtype=np.int64),
+        inv_k_pi_zero=np.array(_policy_iteration(inv.P, inv.R, 0.95, np.zeros(S, int))[2]),
+        inv_k_pi_7=np.array(_policy_iteration(inv.P, inv.R, 0.95, pi7)[2]),
+        inv_k_mpi_1=np.array(_modified_policy_iteration(inv.P, inv.R, 0.95, 1, tol)[2]),
+        inv_k_mpi_5=np.array(_modified_policy_iteration(inv.P, inv.R, 0.95, 5, tol)[2]),
+    )
+    # A seeded random MDP (5 states, 3 actions), gamma 0.9, and its negated-rewards twin
+    # (the optimality backup does not commute with a sign flip, so both get fixtures).
+    rng = np.random.default_rng(20261017)
+    P = rng.dirichlet(np.ones(5), size=(5, 3))
+    R = rng.normal(size=(5, 3))
+    out.update(rand_P=P, rand_R=R, rand_gamma=np.array(0.9))
+    for prefix, sign in (("rand", 1.0), ("rand_neg", -1.0)):
+        V, pi, _, k = _optimal(P, sign * R, 0.9, tol)
+        out[f"{prefix}_V_star"] = V
+        out[f"{prefix}_pi_star"] = pi.astype(np.int64)
+        out[f"{prefix}_k_vi"] = np.array(k, dtype=np.int64)
+    out["rand_k_pi"] = np.array(_policy_iteration(P, R, 0.9, np.zeros(5, int))[2])
+    # The 3x4 cliff gridworld at gamma 0.9 (in-place updates stop earlier).
+    g = CliffGridworld(3, 4, gamma=0.9)
+    V_g, _, _, k_g = _optimal(g.P, g.R, 0.9, tol)
+    out.update(grid_V_star=V_g, grid_k_vi=np.array(k_g, dtype=np.int64))
+    # The 'mostly settled' MDP: stopping on the mean change stops at sweep 181 of 271.
+    P_l, R_l, gamma_l = _loud_mdp()
+    V_l, _, _, k_l = _optimal(P_l, R_l, gamma_l, tol)
+    assert k_l == 271 and np.allclose(V_l, np.r_[1 / (1 - gamma_l), np.zeros(99)])
+    out.update(
+        loud_S=np.array(100, dtype=np.int64),
+        loud_gamma=np.array(gamma_l),
+        loud_V_star=V_l,
+        loud_k_vi=np.array(k_l, dtype=np.int64),
+    )
+    # The 4x12 cliff with slip 0.2 at gamma 0.95: the mean-stop bug shows (72 of 76 sweeps).
+    c = CliffGridworld(4, 12, slip=0.2, gamma=0.95)
+    V_c, _, _, k_c = _optimal(c.P, c.R, 0.95, tol)
+    assert k_c == 76
+    out.update(cliff_V_star=V_c, cliff_k_vi=np.array(k_c, dtype=np.int64))
+    # Greedy cases: random (6, 4) arrays with distinct row maxima, and one with an exact tie.
+    Qs = rng.normal(size=(4, 6, 4)).round(3)
+    for Q in Qs:
+        assert all(np.sum(row == row.max()) == 1 for row in Q)
+    Q_tie = rng.normal(size=(6, 4)).round(3)
+    Q_tie[2, 1] = Q_tie[2, 3] = Q_tie[2].max() + 1.0
+    out.update(
+        greedy_Q=Qs,
+        greedy_expected=Qs.argmax(axis=2).astype(np.int64),
+        greedy_tie_Q=Q_tie,
+        greedy_tie_row=np.array(2, dtype=np.int64),
+    )
+    # A near-duplicate action: action 3 is a copy of the action pi* uses most, with its
+    # reward lowered by DUP_DELTA = 1e-13, the size of a difference rounding can make. Started
+    # from 'always 3', a tie rule with a tolerance keeps 3 where it is optimal; an exact
+    # comparison (or argmax alone) switches to the original, on every platform: 1e-13 is
+    # about 25 ulps of the random MDP's Q (|Q| < 10), far above the few ulps a BLAS adds.
+    # Action 4, a copy of action 0 with a reward 1 lower, is never chosen; it makes A = S = 5,
+    # so a mistaken max over states (axis 0) gives a wrong policy rather than a shape error.
+    _, pi_r, _, _ = _optimal(P, R, 0.9, tol)
+    dup_of = int(np.bincount(pi_r, minlength=3).argmax())
+    P_d = np.concatenate([P, P[:, dup_of : dup_of + 1], P[:, :1]], axis=1)
+    R_d = np.concatenate([R, R[:, dup_of : dup_of + 1] - DUP_DELTA, R[:, :1] - 1.0], axis=1)
+    pi0_d = np.full(5, 3)
+    V_d, pi_d, k_d = _policy_iteration(P_d, R_d, 0.9, pi0_d)
+    assert np.any(pi_d == 3) and not np.any(pi_d == dup_of) and not np.any(pi_d == 4)
+    exact_pi = _policy_iteration(P_d, R_d, 0.9, pi0_d, tie_tol=False)[1]
+    assert not np.any(exact_pi == 3) and np.abs(R_d).max() < 10
+    out.update(
+        dup_P=P_d,
+        dup_R=R_d,
+        dup_pi0=pi0_d.astype(np.int64),
+        dup_V_star=V_d,
+        dup_pi_star=pi_d.astype(np.int64),
+        dup_k_pi=np.array(k_d, dtype=np.int64),
+    )
+    return _save("m02_plan", **out)
+
+
+def _random_log(mdp, days, rng):
+    """random_log of the Module 2 lab, reproduced exactly: uniform orders from stock 0."""
+    rows, s = [], 0
+    for _ in range(days):
+        a = int(rng.integers(0, mdp.n_actions))
+        s2, r, _ = mdp.sample_step(s, a, rng)
+        rows.append((s, a, r, s2))
+        s = s2
+    return np.array(rows, dtype=float)
+
+
+def m02_model() -> bytes:
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import InventoryMDP
+
+    inv = InventoryMDP(**M01_INVENTORY)
+    log = _random_log(inv, 200, np.random.default_rng(0))
+    P_hat, R_hat, counts = _estimate_model(log, inv.n_states, inv.n_actions)
+    assert int((counts > 0).sum()) == 83
+    # The five-row hand log of knowledge check 2.5: 2 states, 2 actions.
+    hand = np.array(
+        [[0, 1, -2, 1], [1, 0, 3, 1], [1, 0, 3, 0], [0, 1, -2, 1], [1, 0, 3, 1]], dtype=float
+    )
+    hP, hR, hc = _estimate_model(hand, 2, 2)
+    assert np.allclose(hP[1, 0], [1 / 3, 2 / 3]) and hR[1, 0] == 3
+    return _save(
+        "m02_model",
+        log=log,
+        P_hat=P_hat,
+        R_hat=R_hat,
+        counts=counts,
+        hand_log=hand,
+        hand_P_hat=hP,
+        hand_R_hat=hR,
+        hand_counts=hc,
+    )
+
+
+def _sample_transitions(mdp, N, rng):
+    """sample_transitions of the Module 2 lab, reproduced exactly: N draws at every (s, a)."""
+    rows = []
+    for s in range(mdp.n_states):
+        for a in range(mdp.n_actions):
+            for _ in range(N):
+                s2, r, _ = mdp.sample_step(s, a, rng)
+                rows.append((s, a, r, s2))
+    return np.array(rows, dtype=float)
+
+
+def m02_plan_eval() -> bytes:
+    """Exercise 4's loss and eps_P for seeds 0-4 at N = 2 and N = 100 (the lab's sampler).
+
+    The loss is max_s [V*(s) - V^pi_hat(s)] in the true shop. Orders that the capacity caps
+    to the same delivery are identical actions, so a different tie-break in greedy changes
+    pi_hat but not the loss. The assert below checks that no other near-tie (within 1e-6)
+    decides pi_hat, so a correct solution reproduces these losses to 1e-6.
+    """
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import InventoryMDP
+
+    inv = InventoryMDP(**M01_INVENTORY)
+    S, A, cap = inv.n_states, inv.n_actions, inv.capacity
+    V_star, _, _, _ = _optimal(inv.P, inv.R, 0.95)
+    eff = np.minimum(np.arange(A)[None, :], cap - np.arange(S)[:, None])  # delivered units
+    Ns = np.array([2, 100], dtype=np.int64)
+    seeds = np.arange(5, dtype=np.int64)
+    loss = np.zeros((len(Ns), len(seeds)))
+    eps_P = np.zeros_like(loss)
+    eps_R = np.zeros_like(loss)
+    for i, N in enumerate(Ns):
+        for j, seed in enumerate(seeds):
+            log = _sample_transitions(inv, int(N), np.random.default_rng(int(seed)))
+            P_hat, R_hat, _ = _estimate_model(log, S, A)
+            _, Q_hat, _, _ = _value_iteration(P_hat, R_hat, 0.95, 1e-6)
+            pi_hat = _greedy(Q_hat)
+            for s in range(S):
+                rivals = Q_hat[s][eff[s] != eff[s, pi_hat[s]]]
+                assert rivals.size == 0 or Q_hat[s].max() - rivals.max() > 1e-6, (N, seed, s)
+            loss[i, j] = np.max(V_star - _exact_value(inv.P, inv.R, 0.95, pi_hat))
+            eps_P[i, j] = np.abs(inv.P - P_hat).sum(axis=2).max()
+            eps_R[i, j] = np.abs(inv.R - R_hat).max()
+    assert abs(eps_P[0].mean() - 1.869) < 5e-4 and abs(loss[0].mean() - 31.54) < 5e-3
+    assert np.allclose(
+        eps_R.round(2), [[12.58, 12.62, 18.92, 14.68, 14.87], [2.54, 2.33, 2.29, 2.16, 2.45]]
+    )
+    # Checkpoint 4.2: the planning-loss bound, rescaled to the reward range (eq-plan-loss).
+    r_range = float(inv.R.max() - inv.R.min())
+    bound = _planning_loss_bound(eps_P, eps_R, r_range, 0.95)
+    assert np.all(bound >= loss)
+    bound_cases = np.array(
+        [[0.1, 0.0, 1.0, 0.95], [0.2, 0.0, 1.0, 0.9], [0.5, 3.0, 25.0, 0.95], [0.0, 1.0, 1.0, 0.9]]
+    )
+    bound_expected = np.array([_planning_loss_bound(*c) for c in bound_cases])
+    assert np.allclose(bound_expected, [76.0, 36.0, 9620.0, 20.0], rtol=1e-12)
+    return _save(
+        "m02_plan_eval",
+        Ns=Ns,
+        seeds=seeds,
+        loss=loss,
+        eps_P=eps_P,
+        eps_R=eps_R,
+        r_range=np.array(r_range),
+        bound=bound,
+        bound_cases=bound_cases,
+        bound_expected=bound_expected,
+    )
+
+
+def _planning_loss_bound(eps_P, eps_R, r_range, gamma):
+    """eq-plan-loss rescaled to rewards in a range r_range."""
+    return 2 * eps_R / (1 - gamma) + 2 * gamma * eps_P * r_range / (1 - gamma) ** 2
+
+
+def _optimality_residual(P, R, gamma, V):
+    return float(np.max(np.abs((R + gamma * P @ V).max(axis=1) - V)))
+
+
+def m02_residual() -> bytes:
+    """Checkpoint 5.1: value vectors and their optimality residuals, on the shop and the
+    random MDP of m02_plan (negative rewards)."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import InventoryMDP
+
+    inv = InventoryMDP(**M01_INVENTORY)
+    V_star = _optimal(inv.P, inv.R, 0.95)[0]
+    e5 = np.eye(inv.n_states)[5]
+    shop_V = np.array([V_star, V_star + 1, V_star - 2, V_star + 3 * e5, np.zeros_like(V_star)])
+    shop_res = np.array([_optimality_residual(inv.P, inv.R, 0.95, V) for V in shop_V])
+    assert shop_res[0] < 1e-9 and np.allclose(shop_res[1:3], [0.05, 0.1])
+    assert round(shop_res[3], 4) == 2.9478 and round(shop_res[4], 4) == 15.0293
+    rng = np.random.default_rng(20261017)
+    P = rng.dirichlet(np.ones(5), size=(5, 3))
+    R = rng.normal(size=(5, 3))
+    rand_V_star = _optimal(P, R, 0.9)[0]
+    rand_V = np.array(
+        [
+            rand_V_star,
+            rand_V_star + rng.normal(size=5),
+            np.zeros(5),
+            rand_V_star - 1.5 * np.eye(5)[2],
+        ]
+    )
+    rand_res = np.array([_optimality_residual(P, R, 0.9, V) for V in rand_V])
+    return _save(
+        "m02_residual",
+        shop_V=shop_V,
+        shop_residual=shop_res,
+        rand_P=P,
+        rand_R=R,
+        rand_gamma=np.array(0.9),
+        rand_V=rand_V,
+        rand_residual=rand_res,
+    )
+
+
+FIXTURES = {
+    "m01_returns": m01_returns,
+    "m01_eval": m01_eval,
+    "m02_plan": m02_plan,
+    "m02_model": m02_model,
+    "m02_plan_eval": m02_plan_eval,
+    "m02_residual": m02_residual,
+}
 
 
 def same_content(old: bytes, new: bytes) -> bool:
@@ -204,7 +574,7 @@ def same_content(old: bytes, new: bytes) -> bool:
         if x.dtype != y.dtype or x.shape != y.shape:
             return False
         if np.issubdtype(x.dtype, np.floating):
-            if not np.allclose(x, y, rtol=1e-12, atol=1e-12):
+            if not np.allclose(x, y, rtol=1e-12, atol=1e-12, equal_nan=True):
                 return False
         elif not np.array_equal(x, y):
             return False

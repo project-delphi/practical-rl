@@ -235,10 +235,10 @@ For $\gamma < 1$ the matrix $I - \gamma P_\pi$ is invertible, so @eq-exact is th
 ::: {.callout-note collapse="true" title="Code: evaluate_exact (open after Lab 1)"}
 ```python
 def evaluate_exact(P, R, gamma, pi):
-    r_pi = (pi * R).sum(axis=1)                  # r_pi[s] = sum_a pi[s, a] R[s, a]
-    P_pi = np.einsum("sa,sat->st", pi, P)        # P_pi[s, t] = sum_a pi[s, a] P[s, a, t]
-    S = len(r_pi)
-    return np.linalg.solve(np.eye(S) - gamma * P_pi, r_pi)   # solve the system; no need to form the inverse
+    P_pi = np.einsum("sa,sat->st", pi, P)  # P_pi[s, t] = sum_a pi[s, a] P[s, a, t]
+    r_pi = (pi * R).sum(axis=1)            # r_pi[s] = sum_a pi[s, a] R[s, a]
+    # Solve the system; there is no need to form the inverse.
+    return np.linalg.solve(np.eye(len(r_pi)) - gamma * P_pi, r_pi)
 ```
 :::
 
@@ -361,8 +361,8 @@ The rule is also sure to fire. The changes contract too: $\lVert V_{k+1} - V_k \
 ::: {.callout-note collapse="true" title="Code: evaluate_iterative (open after Lab 1)"}
 ```python
 def evaluate_iterative(P, R, gamma, pi, tol):
-    r_pi = (pi * R).sum(axis=1)
     P_pi = np.einsum("sa,sat->st", pi, P)
+    r_pi = (pi * R).sum(axis=1)
     V, k = np.zeros(len(r_pi)), 0                # V_0 = 0; k counts sweeps
     while True:
         V_new = r_pi + gamma * P_pi @ V          # V_{k+1} = T^pi V_k   (eq-tpi)
@@ -396,9 +396,10 @@ In Check yourself 3.1 the residual of $(6, 10)$ is 0.6, so its error is at most 
 ::: {.callout-note collapse="true" title="Code: bellman_residual (open after Lab 1)"}
 ```python
 def bellman_residual(P, R, gamma, pi, V):
-    r_pi = (pi * R).sum(axis=1)
     P_pi = np.einsum("sa,sat->st", pi, P)
-    return np.max(np.abs(r_pi + gamma * P_pi @ V - V))   # || T^pi V - V ||_inf
+    r_pi = (pi * R).sum(axis=1)
+    # || T^pi V - V ||_inf
+    return float(np.max(np.abs(r_pi + gamma * P_pi @ V - V)))
 ```
 :::
 

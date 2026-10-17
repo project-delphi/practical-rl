@@ -266,23 +266,53 @@ modules:
       - Implement value iteration and policy iteration and compare their iteration counts.
       - Extract a greedy policy and check the greedy-loss bound.
       - Measure the true loss of a policy planned in an estimated model as the data shrinks, over 5 seeds.
-      - State the simulation lemma with its assumptions and horizon factor.
+      - State the simulation lemma with its assumptions and horizon factor, and check measured losses against its planning-loss bound.
     runtime: colab-cpu
     cost: Free (Google account)
     without_gpu: The whole lab runs.
     scaffold: S3
-    testbeds: [InventoryMDP]
+    testbeds: [InventoryMDP, CliffGridworld]
     compared_with: {kind: truth, what: "exact fixtures"}
-    planted_bug: {what: "value iteration stops on the mean change, not the max", diagnostic: "logged max |ΔV| per sweep and the Bellman residual"}
+    planted_bug: {what: "value iteration stops on the mean change, not the max", diagnostic: "logged max |ΔV| per sweep and the optimality residual"}
     stretch: Modified policy iteration
     exercises:
-      - {n: 0, title: Reconnect and rerun setup, minutes: 3, writes: []}
-      - {n: 1, title: Value iteration and greedy extraction, minutes: 12, writes: [value_iteration, greedy]}
-      - {n: 2, title: Policy iteration, minutes: 9, writes: [policy_iteration]}
-      - {n: 3, title: Estimate the model, minutes: 8, writes: [estimate_model]}
-      - {n: 4, title: Plan in the estimate, evaluate in the truth, minutes: 12, writes: [plan_and_evaluate]}
-      - {n: 5, title: "Planted bug: a stopping rule", minutes: 8, writes: []}
-    status: {briefing: placeholder, lab: planned}
+      # predict_answer: the answer to the Predict prompt (for the pace sheet).
+      # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
+      - n: 0
+        title: Reconnect and rerun setup
+        minutes: 3
+        writes: []
+      - n: 1
+        title: Value iteration and greedy extraction
+        minutes: 12
+        writes: [value_iteration, greedy]
+        predict_answer: "Fill the shelf from stocks 0 to 3 and order nothing from stock 4 up: fewer, larger deliveries, because each costs a fixed 5. Value iteration takes 299 sweeps at tol 1e−6. Pace sheet for the Explain: V*(7) − V*(6) ≈ 2.54, not 7; at tol 1.0 (29 sweeps) the policy is already π*."
+        explain_ref: "(greedy loss)"
+      - n: 2
+        title: Policy iteration
+        minutes: 8
+        writes: [policy_iteration]
+        predict_answer: "About 4: from 'never order' the reference takes 4 evaluations (3 improvements) and returns the same policy as value iteration, which took 299 sweeps."
+        explain_ref: 'Gotcha: "PI is always faster"'
+      - n: 3
+        title: Estimate the model
+        minutes: 8
+        writes: [estimate_model]
+        predict_answer: "Usually more, and it varies by seat: seat 0 misses 38; seats 0–30 miss 20 to 38, and 30 of the 31 miss more than 23. Random orders do not visit stocks equally: a log spends many days at stock 0 and few at 9 and 10, so the missed pairs sit mostly at stocks 9 and 10 (at seat 0, 16 of the 38)."
+        explain_ref: "(counts)"
+      - n: 4
+        title: Plan in the estimate, evaluate in the truth
+        minutes: 13
+        writes: [plan_and_evaluate, planning_loss_bound]
+        predict_answer: "Not necessarily, and it varies by seat. Seat 0 (seeds 1000–1004): at N = 200 only one of five loses exactly 0 (the others lose 0.38 to 1.39), and the mean rises once, from 0.62 at N = 100 to 0.77 at N = 200. Across seats 0–25, 7 of 26 have all five seeds at exactly 0 at N = 200, and 13 of 26 have a mean that rises somewhere."
+        explain_ref: "(planning loss)"
+      - n: 5
+        title: "Planted bug: a stopping rule"
+        minutes: 9
+        writes: [optimality_residual, value_iteration_suspect]
+        predict_answer: "Never later, because the mean is at most the max. Shop: the same sweep, 299, so the shop cannot show the bug. Slippery cliff: earlier, 72 against 76, residual about 2× the guarantee. Mostly settled model: much earlier, 181 against 271, residual about 98× the guarantee."
+        explain_ref: 'Gotcha: "Stop on the mean change"'
+    status: {briefing: reviewed, lab: reviewed}
 
   m03:
     n: 3
