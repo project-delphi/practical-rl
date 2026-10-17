@@ -413,10 +413,10 @@ lab.check(3, m02.check_estimate_model, estimate_model)
 # The experiment of the briefing's section 4. The sampler below asks the shop for N
 # transitions from every (stock, order) pair, so each P̂(· | s, a) is a mean of N draws and
 # nothing is unvisited. You plan in the estimate and evaluate the plan in the truth, then
-# repeat over N and over 5 seeds. The simulation lemma (simulation lemma) gives every
-# policy's value error from ε_P = max_(s,a) ‖P(· | s, a) − P̂(· | s, a)‖₁ and
-# ε_R = max_(s,a) |R[s, a] − R̂[s, a]| (model error bound), and the planned policy loses at
-# most twice that (planning loss). The shop's rewards are not in [0, 1], so the bound uses
+# repeat over N and over 5 seeds. The simulation lemma (simulation lemma) writes every
+# policy's value error in terms of the model's one-step errors and bounds it with
+# ε_P = max_(s,a) ‖P(· | s, a) − P̂(· | s, a)‖₁ and ε_R = max_(s,a) |R[s, a] − R̂[s, a]|
+# (model error bound); the planned policy loses at most twice that (planning loss). The shop's rewards are not in [0, 1], so the bound uses
 # their range r_max − r_min in place of 1. You write that bound too, and the run cell checks
 # every measured loss against it.
 
