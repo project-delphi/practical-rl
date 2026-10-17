@@ -51,6 +51,9 @@ budget = lab.use_settings(
     )
 )
 EPSILON = 0.1  # the exploration rate, constant throughout (Day 2 is about doing better)
+# Your seat's seeds start here. Seat 0 does not reuse the recorded experiments' seeds
+# (0-9) or the checkpoints' seeds, so every seat in the room adds new evidence.
+RUN_SEED = (SEED + 1) * 1000
 print(dict(budget))
 
 # %% include labs/shared/evaluate_exact.py
@@ -172,16 +175,17 @@ def mc_prediction(episodes, gamma, n_states):
 # %% role="ex1-sol"
 @lab.solution(1)
 def mc_prediction(episodes, gamma, n_states):
-    """First-visit Monte Carlo: V[s] = mean return after the first visit to s in each episode."""
+    """First-visit MC: V[s] averages the returns after first visits."""
     V, N = np.zeros(n_states), np.zeros(n_states)
     for ep in episodes:
         G, returns = 0.0, [0.0] * len(ep.rewards)
+        # G_t = r_t + gamma G_{t+1}, from the end of the episode back
         for t in reversed(range(len(ep.rewards))):
             G = ep.rewards[t] + gamma * G
             returns[t] = G
         seen = set()
         for t, s in enumerate(ep.states[:-1]):
-            if s in seen:
+            if s in seen:  # first visit only (MC)
                 continue
             seen.add(s)
             N[s] += 1
@@ -190,7 +194,8 @@ def mc_prediction(episodes, gamma, n_states):
 
 
 # %% role="ex1-run"
-episodes = collect(env, PI, budget.episodes, seed=SEED)
+episodes = collect(env, PI, budget.episodes, seed=RUN_SEED)
+lab.seeds([RUN_SEED])
 lengths = [len(ep.rewards) for ep in episodes]
 print(
     f"{len(episodes)} episodes; mean length {np.mean(lengths):.1f}, longest {max(lengths)}, "
@@ -261,13 +266,16 @@ def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):
 # %% role="ex2a-sol"
 @lab.solution("2a")
 def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):
-    """TD(0): for each transition (s, r, s2) in order, V[s] += alpha (target - V[s])."""
+    """TD(0): move V[s] toward r + gamma V[s2], step by step."""
     V = np.full(n_states, float(v0))
     for ep in episodes:
         last = len(ep.rewards) - 1
-        for t, (s, r, s2) in enumerate(zip(ep.states[:-1], ep.rewards, ep.states[1:], strict=True)):
+        s_next = ep.states[1:]
+        steps = zip(ep.states[:-1], ep.rewards, s_next, strict=True)
+        for t, (s, r, s2) in enumerate(steps):
+            # (terminal mask): bootstrap unless s2 is terminal
             terminal = ep.terminated and t == last
-            target = r + gamma * (0.0 if terminal else V[s2])
+            target = r + gamma * (0.0 if terminal else V[s2])  # (TD(0))
             V[s] += alpha * (target - V[s])
     return V
 
@@ -330,7 +338,8 @@ def bias2_variance(estimates, v_true):
     mean over states of the spread over seeds around that mean (divide by the number of
     seeds, not seeds - 1).
     """
-    estimates, v_true = np.asarray(estimates, dtype=float), np.asarray(v_true, dtype=float)
+    estimates = np.asarray(estimates, dtype=float)
+    v_true = np.asarray(v_true, dtype=float)
     # TODO 2b: two lines: the mean over seeds for each state, then the two averages over states.
     raise NotImplementedError(
         "TODO 2b: write bias2_variance, or run lab.use_reference('2b') to continue with the solution"
@@ -347,10 +356,13 @@ def bias2_variance(estimates, v_true):
 # %% role="ex2b-sol"
 @lab.solution("2b")
 def bias2_variance(estimates, v_true):
-    """Squared bias and variance of estimates over seeds (decomposition)."""
-    estimates, v_true = np.asarray(estimates, dtype=float), np.asarray(v_true, dtype=float)
-    mean = estimates.mean(axis=0)
-    return float(np.mean((mean - v_true) ** 2)), float(np.mean(estimates.var(axis=0)))
+    """Squared bias and variance over seeds (decomposition)."""
+    estimates = np.asarray(estimates, dtype=float)
+    v_true = np.asarray(v_true, dtype=float)
+    mean = estimates.mean(axis=0)  # one number per state
+    bias2 = float(np.mean((mean - v_true) ** 2))
+    variance = float(np.mean(estimates.var(axis=0)))  # divide by seeds
+    return bias2, variance
 
 
 # %% role="ex2b-run"
@@ -371,8 +383,8 @@ def mc_constant_alpha(episodes, alpha, gamma, n_states):
     return V
 
 
-# 10 seeds per seat (seat 0 uses 0-9, seat 1 uses 100-109, ...), so the room's seeds differ.
-seeds = [SEED * 100 + k for k in range(10)]
+# 10 seeds per seat, after your seat's base seed, so the room's seeds differ.
+seeds = [RUN_SEED + 100 + k for k in range(10)]
 lab.seeds(seeds)
 estimates = {"mc": [], "mcc": [], "td": []}
 for k in seeds:
@@ -380,6 +392,7 @@ for k in seeds:
     estimates["mc"].append(mc_prediction(eps_k, GAMMA, S)[ROUTE])
     estimates["mcc"].append(mc_constant_alpha(eps_k, budget.alpha, GAMMA, S)[ROUTE])
     estimates["td"].append(td0_prediction(eps_k, budget.alpha, GAMMA, S)[ROUTE])
+table = {}
 names = {"mc": "MC (1/N)", "mcc": "MC (constant alpha)", "td": "TD(0)"}
 print(f"{budget.episodes} episodes, alpha {budget.alpha}, 10 seeds; averages over the route states")
 print(f"{'method':22s} {'bias^2':>8s} {'variance':>9s} {'sum':>8s} {'MSE':>8s}")
@@ -387,9 +400,12 @@ for key, rows in estimates.items():
     est = np.array(rows)
     bias2, var = bias2_variance(est, V_EXACT[ROUTE])
     mse = float(np.mean((est - V_EXACT[ROUTE]) ** 2))  # computed directly, to compare
-    lab.metric(f"{key}_bias2", round(bias2, 4))
-    lab.metric(f"{key}_var", round(var, 4))
+    table[key] = {"bias2": round(bias2, 4), "variance": round(var, 4)}
     print(f"{names[key]:22s} {bias2:8.3f} {var:9.3f} {bias2 + var:8.3f} {mse:8.3f}")
+lab.metric("decomposition", table)  # all six numbers, in the run record
+lab.metric("td_bias2", table["td"]["bias2"])  # the three the debrief pools, in the room code
+lab.metric("td_var", table["td"]["variance"])
+lab.metric("mcc_var", table["mcc"]["variance"])
 
 # %% [markdown] role="ex2b-explain"
 # TD(0)'s bias² is the largest in the table. Which quantity in (TD bias) is still large after
@@ -439,10 +455,11 @@ def n_step_target(rewards, states, t, n, V, gamma, terminated):
 # %% role="ex3-sol"
 @lab.solution(3)
 def n_step_target(rewards, states, t, n, V, gamma, terminated):
-    """G_t^(n): rewards r_t..r_{t+n-1} discounted, plus gamma^n V[s_{t+n}] if t + n < T."""
+    """G_t^(n): up to n discounted rewards, then a bootstrap."""
     T = len(rewards)
     end = min(t + n, T)
     G = sum(gamma ** (k - t) * rewards[k] for k in range(t, end))
+    # bootstrap from s_end unless the episode terminated there
     if end < T or not terminated:
         G += gamma ** (end - t) * V[states[end]]
     return G
@@ -563,9 +580,12 @@ def sarsa(env, episodes, alpha, epsilon, gamma, seed, q0=0.0):
 # %% role="ex4-sol"
 @lab.solution(4)
 def sarsa(env, episodes, alpha, epsilon, gamma, seed, q0=0.0):
-    """SARSA on a Gymnasium env. Returns (Q, online), online = the reward sum of each episode."""
+    """SARSA. Returns (Q, online): one reward sum per episode."""
     rng = np.random.default_rng(seed)
-    Q = np.full((S, A), float(q0)) if np.isscalar(q0) else np.array(q0, dtype=float)
+    if np.isscalar(q0):
+        Q = np.full((S, A), float(q0))
+    else:
+        Q = np.array(q0, dtype=float)
     online = []
     env.reset(seed=seed)
     for _ in range(episodes):
@@ -574,7 +594,9 @@ def sarsa(env, episodes, alpha, epsilon, gamma, seed, q0=0.0):
         total, done = 0.0, False
         while not done:
             s2, r, terminated, truncated, _ = env.step(a)
+            # the action actually taken next (SARSA)
             a2 = epsilon_greedy(Q, s2, epsilon, rng)
+            # (terminal mask): no bootstrap from a terminal state
             target = r + gamma * (0.0 if terminated else Q[s2, a2])
             Q[s, a] += alpha * (target - Q[s, a])
             total += r
@@ -585,7 +607,7 @@ def sarsa(env, episodes, alpha, epsilon, gamma, seed, q0=0.0):
 
 # %% role="ex4-run"
 Q_sarsa, online_sarsa = sarsa(
-    env, budget.control_episodes, budget.control_alpha, EPSILON, GAMMA, seed=SEED
+    env, budget.control_episodes, budget.control_alpha, EPSILON, GAMMA, seed=RUN_SEED
 )
 path_sarsa, reached = greedy_path(Q_sarsa)
 show_path(path_sarsa, "SARSA's greedy path" + ("" if reached else " (does not reach the goal)"))
@@ -646,9 +668,12 @@ def q_learning(env, episodes, alpha, epsilon, gamma, seed, q0=0.0):
 # %% role="ex5-sol"
 @lab.solution(5)
 def q_learning(env, episodes, alpha, epsilon, gamma, seed, q0=0.0):
-    """Q-learning on a Gymnasium env. Returns (Q, online), online = the reward sum per episode."""
+    """Q-learning. Returns (Q, online): one reward sum per episode."""
     rng = np.random.default_rng(seed)
-    Q = np.full((S, A), float(q0)) if np.isscalar(q0) else np.array(q0, dtype=float)
+    if np.isscalar(q0):
+        Q = np.full((S, A), float(q0))
+    else:
+        Q = np.array(q0, dtype=float)
     online = []
     env.reset(seed=seed)
     for _ in range(episodes):
@@ -657,6 +682,7 @@ def q_learning(env, episodes, alpha, epsilon, gamma, seed, q0=0.0):
         while not done:
             a = epsilon_greedy(Q, s, epsilon, rng)
             s2, r, terminated, truncated, _ = env.step(a)
+            # the best next action, taken or not (Q-learning)
             target = r + gamma * (0.0 if terminated else Q[s2].max())
             Q[s, a] += alpha * (target - Q[s, a])
             total += r
@@ -667,19 +693,20 @@ def q_learning(env, episodes, alpha, epsilon, gamma, seed, q0=0.0):
 
 # %% role="ex5-run"
 Q_q, online_q = q_learning(
-    env, budget.control_episodes, budget.control_alpha, EPSILON, GAMMA, seed=SEED
+    env, budget.control_episodes, budget.control_alpha, EPSILON, GAMMA, seed=RUN_SEED
 )
 path_q, reached_q = greedy_path(Q_q)
 show_path(path_q, "Q-learning's greedy path" + ("" if reached_q else " (does not reach the goal)"))
 show_path(path_sarsa, "SARSA's greedy path")
 mean_sarsa = float(online_sarsa[-budget.window :].mean())
 mean_q = float(online_q[-budget.window :].mean())
-lab.metric("sarsa_online", round(mean_sarsa, 2))
-lab.metric("q_online", round(mean_q, 2))
-lab.metric("sarsa_lead", round(mean_sarsa - mean_q, 2))
-lab.metric("sarsa_path_moves", len(path_sarsa) - 1 if reached else None)  # None: a loop
-lab.metric("q_path_moves", len(path_q) - 1 if reached_q else None)
-print(f"Online return over the last {budget.window} episodes, your seed {SEED}:")
+moves_sarsa = len(path_sarsa) - 1 if reached else None  # None: the path loops
+moves_q = len(path_q) - 1 if reached_q else None
+lab.metric("online", {"sarsa": round(mean_sarsa, 2), "q_learning": round(mean_q, 2)})
+lab.metric("path_moves", {"sarsa": moves_sarsa, "q_learning": moves_q})
+lab.metric("sarsa_lead", round(mean_sarsa - mean_q, 2))  # room code
+lab.metric("sarsa_moves", moves_sarsa)  # room code; left out when the path loops
+print(f"Online return over the last {budget.window} episodes, your seed {RUN_SEED}:")
 print(
     f"  SARSA {mean_sarsa:7.1f}   Q-learning {mean_q:7.1f}   difference {mean_sarsa - mean_q:+.1f}"
 )
@@ -690,7 +717,7 @@ ax.plot(smooth(online_q), label="Q-learning")
 ax.set(
     xlabel="episode",
     ylabel="reward sum per episode (moving average of 20)",
-    title=f"The cliff contrast, epsilon {EPSILON}, alpha {budget.control_alpha}, seed {SEED}",
+    title=f"The cliff contrast, epsilon {EPSILON}, alpha {budget.control_alpha}, seed {RUN_SEED}",
 )
 ax.legend()
 plt.show()
@@ -792,9 +819,11 @@ def value_curve(learner, episodes, chunk, seed, q0):
 
 chunk = max(10, budget.control_episodes // 50)
 xs, v_suspect, on_suspect, Q_suspect = value_curve(
-    q_learning_suspect, budget.control_episodes, chunk, SEED, Q0
+    q_learning_suspect, budget.control_episodes, chunk, RUN_SEED, Q0
 )
-_, v_fixed, on_fixed, Q_fixed = value_curve(q_learning, budget.control_episodes, chunk, SEED, Q0)
+_, v_fixed, on_fixed, Q_fixed = value_curve(
+    q_learning, budget.control_episodes, chunk, RUN_SEED, Q0
+)
 print(f"Optimistic start Q0 = {Q0}; after {xs[-1]} episodes:")
 print(
     f"  suspect: Q(above goal, down) = {Q_suspect[ABOVE_GOAL, DOWN]:8.4f}   max Q(start) = {Q_suspect[START].max():8.4f}"
@@ -847,10 +876,12 @@ lab.check(6, m03.check_q_learning_suspect, q_learning_suspect)
 
 # %% [markdown]
 # **Your room code.** The last cell, `lab.finish()`, prints one line that starts with `ROOM m03`.
-# It holds your seat, the checkpoints you passed, whether QUICK budgets ran, and the numbers
-# the debrief pools: `mc_rms` and `td_rms` (Exercises 1 and 2a), the bias² and variance of each
-# method (2b), and SARSA's and Q-learning's online returns, SARSA's lead and the greedy-path
-# moves (5). Paste it where your instructor says.
+# It holds your seat, the checkpoints you passed, whether QUICK budgets ran, and the numbers the
+# debrief pools: `mc_rms` and `td_rms` (Exercises 1 and 2a); TD(0)'s bias² and variance and
+# constant-α MC's variance (`td_bias2`, `td_var`, `mcc_var`, Exercise 2b); SARSA's lead in
+# online return and its greedy path's moves (`sarsa_lead`, `sarsa_moves`, Exercise 5;
+# `sarsa_moves` is left out when the path loops). Paste it where your instructor says. Your
+# run record keeps every number the lab printed.
 
 # %% [markdown] role="stretch"
 # **The n-step dial on your seed.** Build n-step TD prediction on your `n_step_target`: for
@@ -885,7 +916,7 @@ def n_step_td_prediction(episodes, alpha, gamma, n_states, n):
 # %% role="stretch-run"
 lab.check("stretch", m03.check_n_step_td_prediction, n_step_td_prediction, label="stretch")
 ns, alphas = [1, 2, 4, 8, 16], [0.02, 0.05, 0.1, 0.2]
-stretch_seeds = [SEED * 100 + 50 + k for k in range(5)]
+stretch_seeds = [RUN_SEED + 200 + k for k in range(5)]
 episodes_by_seed = [collect(env, PI, budget.episodes, seed=k) for k in stretch_seeds]
 fig, ax = plt.subplots()
 for alpha in alphas:
