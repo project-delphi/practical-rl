@@ -54,7 +54,11 @@ EPSILON = 0.1  # the exploration rate, constant throughout (Day 2 is about doing
 # Your seat's seeds start here. Seat 0 does not reuse the recorded experiments' seeds
 # (0-9) or the checkpoints' seeds, so every seat in the room adds new evidence.
 RUN_SEED = (SEED + 1) * 1000
-print(dict(budget))
+print(
+    f"Budget: prediction {budget.episodes} episodes at α = {budget.alpha}; "
+    f"control {budget.control_episodes} episodes at α = {budget.control_alpha},\n"
+    f"online return averaged over the last {budget.window} episodes"
+)
 
 # %% include labs/shared/evaluate_exact.py
 
@@ -212,8 +216,11 @@ print(
     f"MC: V(start) = {V_mc[START]:.3f} (exact {V_EXACT[START]:.3f}); RMS on the route {mc_rms:.3f}"
 )
 fig, ax = plt.subplots()
-ax.plot(V_EXACT[ROUTE], marker="o", label="exact (Lab 1)")
 ax.plot(V_mc[ROUTE], marker="s", label=f"first-visit MC, {budget.episodes} episodes")
+# The exact values last and dashed, so no estimate hides them.
+ax.plot(
+    V_EXACT[ROUTE], ls="--", lw=1.5, color=prl.plot.NEUTRAL_LIGHT, zorder=5, label="exact (Lab 1)"
+)
 ax.set(xlabel="position along the route (0 = start)", ylabel="V", title="Monte Carlo on the route")
 ax.legend()
 plt.show()
@@ -287,9 +294,9 @@ print(
 )
 first_states = episodes[0].states[:-1]
 print(
-    f"  (your first episode visited the cell above the goal {first_states.count(ABOVE_GOAL)} "
-    f"time(s) and the start {first_states.count(START)} time(s); each later visit moves V further)"
+    f"  (your first episode visited the cell above the goal {first_states.count(ABOVE_GOAL)} time(s)"
 )
+print(f"   and the start {first_states.count(START)} time(s); each later visit moves V further)")
 V_td = td0_prediction(episodes, budget.alpha, GAMMA, S)
 td_rms = rms_on_route(V_td)
 lab.metric("td_rms", round(td_rms, 4))
@@ -298,9 +305,11 @@ print(
     f"RMS on the route {td_rms:.3f} (MC: {mc_rms:.3f})"
 )
 fig, ax = plt.subplots()
-ax.plot(V_EXACT[ROUTE], marker="o", label="exact (Lab 1)")
 ax.plot(V_mc[ROUTE], marker="s", label="first-visit MC")
 ax.plot(V_td[ROUTE], marker="^", label=f"TD(0), alpha {budget.alpha}")
+ax.plot(
+    V_EXACT[ROUTE], ls="--", lw=1.5, color=prl.plot.NEUTRAL_LIGHT, zorder=5, label="exact (Lab 1)"
+)
 ax.set(xlabel="position along the route (0 = start)", ylabel="V", title="MC and TD(0) on the route")
 ax.legend()
 plt.show()
@@ -540,6 +549,7 @@ def show_path(path, label):
     grid[START // COLS][START % COLS], grid[GOAL // COLS][GOAL % COLS] = "S", "G"
     print(f"{label}: {len(path) - 1} moves")
     print("\n".join(" ".join(row) for row in grid))
+    print("(* path   C cliff   S start   G goal   . free)")
 
 
 def smooth(x, k=20):
@@ -616,9 +626,21 @@ print(f"Cells of the path directly above the cliff: {len(edge)}")
 print(
     f"Online return, mean of the last {budget.window} episodes: {online_sarsa[-budget.window :].mean():.1f}"
 )
+m = len(path_sarsa) - 1
+episode = np.arange(20, len(online_sarsa) + 1)  # smooth() averages episodes k-19..k
 fig, ax = plt.subplots()
-ax.plot(smooth(online_sarsa), label="SARSA (moving average of 20)")
-ax.set(xlabel="episode", ylabel="reward sum per episode", title="Online return while learning")
+ax.axvspan(
+    budget.control_episodes - budget.window,
+    budget.control_episodes,
+    color="0.93",
+    lw=0,
+    label=f"last {budget.window} episodes",
+)
+ax.plot(episode, smooth(online_sarsa), label="SARSA (moving average of 20)")
+if reached:
+    ax.axhline(-m, ls="--", color=prl.plot.NEUTRAL_LIGHT, label=f"−{m}: one clean walk of the path")
+ax.set_ylim(-120, 0)  # early episodes run below; the Predict is about the last 500
+ax.set(xlabel="episode", ylabel="online return per episode", title="Online return while learning")
 ax.legend()
 plt.show()
 
@@ -713,11 +735,13 @@ print(
 print("Single seed: a fact to put beside the threshold and the room's pooled seeds, not a ranking.")
 fig, ax = plt.subplots()
 ax.plot(smooth(online_sarsa), label="SARSA")
-ax.plot(smooth(online_q), label="Q-learning")
+ax.plot(smooth(online_q), ls=(0, (3.2, 1.6)), label="Q-learning")
+ax.set_ylim(-120, 0)  # early episodes run below; the Predict is about the plateau
 ax.set(
     xlabel="episode",
-    ylabel="reward sum per episode (moving average of 20)",
-    title=f"The cliff contrast, epsilon {EPSILON}, alpha {budget.control_alpha}, seed {RUN_SEED}",
+    ylabel="online return per episode\n(moving average of 20)",
+    title=rf"The cliff contrast, $\varepsilon$ = {EPSILON}, $\alpha$ = {budget.control_alpha}, "
+    f"seed {RUN_SEED}",
 )
 ax.legend()
 plt.show()
@@ -832,19 +856,17 @@ print(
     f"  yours:   Q(above goal, down) = {Q_fixed[ABOVE_GOAL, DOWN]:8.4f}   max Q(start) = {Q_fixed[START].max():8.4f}"
 )
 print(f"  truth:   Q*(above goal, down) = {-1.0:8.4f}   V*(start) = {V_STAR_START:8.4f}")
-print(
-    f"  Q(goal, ·) in your q_learning: {Q_fixed[GOAL]} (never updated: no action is taken in "
-    "the goal, and with the mask no target reads it)"
-)
+print(f"  Q(goal, ·) in your q_learning: {Q_fixed[GOAL]}")
+print("  (never updated: no action is taken in the goal, and with the mask no target reads it)")
 show_path(greedy_path(Q_suspect)[0], "suspect's greedy path")
 fig, (ax_r, ax_v) = plt.subplots(1, 2, figsize=(10, 3.6))
-ax_r.plot(smooth(on_suspect), label="q_learning_suspect")
-ax_r.plot(smooth(on_fixed), label="your q_learning")
+ax_r.plot(smooth(on_fixed), lw=2.5, label="your q_learning")
+ax_r.plot(smooth(on_suspect), ls="--", lw=1.5, label="q_learning_suspect")
 ax_r.set(xlabel="episode", ylabel="online return (moving average of 20)", title="What it earns")
 ax_r.legend()
-ax_v.plot(xs, v_suspect, label="q_learning_suspect")
-ax_v.plot(xs, v_fixed, label="your q_learning")
-ax_v.axhline(V_STAR_START, linestyle="--", color="gray", label="V*(start)")
+ax_v.plot(xs, v_fixed, lw=2.5, label="your q_learning")
+ax_v.plot(xs, v_suspect, ls="--", lw=1.5, label="q_learning_suspect")
+ax_v.axhline(V_STAR_START, ls=":", color=prl.plot.NEUTRAL_LIGHT, label="V*(start)")
 ax_v.set(xlabel="episodes", ylabel="max Q(start, a)", title=f"What it believes, from Q0 = {Q0}")
 ax_v.legend()
 plt.show()
@@ -918,16 +940,27 @@ lab.check("stretch", m03.check_n_step_td_prediction, n_step_td_prediction, label
 ns, alphas = [1, 2, 4, 8, 16], [0.02, 0.05, 0.1, 0.2]
 stretch_seeds = [RUN_SEED + 200 + k for k in range(5)]
 episodes_by_seed = [collect(env, PI, budget.episodes, seed=k) for k in stretch_seeds]
+from prl.evaluate import bootstrap_ci, iqm
+
 fig, ax = plt.subplots()
-for alpha in alphas:
+dodge = 2 ** np.linspace(-0.1, 0.1, len(alphas))  # side by side, so the bars do not overlap
+for i, (alpha, marker) in enumerate(zip(alphas, "os^D", strict=True)):
     errs = np.array(
         [
             [rms_on_route(n_step_td_prediction(eps_k, alpha, GAMMA, S, n)) for n in ns]
             for eps_k in episodes_by_seed
         ]
     )
-    ax.plot(ns, errs.mean(axis=0), marker="o", label=f"alpha {alpha} (mean of 5 seeds)")
-    ax.fill_between(ns, errs.min(axis=0), errs.max(axis=0), alpha=0.15)
+    c = np.array([iqm(errs[:, j]) for j in range(len(ns))])
+    ci = np.array([bootstrap_ci(errs[:, j], iqm, n_boot=1000) for j in range(len(ns))])
+    ax.errorbar(
+        np.array(ns) * dodge[i],
+        c,
+        yerr=[c - ci[:, 0], ci[:, 1] - c],
+        marker=marker,
+        capsize=3,
+        label=f"α = {alpha}",
+    )
 ax.set(
     xscale="log",
     xlabel="n",
@@ -935,5 +968,10 @@ ax.set(
     title=f"n-step TD after {budget.episodes} episodes",
 )
 ax.set_xticks(ns, [str(n) for n in ns])
-ax.legend()
+ax.legend(
+    title="IQM of 5 seeds\nbars: 95% bootstrap CI",
+    loc="upper left",
+    bbox_to_anchor=(1.02, 1.0),  # outside the axes, clear of the bars
+    borderaxespad=0.0,
+)
 plt.show()
