@@ -145,7 +145,7 @@ def policy_iteration(P, R, gamma, pi0):
     pi = np.asarray(pi0, dtype=int).copy()
     V = evaluate_exact(P, R, gamma, policy_matrix(pi, A))  # noqa: F821
     Q = R + gamma * P @ V
-    keep = Q[np.arange(S), pi] >= Q.max(axis=1)
+    keep = Q[np.arange(S), pi] >= Q.max(axis=1) - 1e-9 * (1 + np.abs(Q).max())
     pi = np.where(keep, pi, greedy(Q))  # noqa: F821
     return evaluate_exact(P, R, gamma, policy_matrix(pi, A)), pi, 1  # noqa: F821
 
@@ -178,7 +178,7 @@ def policy_iteration(P, R, gamma, pi0):  # noqa: F811
     while k < 1000:
         V = evaluate_exact(P, R, gamma, policy_matrix(pi, A))  # noqa: F821
         k += 1
-        keep = R[np.arange(S), pi] >= R.max(axis=1)
+        keep = R[np.arange(S), pi] >= R.max(axis=1) - 1e-9 * (1 + np.abs(R).max())
         pi_new = np.where(keep, pi, greedy(R))  # noqa: F821
         if np.array_equal(pi_new, pi):
             break
@@ -194,7 +194,7 @@ def policy_iteration(P, R, gamma, pi0):  # noqa: F811
         V = evaluate_exact(P, R, gamma, policy_matrix(pi, A))  # noqa: F821
         k += 1
         Q = R + gamma * P @ V
-        keep = Q[np.arange(S), pi] >= Q.max(axis=1)
+        keep = Q[np.arange(S), pi] >= Q.max(axis=1) - 1e-9 * (1 + np.abs(Q).max())
         pi_new = np.where(keep, pi, Q.argmax(axis=0))
         if np.array_equal(pi_new, pi):
             break
@@ -214,12 +214,33 @@ def policy_iteration(P, R, gamma, pi0):  # noqa: F811
     while True:
         V = evaluate_exact(P, R, gamma, policy_matrix(pi, A))  # noqa: F821
         Q = R + gamma * P @ V
-        keep = Q[np.arange(S), pi] >= Q.max(axis=1)
+        keep = Q[np.arange(S), pi] >= Q.max(axis=1) - 1e-9 * (1 + np.abs(Q).max())
         pi_new = np.where(keep, pi, greedy(Q))  # noqa: F821
         if np.array_equal(pi_new, pi):
             return V, pi, k
         k += 1
         pi = pi_new
+
+
+@mutant(
+    ex=2,
+    replaces="policy_iteration",
+    id="exact-tie-compare",
+    why="keeps the current action only on an exact tie, which rounding decides",
+)
+def policy_iteration(P, R, gamma, pi0):  # noqa: F811
+    S, A = R.shape
+    pi, k = np.asarray(pi0, dtype=int).copy(), 0
+    while k < 1000:
+        V = evaluate_exact(P, R, gamma, policy_matrix(pi, A))  # noqa: F821
+        k += 1
+        Q = R + gamma * P @ V
+        keep = Q[np.arange(S), pi] >= Q.max(axis=1)
+        pi_new = np.where(keep, pi, greedy(Q))  # noqa: F821
+        if np.array_equal(pi_new, pi):
+            break
+        pi = pi_new
+    return V, pi, k
 
 
 # ---- Exercise 3: estimate_model ---------------------------------------------------------
