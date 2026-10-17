@@ -7,12 +7,13 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 | # | Exercise | Min |
 |---|---|---|
 | 1 | [First-visit Monte Carlo prediction [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} | 9 |
-| 2 | [TD(0) and its bias and variance [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 10 |
-| 3 | [The n-step target [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 5 |
+| 2a | [TD(0) [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex2a-head){target="_blank" rel="noopener"} | 6 |
+| 2b | [Bias² and variance over 10 seeds [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex2b-head){target="_blank" rel="noopener"} | 5 |
+| 3 | [The n-step target [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 6 |
 | 4 | [SARSA [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex4-head){target="_blank" rel="noopener"} | 8 |
-| 5 | [Q-learning and the cliff contrast [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 9 |
+| 5 | [Q-learning and the cliff contrast [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 8 |
 | 6 | [Planted bug: bootstrapping through the terminal [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb#scrollTo=ex6-head){target="_blank" rel="noopener"} [Planted bug]{.chip .chip-stale} | 8 |
-| | **Core** | **49 of 70** |
+| | **Core** | **50 of 70** |
 :::
 
 ::: {.challenge}

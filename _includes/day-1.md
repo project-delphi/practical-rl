@@ -27,6 +27,6 @@ Find the best policy with a model, then measure what an estimated model costs yo
 
 Learn values and policies from experience with Monte Carlo, TD, SARSA and Q-learning.
 
-[Colab CPU]{.chip} [core 49 min]{.chip} [Open in Colab[, Lab 3 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb){.btn-quiet target="_blank" rel="noopener"}
+[Colab CPU]{.chip} [core 50 min]{.chip} [Open in Colab[, Lab 3 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb){.btn-quiet target="_blank" rel="noopener"}
 :::
 :::
