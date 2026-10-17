@@ -312,7 +312,7 @@ modules:
         writes: [optimality_residual, value_iteration_suspect]
         predict_answer: "Never later, because the mean is at most the max. Shop: the same sweep, 299, so the shop cannot show the bug. Slippery cliff: earlier, 72 against 76, residual about 2× the guarantee. Mostly settled model: much earlier, 181 against 271, residual about 98× the guarantee."
         explain_ref: 'Gotcha: "Stop on the mean change"'
-    status: {briefing: draft, lab: draft}
+    status: {briefing: reviewed, lab: reviewed}
 
   m03:
     n: 3

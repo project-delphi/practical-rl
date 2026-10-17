@@ -10,7 +10,7 @@ A five-day, practical, first-principles reinforcement learning workshop by Genia
 | Language | Python only |
 | Spelling | American English |
 
-**Status: Phase 2 done (golden Module 1, merged 2026-10-10); Phase 3 is next.** Phase 1's exit
+**Status: Phase 3, Day 1 in review (2026-10-17): Modules 2 and 3 built and reviewed on their branches; stop for review at the Day 1 gate.** Phase 2 (golden Module 1) merged 2026-10-10. Phase 1's exit
 still lacks its two human Colab smoke runs (§13); their records are not filed.
 
 - The draft was reviewed by four persona agents (§11): academic director, pedagogy expert, technical expert and UI expert. Their findings are folded in.
@@ -265,7 +265,7 @@ Total: 28 + 12. **Reference** (on the page, not read aloud): the worked reward e
 
 **Objectives:**
 1. Implement value iteration (VI) and policy iteration (PI), and compare their iteration counts.
-2. Extract a greedy policy. Check that if ‖Q−Q*‖∞ ≤ ε, the greedy policy loses at most 2ε/(1−γ) (AJKS V3, Lemma 1.11; opened by the academic director on 2026-10-10).
+2. Extract a greedy policy. Check that if ‖Q−Q*‖∞ ≤ η, the greedy policy loses at most 2η/(1−γ) (η, not ε: ε is the exploration rate in `notation.qmd`) (AJKS V3, Lemma 1.11; opened by the academic director on 2026-10-10).
 3. Estimate a model from samples. Measure the true loss of the policy planned in it as the data shrinks, over 5 seeds.
 4. State the simulation lemma (AJKS V3 Lemma 2.2, in identity form). With rewards in [0,1] and ε_P = max‖P(·|s,a)−P̂(·|s,a)‖₁, every policy's value error is at most γε_P/(1−γ)², and the planned policy loses at most 2γε_P/(1−γ)². With an estimated reward too (ε_R = max|r − r̂|), the planned policy loses at most 2ε_R/(1−γ) + 2γε_P/(1−γ)². Check measured losses against this bound; the shop's rewards are rescaled from their range, which makes the bound true but vacuous there.
 
@@ -289,8 +289,8 @@ Total: 30 + 8 + 2. The section split changed in Phase 3 after the pedagogy revie
 | 0 | Reconnect, rerun setup | — | Setup check | 3 |
 | 1 | VI and greedy extraction | `value_iteration` (1a), `greedy` (1b) | V\* and π\* equal the fixture; greedy-loss bound holds on a perturbed Q | 12 |
 | 2 | Policy iteration (the reference `evaluate_exact` from Lab 1 is included) | `policy_iteration` | Same π\*; exact evaluation counts | 8 |
-| 3 | Estimate the model. Unvisited (s,a) becomes a self-loop with R̂ = 0, which is also the Predict. | `estimate_model` | Exact on a fixed sample | 8 |
-| 4 | Plan in P̂, evaluate in P (runner provided), over 5 seeds with every seed shown and the IQM with a bootstrap CI | `plan_and_evaluate` (4.1), `planning_loss_bound` (4.2) | 4.1: at the smallest N, mean loss exceeds the mean at the largest N by more than the seed spread, and the per-seed losses, ε_P and ε_R equal the fixture; 4.2: the bound on fixed cases, and every measured loss is below its bound | 13 |
+| 3 | Estimate the model. Unvisited (s,a) becomes a self-loop with R̂ = 0. The Predict: how many of the 121 pairs a 200-day random log misses. | `estimate_model` | Exact on a fixed sample | 8 |
+| 4 | Plan in P̂, evaluate in P (runner provided), over 5 seeds with every seed shown and the IQM with a bootstrap CI | `plan_and_evaluate` (4.1), `planning_loss_bound` (4.2) | 4.1: on seeds 0–4, the mean loss at N = 2 exceeds the mean at N = 100 by more than the seed spread at N = 100, and the per-seed losses, ε_P and ε_R equal the fixture; 4.2: the bound on fixed cases, and every measured loss is below its bound | 13 |
 | 5 | **Planted bug**: VI stops on mean \|ΔV\|, not max. Shown on the shop (invisible: the mean and the max cross tol together), a slippery cliff gridworld and a mostly settled 100-state model | `optimality_residual` (5.1), then fix `value_iteration_suspect` (5.2) | 5.1: residuals on fixed V; 5.2: the returned V is within γ·tol/(1−γ) of V\* and the sweep count matches, on all three models | 9 |
 
 - **Compare:** exact fixtures.
