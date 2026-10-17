@@ -273,4 +273,4 @@ def test_finish_prints_the_room_code(monkeypatch, capsys, tmp_path):
     lab.metric("rms", 0.5)
     lab.finish()
     out = capsys.readouterr().out
-    assert "ROOM m03 seat=4 checks=1/2 quick=0 rms=0.5" in out
+    assert out.rstrip().splitlines()[-1] == "ROOM m03 seat=4 checks=1/2 quick=0 rms=0.5"
