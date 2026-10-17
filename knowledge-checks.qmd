@@ -135,14 +135,16 @@ They wrote SARSA: bootstrapping from the action actually taken next is the on-po
 **Evidence:** Lab 3, checkpoints 5.1 and 5.2.
 :::
 
-### Objective 3: diagnose a terminal-bootstrap bug from a value curve and the Q-values
+### Objective 3: diagnose a terminal-bootstrap bug from the Q-values and a value curve, and say why the return curve does not show it
 
-[**3.5**]{#q3-5} A Q-learning implementation computes `target = r + gamma * Q[s2].max()` on every step, including the step into the goal. With $Q$ started at 0 its path and values look right. Why? Starting from $Q_0 = 10$ with $\gamma = 0.95$, what does it learn for the final transition (the cell above the goal, action down), and what should it learn?
+[**3.5**]{#q3-5} A Q-learning implementation computes `target = r + gamma * Q[s2].max()` on every step, including the step into the goal. With $Q$ started at 0 its path and values look right. Why? Starting from $Q_0 = 10$ with $\gamma = 0.95$, what does it learn for the final transition (the cell above the goal, action down), and what should it learn? Would its online return while learning have shown the bug?
 
 ::: {.callout-tip collapse="true" title="Answer to 3.5"}
 No action is ever taken in the goal, so $Q(\text{goal}, \cdot)$ is never updated and stays at its initial value. From 0, bootstrapping through the goal adds $\gamma \cdot 0$: invisible. From $Q_0 = 10$ it adds $0.95 \cdot 10$, so the final transition converges to $-1 + 9.5 = 8.5$ instead of its reward $-1$, and the bonus propagates back as $\gamma^d Q_0$ at distance $d$ (about $+5.1$ at the start). The fix is the terminal mask: multiply the bootstrap by $(1 - \text{terminated})$. Zeroing $Q(\text{terminal}, \cdot)$ at initialization also works here, but only because the goal is a known, labeled state.
 
-**Evidence:** Lab 3, checkpoint 6 (the final transition's $Q$ and $\max_a Q(\text{start}, a)$ against $V^*(\text{start})$ from $Q_0 = 10$).
+The online return would not have shown it. The bonus grows toward the goal, so the shortest route keeps the largest value and the greedy path stays optimal; only the values are wrong. In the recorded experiment from $Q_0 = 10$, the buggy learner's online return over the first 100 episodes was higher than a correct learner's on 10 of 10 seeds, and over the last 500 the two were a tie (`runs/2026-10-17-local-m03-suspect-returns-exp.json`). Returns test the policy you follow, not the values you learned.
+
+**Evidence:** Lab 3, checkpoint 6 (the final transition's $Q$ and $\max_a Q(\text{start}, a)$ against $V^*(\text{start})$ from $Q_0 = 10$), and the return panel of Exercise 6.
 :::
 
 [**3.6**]{#q3-6} Gymnasium returns `terminated` and `truncated` separately. A learner uses `done = terminated or truncated` and sets the target to `r` whenever `done` is true. In CartPole ($+1$ per step, $\gamma = 0.99$, cut at 500 steps) what does it learn for the state at step 499, and what is the right target? Which flag should the mask use?
@@ -163,10 +165,10 @@ At $t = 0$ the three rewards end before the cut ($t + n = 3 < T = 4$), so bootst
 **Evidence:** Lab 3, checkpoint 3 (exact, with a target past the end of a terminated episode and one into a truncation).
 :::
 
-[**3.8**]{#q3-8} Explain why the bias of the expected $n$-step target falls like $\gamma^n$ and why its variance rises with $n$. In the briefing's figure of RMS error against $n$ after 1000 episodes, the curve for $\alpha = 0.02$ falls steeply from $n = 1$ to $n = 4$, while the curves for larger $\alpha$ are nearly flat. Explain both.
+[**3.8**]{#q3-8} Explain why the bias of the expected $n$-step target falls like $\gamma^n$ and why its variance tends to rise with $n$. In the briefing's figure of RMS error against $n$ after 1000 episodes, the curve for $\alpha = 0.02$ falls steeply from $n = 1$ to $n = 4$, while the curves for larger $\alpha$ are nearly flat. Explain both.
 
 ::: {.callout-tip collapse="true" title="Answer to 3.8"}
-The $n$-step target's only estimated part is $\gamma^n V(s_{t+n})$, so its bias is $\gamma^n$ times the error of $V$ there (Sutton and Barto's error-reduction property bounds the worst case by exactly that factor). The sampled part, $n$ rewards, grows with $n$ and carries the randomness of $n$ steps, so the variance rises; at $n \ge T$ it is the variance of the full return.
+The $n$-step target's only estimated part is $\gamma^n V(s_{t+n})$, so its bias is $\gamma^n$ times the error of $V$ there (Sutton and Barto's error-reduction property bounds the worst case by exactly that factor). The sampled part, $n$ rewards, grows with $n$ and carries the randomness of $n$ steps, so the variance tends to rise; for $n \ge T - t$ it is the variance of the full return.
 
 With $\alpha = 0.02$ each update moves $V$ only 2% of the way, so after 1000 episodes TD(0)'s estimates still carry the zero start: their error is mostly bias, and $n$ sampled rewards cut that bias by a factor $\gamma^n$ at once. With a larger $\alpha$ the zero start fades faster, so a longer target has less left to remove, and more of the error is the noise of a constant step size, which grows only a little with $n$ on this task. Which $n$ is best depends on the task and the budget: on Sutton and Barto's 19-state random walk, over its first 10 episodes, an intermediate $n$ does best.
 
