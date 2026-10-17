@@ -18,7 +18,7 @@ values rounded before plotting.
 The sampler, the seeds and the solver code are the lab's (reproduced in
 scripts/make_expected.py, which this script imports), so the numbers equal the lab's.
 The script asserts every count and number the page's captions and the m02 Predict
-answers quote. The numbers are exact computations on a known model, not run
+answers quote, the figures' and the rest of the page's (page_numbers, run by --check too). The numbers are exact computations on a known model, not run
 measurements. This script may contain solver code; prl may not.
 """
 
@@ -41,11 +41,12 @@ from make_expected import (  # noqa: E402
     _exact_value,
     _optimal,
     _policy_iteration,
+    _random_log,
     _sample_transitions,
     _value_iteration,
 )
 from make_figures_m01 import MIN_FONT, WIDTH_IN, Theme, rc, svg_bytes, themes  # noqa: E402
-from prl.envs import InventoryMDP  # noqa: E402
+from prl.envs import CliffGridworld, InventoryMDP  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGES = ROOT / "images"
@@ -343,6 +344,104 @@ def model_error_figure(t: Theme, data: dict) -> Figure:
     return fig
 
 
+# ------------------------------------------------------------------ other numbers the page quotes
+def _vi_stop(P, R, gamma, tol, stat):
+    """Value iteration from V = 0 that stops when stat(|V_new - V|) < tol; (V, k)."""
+    V, k = np.zeros(P.shape[0]), 0
+    while True:
+        V_new = (R + gamma * P @ V).max(axis=1)
+        k += 1
+        if stat(np.abs(V_new - V)) < tol:
+            return V_new, k
+        V = V_new
+
+
+def _residual(P, R, gamma, V):
+    return float(np.max(np.abs((R + gamma * P @ V).max(axis=1) - V)))
+
+
+def page_numbers(computed: dict[str, dict]) -> dict:
+    """Assert the numbers modules/02-planning.qmd and _variables.yml (m02) quote outside the
+    figures, so a change to the model or the samplers cannot leave them stale."""
+    mdp = InventoryMDP(**M01_INVENTORY)
+    P, R = mdp.P, mdp.R
+    S = mdp.n_states
+    V_star, pi_star, Q_star, _ = _optimal(P, R, GAMMA, TOL)
+    out: dict = {}
+    # Section 3: Module 1's "order up to 7" against pi*, and the exact ties in Q*.
+    pi7 = np.maximum(0, 7 - np.arange(S))
+    V7 = _exact_value(P, R, GAMMA, pi7)
+    gap = V_star - V7
+    out.update(V7_0=V7[0], gap_0=gap[0], gap_max=gap.max(), gap_argmax=int(gap.argmax()))
+    assert round(V7[0], 2) == 38.23 and round(gap[0]) == 42, (V7[0], gap[0])
+    assert round(gap.max()) == 45 and gap.argmax() == 6, gap
+    out["dV_6_7"] = V_star[7] - V_star[6]
+    assert round(out["dV_6_7"], 2) == 2.54, out["dV_6_7"]
+    assert Q_star[1, 9] == Q_star[1, 10] and np.all(Q_star[10] == Q_star[10, 0])
+    deliver = np.minimum(pi_star, mdp.capacity - np.arange(S))
+    assert deliver.tolist() == [10, 9, 8, 7, 0, 0, 0, 0, 0, 0, 0], "fill the shelf from 0 to 3"
+    # The greedy policy of Q_k: pi* at k = 2, stock 3 stops ordering at k = 3.
+    V = np.zeros(S)
+    for _ in range(3):
+        V = (R + GAMMA * P @ V).max(axis=1)
+    assert (R + GAMMA * P @ V).argmax(axis=1)[3] == 0, "at k = 3, stock 3 stops ordering"
+    # Policy iteration: the page's sequence of policies (as deliveries) and 3 evaluations from pi7.
+    fill = [
+        np.minimum(pol, mdp.capacity - np.arange(S)).tolist()
+        for pol in computed["02-vi-vs-pi"]["policies"]
+    ]
+    want = [[0] * 11] + [[10 - s if s <= top else 0 for s in range(S)] for top in (7, 2, 3)]
+    assert fill == want, fill
+    assert _policy_iteration(P, R, GAMMA, pi7)[2] == 3
+    # Exercise 1's Explain: at tol = 1.0 value iteration stops after 29 sweeps with pi*.
+    _, Q1, k1, _ = _value_iteration(P, R, GAMMA, 1.0)
+    assert k1 == 29 and _greedy_is_optimal(Q1.argmax(axis=1), Q_star), k1
+    # Section 2: the greedy-loss guarantee at tol = 1e-3.
+    assert round(2 * GAMMA**2 * 1e-3 / (1 - GAMMA) ** 2, 2) == 0.72
+    out.update(k_tol1=k1)
+    # Exercise 3: missed pairs of random_log(mdp, 200, default_rng(seat)), seats 0-30.
+    missed = []
+    for seat in range(31):
+        log = _random_log(mdp, 200, np.random.default_rng(seat))
+        counts = _estimate_model(log, S, mdp.n_actions)[2]
+        missed.append(int((counts == 0).sum()))
+        if seat == 0:
+            per_stock = (counts == 0).sum(axis=1)
+            assert missed[0] == 38 and per_stock[9:].sum() == 16, per_stock
+    assert min(missed) == 20 and max(missed) == 38, missed
+    assert sum(m > 23 for m in missed) == 30, missed
+    out.update(missed=missed)
+    # Exercise 4: seeds 0-4, the mean falls at every step but one (N = 100 to 200).
+    me = computed["02-model-error"]
+    means = me["loss"].mean(axis=0)
+    assert round(means[NS.index(100)], 2) == 0.08 and round(means[NS.index(200)], 2) == 0.35
+    assert me["loss"][:, NS.index(200)].round(2).tolist() == [0.0, 1.39, 0.0, 0.38, 0.0]
+    rises = [NS[j + 1] for j in range(len(NS) - 1) if means[j + 1] > means[j]]
+    assert rises == [200], rises
+    # Exercise 5: the suspect (stop on the mean) against value iteration, and its residual.
+    cliff = CliffGridworld(4, 12, slip=0.2, gamma=0.95)
+    settled_P = np.zeros((100, 2, 100))
+    settled_P[np.arange(100), :, np.arange(100)] = 1.0
+    settled_R = np.zeros((100, 2))
+    settled_R[0] = [1.0, 0.5]
+    models = {
+        "shop": (P, R, (299, 299), None),
+        "slippery cliff": (cliff.P, cliff.R, (72, 76), 1.9),
+        "mostly settled": (settled_P, settled_R, (181, 271), 97.8),
+    }
+    for name, (P_x, R_x, (k_mean, k_max), ratio) in models.items():
+        V_mean, km = _vi_stop(P_x, R_x, GAMMA, TOL, np.mean)
+        _, kx = _vi_stop(P_x, R_x, GAMMA, TOL, np.max)
+        assert (km, kx) == (k_mean, k_max), (name, km, kx)
+        r = _residual(P_x, R_x, GAMMA, V_mean) / (GAMMA * TOL)
+        if ratio is None:
+            assert r < 1, (name, r)
+        else:
+            assert round(r, 1) == ratio, (name, r)
+        out[f"ex5_{name}"] = (km, kx, r)
+    return out
+
+
 # ------------------------------------------------------------------ build and check
 FIGURES = {
     "02-vi-vs-pi": (vi_pi_data, vi_pi_figure),
@@ -359,6 +458,7 @@ def build() -> tuple[dict[Path, bytes], dict[str, dict]]:
         for t in themes():
             with mpl.rc_context(rc(name, t)):
                 out[IMAGES / f"{name}{t.suffix}.svg"] = svg_bytes(draw(t, data))
+    computed["page"] = page_numbers(computed)
     return out, computed
 
 
@@ -393,6 +493,17 @@ def report(computed: dict[str, dict]) -> None:
             f"{me['bound'][j]:,.0f}"
         )
     print(f"eps_P against N (N >= 10): slope {me['slope']:.3f} on log-log axes (1/sqrt(N) is -0.5)")
+    pg = computed["page"]
+    print()
+    print(
+        f"order up to 7: V(0) = {pg['V7_0']:.2f}, loses {pg['gap_0']:.2f} at stock 0 and at most "
+        f"{pg['gap_max']:.2f} (stock {pg['gap_argmax']}); V*(7) - V*(6) = {pg['dV_6_7']:.3f}"
+    )
+    print(f"tol 1.0: {pg['k_tol1']} sweeps, greedy policy optimal")
+    print(f"random_log, 200 days, seats 0-30: missed pairs {pg['missed']}")
+    for name in ("shop", "slippery cliff", "mostly settled"):
+        km, kx, r = pg[f"ex5_{name}"]
+        print(f"suspect on the {name}: {km} sweeps against {kx}; residual {r:.2f} x gamma tol")
 
 
 def main(argv: list[str]) -> int:
