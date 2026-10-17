@@ -9,7 +9,7 @@ Each entry gives our working default, who decides, and when. When an entry is re
 
 **Owners:** user (you), AD (academic director), PE (pedagogy expert), TE (technical expert), UI (UI expert), lead (the main session).
 
-Last updated 2026-10-17 (Module 3 draft).
+Last updated 2026-10-17 (Module 3, second pass).
 
 **Phase 1 merged without its two human Colab smoke runs** (00-setup on Colab CPU and one
 `DPOTrainer` step on a T4); their records are not filed. Everything due at "Phase 1 exit"
@@ -157,7 +157,7 @@ They stay listed here until you confirm them.
 | B10 | ~~The MBIE-EB bonus form~~ **Resolved:** β/√n(s,a), Strehl & Littman 2008 §3.2, Eq. 8, p. 1316 (AD review) | — | — | — |
 | B11 | RiverSwim's origin and transition probabilities. The 2008 paper says it is "taken from" Strehl & Littman, ICTAI 2004 (not opened). Fig. 1's probabilities are an image. | Open the 2004 paper and read Fig. 1. Meanwhile our page states its own probabilities. | AD | Phase 3 (Day 2) |
 | B12 | Whether Rummery & Niranjan 1994 coined "SARSA". **Partly resolved (2026-10-17, AD):** Sutton & Barto 2018's Chapter 6 bibliographical notes say the report introduced the algorithm as "Modified Connectionist Q-learning" and that the name Sarsa was introduced by Sutton (1996). Module 3 cites the report for the algorithm only. | Read the technical report before claiming anything more. | AD | Phase 5 |
-| B29 | Module 3's design numbers (budgets, thresholds, the bias²/variance ordering at the lab budget, the SARSA/Q-learning gap) come from a design scan on the author's laptop (100 seeds per setting, scratch script, not filed). The page states only exact computations; the lab prints its own numbers. | The TE's threshold-protocol runs and the recorded cliff-contrast and n-step experiments replace them (`runs/`). | TE | Phase 3, Day 1 (M3) |
+| B29 | Module 3's design numbers came from a scratch design scan on the author's laptop. **Now replaced by records (2026-10-17):** the thresholds come from 100-seed threshold-protocol runs at both budgets (arm64; `runs/2026-10-17-local-threshold-m03-*`), and the figures from two recorded experiments (`runs/2026-10-17-local-m03-cliff-contrast-exp.json`, `runs/2026-10-17-local-m03-nstep-dial-exp.json`). Still open: the colab-sim protocol runs (C11), and a record of the planted-bug suspect's return curve against a correct learner's from Q₀ = 10 (the page says only that the return curve gives no sign of the bug; a scratch check suggests the suspect's early returns are even higher). The page states only exact computations and record numbers. | TE: colab-sim protocol runs and the suspect-returns record | TE | Phase 3, Day 1 (M3) |
 | B30 | Module 3 says every-visit MC is biased on finite data and consistent, with a one-state computation on the page; the consistency proof is credited by Sutton & Barto §5.1 to Singh & Sutton 1996, which we have not opened. | Open Singh & Sutton 1996 if the claim is ever cited to it. | AD | Phase 5 |
 
 **Citations: other sources**
@@ -193,8 +193,6 @@ They stay listed here until you confirm them.
 | C9 | Should we report TRL's CPU-incompatible fused LM head upstream (see A11)? | Yes, after Phase 1 confirms it on Linux | TE | Phase 1 |
 | C10 | Turn on the repository setting "Allow GitHub Actions to create and approve pull requests" so `health.yml` can open Colab-freeze PRs? It is off today; until then the job pushes the branch, links a compare page in its summary and fails. | Yes | user | Before the first upstream freeze change |
 | C11 | The threshold protocol runs in colab-sim and on arm64, but a check holds one threshold per budget. Which platform sets it? | colab-sim sets it; the arm64 record must show zero solution failures and zero passing mutants at that threshold | TE | Phase 3, Day 1 (M3) |
-| C14 | Module 3 lists its mutants so that every stochastic checkpoint rejects every mutant of its function at every seed (PLAN §7). Fine-grained wrong versions that a budgeted RMS cannot separate from the solution (every-visit MC; TD(0) without the discount; TD(0) that treats a truncation as terminal) are therefore not in `labs/mutants/m03.py`; the exact checkpoints 1.1 and 2.1 reject them by construction (fixed episodes with repeated states, `v0 != 0`, a truncated episode). Should `StochasticCheck` grow a per-check mutant filter so such mutants can be listed and verified in CI? | No filter for now; the handoff documents which mutants are excluded and why | TE / lead | Phase 3, Day 1 (M3) |
-| C15 | PLAN §4 names Module 3's planted-bug checkpoint "Q(goal, ·) = 0 under optimistic init". With the terminal mask as the fix, Q(goal, ·) is never updated and stays at Q₀; the invariant the mask gives is "the final transition's Q equals its reward (−1) and max Q(start) equals V*(start)", which is what the lab checks. Zeroing Q(terminal) instead (Sutton & Barto's pseudocode) would give Q(goal, ·) = 0 but needs the terminal states to be known. Update PLAN §4's M3 row? | Yes: the lab checks the final transition and V*(start) | lead | Phase 3, Day 1 (M3) |
 | C12 | Where do participants send their Module 0 run record, and who collects it (email, form or shared folder)? Module 0's objective says "submit", but no channel exists; the page and notebook say "keep the file; your instructor will say where to send it". | — | user | Before pre-work is sent out |
 
 ## Resolved
@@ -211,3 +209,5 @@ They stay listed here until you confirm them.
 | R8 | 2026-10-09 | d3rlpy dropped; MABWiser kept as an optional parity cell (TE review). |
 | R9 | 2026-10-09 | MBIE-EB form, the BC-on-expert source, the probe-environments source and the Base DLAMI SSM parameter verified (AD and TE reviews). |
 | R10 | 2026-10-09 | Phase 1 defaults applied for A1–A8, A10, A12–A13 and C3–C5 (you said "go"); revisit any at the Phase 1 gate. Probe environments stay out of `prl` (Module 9 participants write them). |
+| R11 | 2026-10-17 | C14 (Module 3 mutants a budgeted RMS cannot separate from the solution): resolved by `exact_only=True` mutants (change B). The threshold protocol leaves them out; verify mode runs them against the exact checkpoints 1.1 and 2a.1. |
+| R12 | 2026-10-17 | C15 (Module 3's planted-bug checkpoint): the lead accepts the deviation on the pedagogy expert's verdict. Checkpoint 6 requires the last move's Q to equal its reward (−1) and max Q(start) to equal V*(start), from Q₀ = 10; Q(goal, ·) stays at Q₀ after a correct fix, harmlessly. The lead updates PLAN §4. |
