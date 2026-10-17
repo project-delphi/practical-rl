@@ -1,7 +1,5 @@
-# The reference version of Lab 1's evaluate_exact (Module 1, Exercise 4), copied verbatim from
-# its solution cell. Later labs include it with `# %% include labs/shared/m01_evaluate_exact.py`.
-
-
+# origin: labs/src/01-mdps-bellman.py
+# The reference version of your Lab 1 code (Exercise 4): exact policy evaluation.
 def evaluate_exact(P, R, gamma, pi):
     """V^pi from (I - gamma P_pi) V = r_pi, where pi is an (S, A) matrix of probabilities."""
     P_pi = np.einsum("sa,sat->st", pi, P)

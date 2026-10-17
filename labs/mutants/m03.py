@@ -6,7 +6,7 @@ requires every mutant of a stochastic checkpoint's function to fail its threshol
 every seed, with a stated gap. Each mutant is a mistake a participant could plausibly
 make; `why` says which. `id="random"` is the never-learns version the protocol needs.
 
-Not listed, on purpose (OPEN_QUESTIONS C13): wrong versions that a budgeted RMS cannot
+Not listed, on purpose (OPEN_QUESTIONS C14): wrong versions that a budgeted RMS cannot
 separate from the solution but that the exact checkpoints reject by construction:
 every-visit MC (checkpoint 1.1 uses episodes with repeated states); TD(0) without the
 discount or treating a truncation as terminal (checkpoint 2.1 uses v0 != 0 and a truncated

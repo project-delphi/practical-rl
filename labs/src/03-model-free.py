@@ -53,7 +53,7 @@ budget = lab.use_settings(
 EPSILON = 0.1  # the exploration rate, constant throughout (Day 2 is about doing better)
 print(dict(budget))
 
-# %% include labs/shared/m01_evaluate_exact.py
+# %% include labs/shared/evaluate_exact.py
 
 
 # %% [markdown]
