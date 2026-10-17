@@ -276,13 +276,43 @@ modules:
     planted_bug: {what: "value iteration stops on the mean change, not the max", diagnostic: "logged max |ΔV| per sweep and the Bellman residual"}
     stretch: Modified policy iteration
     exercises:
-      - {n: 0, title: Reconnect and rerun setup, minutes: 3, writes: []}
-      - {n: 1, title: Value iteration and greedy extraction, minutes: 12, writes: [value_iteration, greedy]}
-      - {n: 2, title: Policy iteration, minutes: 9, writes: [policy_iteration]}
-      - {n: 3, title: Estimate the model, minutes: 8, writes: [estimate_model]}
-      - {n: 4, title: Plan in the estimate, evaluate in the truth, minutes: 12, writes: [plan_and_evaluate]}
-      - {n: 5, title: "Planted bug: a stopping rule", minutes: 8, writes: []}
-    status: {briefing: placeholder, lab: planned}
+      # predict_answer: the answer to the Predict prompt (for the pace sheet).
+      # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
+      - n: 0
+        title: Reconnect and rerun setup
+        minutes: 3
+        writes: []
+      - n: 1
+        title: Value iteration and greedy extraction
+        minutes: 12
+        writes: [value_iteration, greedy]
+        predict_answer: "Orders from stocks 0–3 only, each filling the shelf to 10 (order 10, 9, 8, 7); nothing from stock 4 up. Fewer, larger deliveries because each costs a fixed 5. Value iteration takes 299 sweeps at tol 1e−6."
+        explain_ref: "(greedy loss)"
+      - n: 2
+        title: Policy iteration
+        minutes: 9
+        writes: [policy_iteration]
+        predict_answer: "About 4: from 'never order' the reference takes 4 evaluations (3 improvements) and returns the same policy as value iteration, which took 299 sweeps."
+        explain_ref: 'Gotcha: "PI is always faster"'
+      - n: 3
+        title: Estimate the model
+        minutes: 8
+        writes: [estimate_model]
+        predict_answer: "Yes, a few dozen (with seed 0 the log misses 38 of 121 pairs). Never: an unvisited action has Q̂(s, a) = γ V̂(s) < V̂(s) whenever V̂(s) > 0, and every value in the shop is positive."
+        explain_ref: "(counts)"
+      - n: 4
+        title: Plan in the estimate, evaluate in the truth
+        minutes: 12
+        writes: [plan_and_evaluate]
+        predict_answer: "No. ε_P shrinks like 1/√N, so the bound rises by about √2 when N halves; the loss itself is often exactly 0 above a data threshold (with seeds 0–4, three or more of the five seeds lose exactly 0 from N = 50 on) and jumps in steps below it."
+        explain_ref: "(planning loss)"
+      - n: 5
+        title: "Planted bug: a stopping rule"
+        minutes: 8
+        writes: [value_iteration_suspect]
+        predict_answer: "Residual ≤ γ·tol because ‖T*V_{k+1} − V_{k+1}‖ = ‖T*V_{k+1} − T*V_k‖ ≤ γ‖V_{k+1} − V_k‖ < γ·tol. A last logged max|ΔV| above tol means the function stopped on a different statistic than the one it logs: the mean. On the cliff with slip 0.2 it stops at sweep 72 with max|ΔV| = 2.3e−6; on the shop it stops at the same sweep as a correct one."
+        explain_ref: 'Gotcha: "Stop on the mean change"'
+    status: {briefing: draft, lab: draft}
 
   m03:
     n: 3
