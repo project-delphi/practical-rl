@@ -17,7 +17,7 @@ Write an MDP as arrays, frame inventory control, and evaluate a policy exactly a
 
 Find the best policy with a model, then measure what an estimated model costs you.
 
-[Colab CPU]{.chip} [core 52 min]{.chip} [Open in Colab[, Lab 2 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/02-planning.ipynb){.btn-quiet target="_blank" rel="noopener"}
+[Colab CPU]{.chip} [core 53 min]{.chip} [Open in Colab[, Lab 2 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/02-planning.ipynb){.btn-quiet target="_blank" rel="noopener"}
 :::
 
 ::: {.module-card}

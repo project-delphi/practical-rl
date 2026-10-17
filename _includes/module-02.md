@@ -20,7 +20,7 @@ Level
 :   [200 · Intermediate](/index.qmd#levels)
 
 Lab runtime
-:   Google Colab, CPU runtime · core 52 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
+:   Google Colab, CPU runtime · core 53 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
 
 Cost
 :   Free (Google account)
@@ -40,7 +40,7 @@ In this module you will:
 - Implement value iteration and policy iteration and compare their iteration counts.
 - Extract a greedy policy and check the greedy-loss bound.
 - Measure the true loss of a policy planned in an estimated model as the data shrinks, over 5 seeds.
-- State the simulation lemma with its assumptions and horizon factor.
+- State the simulation lemma with its assumptions and horizon factor, and check measured losses against its planning-loss bound.
 
 ## Before you start {#before}
 

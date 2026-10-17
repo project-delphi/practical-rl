@@ -2,11 +2,11 @@
 ::: {.live-plan}
 | Minutes | Section | In the room |
 |---|---|---|
-| 0–8 | 1. Value iteration: repeated optimality backups | — |
-| 8–15 | 2. Greedy extraction and the loss bound | [Check yourself 2.1](#chk-greedy) (2 min) |
-| 15–23 | 3. Policy iteration and the improvement argument | [Check yourself 3.1](#chk-pi) (2 min) |
-| 23–34 | 4. From counts to a model: the simulation lemma and its horizon factor | [Predict: does halving the data double the loss?](#predict-halve) (4 min) |
-| 34–38 | 5. Bridge: from a model to experience | — |
+| 0–7 | 1. Value iteration: repeated optimality backups | [Cold call: one sweep by hand](#cold-sweep) (1 min) |
+| 7–14 | 2. Greedy extraction and the loss bound | [Check yourself 2.1](#chk-greedy) (2 min) |
+| 14–22 | 3. Policy iteration and the improvement argument | [Check yourself 3.1](#chk-pi) (2 min) |
+| 22–35 | 4. From counts to a model: the simulation lemma and its horizon factor | [Predict: does halving the data double the loss?](#predict-halve) (3 min) |
+| 35–38 | 5. Bridge: from a model to experience | — |
 | 38–40 | Setup: open the notebook and run the setup cell | — |
 | **40** | **Total** | **30 exposition + 8 activities + 2 setup** |
 : Briefing, 40 min {.agenda}

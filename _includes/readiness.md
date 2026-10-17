@@ -16,7 +16,7 @@
 |---|---|---|---|---|---|---|
 | []{#m00}[0 · Setup and hello RL](/modules/00-setup.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-10 | — | — |
 | []{#m01}[1 · MDPs, returns and the Bellman equation](/modules/01-mdps-bellman.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-10 | — | — |
-| []{#m02}[2 · Planning: value iteration, policy iteration and model error](/modules/02-planning.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-17 | — | — |
+| []{#m02}[2 · Planning: value iteration, policy iteration and model error](/modules/02-planning.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale} newest 2026-10-17 |
 | []{#m03}[3 · Model-free prediction and control](/modules/03-model-free.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m04}[4 · Bandits from first principles](/modules/04-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m05}[5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
@@ -56,5 +56,5 @@
 :::
 
 ::: {.callout-note collapse="true" title="2 · Planning: value iteration, policy iteration and model error: 1 record(s)"}
-- `2026-10-17-local-02-planning-f885bca6.json`: 2026-10-17 · local · 5 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
+- `2026-10-17-local-02-planning-f885bca6.json`: 2026-10-17 · local · 5 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::
