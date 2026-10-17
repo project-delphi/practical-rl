@@ -9,7 +9,7 @@ Each entry gives our working default, who decides, and when. When an entry is re
 
 **Owners:** user (you), AD (academic director), PE (pedagogy expert), TE (technical expert), UI (UI expert), lead (the main session).
 
-Last updated 2026-10-17 (Module 2 draft).
+Last updated 2026-10-17 (Phase 3, Day 1: Modules 2 and 3).
 
 **Phase 1 merged without its two human Colab smoke runs** (00-setup on Colab CPU and one
 `DPOTrainer` step on a T4); their records are not filed. Everything due at "Phase 1 exit"
@@ -158,7 +158,9 @@ They stay listed here until you confirm them.
 |---|---|---|---|---|
 | B10 | ~~The MBIE-EB bonus form~~ **Resolved:** β/√n(s,a), Strehl & Littman 2008 §3.2, Eq. 8, p. 1316 (AD review) | — | — | — |
 | B11 | RiverSwim's origin and transition probabilities. The 2008 paper says it is "taken from" Strehl & Littman, ICTAI 2004 (not opened). Fig. 1's probabilities are an image. | Open the 2004 paper and read Fig. 1. Meanwhile our page states its own probabilities. | AD | Phase 3 (Day 2) |
-| B12 | Whether Rummery & Niranjan 1994 coined "SARSA" | Read the technical report. Until then, don't claim it. | AD | Phase 2 |
+| B12 | Whether Rummery & Niranjan 1994 coined "SARSA". **Partly resolved (2026-10-17, AD):** Sutton & Barto 2018's Chapter 6 bibliographical notes say the report introduced the algorithm as "Modified Connectionist Q-learning" and that the name Sarsa was introduced by Sutton (1996). Module 3 cites the report for the algorithm only. | Read the technical report before claiming anything more. | AD | Phase 5 |
+| B29 | Module 3's design numbers came from a scratch design scan on the author's laptop. **Now replaced by records (2026-10-17):** the thresholds come from 100-seed threshold-protocol runs at both budgets (arm64, and Linux x86-64 bit-identical; `runs/2026-10-17-local-threshold-m03-*`), and the figures and the planted-bug returns from three recorded experiments (`runs/2026-10-17-local-m03-cliff-contrast-exp.json`, `runs/2026-10-17-local-m03-nstep-dial-exp.json`, `runs/2026-10-17-local-m03-suspect-returns-exp.json`). The suspect-returns record corrects the scratch scan: the suspect earns more over the first 100 episodes on 10 of 10 seeds, and over the last 500 it is a tie (higher on 4 of 10). The page quotes only exact computations and record numbers. Still open: the colab-sim protocol runs (C11). | TE: colab-sim protocol runs | TE | Phase 3, Day 1 (M3) |
+| B30 | Module 3 says every-visit MC is biased on finite data and consistent, with a one-state computation on the page; the consistency proof is credited by Sutton & Barto §5.1 to Singh & Sutton 1996, which we have not opened. | Open Singh & Sutton 1996 if the claim is ever cited to it. | AD | Phase 5 |
 
 **Citations: other sources**
 
@@ -210,3 +212,5 @@ They stay listed here until you confirm them.
 | R9 | 2026-10-09 | MBIE-EB form, the BC-on-expert source, the probe-environments source and the Base DLAMI SSM parameter verified (AD and TE reviews). |
 | R10 | 2026-10-09 | Phase 1 defaults applied for A1–A8, A10, A12–A13 and C3–C5 (you said "go"); revisit any at the Phase 1 gate. Probe environments stay out of `prl` (Module 9 participants write them). |
 | R11 | 2026-10-17 | C13 (Module 2's planted bug): keep PLAN's "stop on the mean change" bug. The pedagogy review found the slippery cliff's factor-2 symptom too quiet, so Lab 2's Exercise 5 runs the suspect on three models: the shop (invisible, the lesson), the slippery cliff (4 sweeps early, residual about 2× the guarantee) and a 100-state model with 99 settled states (90 sweeps early, residual about 98× the guarantee). The participant writes the optimality residual (checkpoint 5.1) before fixing the suspect (5.2). |
+| R12 | 2026-10-17 | C14 (Module 3 mutants a budgeted RMS cannot separate from the solution): resolved by `exact_only=True` mutants (change B). The threshold protocol leaves them out; verify mode runs them against the exact checkpoints 1.1 and 2a.1. |
+| R13 | 2026-10-17 | C15 (Module 3's planted-bug checkpoint): the lead accepts the deviation on the pedagogy expert's verdict. Checkpoint 6 requires the last move's Q to equal its reward (−1) and max Q(start) to equal V*(start), from Q₀ = 10; Q(goal, ·) stays at Q₀ after a correct fix, harmlessly. The lead updates PLAN §4. |

@@ -42,7 +42,22 @@
                Also opened (academic director, Module 2 third pass, 2026-10-17, same PDF): s4.3, Exercise 4.4 (book p. 82, PDF p. 104): the policy iteration
                pseudocode 'may never terminate if the policy continually switches between two or more policies that are equally good'.
                Module 2 cites it for the tie rule's tolerance.
-               Same page, s4.3: 'Policy iteration often converges in surprisingly few iterations'; Module 2 cites it in s3.}
+               Same page, s4.3: 'Policy iteration often converges in surprisingly few iterations'; Module 2 cites it in s3.
+               Also opened (academic director, Module 3, 2026-10-17, RLbook2020.pdf, text extracted from the downloaded file):
+               s5.1 (first-visit and every-visit MC defined; both converge, every-visit credited to Singh and Sutton 1996);
+               s6.1 Eq. 6.1 (constant-alpha MC), Eq. 6.2 (TD(0)), Eq. 6.5 (TD error), the TD(0) box (V(terminal) = 0);
+               s6.2 (TD usually found to converge faster than constant-alpha MC on stochastic tasks; no general proof);
+               s6.4 Eq. 6.7 (Sarsa; the quintuple gives the name; Q(S_{t+1}, A_{t+1}) = 0 if terminal); s6.5 Eq. 6.8 (Q-learning,
+               Watkins 1989; the box initializes Q(terminal, .) = 0); Example 6.6 (undiscounted cliff, epsilon = 0.1: Q-learning
+               learns the optimal-policy values and its online performance is worse than Sarsa's; with epsilon decayed both converge);
+               s7.1 Eq. 7.1 (n-step return; G_{t:t+n} = G_t when t + n >= T), Eq. 7.2 (n-step TD), Eq. 7.3 (error reduction),
+               Figure 7.2 (19-state random walk, values initialized to 0, error averaged over the first 10 episodes and 100 runs:
+               an intermediate n works best); convergence conditions (Module 3 sign-off, 2026-10-17): s6.4, Sarsa converges w.p. 1 to an
+               optimal policy and Q under the usual step-size conditions if all pairs are visited infinitely often and the policy
+               becomes greedy in the limit (e.g. epsilon = 1/t); s6.5, Q-learning converges w.p. 1 to q* if all pairs keep being updated,
+               under a variant of the usual step-size conditions;
+               the s6.1 text places TD(lambda) in Chapter 12; the Chapter 6 bibliographical notes (book p. 139): Sarsa introduced by
+               Rummery and Niranjan (1994) as Modified Connectionist Q-learning, the name Sarsa introduced by Sutton (1996).}
 }
 
 @book{lattimore2020bandit,
@@ -156,7 +171,8 @@
   pages   = {285--294},
   year    = {1933},
   doi     = {10.1093/biomet/25.3-4.285},
-  annote  = {Verified 2026-10-09 via the DOI record.}
+  annote  = {Verified 2026-10-09 via the DOI record. Module 3 cites it (2026-10-17) only as the convergence proof of tabular
+             Q-learning, as credited by Sutton and Barto 2018, s6.5 and the Chapter 6 bibliographical notes; the paper was not opened.}
 }
 
 @article{russo2018tutorial,
@@ -280,7 +296,8 @@
   pages   = {279--292},
   year    = {1992},
   doi     = {10.1007/BF00992698},
-  annote  = {Verified 2026-10-09 via the DOI record.}
+  annote  = {Verified 2026-10-09 via the DOI record. Module 3 cites it (2026-10-17) only as the convergence proof of tabular
+             Q-learning, as credited by Sutton and Barto 2018, s6.5 and the Chapter 6 bibliographical notes; the paper was not opened.}
 }
 
 @techreport{rummery1994sarsa,
@@ -292,7 +309,10 @@
   year        = {1994},
   url         = {https://mi.eng.cam.ac.uk/reports/abstracts/rummery_tr166.html},
   annote      = {Verified 2026-10-09 via the official abstract page.
-                 CAVEAT: do NOT claim this report coined the name "SARSA" (unverified; a secondary source says the authors called it Modified Connectionist Q-Learning).}
+                 CAVEAT: do NOT claim this report coined the name "SARSA". Sutton and Barto 2018, Chapter 6 bibliographical notes
+                 (opened 2026-10-17, academic director): the algorithm was introduced in this report under the name Modified
+                 Connectionist Q-learning, and the name Sarsa was introduced by Sutton (1996). The report itself is still not opened;
+                 Module 3 cites it for the algorithm only (OPEN_QUESTIONS B12).}
 }
 
 @incollection{baird1995residual,

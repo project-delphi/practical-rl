@@ -82,6 +82,12 @@ def mean_estimate(samples):
     return float(samples[0])
 """
 
+EXACT_ONLY_MUTANT = """
+@mutant(ex=2, replaces="mean_estimate", id="off-by-tiny", why="an exact check's job", exact_only=True)
+def mean_estimate(samples):
+    return total(samples) / len(samples) + 1e-9
+"""
+
 CRASHING_MUTANT = """
 @mutant(ex=2, replaces="mean_estimate", id="crashes", why="a broken mutant")
 def mean_estimate(samples):
@@ -205,6 +211,38 @@ def test_seed_floor(lab):
     assert res.analysis.ok and res.settings == {"n": 1600}
 
 
+def test_exact_only_mutants_are_left_out_of_the_protocol(lab):
+    notebook, mutants = lab
+    with (mutants / "m99.py").open("a") as fh:
+        fh.write(textwrap.dedent(EXACT_ONLY_MUTANT))
+    loaded = {m["id"]: m for m in tp.check_notebooks.load_mutants("m99", mutants)}
+    assert loaded["off-by-tiny"]["exact_only"] is True and loaded["biased"]["exact_only"] is False
+    res = run(lab, make_check())
+    assert res.analysis.ok, res.analysis.problems  # the overlapping mutant did not spoil the gap
+    assert set(res.per_seed) == {"solution", "mutant:biased", "mutant:halved"}
+    assert res.exact_only == ["off-by-tiny"]
+    assert tp.build_record(res)["args"]["exact_only_left_out"] == ["off-by-tiny"]
+
+
+def test_mutants_of_a_checked_function_count_whichever_exercise_declares_them(lab):
+    # A check of two functions scores the mutants of both, including "drops-last", which
+    # exercise 1 declares for `total`.
+    def two(total, mean_estimate, *, seed, n):
+        return abs_error(lambda s: total(s) / len(s), seed=seed, n=n)
+
+    check = StochasticCheck(
+        ex=2,
+        functions=("total", "mean_estimate"),
+        metric=two,
+        live={"n": 1600},
+        quick={"n": 400},
+        higher_is_better=False,
+        min_gap=0.1,
+    )
+    res = run(lab, check)
+    assert set(res.per_seed) == {"solution", "mutant:drops-last", "mutant:biased", "mutant:halved"}
+
+
 def test_a_crashing_mutant_is_not_a_rejection(lab):
     with (lab[1] / "m99.py").open("a") as fh:
         fh.write(textwrap.dedent(CRASHING_MUTANT))
@@ -294,3 +332,50 @@ def test_namespace_of_a_real_lab():
     assert ids[-2:] == ["ex4-stub", "ex4-sol"] and not any("-chk" in i for i in ids)
     assert ns["evaluate_exact"].__prl_ref__ == ("4", "evaluate_exact")
     assert ns["lab"]._s["checks"] == []  # no checkpoint ran
+
+
+# ---------------------------------------------------------------- declared thresholds
+def _declared_thresholds():
+    import importlib
+    import pkgutil
+
+    import prl.checks
+
+    out = []
+    for info in pkgutil.iter_modules(prl.checks.__path__):
+        mod = importlib.import_module(f"prl.checks.{info.name}")
+        for name, obj in vars(mod).items():
+            if isinstance(obj, StochasticCheck):
+                for budget, (threshold, provenance) in obj.thresholds.items():
+                    out.append((info.name, name, obj, budget, threshold, provenance))
+    return out
+
+
+@pytest.mark.parametrize(
+    "module, name, check, budget, threshold, provenance",
+    _declared_thresholds(),
+    ids=lambda x: x if isinstance(x, str) and not x.startswith("threshold") else "",
+)
+def test_every_threshold_comes_from_a_filed_protocol_record(
+    module, name, check, budget, threshold, provenance
+):
+    """A pasted threshold names its record in runs/, and the record re-derives it."""
+    import re
+    from pathlib import Path
+
+    m = re.search(r"runs/(\S+\.json)$", provenance)
+    assert m, f"{name}: provenance {provenance!r} names no runs/ record"
+    path = Path(tp.ROOT) / "runs" / m.group(1)
+    assert path.exists(), f"{name}: {path.name} is not filed in runs/"
+    rec = json.loads(path.read_text())
+    args = rec["args"]
+    assert (args["module"], args["check"], rec["budget"]["name"]) == (module, name, budget)
+    assert rec["budget"]["settings"] == dict(getattr(check, budget)), "the budget changed"
+    assert (args["higher_is_better"], args["min_gap"]) == (check.higher_is_better, check.min_gap)
+    a = tp.analyze(
+        rec["per_seed"],
+        rec["seeds"],
+        higher_is_better=args["higher_is_better"],
+        min_gap=args["min_gap"],
+    )
+    assert a.ok and a.threshold == threshold

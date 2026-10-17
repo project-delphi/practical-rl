@@ -8,7 +8,7 @@ Learn values and policies from experience with Monte Carlo, TD, SARSA and Q-lear
 :::
 
 ::: {.module-actions}
-[Lab notebook not built yet]{.btn-disabled} [Other ways to run](/setup.qmd#local){.btn-quiet}
+[Open in Colab[, Lab 3: Model-free prediction and control (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/03-model-free.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/03-model-free.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
 :::
 :::
 
@@ -20,7 +20,7 @@ Level
 :   [200 · Intermediate](/index.qmd#levels)
 
 Lab runtime
-:   Google Colab, CPU runtime · core 49 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
+:   Google Colab, CPU runtime · core 50 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
 
 Cost
 :   Free (Google account)
@@ -39,7 +39,7 @@ In this module you will:
 
 - Measure the RMS error, squared bias and variance of MC and TD(0) estimates over 10 seeds against the exact V.
 - Implement SARSA and Q-learning and explain the cliff contrast under a constant epsilon.
-- Diagnose a terminal-bootstrap bug from a learning curve and the Q-values.
+- Diagnose a terminal-bootstrap bug from the Q-values and a value curve, and say why the return curve does not show it.
 - Compute n-step TD targets and place them between MC and TD.
 
 ## Before you start {#before}

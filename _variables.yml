@@ -327,24 +327,62 @@ modules:
     objectives:
       - Measure the RMS error, squared bias and variance of MC and TD(0) estimates over 10 seeds against the exact V.
       - Implement SARSA and Q-learning and explain the cliff contrast under a constant epsilon.
-      - Diagnose a terminal-bootstrap bug from a learning curve and the Q-values.
+      - Diagnose a terminal-bootstrap bug from the Q-values and a value curve, and say why the return curve does not show it.
       - Compute n-step TD targets and place them between MC and TD.
     runtime: colab-cpu
     cost: Free (Google account)
     without_gpu: The whole lab runs.
     scaffold: S3
     testbeds: [CliffGridworld]
-    compared_with: {kind: truth, what: "exact V and the optimal policy"}
-    planted_bug: {what: "bootstrapping through the terminal state", diagnostic: "Q(goal) not 0 under optimistic initialization; a flattened learning curve"}
-    stretch: An n-step sweep
+    compared_with: {kind: truth, what: "exact V and the optimal route"}
+    planted_bug: {what: "Q-learning that bootstraps through the terminal state", diagnostic: "from an optimistic start, the last move's Q is -1 + gamma*Q0 instead of its reward and the value curve of the start flattens above V*; the return curve shows nothing"}
+    stretch: An n-step sweep over n and alpha
     exercises:
-      - {n: 1, title: First-visit Monte Carlo prediction, minutes: 9, writes: [mc_prediction]}
-      - {n: 2, title: TD(0) and its bias and variance, minutes: 10, writes: [td0_prediction]}
-      - {n: 3, title: The n-step target, minutes: 5, writes: [n_step_target]}
-      - {n: 4, title: SARSA, minutes: 8, writes: [sarsa]}
-      - {n: 5, title: Q-learning and the cliff, minutes: 9, writes: [q_learning]}
-      - {n: 6, title: "Planted bug: bootstrapping through the terminal", minutes: 8, writes: []}
-    status: {briefing: placeholder, lab: planned}
+      # predict_answer: the answer to the Predict prompt (for the pace sheet).
+      # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
+      - n: 1
+        title: First-visit Monte Carlo prediction
+        minutes: 9
+        writes: [mc_prediction]
+        predict_answer: "N: one per episode, from the first visit only, even when a fall brings the agent back; most likely lower: a clean 17-move episode has probability about 0.28 (a shorter one, about 3 × 10⁻¹⁷)"
+        explain_ref: "(MC)"
+      - n: 2a
+        title: TD(0)
+        minutes: 6
+        writes: [td0_prediction]
+        predict_answer: "both about −0.05 = α·(−1 + γ·0): every target was built from values still at 0 (a cell visited twice moves a little further); MC's estimate from the same episode is the whole return, −11.64 or lower"
+        explain_ref: "(TD bias)"
+      - n: 2b
+        title: Bias² and variance over 10 seeds
+        minutes: 5
+        writes: [bias2_variance]
+        predict_answer: "MC (1/N) has the lowest variance, by far: it averages about 1000 returns, while a constant α = 0.05 has the variance of an average of about (2 − α)/α ≈ 39; TD(0) has the largest bias²: the zero start, forgotten one bootstrap at a time"
+        explain_ref: 'Gotcha: "TD is biased, so MC is better."'
+      - n: 3
+        title: The n-step target
+        minutes: 6
+        writes: [n_step_target]
+        predict_answer: "−3.52 = −1 − 0.9 + 0.81·(−2); −1.9 = −1 − 0.9 (runs into the terminal, no bootstrap)"
+        explain_ref: "(n-step)"
+      - n: 4
+        title: SARSA
+        minutes: 8
+        writes: [sarsa]
+        predict_answer: "below −m: the agent still explores with ε = 0.1, so each non-greedy move adds steps, and at the start a random right falls (about 0.025 × 100 = 2.5 per episode)"
+        explain_ref: "(SARSA)"
+      - n: 5
+        title: Q-learning and the cliff contrast
+        minutes: 8
+        writes: [q_learning]
+        predict_answer: "about 30: 0.24/0.76 ≈ 0.32 falls per episode on the edge at about 100 each, less SARSA's 2 to 4 extra moves and its own falls at the start (about 2.5); the recorded lead is 23.8 to 31.1 over seeds 0–9 (runs/2026-10-17-local-m03-cliff-contrast-exp.json)"
+        explain_ref: 'Gotcha: "Q-learning is better than SARSA."'
+      - n: 6
+        title: "Planted bug: bootstrapping through the terminal"
+        minutes: 8
+        writes: [q_learning_suspect]
+        predict_answer: "−1, the move's reward (the next state is the goal, worth 0); no: every move costs at least 1, so no well-visited Q can settle above −1"
+        explain_ref: "(terminal mask)"
+    status: {briefing: reviewed, lab: reviewed}
 
   m04:
     n: 4

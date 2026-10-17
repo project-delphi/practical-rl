@@ -304,7 +304,7 @@ Total: 30 + 8 + 2. The section split changed in Phase 3 after the pedagogy revie
 **Objectives:**
 1. Measure the RMS error, squared bias and variance of Monte Carlo (MC) and TD(0) estimates across 10 seeds, against the exact V from M1.
 2. Implement SARSA and Q-learning, and explain the cliff contrast under a constant ε: Q-learning's greedy path is optimal, while SARSA has the higher online return.
-3. Diagnose a terminal-bootstrap bug from a learning curve and the Q-values.
+3. Diagnose a terminal-bootstrap bug from the Q-values and a value curve, and say why the return curve does not show it.
 4. Compute n-step TD targets, and place them on the dial between MC and TD.
 
 **Briefing.** The MC target G_t is unbiased for v_π(S_t). The TD target R + γV(S′) has bias γ·E[V(S′) − v_π(S′)], and usually, though not always, lower variance. First-visit MC is unbiased; every-visit MC is biased but consistent.
@@ -312,25 +312,26 @@ Total: 30 + 8 + 2. The section split changed in Phase 3 after the pedagogy revie
 | § | Topic | Min |
 |---|---|---|
 | 1 | No model | 3 |
-| 2 | MC | 6 |
-| 3 | TD(0); bias and variance | 10 (chk 3) |
-| 4 | SARSA vs Q-learning; ε-greedy | 11 (predict 4) |
-| 5 | Terminated vs truncated | 5 (chk 3) |
+| 2 | MC | 4 |
+| 3 | TD(0); bias and variance | 12 (chk 3) |
+| 4 | SARSA vs Q-learning; ε-greedy | 10 (predict 4) |
+| 5 | Terminated vs truncated | 6 (chk 3) |
 | 6 | The n-step dial, one figure | 3 |
 | 7 | Bridge | 2 |
 
-Total: 30 + 10. **Reference:** the n-step derivation; TD(λ).
+Total: 30 + 10. The section split changed in Phase 3 after the pedagogy review (2026-10-17). **Reference:** the n-step derivation; TD(λ). **Collapsed:** "After the lab" folds hold the planted bug's numbers and the recorded results, so the main path does not answer the lab's Predicts.
 
-**Lab (core 49):**
+**Lab (core 50):**
 
 | # | Exercise | Writes | Checkpoint | Min |
 |---|---|---|---|---|
-| 1 | First-visit MC prediction | `mc_prediction` | RMS below the protocol threshold | 9 |
-| 2 | TD(0); bias² and variance over 10 seeds | `td0_prediction` | Threshold; decomposition reported | 10 |
-| 3 | n-step TD target | `n_step_target` | Exact on a fixed trajectory | 5 |
-| 4 | SARSA (ε-greedy provided) | `sarsa` | Greedy path is the safe path | 8 |
-| 5 | Q-learning and the cliff contrast | `q_learning` | Greedy path optimal; online return below SARSA's (protocol) | 9 |
-| 6 | **Planted bug**: bootstraps through the terminal (bug made visible by nonzero/optimistic init) | Diagnose and fix | Q(goal, ·) = 0 under optimistic init | 8 |
+| 1 | First-visit MC prediction | `mc_prediction` | 1.1 exact on fixed episodes (rejects every-visit); 1.2 RMS below the protocol threshold | 9 |
+| 2a | TD(0) | `td0_prediction` | 2a.1 exact on fixed episodes, including a truncated one; 2a.2 RMS below the protocol threshold | 6 |
+| 2b | Bias² and variance over 10 seeds (the 10-seed runner is provided) | `bias2_variance` | Exact on fixed estimates; bias² + variance = MSE | 5 |
+| 3 | n-step TD target | `n_step_target` | Exact on a fixed trajectory, into the terminal and into a truncation | 6 |
+| 4 | SARSA (ε-greedy provided) | `sarsa` | Greedy path keeps off the edge: at most 6 cells directly above the cliff (protocol) | 8 |
+| 5 | Q-learning and the cliff contrast | `q_learning` | Greedy path optimal; online return below SARSA's (both protocol) | 8 |
+| 6 | **Planted bug**: bootstraps through the terminal, visible only from an optimistic start (Q₀ = 10); the return curve shows nothing | `q_learning_suspect` (fix) | From Q₀ = 10: the last move's Q equals its reward −1, and max Q(start) equals V\*(start) (protocol). Not "Q(goal, ·) = 0": with the terminal mask as the fix, Q(goal, ·) is never updated and stays at Q₀ (OPEN_QUESTIONS R13, 2026-10-17) | 8 |
 
 - **Compare:** the exact V and the optimal policy.
 - **Stretch:** an n-step sweep (RMS error over n and α).
@@ -1411,7 +1412,7 @@ For planted bugs, the Predict is the symptom's value: Q(goal) = 0, mean weight =
 |---|---|---|---|
 | 1 | 1 Inventory | the room's framings; γ 0.9 and 0.99 | V^π(s₀); iterations vs bound |
 | 1 | 2 Inventory | VI, PI; plan in P̂ at 3 data sizes | sweeps; true loss over 5 seeds |
-| 1 | 3 Cliff | SARSA, Q-learning; MC vs TD | online return over the last 100 episodes; greedy path length; RMS error at 100 episodes |
+| 1 | 3 Cliff | SARSA, Q-learning; MC vs TD | online return over the last 500 episodes; greedy path length; RMS error after 1000 episodes; bias² and variance |
 | 2 | 4 Bandits | greedy, ε-greedy, UCB1, TS; reward ×10 | regret at T over 20 seeds; verdict or tie |
 | 2 | 5 RecSim | LinUCB, LinTS, predict-then-greedy × 3 regimes | regret over 5 seeds; mean logged weight |
 | 2 | 6 RiverSwim | ε-greedy, optimistic, MBIE-EB | hitting time; % of seeds reaching the right end; regret over 10 seeds |

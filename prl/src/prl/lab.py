@@ -21,7 +21,7 @@ from collections.abc import Callable
 from typing import Any
 
 from . import API, __version__, record, runtime
-from .checks import CheckFailed
+from .checks import CheckFailed, StochasticCheck
 
 _STATE_KEY = "__prl_lab__"
 _MISSING = object()
@@ -192,6 +192,19 @@ class Lab:
     def check(self, n: int, fn: Callable[..., Any], *objs: Any, label: str | None = None) -> None:
         """Run checkpoint `label` (default: str(n)) for exercise n."""
         label = label or str(n)
+        mutant = self._s.get("mutant")
+        if mutant is not None and isinstance(fn, StochasticCheck):
+            # Verify mode. A stochastic (training-based) checkpoint's wrong versions are
+            # rejected once, by scripts/threshold_protocol.py, not on every CI run: record
+            # the skip, and whether the protocol's threshold exists for this budget.
+            mutant["results"].append(
+                {
+                    "label": label,
+                    "skipped": True,
+                    "threshold": fn.settings().source in fn.thresholds,
+                }
+            )
+            return
         whose = self._whose(n)
         start = time.perf_counter()
         error: CheckFailed | None = None
@@ -240,7 +253,13 @@ class Lab:
 
     # -- mutants (used by scripts/check_notebooks.py --mode verify) -------------
     def _mutant_begin(
-        self, n: int, mutant_id: str, sources: dict[str, str], *, stub: bool = False
+        self,
+        n: int,
+        mutant_id: str,
+        sources: dict[str, str],
+        *,
+        stub: bool = False,
+        exact_only: bool = False,
     ) -> None:
         """Swap in a wrong version of exercise n's functions; checks then record, not raise."""
         saved = {name: self._ns.get(name, _MISSING) for name in sources}
@@ -248,10 +267,24 @@ class Lab:
             exec(compile(src, f"<mutant {mutant_id}>", "exec"), self._ns)  # noqa: S102
             if name not in self._ns:
                 raise RuntimeError(f"mutant {mutant_id} does not define {name}")
-        self._s["mutant"] = {"n": n, "id": mutant_id, "stub": stub, "saved": saved, "results": []}
+        self._s["mutant"] = {
+            "n": n,
+            "id": mutant_id,
+            "stub": stub,
+            "exact_only": exact_only,
+            "saved": saved,
+            "results": [],
+        }
 
     def _mutant_end(self, n: int) -> None:
-        """Restore the real functions; fail unless every checkpoint rejected the mutant."""
+        """Restore the real functions; fail unless every checkpoint that ran rejected the mutant.
+
+        Stochastic checkpoints are skipped in verify mode (see `check`); each must have a
+        threshold for this budget, since the protocol that set it is what rejected the
+        exercise's mutants. A wrong version that only stochastic checkpoints call is
+        "covered by the threshold protocol", unless it is marked exact_only: the protocol
+        leaves those out, so an exact checkpoint has to reject them.
+        """
         mutant = self._s.pop("mutant")
         for name, obj in mutant["saved"].items():
             if obj is _MISSING:
@@ -259,23 +292,46 @@ class Lab:
             else:
                 self._ns[name] = obj
         results = mutant["results"]
+        skipped = [r for r in results if r.get("skipped")]
+        ran = [r for r in results if not r.get("skipped")]
+        kind = "stub" if mutant["stub"] else "mutant"
+        missing = [r["label"] for r in skipped if not r["threshold"]]
+        if missing:
+            raise RuntimeError(
+                f"Exercise {n}: checkpoint(s) {', '.join(missing)} are stochastic and have no "
+                "threshold for this budget, so nothing has rejected the exercise's wrong "
+                "versions. Run scripts/threshold_protocol.py and paste its entry."
+            )
         allowed = {"CheckFailed"} | ({"NotImplementedError"} if mutant["stub"] else set())
         problems = []
         if not results:
             problems.append("no checkpoint ran")
-        for r in results:
+        for r in ran:
             if not r["rejected"]:
                 problems.append(f"checkpoint {r['label']} PASSED")
             elif r["error_type"] not in allowed:
                 problems.append(
                     f"checkpoint {r['label']} failed with {r['error_type']}, not a check: {r['message']}"
                 )
-        kind = "stub" if mutant["stub"] else "mutant"
+        if results and not ran and mutant["exact_only"]:
+            problems.append(
+                "it is marked exact_only, but every checkpoint that calls it is stochastic "
+                "(the protocol leaves exact_only mutants out), so nothing rejects it"
+            )
         if problems:
             raise AssertionError(
                 f"Exercise {n} {kind} {mutant['id']!r} was not rejected: " + "; ".join(problems)
             )
-        print(f"✓ exercise {n}: {kind} {mutant['id']!r} rejected by {len(results)} checkpoint(s)")
+        if not ran:
+            print(
+                f"✓ exercise {n}: {kind} {mutant['id']!r} covered by the threshold protocol "
+                f"({len(skipped)} stochastic checkpoint(s) skipped)"
+            )
+            return
+        extra = f", {len(skipped)} skipped as stochastic" if skipped else ""
+        print(
+            f"✓ exercise {n}: {kind} {mutant['id']!r} rejected by {len(ran)} checkpoint(s){extra}"
+        )
 
     # -- metrics and records --------------------------------------------------
     def metric(self, key: str, value: Any) -> None:
@@ -482,15 +538,24 @@ def init(
     return lab
 
 
-def mutant(*, ex: int | str, replaces: str, id: str, why: str):  # noqa: A002
+def mutant(*, ex: int | str, replaces: str, id: str, why: str, exact_only: bool = False):  # noqa: A002
     """Mark a deliberately wrong version of an exercise function (labs/mutants/mNN.py).
 
-    scripts/check_notebooks.py --mode verify swaps each mutant in and requires every
-    checkpoint of that exercise to reject it.
+    scripts/check_notebooks.py --mode verify swaps each mutant in and requires every exact
+    checkpoint that calls the function to reject it; scripts/threshold_protocol.py scores it
+    against every stochastic checkpoint of the function. `exact_only=True` keeps it out of
+    the protocol: a mistake a budgeted metric cannot separate from the solution (every-visit
+    MC, say), which the exact checkpoints reject by construction.
     """
 
     def mark(fn: Callable[..., Any]) -> Callable[..., Any]:
-        fn.__prl_mutant__ = {"ex": str(ex), "replaces": replaces, "id": id, "why": why}  # type: ignore[attr-defined]
+        fn.__prl_mutant__ = {  # type: ignore[attr-defined]
+            "ex": str(ex),
+            "replaces": replaces,
+            "id": id,
+            "why": why,
+            "exact_only": bool(exact_only),
+        }
         return fn
 
     return mark

@@ -1,0 +1,164 @@
+{
+  "badge_ref": "main",
+  "checkpoints": [
+    {
+      "exercise": 1,
+      "label": "1.1",
+      "pass": true,
+      "seconds": 0.004,
+      "whose": "reference"
+    },
+    {
+      "exercise": 1,
+      "label": "1.2",
+      "pass": true,
+      "seconds": 0.235,
+      "whose": "reference"
+    },
+    {
+      "exercise": "2a",
+      "label": "2a.1",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": "2a",
+      "label": "2a.2",
+      "pass": true,
+      "seconds": 0.009,
+      "whose": "reference"
+    },
+    {
+      "exercise": "2b",
+      "label": "2b",
+      "pass": true,
+      "seconds": 0.003,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3",
+      "pass": true,
+      "seconds": 0.003,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4",
+      "pass": true,
+      "seconds": 0.244,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5.1",
+      "pass": true,
+      "seconds": 0.234,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5.2",
+      "pass": true,
+      "seconds": 0.483,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6",
+      "pass": true,
+      "seconds": 0.34,
+      "whose": "reference"
+    }
+  ],
+  "colab_release": null,
+  "content_sha": "9132d79f837f17b4",
+  "date": "2026-10-17",
+  "dirty": false,
+  "env": "local",
+  "git_sha": "4f9d7b4057920b01ab815990527f0fbb17a40f31",
+  "hardware": {
+    "accel": "cpu",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "notebook",
+  "metrics": {
+    "decomposition": {
+      "mc": {
+        "bias2": 0.0004,
+        "variance": 0.0295
+      },
+      "mcc": {
+        "bias2": 0.0674,
+        "variance": 1.0781
+      },
+      "td": {
+        "bias2": 0.1549,
+        "variance": 0.9341
+      }
+    },
+    "mc_rms": 0.039,
+    "mcc_var": 1.0781,
+    "online": {
+      "q_learning": -54.59,
+      "sarsa": -21.49
+    },
+    "path_moves": {
+      "q_learning": 13,
+      "sarsa": 15
+    },
+    "sarsa_lead": 33.11,
+    "sarsa_moves": 15,
+    "td_bias2": 0.1549,
+    "td_rms": 0.9884,
+    "td_var": 0.9341
+  },
+  "notebook": "03-model-free",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "torch": "2.14.1"
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "quick": false,
+  "quick_reason": "designed for colab-cpu; running full settings",
+  "schema": 1,
+  "scope": "notebook",
+  "seat": 0,
+  "seconds": 6.3,
+  "seeds": [
+    1000,
+    1100,
+    1101,
+    1102,
+    1103,
+    1104,
+    1105,
+    1106,
+    1107,
+    1108,
+    1109
+  ],
+  "settings": {
+    "alpha": 0.05,
+    "control_alpha": 0.1,
+    "control_episodes": 1000,
+    "episodes": 1000,
+    "window": 500
+  },
+  "shims": [],
+  "solutions_bound": true,
+  "source": "tool",
+  "status": "pass",
+  "test_doubles": [],
+  "torch_threads": null
+}

@@ -5,7 +5,7 @@ title: "Knowledge checks"
 The entry check (three questions in each of four areas), one or two questions per learning objective with folded answers naming their evidence, and five-question warm-up sets for Days 2–5.
 
 ::: {.callout-note}
-Modules 1 and 2 are written below. The entry check, the other modules and the warm-up sets are written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+Modules 1, 2 and 3 are written below. The entry check, the other modules and the warm-up sets are written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
 :::
 
 ## Module 1 {#m01}
@@ -169,4 +169,86 @@ $V^\pi - \hat V^\pi = (I - \gamma \hat P_\pi)^{-1} \big[ (r_\pi - \hat r_\pi) + 
 Value error: at most $\gamma \varepsilon_P / (1 - \gamma)^2 = 0.9 \times 0.2 / 0.01 = 18$, for every policy. Planned-policy loss: at most twice that, 36. The largest possible value is $1 / (1 - \gamma) = 10$, so both bounds say nothing at this accuracy: an $\ell_1$ row error of 0.2 is far too large for a horizon of 10. The bound is linear in $\varepsilon_P$, so halving the model error halves the guaranteed loss, from 36 to 18, which still says nothing; it becomes informative only once $\varepsilon_P$ is well below $(1 - \gamma)^2 / \gamma \approx 0.011$. The scaling is the useful content: the loss you can guarantee grows with the horizon squared, so a model good enough for $\gamma = 0.9$ is not good enough for $\gamma = 0.99$.
 
 **Evidence:** Lab 2, checkpoint 4.2 (the bound's formula, with its two horizon factors) and Exercise 4's table (the bound next to the measured loss).
+:::
+
+## Module 3 {#m03}
+
+Questions for [Module 3 · Model-free prediction and control](/modules/03-model-free.qmd), two per objective. Each answer ends with the Lab 3 checkpoint that is its evidence.
+
+### Objective 1: measure the RMS error, squared bias and variance of MC and TD(0) against the exact V
+
+[**3.1**]{#q3-1} One episode visits $A$, then $B$, then $A$ again, then the terminal state, with rewards $-1$, $-1$, $-1$ and $\gamma = 0.5$. Give the returns $G_0$, $G_1$ and $G_2$. What does first-visit MC record for $A$ and for $B$ from this episode? What would every-visit MC record for $A$?
+
+::: {.callout-tip collapse="true" title="Answer to 3.1"}
+Work backward: $G_2 = -1$, $G_1 = -1 + 0.5 \cdot (-1) = -1.5$, $G_0 = -1 + 0.5 \cdot (-1.5) = -1.75$. First-visit MC records $G_0 = -1.75$ for $A$ (its first visit is at $t = 0$; the visit at $t = 2$ is ignored) and $G_1 = -1.5$ for $B$. Every-visit MC records both $-1.75$ and $-1$ for $A$, and averages them to $-1.375$. The two returns from $A$ overlap (the second is part of the first), so they are not independent samples; that is why every-visit is biased on finite data.
+
+**Evidence:** Lab 3, checkpoint 1.1 (exact, on fixed episodes with repeated states).
+:::
+
+[**3.2**]{#q3-2} The lab's TD(0) starts from $V = 0$ and bootstraps. Explain, from the bias of the TD target, why its estimate at a state far from the goal is too close to 0 after a small number of episodes, and why MC's is not. Which term of the 10-seed decomposition does this show up in, and what happens to it as the budget grows? Then a computation: three seeds give $V(\text{start}) = -15.0, -16.0, -15.5$ against an exact $-15.37$. Compute bias², variance and MSE, and check that they add up.
+
+::: {.callout-tip collapse="true" title="Answer to 3.2"}
+The TD target $r_t + \gamma V(s_{t+1})$ is biased by $\gamma\, \mathbb{E}[V(s_{t+1}) - V^\pi(s_{t+1})]$. With $V = 0$ and negative true values, every next-state value is too high, so every target is too high (too close to 0), and a state $d$ steps from the goal only learns the truth after information has propagated $d$ steps back, one step per update. MC's target is the full return, whose expectation is $V^\pi(s)$ from the first episode. The effect is the same across seeds, so it appears as bias$^2$, not variance. As the budget grows, $V$ at the next state improves and the bias shrinks toward 0; the variance of a constant-$\alpha$ estimate does not shrink below a floor set by $\alpha$.
+
+The computation: the mean of the three estimates is $-15.5$, so bias² $= (-15.5 + 15.37)^2 = 0.13^2 = 0.0169$. The variance, dividing by the number of seeds, is $(0.5^2 + 0.5^2 + 0^2)/3 = 0.1667$. The MSE is $(0.37^2 + 0.63^2 + 0.13^2)/3 = (0.1369 + 0.3969 + 0.0169)/3 = 0.1836$, which equals $0.0169 + 0.1667$.
+
+**Evidence:** Lab 3, checkpoint 2a.1, and checkpoint 2b (the decomposition, exact on a fixed array).
+:::
+
+### Objective 2: implement SARSA and Q-learning and explain the cliff contrast
+
+[**3.3**]{#q3-3} Write the SARSA and Q-learning updates for the transition $(s, a, r, s')$ when $s'$ is not terminal, and say in one sentence each what the two methods estimate. On the cliff with constant $\varepsilon = 0.1$, which one's greedy path is the 13-move edge route, and which one earns the higher online return while learning? Why is neither answer a contradiction of the other?
+
+::: {.callout-tip collapse="true" title="Answer to 3.3"}
+SARSA: $Q(s, a) \leftarrow Q(s, a) + \alpha\,[\, r + \gamma\, Q(s', a') - Q(s, a)\,]$, where $a'$ is the action actually taken next; it estimates $Q^{\pi_\varepsilon}$, the value of the $\varepsilon$-greedy policy being followed. Q-learning: $Q(s, a) \leftarrow Q(s, a) + \alpha\,[\, r + \gamma\, \max_{a'} Q(s', a') - Q(s, a)\,]$; it estimates $Q^*$ whatever policy generates the data. Q-learning's greedy path is the edge route, because that is optimal. SARSA's online return is higher, because the $\varepsilon$-greedy agent that walks the edge falls with probability $0.025$ on each of 11 edge moves ($1 - 0.975^{11} \approx 0.24$ per clean traverse), and SARSA's values include that cost, so its greedy path stays away from the edge. One method answers "what is the best policy", the other "what is the best policy to follow while exploring like this"; with $\varepsilon$ decayed to 0 the answers coincide.
+
+**Evidence:** Lab 3, checkpoints 4, 5.1 and 5.2.
+:::
+
+[**3.4**]{#q3-4} A participant's "Q-learning" chooses $a'$ by $\varepsilon$-greedy, uses $Q(s', a')$ in the target, and then takes $a'$. Its greedy path reaches the goal in 15 moves, not 13. Which algorithm did they write, and which checkpoint catches it? What would the checkpoint see if instead their Q-learning never learned at all (a random $Q$)?
+
+::: {.callout-tip collapse="true" title="Answer to 3.4"}
+They wrote SARSA: bootstrapping from the action actually taken next is the on-policy target. Checkpoint 5.1 measures the greedy path's excess length over the optimal 13 moves and rejects anything above the protocol's threshold, so 15 moves fails. A random $Q$ gives a greedy path that loops or walks into the cliff without reaching the goal; the metric then takes its largest value, which also fails. Checkpoint 5.2 would also fail a SARSA-in-disguise, because SARSA's lead in online return over it would be about zero.
+
+**Evidence:** Lab 3, checkpoints 5.1 and 5.2.
+:::
+
+### Objective 3: diagnose a terminal-bootstrap bug from the Q-values and a value curve, and say why the return curve does not show it
+
+[**3.5**]{#q3-5} A Q-learning implementation computes `target = r + gamma * Q[s2].max()` on every step, including the step into the goal. With $Q$ started at 0 its path and values look right. Why? Starting from $Q_0 = 10$ with $\gamma = 0.95$, what does it learn for the final transition (the cell above the goal, action down), and what should it learn? Would its online return while learning have shown the bug?
+
+::: {.callout-tip collapse="true" title="Answer to 3.5"}
+No action is ever taken in the goal, so $Q(\text{goal}, \cdot)$ is never updated and stays at its initial value. From 0, bootstrapping through the goal adds $\gamma \cdot 0$: invisible. From $Q_0 = 10$ it adds $0.95 \cdot 10$, so the final transition converges to $-1 + 9.5 = 8.5$ instead of its reward $-1$, and the bonus propagates back as $\gamma^d Q_0$ at distance $d$ (about $+5.1$ at the start). The fix is the terminal mask: multiply the bootstrap by $(1 - \text{terminated})$. Zeroing $Q(\text{terminal}, \cdot)$ at initialization also works here, but only because the goal is a known, labeled state.
+
+The online return would not have shown it. The bonus grows toward the goal, so the shortest route keeps the largest value and the greedy path stays optimal; only the values are wrong. In the recorded experiment from $Q_0 = 10$, the buggy learner's online return over the first 100 episodes was higher than a correct learner's on 10 of 10 seeds, and over the last 500 the two were a tie (`runs/2026-10-17-local-m03-suspect-returns-exp.json`). Returns test the policy you follow, not the values you learned.
+
+**Evidence:** Lab 3, checkpoint 6 (the final transition's $Q$ and $\max_a Q(\text{start}, a)$ against $V^*(\text{start})$ from $Q_0 = 10$), and the return panel of Exercise 6.
+:::
+
+[**3.6**]{#q3-6} Gymnasium returns `terminated` and `truncated` separately. A learner uses `done = terminated or truncated` and sets the target to `r` whenever `done` is true. In CartPole ($+1$ per step, $\gamma = 0.99$, cut at 500 steps) what does it learn for the state at step 499, and what is the right target? Which flag should the mask use?
+
+::: {.callout-tip collapse="true" title="Answer to 3.6"}
+At step 499 the episode is cut, not ended: the state has a future like any other. The learner's target is 1, so $V(s_{499})$ is pulled toward 1, and every earlier state bootstraps from a value that is far too small. The right target is $1 + 0.99\, V(s_{500})$, which for an agent that never fails moves $V$ toward $1/(1-\gamma) = 100$. The mask uses `terminated` only; `truncated` ends the loop and nothing else.
+
+**Evidence:** Lab 3, checkpoint 2a.1 (a truncated episode in the fixed set) and checkpoint 3 (a target that runs into a truncation).
+:::
+
+### Objective 4: compute n-step TD targets and place them between MC and TD
+
+[**3.7**]{#q3-7} An episode has rewards $-1, -2, -1, -1$ and is truncated after these four steps; every state has $V = -3$ and $\gamma = 0.5$. Compute the 3-step targets at $t = 0$ and at $t = 2$. What would the target at $t = 2$ be if the episode had terminated instead?
+
+::: {.callout-tip collapse="true" title="Answer to 3.7"}
+At $t = 0$ the three rewards end before the cut ($t + n = 3 < T = 4$), so bootstrap from $s_3$: $G_0^{(3)} = -1 + 0.5 \cdot (-2) + 0.25 \cdot (-1) + 0.125 \cdot (-3) = -1 - 1 - 0.25 - 0.375 = -2.625$. At $t = 2$ only two rewards remain ($t + n = 5 > T$). The episode was cut in $s_4$, which is not terminal, so the target keeps a bootstrap, discounted by $\gamma^{T - t} = 0.25$: $G_2^{(3)} = -1 + 0.5 \cdot (-1) + 0.25 \cdot (-3) = -2.25$. Had the episode terminated, $s_4$ would be worth 0: $G_2^{(3)} = -1 - 0.5 = -1.5$.
+
+**Evidence:** Lab 3, checkpoint 3 (exact, with a target past the end of a terminated episode and one into a truncation).
+:::
+
+[**3.8**]{#q3-8} Explain why the bias of the expected $n$-step target falls like $\gamma^n$ and why its variance tends to rise with $n$. In the briefing's figure of RMS error against $n$ after 1000 episodes, the curve for $\alpha = 0.02$ falls steeply from $n = 1$ to $n = 4$, while the curves for larger $\alpha$ are nearly flat. Explain both.
+
+::: {.callout-tip collapse="true" title="Answer to 3.8"}
+The $n$-step target's only estimated part is $\gamma^n V(s_{t+n})$, so its bias is $\gamma^n$ times the error of $V$ there (Sutton and Barto's error-reduction property bounds the worst case by exactly that factor). The sampled part, $n$ rewards, grows with $n$ and carries the randomness of $n$ steps, so the variance tends to rise; for $n \ge T - t$ it is the variance of the full return.
+
+With $\alpha = 0.02$ each update moves $V$ only 2% of the way, so after 1000 episodes TD(0)'s estimates still carry the zero start: their error is mostly bias, and $n$ sampled rewards cut that bias by a factor $\gamma^n$ at once. With a larger $\alpha$ the zero start fades faster, so a longer target has less left to remove, and more of the error is the noise of a constant step size, which grows only a little with $n$ on this task. Which $n$ is best depends on the task and the budget: on Sutton and Barto's 19-state random walk, over its first 10 episodes, an intermediate $n$ does best.
+
+**Evidence:** Lab 3, checkpoint 3, and the stretch sweep (its curves are reported, not checked); the figure is the recorded experiment `runs/2026-10-17-local-m03-nstep-dial-exp.json`.
 :::

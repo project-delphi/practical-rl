@@ -1,6 +1,13 @@
 ---
 title: "{{< var modules.m03.title >}}"
-status: placeholder
+live:
+  - {section: 1, minutes: 3}
+  - {section: 2, minutes: 4}
+  - {section: 3, minutes: 12, activities: [{block: chk-td, minutes: 3, label: "Check yourself 3.1"}]}
+  - {section: 4, minutes: 10, activities: [{block: predict-cliff, minutes: 4, label: "Predict: whose path hugs the edge?"}]}
+  - {section: 5, minutes: 6, activities: [{block: chk-trunc, minutes: 3, label: "Check yourself 5.1"}]}
+  - {section: 6, minutes: 3}
+  - {section: 7, minutes: 2}
 ---
 
 {{< include /_includes/module-03.md >}}
@@ -11,6 +18,404 @@ status: placeholder
 
 {{< include /_includes/live-03.md >}}
 
-::: {.callout-note}
-This briefing is not written yet. It follows the Module 1 template (see [the plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+## 1. No model
+
+**In this section:** say what is lost when $P$ and $R$ are unknown, what is left to work with, and the two problems this module solves with it.
+
+Modules 1 and 2 had the arrays `P[s, a, s']` and `R[s, a]`. Every method there was a sweep over them: an expectation over next states, computed exactly. Now take the arrays away. What remains is *experience*: the agent is in state $s_t$, takes $a_t$, and the environment returns a reward $r_t$ and a next state $s_{t+1}$. It never returns a probability. A method that uses only such samples is *model-free*.
+
+This changes two things. An expectation over $s'$ must be replaced by a sample of $s'$, so every update is noisy. And the agent sees only the states it visits, so what it learns depends on how it behaves. The second point is the whole story of section 4.
+
+The two problems are the ones of Modules 1 and 2, with samples in place of arrays:
+
+- **Prediction.** A policy $\pi$ is fixed. Estimate its value $V^\pi$ ([Module 1, section 2](/modules/01-mdps-bellman.qmd#eq-vpi)) from episodes that follow $\pi$. Sections 2, 3 and 6.
+- **Control.** Find a good policy. Estimate action values $Q(s, a)$ and act on them, while still exploring. Section 4.
+
+The testbed is the cliff gridworld of [Module 1](/modules/01-mdps-bellman.qmd#fig-cliff): 4 rows and 12 columns, every move $-1$, a step into the cliff $-100$ and back to the start, the goal absorbing with reward 0. We keep the discount at $\gamma = 0.95$, so the exact $V^\pi$ of Module 1 is the ground truth for every estimate in the lab. Under $\gamma = 0.95$ the edge route (13 moves) returns $-9.73$, the middle route one row higher (15 moves) $-10.73$, and the safe route along the top (17 moves) $-11.64$; a fall costs $100 \gamma^k$ at step $k$.
+
+::: {.reference}
+**The samples.** A *transition* is the tuple $(s_t, a_t, r_t, s_{t+1}, \text{terminated})$, where `terminated` says whether $s_{t+1}$ is a terminal state. An *episode* is the sequence of transitions from a start state until a terminal state (or until someone stops it; section 5). $T$ is the number of transitions in an episode, so its states are $s_0, \dots, s_T$ and its rewards $r_0, \dots, r_{T-1}$. The lab records each episode as a small object with `states`, `actions`, `rewards`, `terminated` and `truncated`.
+
+**Why the goal's value is the same with or without discounting.** The goal is absorbing with reward 0, so after reaching it every further reward is 0. The discounted return of an episode, $\sum_{k} \gamma^k r_k$, therefore has only $T$ nonzero terms, and the discounted-absorbing value that Module 1's linear solve computes is the expected discounted return of the episode. The episodic and the discounted views agree.
 :::
+
+## 2. Monte Carlo: average the returns
+
+**In this section:** estimate $V^\pi(s)$ by averaging the returns observed after visits to $s$, see why that estimate is unbiased, and what it costs.
+
+By definition ([Module 1, section 2](/modules/01-mdps-bellman.qmd#eq-vpi)), $V^\pi(s)$ is the expected return from $s$ under $\pi$. The return $G_t = \sum_{k \ge 0} \gamma^k r_{t+k}$ ([Module 1, section 2](/modules/01-mdps-bellman.qmd#eq-return)) is a random variable whose expectation, given $s_t = s$, is exactly $V^\pi(s)$. So $G_t$ is an *unbiased* sample of $V^\pi(s_t)$. The simplest estimator averages such samples. *First-visit Monte Carlo* (MC) keeps, for each state $s$, the returns that followed the first visit to $s$ in each episode, and estimates
+
+$$
+V(s) = \frac{1}{N(s)} \sum_{\text{episodes that visit } s} G_{t_s},
+$$ {#eq-mc}
+
+where $t_s$ is the time of the first visit to $s$ in that episode and $N(s)$ counts those episodes [@sutton2018rl, §5.1]. The returns from different episodes are independent draws with mean $V^\pi(s)$, so by the law of large numbers $V(s) \to V^\pi(s)$ as $N(s) \to \infty$, and the standard error of the average falls as $1/\sqrt{N(s)}$. Nothing here needs $P$ or $R$.
+
+Two costs. MC must wait for the episode to end before any return is known, so it learns nothing from an unfinished episode. And a return sums every reward to the end of the episode, so its variance collects the randomness of every later step: in the cliff, one random fall changes $G_t$ by about $100 \gamma^k$.
+
+::: {.reference}
+**Every-visit MC** averages the returns after *every* visit to $s$, not only the first. Returns from two visits in the same episode overlap, so they are not independent samples, and the estimate from a finite number of episodes is biased. It is still *consistent*: it converges to $V^\pi(s)$ as the number of visits grows [@sutton2018rl, §5.1, which credits the proof to Singh and Sutton 1996]. A one-state example shows the bias exactly. State $A$ pays $+1$ per step, stays in $A$ with probability $1/2$ and otherwise ends, with $\gamma = 1$. Its value is $V(A) = 2$. An episode with $k$ visits to $A$ (probability $2^{-k}$) has returns $k, k-1, \dots, 1$ from its visits. First-visit uses $k$, whose mean is 2: unbiased. Every-visit averages all $k$ returns, $(k+1)/2$, whose mean over episodes is $3/2$: biased by $-1/2$ after one episode. Pool many episodes and the estimate is $\sum_i k_i(k_i+1)/2 \big/ \sum_i k_i$, which converges to $(\mathbb{E}[k^2] + \mathbb{E}[k]) / (2\,\mathbb{E}[k]) = (6 + 2)/4 = 2$: consistent. The lab's Exercise 1 is first-visit; its checkpoint 1.1 runs on fixed episodes with repeated states, so an every-visit version fails it.
+
+**Incremental form.** Keep a count and a running mean: $N(s) \leftarrow N(s) + 1$, then $V(s) \leftarrow V(s) + \frac{1}{N(s)}\big(G - V(s)\big)$. This is the step-size form of section 3 with $\alpha = 1/N(s)$.
+:::
+
+**The policy the lab evaluates.** Prediction needs a fixed policy whose episodes end. The lab uses the *$\varepsilon$-soft safe route*: with probability $1 - \varepsilon$ take the route action (up along the left column, right along the top row, down the right column to the goal), otherwise a uniformly random action, with $\varepsilon = 0.1$. Its exact value at the start, from Module 1's linear solve, is $V^\pi(\text{start}) \approx -15.37$, below the $-11.64$ of a clean episode on the safe route: random moves lengthen the episode, and a random right at the start falls into the cliff. Its episodes are short and end far inside the lab's step limit of 500; section 5 says why that matters. The lab's errors are measured on the 17 states of the route, which the policy visits on nearly every episode; cells off the route are visited rarely, and an average of two returns is not an estimate worth plotting.
+
+::: {.reference}
+**How short, exactly.** From $P_\pi$: the mean episode length is about 19.4 steps, and the probability that an episode lasts more than 50 steps is about $8 \times 10^{-6}$.
+:::
+
+::: {.callout-note collapse="true" title="Code: mc_prediction (open after Lab 3)"}
+```python
+def mc_prediction(episodes, gamma, n_states):
+    """First-visit MC: V[s] averages the returns after first visits."""
+    V, N = np.zeros(n_states), np.zeros(n_states)
+    for ep in episodes:
+        G, returns = 0.0, [0.0] * len(ep.rewards)
+        # G_t = r_t + gamma G_{t+1}, from the end of the episode back
+        for t in reversed(range(len(ep.rewards))):
+            G = ep.rewards[t] + gamma * G
+            returns[t] = G
+        seen = set()
+        for t, s in enumerate(ep.states[:-1]):
+            if s in seen:  # first visit only (MC)
+                continue
+            seen.add(s)
+            N[s] += 1
+            V[s] += (returns[t] - V[s]) / N[s]
+    return V
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 1** is `mc_prediction(episodes, gamma, n_states)`: @eq-mc, first-visit, on episodes collected by a provided runner under the $\varepsilon$-soft safe route. Checkpoint 1.1 is exact on four fixed episodes at two discounts; two of them visit a state twice, so an every-visit version fails it. Checkpoint 1.2 collects episodes at the lab's budget and requires the RMS error on the route states to fall below a threshold set by the threshold protocol: many seeds of the reference solution and of wrong versions, with a stated gap between them.
+:::
+
+## 3. TD(0): bootstrap, and pay with bias
+
+**In this section:** replace the return by a one-step target, derive the target's bias, say why its variance is usually lower, and define the decomposition the lab measures.
+
+**The update.** MC's target for $V(s_t)$ is $G_t$. Write $G_t = r_t + \gamma G_{t+1}$ and replace the unknown tail $G_{t+1}$ by the current estimate $V(s_{t+1})$. The result is *temporal-difference* learning, TD(0) [@sutton2018rl, §6.1, Eq. 6.2]:
+
+$$
+V(s_t) \leftarrow V(s_t) + \alpha\, \big[\, r_t + \gamma\, V(s_{t+1}) - V(s_t) \,\big],
+$$ {#eq-td0}
+
+with a step size $\alpha \in (0, 1]$. The bracket is the *TD error*,
+
+$$
+\delta_t = r_t + \gamma\, V(s_{t+1}) - V(s_t),
+$$ {#eq-td-error}
+
+the difference between the one-step target and the current estimate [@sutton2018rl, §6.1, Eq. 6.5]. The update happens as soon as $s_{t+1}$ is seen; no waiting for the episode to end. If $s_{t+1}$ is terminal, its value is 0 and the target is $r_t$ alone (section 5).
+
+**The target's bias.** Take the expectation of the TD target given $s_t = s$, with $V$ held fixed. By the Bellman equation ([Module 1, section 3](/modules/01-mdps-bellman.qmd#eq-bellman-v)), $V^\pi(s) = \mathbb{E}_\pi[r_t + \gamma V^\pi(s_{t+1}) \mid s_t = s]$. Subtract:
+
+$$
+\begin{aligned}
+&\mathbb{E}_\pi\big[\, r_t + \gamma V(s_{t+1}) \mid s_t = s \,\big] - V^\pi(s) \\
+&\qquad = \gamma\, \mathbb{E}_\pi\big[\, V(s_{t+1}) - V^\pi(s_{t+1}) \mid s_t = s \,\big].
+\end{aligned}
+$$ {#eq-td-bias}
+
+The TD target is biased by $\gamma$ times the average error of $V$ at the next state. It is unbiased only when $V = V^\pi$ there. The bias is not fixed: it shrinks as $V$ improves, and it is pulled toward zero by the same contraction that drives Module 1's sweeps. The MC target has no such term.
+
+**The target's variance.** The return $G_t$ is a sum over every later step, and each step's randomness, which action, which next state, whether a fall, adds to its variance. The TD target $r_t + \gamma V(s_{t+1})$ contains one step's randomness; $V$ is a number, not a random variable, in that step. So the TD target usually has lower variance than $G_t$, and the gap tends to grow with the episode length and with $\gamma$. "Usually" is not "always": a $V$ that is itself noisy, because $\alpha$ is large, feeds its noise into every target that bootstraps from it. The lab's TD(0) uses a constant $\alpha$. Its fair partner is *constant-$\alpha$ MC*, the same update with $G_t$ as the target [@sutton2018rl, §6.1, Eq. 6.1]; the decomposition cell runs both.
+
+::: {.reference}
+**Step sizes.** With $\alpha = 1/N(s)$ an estimate is a sample average: its variance falls as $1/N$. With a constant $\alpha$ it is an exponentially weighted average of recent targets: it tracks a changing target and never settles. For independent targets of variance $\sigma^2$ its variance settles at $\alpha \sigma^2 / (2 - \alpha)$, the variance of an average of $(2 - \alpha)/\alpha$ targets: about 39 at $\alpha = 0.05$. Section 2's MC used $1/N$.
+
+**Which learns faster.** Sutton and Barto report that TD methods have usually been found to converge faster than constant-$\alpha$ MC on stochastic tasks, and that no general proof exists [@sutton2018rl, §6.2].
+:::
+
+**What the lab measures.** Fix a budget of episodes and run a method with 10 seeds. For each route state $s$ let $V_k(s)$ be seed $k$'s estimate and $\bar V(s)$ their mean. The mean squared error over seeds splits exactly:
+
+$$
+\begin{aligned}
+\underbrace{\frac{1}{10} \sum_k \big(V_k(s) - V^\pi(s)\big)^2}_{\text{MSE}}
+&= \underbrace{\big(\bar V(s) - V^\pi(s)\big)^2}_{\text{bias}^2} \\
+&\phantom{{}={}} + \underbrace{\frac{1}{10} \sum_k \big(V_k(s) - \bar V(s)\big)^2}_{\text{variance}} .
+\end{aligned}
+$$ {#eq-decomposition}
+
+The lab averages each term over the route states. With 10 seeds each term is a rough number, and the lab says so; the room's pooled seeds sharpen it. The bias of an *estimate* after a finite budget has two sources: the bias of the targets (@eq-td-bias) and the start $V_0 = 0$, which a bootstrapping method forgets only step by step. First-visit MC with $\alpha = 1/N$ has neither: its first return overwrites $V_0$. Constant-$\alpha$ MC forgets its start too, by a factor $1 - \alpha$ per visit.
+
+::: {.worked-example}
+**Worked example: one TD(0) update and one MC return, by hand.** A corridor of two cells, $A \to B \to$ goal, with reward $-1$ per move, $\gamma = 0.9$, and no randomness. The true values are $V^\pi(B) = -1$ and $V^\pi(A) = -1 - 0.9 = -1.9$. One episode: $s_0 = A$, $r_0 = -1$, $s_1 = B$, $r_1 = -1$, $s_2 = $ goal.
+
+*MC.* Work backward: $G_1 = r_1 = -1$ and $G_0 = r_0 + \gamma G_1 = -1 - 0.9 = -1.9$. Both returns equal the true values, because this corridor has no randomness. First-visit MC with $N = 1$ sets $V(A) = -1.9$ and $V(B) = -1$.
+
+*TD(0)* with $\alpha = 0.5$ from $V = 0$, in time order. At $t = 0$ the target is $r_0 + \gamma V(B) = -1 + 0.9 \cdot 0 = -1$, so $V(A) \leftarrow 0 + 0.5\,(-1 - 0) = -0.5$. At $t = 1$ the next state is terminal, so the target is $r_1 = -1$ and $V(B) \leftarrow -0.5$. The target for $A$ was $-1$ where the truth is $-1.9$: the bias of @eq-td-bias, $\gamma\,(V(B) - V^\pi(B)) = 0.9 \cdot (0 - (-1)) = 0.9$, exactly the gap.
+
+*A second identical episode.* Now $V(B) = -0.5$, so the target for $A$ is $-1 + 0.9 \cdot (-0.5) = -1.45$ and $V(A) \leftarrow -0.5 + 0.5\,(-1.45 + 0.5) = -0.975$; the target for $B$ is again $-1$ and $V(B) \leftarrow -0.75$. The bias of $A$'s target fell from 0.9 to $0.9 \cdot 0.5 = 0.45$ as $V(B)$ improved.
+:::
+
+::: {#chk-td .self-check}
+**Check yourself 3.1.** Continue the worked example for a third identical episode. What are the TD targets for $A$ and for $B$, and the new $V(A)$ and $V(B)$? What is the bias of $A$'s target now? If instead the corridor sometimes paid $r_1 = -1 \pm 1$ at random, which target for $A$ would be noisy, MC's or TD's?
+
+::: {.callout-tip collapse="true" title="Answer to 3.1"}
+With $V(A) = -0.975$ and $V(B) = -0.75$: the target for $A$ is $-1 + 0.9 \cdot (-0.75) = -1.675$, so $V(A) \leftarrow -0.975 + 0.5\,(-1.675 + 0.975) = -1.325$. The target for $B$ is $-1$ (terminal next), so $V(B) \leftarrow -0.75 + 0.5\,(-1 + 0.75) = -0.875$. The bias of $A$'s target is $\gamma\,(V(B) - V^\pi(B)) = 0.9 \cdot 0.25 = 0.225$, half of last time's 0.45.
+
+With noise in $r_1$, the MC return $G_0 = r_0 + \gamma r_1$ carries it, scaled by $\gamma$; the TD target $r_0 + \gamma V(B)$ does not, because $V(B)$ is a stored number at the time of the update. The noise reaches $V(A)$ only later, through $V(B)$, damped by $\alpha$. That is the variance argument in one line.
+:::
+:::
+
+::: {.callout-note collapse="true" title="Code: td0_prediction (open after Lab 3)"}
+```python
+def td0_prediction(episodes, alpha, gamma, n_states, v0=0.0):
+    """TD(0): move V[s] toward r + gamma V[s2], step by step."""
+    V = np.full(n_states, float(v0))
+    for ep in episodes:
+        last = len(ep.rewards) - 1
+        s_next = ep.states[1:]
+        steps = zip(ep.states[:-1], ep.rewards, s_next, strict=True)
+        for t, (s, r, s2) in enumerate(steps):
+            # (terminal mask): bootstrap unless s2 is terminal
+            terminal = ep.terminated and t == last
+            target = r + gamma * (0.0 if terminal else V[s2])  # (TD(0))
+            V[s] += alpha * (target - V[s])
+    return V
+```
+:::
+
+::: {.callout-note collapse="true" title="Code: bias2_variance (open after Lab 3)"}
+```python
+def bias2_variance(estimates, v_true):
+    """Squared bias and variance over seeds (decomposition)."""
+    estimates = np.asarray(estimates, dtype=float)
+    v_true = np.asarray(v_true, dtype=float)
+    mean = estimates.mean(axis=0)  # one number per state
+    bias2 = float(np.mean((mean - v_true) ** 2))
+    variance = float(np.mean(estimates.var(axis=0)))  # divide by seeds
+    return bias2, variance
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 2a** is `td0_prediction(episodes, alpha, gamma, n_states, v0)`: @eq-td0 on the same episodes, with the terminal rule of section 5. Checkpoint 2a.1 is exact on fixed episodes, with $v_0 \ne 0$ so that a bootstrap through the terminal shows, and with a truncated episode. Checkpoint 2a.2 is the RMS threshold of the protocol. **Exercise 2b** is `bias2_variance(estimates, v_true)`: @eq-decomposition in two lines, with an exact checkpoint. A provided cell then runs MC, constant-$\alpha$ MC and TD(0) with 10 seeds and reports both terms for each; you read which term dominates for whom.
+:::
+
+## 4. SARSA and Q-learning: the cliff contrast
+
+**In this section:** learn action values while acting on them, write the two updates that differ in one symbol, and predict why they walk different paths along the cliff.
+
+Sections 2 and 3 evaluated one fixed policy. Control changes the policy while it learns, so the values we need are per action: which move to make, not only how good the cell is.
+
+**Action values and $\varepsilon$-greedy.** For control we estimate $Q(s, a)$, the value of taking $a$ in $s$ and following the policy afterward (Module 2 used $Q^*$). Given $Q$, the *$\varepsilon$-greedy* policy takes the action with the largest $Q(s, \cdot)$ with probability $1 - \varepsilon$ and a uniformly random action otherwise:
+
+$$
+\pi_\varepsilon(a \mid s) = \begin{cases} 1 - \varepsilon + \varepsilon / |\mathcal{A}| & \text{if } a = a^*_s, \\ \varepsilon / |\mathcal{A}| & \text{otherwise,} \end{cases}
+$$ {#eq-eps-greedy}
+
+where $a^*_s = \arg\max_{a'} Q(s, a')$ is the greedy action in $s$; the lab's `epsilon_greedy` breaks ties at random. With four actions and $\varepsilon = 0.1$, each non-greedy action has probability $0.025$. The lab keeps $\varepsilon$ constant; Day 2 is about doing better.
+
+**Two updates.** Apply the TD idea to $Q$. After the transition $(s_t, a_t, r_t, s_{t+1})$, bootstrap from the next action value. Which next action? *SARSA* uses the action $a_{t+1}$ the agent actually takes next, so the update uses the quintuple $(s_t, a_t, r_t, s_{t+1}, a_{t+1})$ that gives the method its name [@sutton2018rl, §6.4, Eq. 6.7]:
+
+$$
+Q(s_t, a_t) \leftarrow Q(s_t, a_t) + \alpha\, \big[\, r_t + \gamma\, Q(s_{t+1}, a_{t+1}) - Q(s_t, a_t) \,\big].
+$$ {#eq-sarsa}
+
+*Q-learning* bootstraps from the best next action, whether or not the agent takes it [@sutton2018rl, §6.5, Eq. 6.8; @watkins1992q]:
+
+$$
+Q(s_t, a_t) \leftarrow Q(s_t, a_t) + \alpha\, \big[\, r_t + \gamma\, \max_{a'} Q(s_{t+1}, a') - Q(s_t, a_t) \,\big].
+$$ {#eq-qlearning}
+
+If $s_{t+1}$ is terminal, the bootstrap term is 0 in both. One symbol differs, and it decides what each method estimates. SARSA's target averages over the policy the agent follows, exploration included, so SARSA estimates $Q^{\pi_\varepsilon}$, the value of the $\varepsilon$-greedy policy: it is *on-policy*. Q-learning's target takes the max, which is the Bellman optimality backup of Module 2 applied to a sample, so Q-learning estimates $Q^*$ whatever policy generated the data: it is *off-policy*.
+
+::: {#predict-cliff .predict}
+**Predict (4 min).** Both methods learn on the 4 × 12 cliff with $\varepsilon = 0.1$, constant, for 1000 episodes. After training, read off each method's *greedy path*: from the start, always take the action with the largest $Q$. Whose greedy path hugs the edge of the cliff? While learning, each method collects an *online return*, the sum of rewards in an episode. Whose online return is higher? Write both answers and one sentence of reason before opening the answer.
+
+::: {.callout-tip collapse="true" title="Answer"}
+Q-learning's greedy path hugs the edge. It estimates $Q^*$, and the optimal route is the 13-move edge route, whatever the agent's exploration does on the way. SARSA's greedy path keeps away from the edge: it estimates the value of the $\varepsilon$-greedy policy, and under that policy a cell above the cliff is worth about 2.5 less per visit than a cell farther up, because a random "down" (probability 0.025) costs 100. Its greedy path climbs higher and takes the longer, safer way.
+
+SARSA's online return is higher. The agent still explores with $\varepsilon = 0.1$ while learning. Q-learning's $\varepsilon$-greedy agent walks the edge, where 11 of its moves can fall with probability 0.025 each: the probability of at least one fall on a clean traverse is $1 - 0.975^{11} \approx 0.24$, and each fall costs 100 and sends it back to repeat the walk. SARSA's agent walks where a random move cannot fall, except at the start, and pays only a few more $-1$ steps. Sutton and Barto's Example 6.6 reports the same contrast, undiscounted, with $\varepsilon = 0.1$: Q-learning learns the values of the optimal policy, and its online performance is worse than SARSA's [@sutton2018rl, Example 6.6]. The recorded experiment shows it with $\gamma = 0.95$, in the After-the-lab fold below the lab callout of this section.
+:::
+:::
+
+**What this does not say.** It does not say SARSA is better. Q-learning found the better *greedy* policy; SARSA found the better policy *to follow while exploring at $\varepsilon = 0.1$*. If $\varepsilon$ were decayed to 0, both would converge to the optimal policy, as Sutton and Barto note in Example 6.6. The contrast exists because exploration never stops. Q-learning converges to $Q^*$ when every state–action pair is updated without end and the step sizes shrink in the usual way [@sutton2018rl, §6.5]; the proof is in Watkins and Dayan [-@watkins1992q]. SARSA needs one more condition to converge to an optimal policy: the policy itself must become greedy in the limit, for example with $\varepsilon = 1/t$ [@sutton2018rl, §6.4]. With a constant $\alpha$ neither converges to a point: the estimates keep moving by about $\alpha$ times the target noise, which is why a greedy path read from one seed can differ from another's.
+
+::: {.reference}
+**Naming.** Sutton and Barto explain the name from the quintuple $(S, A, R, S', A')$. Their bibliographical notes for §6.4 say the algorithm was introduced by Rummery and Niranjan [-@rummery1994sarsa], who called it Modified Connectionist Q-learning, and that the name SARSA was introduced by Sutton in 1996. We have opened the report's abstract page, not the report, so we cite it for the algorithm only.
+:::
+
+::: {.callout-note collapse="true" title="Code: sarsa and q_learning (open after Lab 3)"}
+```python
+def sarsa(env, episodes, alpha, epsilon, gamma, seed, q0=0.0):
+    """SARSA. Returns (Q, online): one reward sum per episode."""
+    rng = np.random.default_rng(seed)
+    if np.isscalar(q0):
+        Q = np.full((S, A), float(q0))
+    else:
+        Q = np.array(q0, dtype=float)
+    online = []
+    env.reset(seed=seed)
+    for _ in range(episodes):
+        s, _ = env.reset()
+        a = epsilon_greedy(Q, s, epsilon, rng)
+        total, done = 0.0, False
+        while not done:
+            s2, r, terminated, truncated, _ = env.step(a)
+            # the action actually taken next (SARSA)
+            a2 = epsilon_greedy(Q, s2, epsilon, rng)
+            # (terminal mask): no bootstrap from a terminal state
+            target = r + gamma * (0.0 if terminated else Q[s2, a2])
+            Q[s, a] += alpha * (target - Q[s, a])
+            total += r
+            s, a, done = s2, a2, terminated or truncated
+        online.append(total)
+    return Q, np.array(online)
+```
+
+`q_learning` is the same loop with `target = r + gamma * (0.0 if terminated else Q[s2].max())`, and it chooses each action at the top of the step instead of reusing `a2`.
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 4** is `sarsa(env, episodes, alpha, epsilon, gamma, seed, q0)`: @eq-sarsa, with `epsilon_greedy` and a greedy-path extractor provided. Its checkpoint trains at the lab's budget and counts the cells of the greedy path that lie directly above the cliff; the threshold comes from the protocol. **Exercise 5** is `q_learning`: @eq-qlearning. Checkpoint 5.1 requires the greedy path to be the optimal route; checkpoint 5.2 trains both methods on the checkpoint's own seed and requires SARSA's online return over the last 500 episodes to exceed Q-learning's by the protocol's margin. The run cells train them on your seat's seeds: a single seed is a fact beside the threshold, not a ranking, and the debrief pools the room's seeds.
+:::
+
+::: {.callout-note collapse="true" title="After the lab: the recorded cliff contrast"}
+::: {#fig-cliff-contrast layout="[[55,45]]"}
+![Greedy paths after learning, seed 0.](/images/03-cliff-contrast-paths.svg){#fig-cliff-contrast-paths fig-alt="The 4 by 12 cliff grid with seed 0's greedy paths from the start to the goal. Q-learning's, dashed, runs along the row directly above the cliff in 13 moves; SARSA's, solid, climbs to the top row and back down in 17."}
+
+![Online return per episode, mean of 10 seeds.](/images/03-cliff-contrast-returns.svg){#fig-cliff-contrast-returns fig-alt="Online return per episode over 1000 episodes, the mean of 10 seeds with the min-max band, a moving average of 20, on an axis from -120 to 0. SARSA's solid curve settles above Q-learning's dashed curve; over the last 500 episodes SARSA's seeds lie between -24.1 and -19.6 and Q-learning's between -52.1 and -46.4."}
+
+**What to notice:** on the grid, Q-learning's greedy path runs along the edge, one row above the cliff, while SARSA's climbs higher. In the curves, SARSA's online return per episode settles above Q-learning's, even though Q-learning's greedy path is the shorter one: the online return is earned by the $\varepsilon$-greedy policy, not by the greedy path. In the recorded experiment (10 seeds, 1000 episodes, $\alpha = 0.1$, $\varepsilon = 0.1$, $\gamma = 0.95$), Q-learning's greedy path is the 13-move edge route on every seed and SARSA's takes 15 or 17 moves. Over the last 500 episodes, SARSA's online return per episode lies between $-24.1$ and $-19.6$ on every seed, and Q-learning's between $-52.1$ and $-46.4$. The left panel shows seed 0's paths. The curves are the mean of the 10 seeds with the min–max band, each a moving average of 20 episodes; early episodes run below $-120$ and are cut off (`runs/2026-10-17-local-m03-cliff-contrast-exp.json`).
+:::
+:::
+
+## 5. Terminated is not truncated
+
+**In this section:** separate the two ways an episode can end, and write the one rule every bootstrapping update must follow.
+
+Every target so far had a clause: if $s_{t+1}$ is terminal, the bootstrap is 0. Gymnasium ends an episode for two different reasons, and only one of them triggers that clause.
+
+Gymnasium's `env.step(a)` returns `(obs, reward, terminated, truncated, info)` [@towers2025gymnasium, §4.2]. The two flags mean different things:
+
+- **`terminated`:** the MDP entered a terminal state. Nothing follows; the value of what comes next is 0 by definition. The target is $r_t$ alone.
+- **`truncated`:** the episode was *cut* from outside, usually by a step limit, in a state that is not terminal. The future still exists; we just stopped watching. The target must keep its bootstrap, $r_t + \gamma V(s_{t+1})$.
+
+One rule covers every update in this module (and Modules 7 to 9):
+
+$$
+\begin{aligned}
+\text{target} &= r_t + \gamma\, (1 - \text{terminated}_t)\, \cdot\, \text{bootstrap}(s_{t+1}), \\
+\text{bootstrap} &\in \{\, V(s_{t+1}),\ Q(s_{t+1}, a_{t+1}),\ \max_{a'} Q(s_{t+1}, a') \,\},
+\end{aligned}
+$$ {#eq-terminal-mask}
+
+with $\text{terminated}_t \in \{0, 1\}$. `truncated` does not appear in it. It only ends the loop. Gymnasium's own description writes the next-state value multiplied by (not terminated) in the same way [@towers2025gymnasium, §4.2].
+
+**Two bugs, one invisible.** Masking on `done = terminated or truncated` treats a cut as an ending: the last state before each cut is taught that its future is worth 0. In a task that pays $-1$ per step this makes values *less* negative; in CartPole it makes them smaller. The opposite bug, never masking, bootstraps through the terminal state. In the tabular cliff with $Q$ started at 0 it is invisible. Exercise 6 asks you to find out why, and how to make it visible. The mask works always. Module 8 meets the same bug in a network.
+
+**MC and truncation.** A return from a truncated episode is missing its tail, so it is biased, and MC has no bootstrap to patch it. MC needs episodes that end. That is why section 2's policy was chosen to end its episodes far inside the step limit (500 in the lab), and why the lab says so when it collects them.
+
+::: {#chk-trunc .self-check}
+**Check yourself 5.1.** CartPole pays $+1$ per step, with $\gamma = 0.99$, and the time limit cuts every episode at 500 steps. An agent that never drops the pole reaches the cut every time. Under the correct rule, what is the TD(0) target for the state at step 499, in terms of $V$? Under the "mask on `done`" bug? Toward which number does $V$ of that state move in each case?
+
+::: {.callout-tip collapse="true" title="Answer to 5.1"}
+Correct: the cut is a truncation, so the target is $1 + 0.99\, V(s_{500})$. The state at step 499 is like any other state of an agent that never fails, so $V$ moves toward the value of "a reward of 1 forever", $1/(1 - \gamma) = 100$ (Module 1, section 2). Bug: the target is 1, so $V(s_{499})$ moves toward 1. Every state before it then bootstraps from a value that is 99 too small, and the error spreads backward. Module 9's probe environments turn this into a test: constant reward 1 gives $Q = 100$ with the mask and 1 without it.
+:::
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 6** is the planted bug. A provided `q_learning_suspect` runs, learns the optimal path, and is wrong. You train it from an optimistic start, $Q_0 = 10$, read its return curve, its value curve and the $Q$-value of its last move against what they must be, find the line, and fix it. The checkpoint reruns your fixed version with $Q_0 = 10$ and requires the last move's value and the start's value to match their true values.
+:::
+
+::: {.callout-note collapse="true" title="After the lab: the bug a zero start hides"}
+No action is ever taken in the goal, so $Q(\text{goal}, \cdot)$ is never updated. From $Q_0 = 0$ it stays 0, and bootstrapping from it adds $\gamma \cdot 0$: nothing. From an optimistic $Q_0 = 10$ the last move's value becomes $-1 + \gamma Q_0 = 8.5$ instead of $-1$. The bonus propagates back along the route, $\gamma^d Q_0$ at distance $d$, so the value of the start settles at $-9.73 + 0.95^{13} \cdot 10 \approx -4.60$ instead of $V^*(\text{start}) = -9.73$. The greedy path does not change: entering the goal now carries a bonus, and the shortest route collects the largest share of it, so the optimal route stays optimal. That is why the routes the agent walks and the returns it earns give no sign of the bug: only the values are wrong. In the recorded experiment (10 seeds, 1000 episodes from $Q_0 = 10$), the suspect even earns more early on. Over the first 100 episodes its online return per episode lies between $-167.6$ and $-140.6$, against $-332.4$ to $-285.9$ for a correct learner, higher on 10 of 10 seeds: the inflated values pull the agent toward the goal. Over the last 500 episodes the two are a tie, $-56.9$ to $-46.4$ against $-56.8$ to $-46.7$, with the suspect higher on 4 of 10 seeds (`runs/2026-10-17-local-m03-suspect-returns-exp.json`).
+
+With the mask, $Q(\text{goal}, \cdot)$ still holds 10 after training. That is harmless, because no target reads it. Sutton and Barto's pseudocode sidesteps the bug another way, by initializing $Q(\text{terminal}, \cdot) = 0$ [@sutton2018rl, §6.5]; that works only when you can name the terminal states.
+:::
+
+## 6. The n-step dial
+
+**In this section:** place MC and TD(0) at the two ends of one family, and read the figure that shows what sits between.
+
+Back to prediction. Sections 2 and 3 gave two targets for $V(s_t)$: the whole return, and one reward plus a bootstrap. They are the two ends of one dial.
+
+Bootstrap after $n$ steps instead of one. The *$n$-step return* is
+
+$$
+\begin{aligned}
+G_t^{(n)} &= r_t + \gamma\, r_{t+1} + \cdots + \gamma^{\,n-1} r_{t+n-1} \\
+&\phantom{{}={}} + \gamma^{\,n}\, V(s_{t+n}),
+\end{aligned}
+$$ {#eq-nstep}
+
+with the rule that if $t + n \ge T$ the sum runs to the end of the episode and the bootstrap term is $\gamma^{T - t} V(s_T)$ when the episode was truncated and 0 when it terminated [@sutton2018rl, §7.1, Eq. 7.1, which defines the terminated case; the truncated case follows from section 5]. $n = 1$ gives the TD(0) target, and $n \ge T - t$ gives the MC return. The update is $V(s_t) \leftarrow V(s_t) + \alpha\,[G_t^{(n)} - V(s_t)]$ [@sutton2018rl, §7.1, Eq. 7.2]. Larger $n$ puts more sampled rewards in the target, so usually more variance. It also discounts the bootstrap by $\gamma^n$, so less bias. Sutton and Barto's error-reduction property makes the second half precise: the worst bias of the expected $n$-step target is at most $\gamma^n$ times the worst error of $V$ [@sutton2018rl, §7.1, Eq. 7.3]. Where the balance falls depends on the task and the budget. On Sutton and Barto's 19-state random walk, with the error averaged over the first 10 episodes, an intermediate $n$ does best [@sutton2018rl, §7.1, Figure 7.2]. The lab's cliff after 1000 episodes tells a plainer story.
+
+![**What to notice:** with the smallest step size, $\alpha = 0.02$, $n = 1$ is clearly worst: TD(0) carries each reward back one state per visit, so after 1000 episodes its estimates still carry the zero start, and a few sampled rewards remove most of that error (the interquartile mean falls from 0.93 at ${n = 1}$ to 0.37 at ${n = 4}$). With larger $\alpha$ the curves are nearly flat, their intervals overlap at every $n$, and $n = 1$ does as well as any. On this task no curve shows a clear minimum at an intermediate $n$. RMS error on the route after 1000 episodes of the $\varepsilon$-soft safe route, against $n$: the interquartile mean (IQM) of 10 seeds, with 95% bootstrap intervals (`runs/2026-10-17-local-m03-nstep-dial-exp.json`).](/images/03-nstep-dial.svg){#fig-nstep fig-alt="A line chart of RMS error against n, on a log scale from 1 to 32, with one line per step size and a 95% interval at each n. The line for the smallest step size falls steeply from n = 1 to n = 4, then levels off; the other three lines are nearly flat. The intervals overlap at every n, except that the smallest step size's interval at n = 1 lies above its others."}
+
+::: {.reference}
+**Why the ends behave as they do.** At $n = 1$ the target's bias is $\gamma$ times $V$'s error (@eq-td-bias); at $n$ it is $\gamma^n$ times it, and a start at $V_0 = 0$ is forgotten $n$ steps at a time instead of one. At $n \ge T$ the bias is 0 and the variance is that of the full return. **TD($\lambda$)** averages all $n$-step returns with weights $(1 - \lambda)\lambda^{n-1}$, so one parameter $\lambda \in [0, 1]$ sweeps the same dial; Sutton and Barto develop it in their Chapter 12, and Module 10's advantage estimator (GAE) uses the same weights. Reference only.
+:::
+
+::: {.callout-note collapse="true" title="Code: n_step_target (open after Lab 3)"}
+```python
+def n_step_target(rewards, states, t, n, V, gamma, terminated):
+    """G_t^(n): up to n discounted rewards, then a bootstrap."""
+    T = len(rewards)
+    end = min(t + n, T)
+    G = sum(gamma ** (k - t) * rewards[k] for k in range(t, end))
+    # bootstrap from s_end unless the episode terminated there
+    if end < T or not terminated:
+        G += gamma ** (end - t) * V[states[end]]
+    return G
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** Back in the prediction part of the lab, **Exercise 3** is `n_step_target(rewards, states, t, n, V, gamma, terminated)`: @eq-nstep, including the two end cases. The checkpoint is exact on a fixed trajectory, with a target that runs past the end of a terminated episode and one that runs into a truncation. The stretch builds n-step TD on it and sweeps $n$ and $\alpha$ to redraw @fig-nstep on your seat's episodes.
+:::
+
+## 7. Bridge
+
+**In this section:** what Day 1 leaves open.
+
+Today's methods estimate values from samples, with a model-free update that is one line long. Two things are missing. The $\varepsilon$ of section 4 is a constant that never stops paying: Day 2 asks how to explore so that the cost of exploring shrinks, first in bandits (Module 4), then with optimism in a chain where $\varepsilon$-greedy takes exponential time (Module 6). And the tables $V(s)$ and $Q(s, a)$ assume a state you can index: Day 3 replaces them with features and networks, and the same TD update, with the same terminal mask, turns out to need new conditions to stay stable (Module 7).
+
+## Summary
+
+- Without $P$ and $R$ there are only transitions $(s_t, a_t, r_t, s_{t+1}, \text{terminated})$. Every update in this module uses one of them, or one episode of them.
+- The return $G_t$ is an unbiased sample of $V^\pi(s_t)$. First-visit MC averages such samples (@eq-mc): unbiased, standard error $\propto 1/\sqrt{N}$, but it waits for the episode to end and its targets carry the variance of every later step. Every-visit MC is biased on finite data and consistent.
+- TD(0) replaces the tail of the return by $V(s_{t+1})$ (@eq-td0). Its target's bias is $\gamma\, \mathbb{E}[V(s_{t+1}) - V^\pi(s_{t+1})]$ (@eq-td-bias), zero at the fixed point and shrinking as $V$ improves; its variance is usually, not always, lower. The lab's 10-seed decomposition (@eq-decomposition) puts numbers on both.
+- SARSA (@eq-sarsa) bootstraps from the action taken and estimates $Q^{\pi_\varepsilon}$; Q-learning (@eq-qlearning) bootstraps from the max and estimates $Q^*$. On the cliff with constant $\varepsilon = 0.1$, Q-learning's greedy path is the optimal edge route and SARSA's online return is higher: on all 10 seeds of the recorded experiment (@fig-cliff-contrast).
+- Bootstrap on `truncated`, never on `terminated` (@eq-terminal-mask). The never-mask bug is invisible from a zero start and visible from an optimistic one, in the values; the return curve does not show it.
+- The $n$-step return (@eq-nstep) is a dial from TD(0) to MC. Its bias falls like $\gamma^n$ and its variance rises with $n$; where the balance falls depends on the task and the budget. On the lab's cliff after 1000 episodes only the smallest $\alpha$ shows a clear effect: $n = 1$ is worst.
+
+### Equations and where you implement them
+
+| Equation | Lab 3 | Name in the notebook |
+|---|---|---|
+| First-visit MC (@eq-mc) | Exercise 1: `mc_prediction` | (MC) |
+| TD(0) update and TD error (@eq-td0, @eq-td-error); the target's bias (@eq-td-bias) | Exercise 2a: `td0_prediction` | (TD(0)), (TD bias) |
+| The decomposition (@eq-decomposition) | Exercise 2b: `bias2_variance`; the 10-seed run is provided | (decomposition) |
+| n-step return (@eq-nstep) | Exercise 3: `n_step_target`; the stretch sweeps $n$ and $\alpha$ | (n-step) |
+| $\varepsilon$-greedy (@eq-eps-greedy) | Provided: `epsilon_greedy` | (ε-greedy) |
+| SARSA (@eq-sarsa) | Exercise 4: `sarsa` | (SARSA) |
+| Q-learning (@eq-qlearning) | Exercise 5: `q_learning`, and the cliff contrast | (Q-learning) |
+| The terminal mask (@eq-terminal-mask) | Exercises 2a, 3, 4, 5; Exercise 6: fix `q_learning_suspect` | (terminal mask) |
+
+## Gotchas and troubleshooting
+
+- **"Q-learning is better than SARSA."** Q-learning learns the better greedy policy; SARSA earns the better online return while both explore with a constant $\varepsilon$. They answer different questions: what is the best policy, and what is the best policy to follow given that I keep exploring like this. On the cliff the first is the edge route and the second is not (section 4). Decay $\varepsilon$ to 0 and the difference disappears.
+- **"TD is biased, so MC is better."** TD's target is biased by $\gamma$ times the error of $V$ at the next state (@eq-td-bias). That bias shrinks as $V$ improves, and it is zero at $V^\pi$. The TD target usually has lower variance, because it carries one step of randomness instead of a whole episode's. Which one has the lower error after a fixed budget is an empirical question; the decomposition cell answers it for this task and this budget, and the n-step figure shows that at a small $\alpha$ the answer depends on $n$.
+- **"`done` means stop bootstrapping."** Only `terminated` does. A `truncated` episode was cut in a state that still has a future, and its target keeps the bootstrap (@eq-terminal-mask). Masking on `done` teaches every pre-cut state that its future is worth 0.
+- **"My Q-learning passes with $Q_0 = 0$, so the terminal rule does not matter."** From a zero start, bootstrapping through the terminal adds $\gamma \cdot 0$, so nothing changes. From an optimistic start the terminal's value leaks into the last move, and from there back along the route; section 5's After-the-lab note gives the numbers. A test that starts at 0 cannot see this bug.
+- **"My returns went up, so it works."** In Exercise 6 the suspect's greedy path is the optimal route, so its return curve gives no sign of the bug; only its values are wrong, and wrong upward. Returns test the policy you follow, not the values you learned. Check values against something you know: $V^*$ where you can compute it, a transition whose value is its reward, or (Module 8) Monte Carlo returns.
+- **"Every-visit and first-visit give the same thing."** They converge to the same thing. On finite data every-visit is biased, because returns from two visits in one episode overlap (section 2's one-state example: $3/2$ instead of 2 after one episode). Checkpoint 1.1 uses episodes with repeated states for exactly this reason.
+- **"My seed was unlucky, so the RMS checkpoint failed."** The checkpoint does not use your seat's seed. It runs your function on its own fixed seed, against a threshold halfway between the reference solution's worst seeds and the best seeds of the wrong versions, and none of 100 reference seeds failed it. A failure points at the code, not the seed: the discount applied from the end of the episode backward, the first-visit test, the terminal rule, or an update that moves $V$ of the wrong state. The plots of Exercises 1 and 2a, your estimate along the route against the exact $V$, show which; the Diagnostics paragraph of Exercise 6 says how to read them: a constant offset, an offset that grows with distance from the goal, or a ragged curve around the right mean.
+- **"SARSA's greedy path does not reach the goal."** With a constant $\alpha$ the estimates never settle, and in cells the $\varepsilon$-greedy agent rarely visits, $Q$ can be noisy enough that the greedy path loops. The checkpoint's budget and $\alpha$ were chosen so that the reference solution's path reaches the goal on every protocol seed; if yours loops, compare your update with @eq-sarsa, and make sure the next action used in the target is the one you then take.
+- **"`NotImplementedError`."** The function still raises its TODO: you have not written it yet, or you have not run the cell that holds your code. Write the TODO and run its cell. To move on without it, run `lab.use_reference(N)` with the exercise number, and the lab continues with the reference solution; the exercise's solution cell must have run once. Running a solution cell alone does not replace your function.
+
+## Next steps
+
+[Module 4](/modules/04-bandits.qmd) opens Day 2 with the cost of the constant $\varepsilon$ you used today, measured as regret in bandits, and the methods that make it shrink. [Module 6](/modules/06-exploration-mdps.qmd) returns to tabular control in a chain where $\varepsilon$-greedy takes exponential time and optimism does not. [Module 7](/modules/07-function-approximation.qmd) takes today's TD update off the table and into features, where the terminal mask stays and stability does not.
+
+## Further reading
+
+1. @sutton2018rl, *Reinforcement Learning: An Introduction*, 2nd edition. §5.1 for first-visit and every-visit MC, with the convergence statement for both. §6.1 for TD(0) (Eq. 6.2), the TD error (Eq. 6.5) and constant-$\alpha$ MC (Eq. 6.1); §6.2 for the discussion of which learns faster. §6.4 for SARSA (Eq. 6.7) and §6.5 for Q-learning (Eq. 6.8), whose pseudocode sets $Q(\text{terminal}, \cdot) = 0$. Example 6.6 is the cliff, undiscounted, with $\varepsilon = 0.1$. §7.1 for the $n$-step return (Eq. 7.1), the $n$-step TD update (Eq. 7.2), the error-reduction property (Eq. 7.3), and Figure 7.2, where an intermediate $n$ does best on a 19-state random walk over the first 10 episodes. Their reward after $A_t$ is $R_{t+1}$, our $r_t$, and their $v_\pi$ is our $V^\pi$; their $V$ is our estimate $V$.
+2. @watkins1992q, *Q-learning*, Machine Learning 8. The convergence proof for tabular Q-learning, under the conditions stated in section 4. We cite it for that result and have checked the bibliographic record, not reread the proof.
+3. @rummery1994sarsa, *On-line Q-learning using connectionist systems*, technical report. The report Sutton and Barto credit with introducing the SARSA algorithm (under another name). We have opened its abstract page only, and we do not cite it for the name.
+4. @towers2025gymnasium, *Gymnasium*. §4.2 for `terminated` and `truncated`, which is where @eq-terminal-mask comes from in code.

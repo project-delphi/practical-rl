@@ -158,6 +158,99 @@ def test_fixtures_are_copies():
     assert expected("m01_eval")["rand_R"].any()
 
 
+# ---- verify mode: mutants, stubs and stochastic checkpoints ---------------------------
+def _stochastic(thresholds):
+    from prl.checks import StochasticCheck
+
+    return StochasticCheck(
+        ex=1,
+        functions="double",
+        metric=lambda fn, *, seed, n: 0.0,
+        live={"n": 10},
+        quick={"n": 2},
+        higher_is_better=False,
+        min_gap=1.0,
+        thresholds=thresholds,
+    )
+
+
+def _exact_rejects(fn):
+    raise CheckFailed("wrong")
+
+
+def _exact_passes(fn):
+    pass
+
+
+def test_mutant_mode_skips_stochastic_checkpoints_and_reports_the_rest(monkeypatch, capsys):
+    ns, lab = new_ns(monkeypatch)  # live budget: PRL_QUICK is unset
+    check = _stochastic({"live": (1.0, "runs/x.json")})
+    lab._mutant_begin("1", "wrong", {"double": "def double(x):\n    return x"})
+    lab.check(1, _exact_rejects, ns["double"], label="1.1")
+    lab.check(1, check, ns["double"], label="1.2")
+    assert lab._s["mutant"]["results"][1] == {"label": "1.2", "skipped": True, "threshold": True}
+    lab._mutant_end("1")
+    assert "double" not in ns  # restored: the name did not exist before
+    assert "rejected by 1 checkpoint(s), 1 skipped as stochastic" in capsys.readouterr().out
+
+
+def test_an_exercise_with_only_stochastic_checkpoints_is_covered_by_the_protocol(
+    monkeypatch, capsys
+):
+    ns, lab = new_ns(monkeypatch)
+    check = _stochastic({"live": (1.0, "runs/x.json")})
+    lab._mutant_begin("1", "wrong", {"double": "def double(x):\n    return x"})
+    lab.check(1, check, ns["double"])
+    lab._mutant_end("1")
+    assert "covered by the threshold protocol (1 stochastic checkpoint(s) skipped)" in (
+        capsys.readouterr().out
+    )
+
+
+def test_a_skipped_stochastic_checkpoint_needs_a_threshold_for_this_budget(monkeypatch):
+    ns, lab = new_ns(monkeypatch)
+    check = _stochastic({"quick": (1.0, "runs/x.json")})  # live is missing
+    lab._mutant_begin("1", "wrong", {"double": "def double(x):\n    return x"})
+    lab.check(1, _exact_rejects, ns["double"], label="1.1")
+    lab.check(1, check, ns["double"], label="1.2")
+    with pytest.raises(RuntimeError, match="1.2 are stochastic and have no threshold"):
+        lab._mutant_end("1")
+
+
+def test_an_exact_only_mutant_must_meet_an_exact_checkpoint(monkeypatch):
+    ns, lab = new_ns(monkeypatch)
+    check = _stochastic({"live": (1.0, "runs/x.json")})
+    src = {"double": "def double(x):\n    return x"}
+    lab._mutant_begin("1", "fine-grained", src, exact_only=True)
+    lab.check(1, check, ns["double"])
+    with pytest.raises(AssertionError, match="exact_only"):
+        lab._mutant_end("1")
+    lab._mutant_begin("1", "fine-grained", src, exact_only=True)
+    lab.check(1, _exact_passes, ns["double"], label="1.1")
+    lab.check(1, check, ns["double"], label="1.2")
+    with pytest.raises(AssertionError, match="checkpoint 1.1 PASSED"):
+        lab._mutant_end("1")
+
+
+def test_mutant_decorator_records_exact_only():
+    @harness.mutant(ex=1, replaces="f", id="a", why="plain")
+    def f():
+        pass
+
+    @harness.mutant(ex=1, replaces="g", id="b", why="fine", exact_only=True)
+    def g():
+        pass
+
+    assert f.__prl_mutant__["exact_only"] is False
+    assert g.__prl_mutant__ == {
+        "ex": "1",
+        "replaces": "g",
+        "id": "b",
+        "why": "fine",
+        "exact_only": True,
+    }
+
+
 def test_finish_prints_the_room_code(monkeypatch, capsys, tmp_path):
     monkeypatch.setenv("PRL_WORKED", "0")
     monkeypatch.delenv("PRL_QUICK", raising=False)
