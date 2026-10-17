@@ -189,6 +189,53 @@ def find_repo_root(start: Path | None = None) -> Path | None:
     return None
 
 
+def source_commit(start: Path | None = None) -> tuple[str | None, bool | None]:
+    """(commit, dirty) of the prl that is running, for a record's git_sha (PLAN.md §7).
+
+    Installed from git (Colab, AWS): the commit pip recorded in prl's direct_url.json,
+    with dirty None. Run from a checkout of this repo: its HEAD, and whether the
+    working tree has uncommitted changes. Otherwise (None, None).
+    """
+    try:
+        from importlib.metadata import PackageNotFoundError, distribution
+
+        try:
+            raw = distribution("prl").read_text("direct_url.json")
+        except PackageNotFoundError:
+            raw = None
+        if raw:
+            commit = (json.loads(raw).get("vcs_info") or {}).get("commit_id")
+            if commit:
+                return str(commit), None
+    except (OSError, ValueError):
+        pass
+    root = find_repo_root(start) or find_repo_root(Path(__file__).parent)
+    if root is None:
+        return None, None
+    import subprocess
+
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        ).stdout.strip()
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None, None
+    return (sha or None), bool(status.strip())
+
+
 def record_filename(rec: dict[str, Any]) -> str:
     name = rec.get("notebook") or rec.get("experiment") or "run"
     sha = rec.get("content_sha") or "exp"

@@ -76,3 +76,22 @@ def test_emit_and_parse_roundtrip(tmp_path, capsys):
     assert path is not None and json.loads(path.read_text()) == rec
     printed = capsys.readouterr().out
     assert record.parse_printed(printed) == [rec]
+
+
+def test_source_commit_reads_the_checkout(tmp_path):
+    import subprocess
+
+    (tmp_path / "_variables.yml").write_text("x: 1\n")
+    (tmp_path / "prl").mkdir()
+    run = lambda *a: subprocess.run(["git", *a], cwd=tmp_path, check=True, capture_output=True)  # noqa: E731
+    run("init", "-q")
+    run("-c", "user.email=t@example.com", "-c", "user.name=t", "add", ".")
+    run("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "x")
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    # The editable prl in this repo has no vcs_info, so the checkout's HEAD is used.
+    sha, dirty = record.source_commit(tmp_path)
+    assert (sha, dirty) == (head, False)
+    (tmp_path / "_variables.yml").write_text("x: 2\n")
+    assert record.source_commit(tmp_path) == (head, True)

@@ -320,6 +320,7 @@ class Lab:
     ) -> dict[str, Any]:
         s = self._s
         rt = runtime.detect()
+        commit, dirty = (s.get("git_sha"), None) if s.get("git_sha") else record.source_commit()
         env = s["env"] or _default_env(rt, s["designed"])
         rec: dict[str, Any] = {
             "schema": record.SCHEMA,
@@ -327,7 +328,7 @@ class Lab:
             "notebook": s["notebook"],
             "content_sha": s["content_sha"],
             "prl_version": __version__,
-            "git_sha": s.get("git_sha"),
+            "git_sha": s.get("git_sha") or commit,
             "badge_ref": s.get("badge_ref"),
             "date": _dt.datetime.now(_dt.UTC).date().isoformat(),
             "platform": rt.platform,
@@ -358,6 +359,8 @@ class Lab:
             "status": self.status(),
             "source": source,
         }
+        if dirty is not None:
+            rec["dirty"] = dirty
         if scope_note:
             rec["scope_note"] = scope_note
         if note:
