@@ -364,6 +364,61 @@ def _residual(P, R, gamma, V):
     return float(np.max(np.abs((R + gamma * P @ V).max(axis=1) - V)))
 
 
+def _fast_sample(mdp, N, rng):
+    """sample_transitions of the lab, vectorized: the same rows from the same rng stream.
+
+    InventoryMDP.sample_step draws one uniform per call (Generator.choice with p searches the
+    normalized cdf), in the loop order (s, a, n), so one rng.random(S * A * N) gives the same
+    demands. page_numbers asserts the equality against the loop before using it.
+    """
+    S, A, p = mdp.n_states, mdp.n_actions, mdp.params
+    cdf = mdp.pmf.cumsum()
+    cdf /= cdf[-1]
+    d = cdf.searchsorted(rng.random(S * A * N), side="right")
+    s = np.repeat(np.arange(S), A * N)
+    a = np.tile(np.repeat(np.arange(A), N), S)
+    q = np.minimum(a, mdp.capacity - s)
+    y = s + q
+    sales = np.minimum(y, d)
+    left = y - sales
+    order = np.where(q > 0, p["fixed_cost"], 0.0) + p["unit_cost"] * q
+    r = (
+        p["price"] * sales
+        - order
+        - p["holding_cost"] * left
+        - p["lost_sales_penalty"] * (d - sales)
+    )
+    return np.column_stack([s, a, r, left]).astype(float)
+
+
+def _fast_estimate(log, S, A):
+    """The counts estimator, vectorized; np.add.at sums in log order, as the loop does."""
+    s, a, s2 = (log[:, i].astype(int) for i in (0, 1, 3))
+    counts, P_hat, R_hat = np.zeros((S, A)), np.zeros((S, A, S)), np.zeros((S, A))
+    np.add.at(counts, (s, a), 1)
+    np.add.at(P_hat, (s, a, s2), 1)
+    np.add.at(R_hat, (s, a), log[:, 2])
+    seen = counts > 0
+    P_hat[seen] /= counts[seen][:, None]
+    R_hat[seen] /= counts[seen]
+    i, j = np.nonzero(~seen)
+    P_hat[i, j, i] = 1.0
+    return P_hat, R_hat, counts
+
+
+def _seat_losses(mdp, V_star, seat):
+    """Exercise 4's table for one seat: seeds (seat + 1) * 1000 + i, every N; (5, len(NS))."""
+    S, A = mdp.n_states, mdp.n_actions
+    loss = np.zeros((5, len(NS)))
+    for i in range(5):
+        for j, N in enumerate(NS):
+            log = _fast_sample(mdp, N, np.random.default_rng((seat + 1) * 1000 + i))
+            P_hat, R_hat, _ = _fast_estimate(log, S, A)
+            _, Q_hat, _, _ = _value_iteration(P_hat, R_hat, GAMMA, TOL)
+            loss[i, j] = np.max(V_star - _exact_value(mdp.P, mdp.R, GAMMA, _greedy(Q_hat)))
+    return loss
+
+
 def page_numbers(computed: dict[str, dict]) -> dict:
     """Assert the numbers modules/02-planning.qmd and _variables.yml (m02) quote outside the
     figures, so a change to the model or the samplers cannot leave them stale."""
@@ -424,6 +479,26 @@ def page_numbers(computed: dict[str, dict]) -> dict:
     assert me["loss"][:, NS.index(200)].round(2).tolist() == [0.0, 1.39, 0.0, 0.38, 0.0]
     rises = [NS[j + 1] for j in range(len(NS) - 1) if means[j + 1] > means[j]]
     assert rises == [200], rises
+    # Exercise 4 at the seats' own seeds, (seat + 1) * 1000 + i (the Predict answer).
+    for N, seed in ((1, 0), (2, 1001), (50, 3)):
+        loop = _sample_transitions(mdp, N, np.random.default_rng(seed))
+        fast = _fast_sample(mdp, N, np.random.default_rng(seed))
+        assert np.array_equal(loop, fast), "the vectorized sampler drifted from the lab's"
+        a, b = _estimate_model(loop, S, mdp.n_actions), _fast_estimate(fast, S, mdp.n_actions)
+        assert all(np.array_equal(x, y) for x, y in zip(a, b, strict=True))
+    seat0 = _seat_losses(mdp, V_star, 0)
+    m0 = seat0.mean(axis=0)
+    assert m0.round(2).tolist() == [43.91, 25.48, 11.64, 5.07, 3.81, 0.98, 0.62, 0.77], m0
+    assert seat0[:, -1].round(2).tolist() == [0.38, 0.0, 0.93, 1.39, 1.12], seat0[:, -1]
+    assert int((seat0[:, -1] == 0.0).sum()) == 1
+    assert [NS[j + 1] for j in range(len(NS) - 1) if m0[j + 1] > m0[j]] == [200]
+    all_zero = rise = 0
+    for seat in range(26):
+        loss = seat0 if seat == 0 else _seat_losses(mdp, V_star, seat)
+        all_zero += bool(np.all(loss[:, -1] == 0.0))
+        rise += bool(np.any(np.diff(loss.mean(axis=0)) > 0))
+    assert (all_zero, rise) == (7, 13), (all_zero, rise)
+    out.update(seat0_means=m0, seats_all_zero=all_zero, seats_rise=rise)
     # Exercise 5: the suspect (stop on the mean) against value iteration, and its residual.
     cliff = CliffGridworld(4, 12, slip=0.2, gamma=0.95)
     settled_P = np.zeros((100, 2, 100))
@@ -506,6 +581,11 @@ def report(computed: dict[str, dict]) -> None:
         f"{pg['gap_max']:.2f} (stock {pg['gap_argmax']}); V*(7) - V*(6) = {pg['dV_6_7']:.3f}"
     )
     print(f"tol 1.0: {pg['k_tol1']} sweeps, greedy policy optimal")
+    print(
+        f"seat 0 (seeds 1000-1004), mean loss by N: {np.round(pg['seat0_means'], 2).tolist()}; "
+        f"seats 0-25: {pg['seats_all_zero']} of 26 all zero at N = 200, "
+        f"{pg['seats_rise']} of 26 with a mean that rises"
+    )
     print(f"random_log, 200 days, seats 0-30: missed pairs {pg['missed']}")
     for name in ("shop", "slippery cliff", "mostly settled"):
         km, kx, r = pg[f"ex5_{name}"]
