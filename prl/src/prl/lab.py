@@ -383,9 +383,11 @@ class Lab:
     def finish(self, **kwargs: Any) -> dict[str, Any]:
         """Print the summary and emit this run's record."""
         self.summary()
-        print(f"Your room code (paste it where your instructor says): {self.room_code()}")
         rec = self.build_record(**kwargs)
         record.emit(rec)
+        # Last, so it is what a participant sees after the long record.
+        print("\nYour room code (paste it where your instructor says):")
+        print(self.room_code())
         return rec
 
     def use_settings(self, settings: runtime.Settings) -> runtime.Settings:

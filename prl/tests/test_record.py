@@ -97,7 +97,7 @@ def test_room_code_roundtrip():
         },
     )
     assert code == (
-        "ROOM m03 seat=7 checks=8/9 quick=1 converged=1 edge_cells=0 gap=26.75 m_seat=3.5 td_rms=1.23457"
+        "ROOM m03 seat=7 checks=8/9 quick=1 converged=1 edge_cells=0 gap=26.75 m_seat=3.5 td_rms=1.235"
     )
     pasted = f"Seat 7 says: {code}\nnoise\nROOM m03 seat=- checks=0/9 quick=0\n"
     rows = record.parse_room_codes(pasted)
@@ -112,7 +112,7 @@ def test_room_code_roundtrip():
             "edge_cells": 0.0,
             "gap": 26.75,
             "m_seat": 3.5,
-            "td_rms": 1.23457,
+            "td_rms": 1.235,
         },
     }
     assert rows[1]["seat"] is None and rows[1]["metrics"] == {}
