@@ -15,6 +15,10 @@ policy that checks what it is shown) rejects them. `thompson_step`'s "posterior-
 (Russo et al.'s greedy BernGreedy) is `exact_only=True` too: the design scan found its regret
 overlapping the solution's at every budget tried, because it does well on the seeds where it
 does not lock in; checkpoint 3.2 (exact choice frequencies on fixed posteriors) rejects it.
+
+Not listed: a `verdict` that uses the IQM's bootstrap interval with 2 to 4 seeds too. With so
+few seeds a resample made of copies of the extreme value has probability of at least 2.5%, so
+the percentile interval reaches the [min, max] range and the verdict is the same on every input.
 """
 
 import numpy as np
@@ -357,22 +361,6 @@ def verdict(regret_a, regret_b):  # noqa: F811
         sa, sb = (xa.mean(), *bootstrap_ci(xa)), (xb.mean(), *bootstrap_ci(xb))  # noqa: F821
     else:
         sa, sb = (xa.mean(), xa.min(), xa.max()), (xb.mean(), xb.min(), xb.max())
-    if sa[1] <= sb[2] and sb[1] <= sa[2]:
-        return "tie"
-    return "A" if sa[0] < sb[0] else "B"
-
-
-@mutant(
-    ex=4,
-    replaces="verdict",
-    id="interval-below-five",
-    why="uses the IQM's bootstrap interval with 2 to 4 seeds too",
-)
-def verdict(regret_a, regret_b):  # noqa: F811
-    xa, xb = np.asarray(regret_a, dtype=float), np.asarray(regret_b, dtype=float)
-    if min(xa.size, xb.size) == 1:
-        return "single seed"
-    sa, sb = (iqm(xa), *bootstrap_ci(xa, iqm)), (iqm(xb), *bootstrap_ci(xb, iqm))  # noqa: F821
     if sa[1] <= sb[2] and sb[1] <= sa[2]:
         return "tie"
     return "A" if sa[0] < sb[0] else "B"
