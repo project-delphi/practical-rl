@@ -30,7 +30,7 @@ from prl.evaluate import Budget, bootstrap_ci, compare, iqm
 from prl.plot import NEUTRAL_LIGHT
 
 K, D_RAW = 10, 5  # items, and the dimension of a user's context
-D = D_RAW + 1  # features: the context and a constant 1 (features below)
+D = D_RAW + 1  # the briefing's d: the context and a constant 1 (features below)
 CATALOG = 0  # the catalog: every item's parameters are fixed by this seed
 LAM = 1.0  # lambda_ridge, the ridge penalty
 C = 0.5  # LinUCB's width multiplier c
@@ -87,8 +87,8 @@ print("show item 0 ->", "click" if env.step(0) else "no click")
 # %% [markdown] role="ex1-head"
 # **The click model.** A user arrives with a context x. You show one item a; the user clicks
 # with probability r(x, a) and you see the click, 0 or 1, for that item only. In RecSim's
-# well-specified regime, r(x, a) = clip(0.5 + s θ_aᵀ x, 0.02, 0.98), where θ_a is item a's
-# hidden parameter and s = `env.scale` (click model). Write it for every item at once. Then
+# well-specified regime, r(x, a) = clip(0.5 + 0.15 θ_aᵀ x, 0.02, 0.98), where θ_a is item a's
+# hidden parameter and 0.15 is `env.scale` (click model). Write it for every item at once. Then
 # the run cell checks it against the simulator and asks the framing question: does what you
 # show change who comes next?
 
@@ -167,14 +167,14 @@ lab.check(1, m05.check_reward_fn, reward_fn)
 
 # %% [markdown] role="ex2-head"
 # **Incremental ridge regression, one model per item.** Each item keeps two statistics of
-# what it has seen: A = λ I + Σ x xᵀ, the briefing's Λ (Li et al. call it A), and
+# what it has seen: A = λ_ridge I + Σ x xᵀ, the briefing's Λ (Li et al. call it A), and
 # b = Σ r x, and estimates θ̂ = A⁻¹ b (ridge). Updating A and b costs O(d²) per observation.
 # Inverting A from scratch would cost O(d³), so keep A⁻¹ current too, with the
 # Sherman–Morrison formula A⁻¹ ← A⁻¹ − (A⁻¹x)(A⁻¹x)ᵀ / (1 + xᵀA⁻¹x) (Sherman–Morrison).
 # The constructor is written; you write `update` and `predict`.
 
 # %% [markdown] role="ex2-predict"
-# λ = 1. A Ridge model sees the same unit vector x nine times, with a click every time. What
+# λ_ridge = 1. A Ridge model sees the same unit vector x nine times, with a click every time. What
 # does it predict at x: 1, 0.9, or 0.5?
 
 
@@ -266,8 +266,8 @@ print(f"unit x seen 9 times, clicked every time: predict(x) = {nine.predict(unit
 # %% [markdown] role="ex2-explain"
 # The incremental θ̂ equals the closed form to rounding, and so does A⁻¹: Sherman–Morrison
 # is exact algebra, not an approximation (Sherman–Morrison). After nine clicks at x the
-# prediction is not 1. Where did the missing tenth go? Read λ as a count: how many
-# observations of what reward does the penalty λ I add in every direction? What happens to
+# prediction is not 1. Where did the missing tenth go? Read λ_ridge as a count: how many
+# observations of what reward does the penalty λ_ridge I add in every direction? What happens to
 # the shrinkage as n grows?
 
 # %% role="ex2-chk"
@@ -281,7 +281,7 @@ lab.check(2, m05.check_ridge, Ridge)
 # on the same stream of users. Both start with a launch: each item is shown once, in order.
 
 # %% [markdown] role="ex3-predict"
-# λ = 1. An item has seen the same unit vector x 100 times. What is its LinUCB width at x,
+# λ_ridge = 1. An item has seen the same unit vector x 100 times. What is its LinUCB width at x,
 # c √(xᵀA⁻¹x), as a multiple of c? (The run cell prints it for n = 0, 1, 10 and 100.)
 
 
@@ -690,9 +690,9 @@ lab.check(6, m05.check_log_policy, log_policy)
 # correct log, then find the line and fix it.
 
 # %% [markdown] role="ex7-predict"
-# The colleague logs with your ε-greedy over LinUCB (K = 10, ε = 0.1). On a correct log,
-# what must the mean importance weight be for the uniform target? And for `new_policy`, a
-# deterministic target that shows one item per user?
+# Your ε-greedy logger (K = 10, ε = 0.1) and the uniform target, π(a | x) = 1/10. On a
+# correct log, what is a row's weight π/π_b when the best item was shown, and when another
+# item was? What must the mean weight be?
 
 
 # %% role="ex7-stub"
@@ -764,9 +764,9 @@ plt.show()
 #
 # **Diagnostics for this lab.** For a learner, plot cumulative pseudo-regret against the
 # known means, every seed shown. Healthy: its slope, the regret per round, keeps falling.
-# Broken: a slope that stops falling, as when a method has written an item off or its model
-# is wrong (misspecified) or stale (drifting), while its widths keep shrinking. Print each item's show count: an item stuck at 1 after the launch was
-# written off. For ridge, compare θ̂ with the closed form, and A⁻¹ with `np.linalg.inv(A)`.
+# Broken: a slope that stops falling or grows, as when a method has written an item off or
+# its model is wrong (misspecified) or stale (drifting), while its widths keep shrinking. Print each
+# item's show count: an item stuck at 1 after the launch was written off. For ridge, compare θ̂ with the closed form, and A⁻¹ with `np.linalg.inv(A)`.
 # For a log, check that every propensity is the probability of the shown item and is
 # positive, and that the mean weight is about 1 for a target that differs from the logger,
 # such as uniform; a target that agrees with the logger hides the bug.
@@ -786,7 +786,7 @@ lab.check(7, m05.check_log_suspect, log_suspect)
 # %% [markdown] role="stretch"
 # **Parity with MABWiser.** MABWiser 2.7.4 is a maintained bandit library whose LinUCB keeps,
 # for every arm, the same statistics as your `Ridge`: `A_inv` and `Xty` (your `b`). The cell
-# below replays one LinUCB run, fits MABWiser's LinUCB with the same c and λ on the same
+# below replays one LinUCB run, fits MABWiser's LinUCB with the same c and λ_ridge on the same
 # stream of (item, click, features), and compares the statistics and the scores. MABWiser is
 # not part of the lab's setup; if it is not installed, the cell says so and skips.
 

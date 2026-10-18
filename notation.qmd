@@ -54,3 +54,19 @@ and note the paper's original symbol here.
 | $\varepsilon_R$ | reward error, $\max_{s,a} \lvert r(s,a) - \hat r(s,a) \rvert$ (Module 2) | |
 | $Z(x)$ | partition function in the KL-regularized optimum | |
 | $H$ | horizon | |
+| $x$, $x_t$ | a context: what the agent observes about the user in round $t$ (Module 5); in RecSim $x \in \mathbb{R}^5$ | Li et al.'s $x_{t,a}$; Agrawal and Goyal's $b_i(t)$ |
+| $\phi(x)$ | Module 5's features of a context, $\phi(x) = (x, 1)$, with $d = 6$ entries | |
+| $K$ | in Modules 4 and 5, the number of arms (items) of a bandit; see OPEN_QUESTIONS C20 for its clash with the GRPO group size | |
+| $r(x, a)$ | the mean reward of item $a$ in context $x$; in RecSim, the click probability (Module 5) | RecSim's docstring writes $\mu(x, a)$ ($\mu$ is our state weighting) |
+| $\theta_a$, $\theta^*_a$, $\hat\theta_a$, $\tilde\theta_a$ | Module 5: item $a$'s hidden RecSim parameter, its true linear reward parameter $(0.15\,\theta_a, 0.5)$, the ridge estimate, and a Thompson draw; see OPEN_QUESTIONS C21 for the clash with $\theta$ as policy parameters | Agrawal and Goyal's $\mu$, $\hat\mu(t)$, $\tilde\mu(t)$ |
+| $b_a$ | Module 5: item $a$'s sum $\sum_i r_i\, \phi_i$; $\hat\theta_a = \Lambda_a^{-1} b_a$ (code: `A` is $\Lambda_a$, `A_inv`, `b`) | Li et al.'s $b_a$ |
+| $\lVert \phi \rVert_{\Lambda^{-1}}$ | the width $\sqrt{\phi^\top \Lambda^{-1} \phi}$ of a prediction in direction $\phi$ (Module 5); $\lVert v \rVert_\Lambda = \sqrt{v^\top \Lambda v}$ | |
+| $\kappa$ | the radius of LinUCB's confidence ellipsoid $\lVert \theta - \hat\theta \rVert_\Lambda \le \kappa$ (Module 5) | Lattimore and Szepesvári's $\sqrt{\beta_t}$ (our $\beta$ is the KL coefficient) |
+| $v$ | linear Thompson sampling's scale, $\tilde\theta_a \sim \mathcal{N}(\hat\theta_a, v^2 \Lambda_a^{-1})$ (Module 5); not $v_0$ | Agrawal and Goyal's $v$; MABWiser's `alpha` for LinTS |
+| $\xi_i$ | the noise of one observation, $r_i - \theta^{*\top}\phi_i$ (Module 5) | Lattimore and Szepesvári's $\eta_t$ (our $\eta$ is an error bound) |
+| $\sigma$ | the scale of sub-Gaussian noise (Module 5) | Agrawal and Goyal's $R$ |
+| $M$ | a bound on $\lVert \theta^* \rVert_2$ (Module 5, collapsed) | Lattimore and Szepesvári's $m_2$ |
+| $\nu$, $\omega$ | RecSim's misspecification weight and drift rate (Module 5) | RecSim's `misspec` and `drift` |
+| $R_T$ | pseudo-regret over $T$ rounds, $\sum_t [\max_a r(x_t, a) - r(x_t, a_t)]$ (Module 5) | |
+| $p_i$ | the propensity of logged row $i$, $\pi_b(a_i \mid x_i)$ (Module 5); the array `log.P` | |
+| $a_{\text{UCB}}(x)$ | the item with the highest LinUCB score for context $x$ (Module 5) | |
