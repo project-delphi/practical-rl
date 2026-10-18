@@ -20,6 +20,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
 
+from prl.checks import m04  # the checkpoints of this lab
 from prl.evaluate import Budget, bootstrap_ci, iqm
 
 R_MEAN = np.array([0.4, 0.3, 0.5])  # click rates r(a) of headlines 0, 1, 2; 2 is the best
@@ -205,8 +206,6 @@ plt.show()
 # instead (exploration floor), and does its curve flatten? (Gotcha: "ε = 0.1 is a safe default.")
 
 # %% role="ex1-chk1"
-from prl.checks import m04  # the checkpoints of this lab
-
 lab.check(1, m04.check_run_bandit, run_bandit, label="1.1")
 
 # %% role="ex1-chk2"
