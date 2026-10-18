@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from prl import envs
+from prl.checks import m06
 from prl.evaluate import Budget, bootstrap_ci, compare, iqm
 
 GAMMA = 0.95  # the discount of Strehl and Littman's experiments
@@ -147,10 +148,6 @@ print(f"The right end: stay {P_pi6[5, 5]:.3f}, left {P_pi6[5, 4]:.3f}")
 # time grows? If the left action also failed 5% of the time, would that ratio go up or down?
 
 # %% role="ex1-chk"
-# The checkpoints of this lab. (Technical expert: move this import to the first code cell
-# once prl.checks.m06 exists.)
-from prl.checks import m06
-
 lab.check(1, m06.check_policy_transition, policy_transition)
 
 # %% [markdown] role="ex2-head"
