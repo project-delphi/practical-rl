@@ -24,8 +24,8 @@
   Not built yet.
 - **[5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 5]{.visually-hidden}](/readiness.qmd#m05){.chip}  
   Not built yet.
-- **[6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 6]{.visually-hidden}](/readiness.qmd#m06){.chip}  
-  Not built yet.
+- **[6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd)** [Colab CPU]{.chip} [lab draft]{.chip} [readiness [of Lab 6]{.visually-hidden}](/readiness.qmd#m06){.chip}  
+  [Open in Colab[, Lab 6 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb){.btn-quiet target="_blank" rel="noopener"} [Download .ipynb[, Lab 6]{.visually-hidden}](https://github.com/project-delphi/practical-rl/raw/main/notebooks/06-exploration-mdps.ipynb){.btn-quiet}
 :::
 
 ## Day 3 · Value-based deep RL

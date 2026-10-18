@@ -461,27 +461,64 @@ modules:
     question: How do we explore when the reward is many steps away?
     where_we_are: Bandit bonuses look one step ahead.
     objectives:
-      - Compute RiverSwim hitting times under uniform random play by first-step analysis and show exponential growth in chain length.
-      - Implement optimistic initialization and MBIE-EB's bonus inside the backup of an estimated model.
-      - Measure state visitation and cumulative regret against the DP optimum over 10 seeds.
+      - Compute RiverSwim's hitting time under uniform random play by first-step analysis, and show that it grows by a factor of 3 per state.
+      - Implement optimistic initialization and MBIE-EB's bonus inside the backup of an estimated model, and explain why the bonus belongs there.
+      - Measure state visitation and cumulative regret against the DP optimum over 10 seeds, and call each comparison with its budget.
       - Explain where count bonuses stop working and what pseudo-counts and RND attempt.
     runtime: colab-cpu
     cost: Free (Google account)
     without_gpu: The whole lab runs.
     scaffold: S3
     testbeds: [RiverSwim]
-    compared_with: {kind: truth, what: "the DP-optimal policy"}
-    planted_bug: {what: "the bonus applied only at action selection", diagnostic: "state visitation"}
+    compared_with: {kind: truth, what: "the DP-optimal policy's expected rewards"}
+    planted_bug: {what: "the bonus applied only at action selection", diagnostic: "state visitation piles up at the left end and never reaches the right end, and the plan values every unreached state at 0"}
     stretch: Posterior sampling for RL (PSRL)
     exercises:
-      - {n: 1, title: Uniform random play on RiverSwim, minutes: 5, writes: [policy_transition]}
-      - {n: 2, title: Hitting time against chain length, minutes: 10, writes: [hitting_times]}
-      - {n: 3, title: "Epsilon-greedy and visitation", minutes: 7, writes: [visitation]}
-      - {n: 4, title: Optimistic initialization, minutes: 6, writes: [optimistic_q0]}
-      - {n: 5, title: The MBIE-EB backup, minutes: 10, writes: [mbie_eb_backup]}
-      - {n: 6, title: Cumulative regret over 10 seeds, minutes: 6, writes: []}
-      - {n: 7, title: "Planted bug: a bonus in the wrong place", minutes: 7, writes: []}
-    status: {briefing: placeholder, lab: planned}
+      # predict_answer: the answer to the Predict prompt (for the pace sheet).
+      # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
+      - n: 1
+        title: Uniform random play on RiverSwim
+        minutes: 5
+        writes: [policy_transition]
+        predict_answer: "stay 0.475 = ½ · 0.95 (only the right action holds the right end, with 0.6 + 0.35); left 0.525 = ½ · 1 + ½ · 0.05"
+        explain_ref: "(policy chain)"
+      - n: 2
+        title: Hitting time against chain length
+        minutes: 10
+        writes: [hitting_times]
+        predict_answer: "about 936 · 3⁴ ≈ 75,800 (the solve gives 77,296.4): about 15 times the 5000-step budget"
+        explain_ref: "(hitting time)"
+      - n: 3
+        title: "Epsilon-greedy and visitation"
+        minutes: 7
+        writes: [visitation]
+        predict_answer: "more concentrated at the left end, and it almost never reaches the right end: once left has paid 0.005 at state 0, the greedy action there is left, and a right move needs an exploratory step (0.05 · 0.4 = 0.02 per step, against 0.2 under uniform play)"
+        explain_ref: 'Gotcha: "ε-greedy gets there eventually."'
+      - n: 4
+        title: Optimistic initialization
+        minutes: 6
+        writes: [optimistic_q0]
+        predict_answer: "all or nearly all 10 (confirm on the record): every untried pair is worth 20, more than anything learned, so the agent tries right in each new state; the first visit comes after far fewer steps than uniform play's 77,296"
+        explain_ref: "(optimistic start)"
+      - n: 5
+        title: The MBIE-EB backup
+        minutes: 10
+        writes: [mbie_eb_backup]
+        predict_answer: "at the right end, over three quarters of the steps, close to the optimal policy's 0.852 (confirm on the record): every state with an untried action is worth at least c/(1 − γ) = 20 in the plan, so the agent swims right state by state, and then holds the right end"
+        explain_ref: "(MBIE-EB backup)"
+      - n: 6
+        title: Cumulative regret over 10 seeds
+        minutes: 6
+        writes: [verdict]
+        predict_answer: "MBIE-EB lowest, then optimistic Q-learning, then ε-greedy, with no ties at 10 seeds (confirm on the record): ε-greedy never leaves the left end, and optimistic Q-learning keeps revisiting states it already knows"
+        explain_ref: "(regret)"
+      - n: 7
+        title: "Planted bug: a bonus in the wrong place"
+        minutes: 7
+        writes: [mbie_eb_suspect]
+        predict_answer: "none, or almost none, at the right end, and more than half at the left end (confirm on the record): the bonus only compares the two actions of the current state, and the plain plan values every unreached state at 0"
+        explain_ref: 'Gotcha: "Add the bonus when acting."'
+    status: {briefing: draft, lab: draft}
 
   m07:
     n: 7

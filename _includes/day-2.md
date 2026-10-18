@@ -27,6 +27,6 @@ Ridge regression, LinUCB and linear Thompson sampling on a recommender, and logg
 
 Why epsilon-greedy fails on RiverSwim, and how optimism and count bonuses fix it.
 
-[Colab CPU]{.chip} [core 51 min]{.chip} [notebook not built yet]{.chip .chip-none}
+[Colab CPU]{.chip} [core 51 min]{.chip} [Open in Colab[, Lab 6 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb){.btn-quiet target="_blank" rel="noopener"}
 :::
 :::

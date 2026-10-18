@@ -8,7 +8,7 @@ Why epsilon-greedy fails on RiverSwim, and how optimism and count bonuses fix it
 :::
 
 ::: {.module-actions}
-[Lab notebook not built yet]{.btn-disabled} [Other ways to run](/setup.qmd#local){.btn-quiet}
+[Open in Colab[, Lab 6: Exploration in MDPs (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/06-exploration-mdps.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
 :::
 :::
 
@@ -37,9 +37,9 @@ Without GPU
 
 In this module you will:
 
-- Compute RiverSwim hitting times under uniform random play by first-step analysis and show exponential growth in chain length.
-- Implement optimistic initialization and MBIE-EB's bonus inside the backup of an estimated model.
-- Measure state visitation and cumulative regret against the DP optimum over 10 seeds.
+- Compute RiverSwim's hitting time under uniform random play by first-step analysis, and show that it grows by a factor of 3 per state.
+- Implement optimistic initialization and MBIE-EB's bonus inside the backup of an estimated model, and explain why the bonus belongs there.
+- Measure state visitation and cumulative regret against the DP optimum over 10 seeds, and call each comparison with its budget.
 - Explain where count bonuses stop working and what pseudo-counts and RND attempt.
 
 ## Before you start {#before}
