@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 
 from ..evaluate import compare
-from . import CheckFailed, StochasticCheck, assert_close, expected
+from . import CheckFailed, StochasticCheck, expected
 
 #: The lab's click rates r(a) of headlines 0, 1 and 2 (headline 2 is the best).
 R_MEAN = np.array([0.4, 0.3, 0.5])
@@ -206,15 +206,16 @@ def check_run_bandit(run_bandit: Callable[..., Any]) -> None:
                 f"in round {t}). Seed the run's generator with `seed`, and give the policy "
                 "that same generator in every round."
             )
-        assert_close(
-            regret,
-            fx[f"regret_{i}"],
-            atol=1e-9,
-            rtol=0,
-            what=f"{what}: regret",
-            hint="pseudo-regret adds the gap of the arm pulled, max(r_mean) - r_mean[a], in "
-            "every round (np.cumsum of gaps[arms]); it is not r* minus the reward received.",
-        )
+        got = _vector(regret, T, f"{what}: regret")
+        want = fx[f"regret_{i}"]
+        if not np.allclose(got, want, rtol=0, atol=1e-9):
+            t = int(np.flatnonzero(~np.isclose(got, want, rtol=0, atol=1e-9))[0])
+            raise CheckFailed(
+                f"{what}: regret[{t}] is {got[t]:.4g}; expected {want[t]:.4g} (the first "
+                "difference). Pseudo-regret adds the gap of the arm pulled, max(r_mean) - "
+                "r_mean[a], in every round, and regret[t] is the running total after round t: "
+                "np.cumsum(gaps[arms]). It is not r* minus the reward received."
+            )
 
 
 # ------------------------------------------------------------------ 1.2 epsilon-greedy (exact)
@@ -237,7 +238,7 @@ def check_eps_greedy(eps_greedy: Callable[..., Any]) -> None:
         for epsilon in (0.0, 1.0) if unpulled else (0.0,):
             what = f"eps_greedy(counts={_ints(counts)}, sums={_ints(sums)}, t={t}, rng, epsilon={epsilon:g})"
             rng = np.random.default_rng(7)
-            for _ in range(12 if unpulled else 1):  # 12 calls: a random arm cannot pass by luck
+            for _ in range(12):  # 12 calls: a random arm cannot pass by luck
                 got = _arm(eps_greedy(counts.copy(), sums.copy(), t, rng, epsilon=epsilon), 3, what)
                 if got == want:
                     continue
@@ -251,33 +252,35 @@ def check_eps_greedy(eps_greedy: Callable[..., Any]) -> None:
                         f"arm {got} has the largest total reward, but arm {want} has the best "
                         f"mean, {sums[want]:g}/{counts[want]} (greedy compares sums / counts)."
                     )
-                elif len(set((sums / counts).tolist())) < len(counts):
+                elif np.isclose(sums[got] / counts[got], sums[want] / counts[want]):
                     hint = (
                         f"the means {np.round(sums / counts, 3).tolist()} tie; ties go to the "
                         "lowest arm: argmax_tie(sums / counts)."
                     )
                 else:
                     hint = (
-                        "with epsilon = 0 it pulls the best mean so far, argmax_tie(sums / counts)."
+                        "with epsilon = 0 it never explores: draw u = rng.random() and explore "
+                        "only when u < epsilon; otherwise return argmax_tie(sums / counts)."
                     )
                 raise CheckFailed(f"{what} returned arm {got}; expected arm {want}. Hint: {hint}")
     # 2. The share of each arm over 4000 calls from default_rng(0), against the exact share.
     counts, sums, n = fx["share_counts"], fx["share_sums"], int(fx["share_n"])
+    greedy = int(np.argmax(fx["share_exact"][-1]))  # the arm with the best mean
     for epsilon, exact in zip(fx["share_eps"], fx["share_exact"], strict=True):
         what = f"eps_greedy(counts={_ints(counts)}, sums={_ints(sums)}, epsilon={epsilon:g})"
         got = _shares(eps_greedy, counts, sums, 30, n, 0, what, epsilon=float(epsilon))
         tol = 0.04 if epsilon == 1 else 0.03
         if np.all(np.abs(got - exact) <= tol):
             continue
-        if epsilon == 1:
+        if got[greedy] < exact[greedy] - tol and abs(got[greedy] - (1 - epsilon)) <= tol:
+            hint = (
+                "the random pull must choose among all arms, rng.integers(len(counts)), the "
+                f"greedy one included, so arm {greedy}'s share is 1 - epsilon + epsilon / 3."
+            )
+        elif epsilon == 1:
             hint = (
                 "with epsilon = 1 every pull after the first ones is random, so each arm "
                 "should take about 1/3. Draw u = rng.random() and explore when u < epsilon."
-            )
-        elif got[2] < exact[2] - tol and abs(got[2] - (1 - epsilon)) <= tol:
-            hint = (
-                "the random pull must choose among all arms, rng.integers(len(counts)), the "
-                "greedy one included, so arm 2's share is 1 - epsilon + epsilon / 3."
             )
         else:
             hint = (
@@ -432,6 +435,11 @@ def check_thompson_choices(thompson_step: Callable[..., Any]) -> None:
             )
         elif np.all(np.abs(got - 1 / 3) <= tol):
             hint = "your choices do not depend on the counts. Draw from each arm's posterior."
+        elif int(np.argmax(got)) == int(np.argmin(exact)):
+            hint = (
+                "the arm least likely to be best wins most often: check the order of the shape "
+                "parameters, rng.beta(1 + S, 1 + F), clicks first."
+            )
         else:
             hint = "draw one rate per arm, rng.beta(*beta_posterior(counts, sums)); argmax_tie."
         raise CheckFailed(
@@ -525,6 +533,12 @@ def _word(out: Any, what: str) -> str:
     return str(out)
 
 
+def _seeds(x: np.ndarray) -> str:
+    if x.size <= 6:
+        return str(x.tolist())
+    return f"{x.size} seeds from {x.min():g} to {x.max():g}"
+
+
 def _summary_words(sa: Any, sb: Any, n: int) -> str:
     kind = "IQM" if n >= 5 else ("mean" if n >= 2 else "value")
     span = "95% bootstrap interval" if n >= 5 else "range"
@@ -544,7 +558,7 @@ def check_verdict(verdict: Callable[..., Any], final: Any) -> None:
         if got != want:
             sa, sb = fx["summary"][i]
             raise CheckFailed(
-                f"for the per-seed regrets a = {a.tolist()} and b = {b.tolist()}, your verdict "
+                f"for the per-seed regrets a = {_seeds(a)} and b = {_seeds(b)}, your verdict "
                 f"is {got!r}; the rule gives {want!r} ({_summary_words(sa, sb, min(a.size, b.size))}). "
                 f"Hint: {_VERDICT_HINTS[name]}"
             )
@@ -616,11 +630,15 @@ def check_scale_directions(scale_directions: Callable[[], Any]) -> None:
             continue
         x1, x10 = fx[_SCALE_X1[key]], fx[f"{key}_x10"]
         seeds, T = fx["seeds"], int(fx["T"])
+        if direction == "same":
+            seen = f"the regret is the same on all {len(seeds)} seeds (mean {x1.mean():.1f})"
+        else:
+            seen = f"the mean regret goes from {x1.mean():.1f} to {x10.mean():.1f}"
         raise CheckFailed(
             f"scale_directions()[{key!r}] is {out[key]!r}; the reference run (seeds "
-            f"{int(seeds[0])}-{int(seeds[-1])}, {T} rounds) gives {direction!r}: the mean "
-            f"regret goes from {x1.mean():.1f} to {x10.mean():.1f}, because {_SCALE_WHY[key]}. "
-            "See the briefing's section 5 and the lines your run cell printed."
+            f"{int(seeds[0])}-{int(seeds[-1])}, {T} rounds) gives {direction!r}: {seen}, "
+            f"because {_SCALE_WHY[key]}. See the briefing's section 5 and the lines your run "
+            "cell printed."
         )
 
 
