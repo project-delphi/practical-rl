@@ -6,17 +6,17 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 ::: {.lab-steps}
 | # | Exercise | Min |
 |---|---|---|
-| 0 | Reconnect and rerun setup | 3 |
-| 1 | Frame the recommender | 5 |
-| 2 | Incremental ridge regression | 8 |
-| 3 | LinUCB | 10 |
-| 4 | Linear Thompson sampling | 7 |
-| 5 | Three regimes | 8 |
-| 6 | A logging policy with propensities | 6 |
-| 7 | Planted bug: the wrong propensity [Planted bug]{.chip .chip-stale} | 5 |
+| 0 | [Reconnect and rerun setup [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/05-contextual-bandits.ipynb#scrollTo=ex0-head){target="_blank" rel="noopener"} | 3 |
+| 1 | [Frame the recommender [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/05-contextual-bandits.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} | 5 |
+| 2 | [Incremental ridge regression [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/05-contextual-bandits.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 8 |
+| 3 | [LinUCB [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/05-contextual-bandits.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 10 |
+| 4 | [Linear Thompson sampling [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/05-contextual-bandits.ipynb#scrollTo=ex4-head){target="_blank" rel="noopener"} | 7 |
+| 5 | [Three regimes, five seeds [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/05-contextual-bandits.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 8 |
+| 6 | [A logging policy with propensities [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/05-contextual-bandits.ipynb#scrollTo=ex6-head){target="_blank" rel="noopener"} | 6 |
+| 7 | [Planted bug: the wrong propensity [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/05-contextual-bandits.ipynb#scrollTo=ex7-head){target="_blank" rel="noopener"} [Planted bug]{.chip .chip-stale} | 5 |
 | | **Core** | **52 of 70** |
 :::
 
 ::: {.challenge}
-**Stretch (optional).** MABWiser parity; delayed feedback. For anyone who finishes early; nothing later depends on it.
+**Stretch (optional).** MABWiser parity. For anyone who finishes early; nothing later depends on it.
 :::
