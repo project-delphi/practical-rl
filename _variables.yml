@@ -486,7 +486,7 @@ modules:
         title: "Planted bug: the wrong propensity"
         minutes: 5
         writes: [log_suspect]
-        predict_answer: "0.1/0.91 ≈ 0.11 when the best item was shown and 0.1/0.01 = 10 otherwise; the mean must be 1 (0.91 × 0.11 + 0.09 × 10), up to sampling error. The suspect records 0.91 on every row, so every one of its uniform-target weights is 0.11 and so is its mean, on every seat; seat 0's new_policy gives 0.62 against 1.06 on the correct log."
+        predict_answer: "0.1/0.91 ≈ 0.11 when the best item was shown and 0.1/0.01 = 10 otherwise; the mean must be 1 (0.91 × 0.11 + 0.09 × 10), up to sampling error. The suspect records 0.91 on every row, so every one of its uniform-target weights is 0.11 and so is its mean, on every seat; seat 0's new_policy gives 0.62 against 1.05 on the correct log."
         explain_ref: 'Gotcha: "The propensity is bookkeeping."'
     status: {briefing: draft, lab: draft}
 
