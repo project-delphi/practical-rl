@@ -3,11 +3,11 @@ title: "{{< var modules.m06.title >}}"
 live:
   - {section: 1, minutes: 2}
   - {section: 2, minutes: 10, activities: [{block: predict-growth, minutes: 3, label: "Predict: linear or exponential?"}]}
-  - {section: 3, minutes: 5, activities: [{block: chk-optimism, minutes: 2, label: "Check yourself 3.1"}]}
-  - {section: 4, minutes: 8, activities: [{block: chk-mbie, minutes: 2, label: "Check yourself 4.1"}]}
-  - {section: 5, minutes: 5, activities: [{block: demo-lines, minutes: 3, label: "Demo: the two reference lines"}]}
-  - {section: 6, minutes: 5}
-  - {section: 7, minutes: 5}
+  - {section: 3, minutes: 6, activities: [{block: chk-optimism, minutes: 2, label: "Check yourself 3.1"}]}
+  - {section: 4, minutes: 10, activities: [{block: chk-mbie, minutes: 3, label: "Check yourself 4.1"}]}
+  - {section: 5, minutes: 6, activities: [{block: demo-lines, minutes: 3, label: "Demo: the two reference lines"}]}
+  - {section: 6, minutes: 4}
+  - {section: 7, minutes: 2}
 ---
 
 {{< include /_includes/module-06.md >}}
@@ -22,12 +22,12 @@ live:
 
 **In this section:** meet the chain where the reward is many steps away, with the numbers we use.
 
-Modules 4 and 5 explored one decision at a time. In an MDP, what you learn by exploring may pay off only many decisions later. RiverSwim shows this [@strehl2008mbie, §6, Fig. 1]. The states $0, 1, \dots, n - 1$ form a chain, and the agent starts at the left end, state 0. Two actions:
+Modules 4 and 5 explored one decision at a time. In an MDP, what you learn by exploring may pay off only many decisions later. RiverSwim shows this [@strehl2008mbie, §6, Fig. 1]. The states $0, 1, \dots, n - 1$ form a chain; the agent starts at the left end, state 0. Two actions:
 
 - **left**, with the current, always moves one state left. At the left end it stays and pays 0.005.
 - **right**, against the current, moves right with probability 0.35, stays with 0.6 and slips left with 0.05. At the left end it moves right with 0.4 and stays with 0.6. At the right end it holds its position with 0.95, which pays 1, and slips left with 0.05.
 
-Rewards lie in $[0, 1]$, so ${r_{\max} = 1}$, and ${\gamma = 0.95}$. The optimal policy swims right in every state. Until an agent first reaches the right end, the only reward it has seen is the 0.005.
+Rewards lie in $[0, 1]$, so ${r_{\max} = 1}$ (Module 4's $B$), and ${\gamma = 0.95}$. The optimal policy swims right in every state. Until an agent first reaches the right end, the only reward it has seen is the 0.005.
 
 ![RiverSwim with six states and our probabilities. The lab's river has the same probabilities and ten states.](/images/06-riverswim.svg){#fig-riverswim fig-alt="A chain of six circles, states 0 to 5, from left to right. Under the right action each interior state moves right with probability 0.35, stays with 0.6 and moves left with 0.05; state 0 moves right with 0.4 and stays with 0.6; state 5 stays with 0.95, paying 1, and moves left with 0.05. Under the left action every state moves one step left with probability 1, and state 0 stays, paying 0.005."}
 
@@ -37,7 +37,7 @@ Rewards lie in $[0, 1]$, so ${r_{\max} = 1}$, and ${\gamma = 0.95}$. The optimal
 
 ## 2. First-step hitting time
 
-**In this section:** compute exactly how long a random swimmer takes to reach the right end, and show that each extra state multiplies that time.
+**In this section:** compute exactly how long a random swimmer takes to reach the right end, and how that time changes as the river gets longer.
 
 Fix a policy $\pi$. The next state then depends only on the current one, through Module 1's state-to-state matrix, the *policy chain*
 
@@ -110,7 +110,7 @@ def hitting_times(P_pi, target):
 ::: {.callout-note collapse="true" title="After the lab: hitting times against the budget"}
 ![**What to notice:** on a log scale the hitting time is nearly a straight line, rising by a factor close to 3 per state once the chain has more than a few states. The lab's 10-state river needs 77,296.4 steps in expectation, about 15 times the budget of 5000. Expected steps from the left end to the right end under uniform random play, from the linear solve of @eq-hitting, for chain lengths 2 to 16; the dashed line is the lab's budget.](/images/06-hitting-time.svg){#fig-hitting-time fig-alt="A line chart of the expected hitting time against chain length n from 2 to 16, on a log y-axis. The points rise almost on a straight line, from 5 at n = 2 through 936.4 at n = 6 and 77,296.4 at n = 10. A dashed horizontal line at 5000 steps, the lab's budget, crosses the curve between n = 7 and n = 8."}
 
-**Why ε-greedy does worse than uniform play.** Lab 3's Q-learning starts at ${Q = 0}$. The first time it takes left at the left end it gets 0.005, so $Q(0, \text{left})$ rises above $Q(0, \text{right})$, whose target only discounts the values of the same few states. From then on the greedy action there is left. A right move happens only on an exploratory step: with probability ${\varepsilon/2 = 0.05}$ the agent picks right, and then moves with 0.4, so 0.02 per step against uniform play's 0.2. Each interior state goes the same way once its left action has been tried: ${p_\rightarrow = 0.05 \cdot 0.35 = 0.0175}$ against ${p_\leftarrow = 0.95 + 0.05 \cdot 0.05 = 0.9525}$, a ratio of about 54 per state instead of 3.
+**Why ε-greedy does worse than uniform play.** Lab 3's Q-learning starts at ${Q = 0}$. The first time it takes left at the left end it gets 0.005, so $Q(0, \text{left})$ rises above $Q(0, \text{right})$, whose target only discounts the values of the same few states. From then on the greedy action there is left. A right move happens only on an exploratory step: with probability ${\varepsilon/2 = 0.05}$ the agent picks right, and then moves with 0.4, so 0.02 per step against uniform play's 0.2. Each interior state goes the same way once its left action has been tried: ${p_\rightarrow = 0.05 \cdot 0.35 = 0.0175}$ against ${p_\leftarrow = 0.95 + 0.05 \cdot 0.05 = 0.9525}$, a ratio of about 54 per state instead of 3. In the recorded runs, seeds 0 to 9, $\varepsilon$-greedy spent 0.972 to 0.983 of its 5000 steps at state 0 and never reached the right end (`runs/2026-10-18-local-m06-regret-seeds-exp.json`).
 :::
 
 ## 3. Optimistic initialization
@@ -145,7 +145,7 @@ def optimistic_q0(r_max, gamma, n_states, n_actions):
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 4** is `optimistic_q0(r_max, gamma, n_states, n_actions)`, @eq-optimistic. Checkpoint 4.1 is exact: the value, and that it is at least $Q^*$ on the river. Checkpoint 4.2 runs Lab 3's Q-learning from your start on the checkpoint's own seeds, with the same $\varepsilon$ and $\alpha$ as Exercise 3, and requires it to reach the right end on at least a set number of 10 runs, the threshold of the threshold protocol.
+**In the lab.** **Exercise 4** is `optimistic_q0(r_max, gamma, n_states, n_actions)`, @eq-optimistic. Checkpoint 4.1 is exact: the value, and that it is at least $Q^*$ on the river. Checkpoint 4.2 is statistical: it runs Lab 3's Q-learning from your start on its own seeds, with the same $\varepsilon$ and $\alpha$ as Exercise 3.
 :::
 
 ## 4. The bonus belongs in the backup
@@ -165,13 +165,17 @@ and acts greedily on $\tilde Q$ [@strehl2008mbie, §3.2, Eq. 8]. Here $N(s, a)$ 
 
 **Why inside.** The bonus sits in the reward, and value iteration carries rewards backward. A pair three states away that has been tried once carries a bonus $c$. The value of its state includes that bonus, the state before inherits $\gamma$ times it, and so on back to where the agent stands. The agent is pulled toward uncertainty it cannot see from there. Now add the same bonus only when choosing an action: plan $\hat Q$ in the plain model, then take $\arg\max_a [\hat Q(s, a) + c/\sqrt{N(s, a)}]$. That is a bandit bonus. It compares the actions of the current state, one step ahead, and a state the agent has never reached adds nothing to $\hat Q$.
 
-**A pair never tried.** @eq-mbie divides by zero when ${N(s, a) = 0}$, and Strehl and Littman's §3.2 does not say what it means there. For their MBIE they set such a pair's value to $1/(1 - \gamma)$, the largest value possible with rewards in $[0, 1]$ (§3.1.3), and they start value iteration there (§3). We keep Module 2's default instead, a self-loop with reward 0, and give the pair the bonus of a pair tried once. Then $\tilde Q(s, a) = c + \gamma \tilde V(s)$, where $\tilde V(s) = \max_{a'} \tilde Q(s, a')$, and since $\tilde V(s) \ge \tilde Q(s, a)$,
+**A pair never tried.** @eq-mbie divides by zero when ${N(s, a) = 0}$, and Strehl and Littman's §3.2 does not say what it means there. We keep Module 2's default, a self-loop with reward 0, and give the pair the bonus of a pair tried once. Then $\tilde Q(s, a) = c + \gamma \tilde V(s)$, where $\tilde V(s) = \max_{a'} \tilde Q(s, a')$, and since $\tilde V(s) \ge \tilde Q(s, a)$,
 
 $$
 \tilde V(s) \;\ge\; \frac{c}{1 - \gamma}
 $$ {#eq-untried}
 
 in every state with an action never tried. With ${c = r_{\max}}$ that is $V_{\max}$, the optimistic start of section 3: the self-loop default of Module 2 becomes optimistic initialization. The lab uses ${c = r_{\max} = 1}$.
+
+::: {.reference}
+**Strehl and Littman's convention.** For their MBIE they set the value of a pair never tried to $1/(1 - \gamma)$, the largest value possible with rewards in $[0, 1]$ [@strehl2008mbie, §3.1.3], and they start value iteration there (§3). Ours gives such a pair at least $c/(1 - \gamma)$ (@eq-untried): the same with ${c = r_{\max}}$, as a lower bound.
+:::
 
 **The role of $c$.** Strehl and Littman's Lemma 7 chooses $\beta$, by Hoeffding's inequality as for UCB1 in Module 4, so that $\tilde Q \ge Q^*$ holds at every step with high probability [@strehl2008mbie, Lemma 7]. On the lab's river that $\beta$ is about 55, a bonus 55 times the largest reward. Their experiments tune ${C = \beta / R_{\max}}$ by a broad search instead; the best on their RiverSwim was ${C = 0.4}$ [@strehl2008mbie, §6, Fig. 2]. The lab's ${c = 1}$ is not tuned. It makes @eq-untried match the optimistic start.
 
@@ -188,12 +192,12 @@ where $m$ caps how many visits of a pair the model uses and $p_{\text{fail}}$ is
 **What it does not say.** Lemma 7 holds for its $\beta$, not for a tuned $c$: with ${c = 1}$ nothing guarantees $\tilde Q \ge Q^*$. Their Theorem 2 bounds the number of steps on which the agent is not near-optimal; it is not a bound on the regret over 5000 steps. And they solve @eq-mbie again at every step, until no value changes by more than 0.01 [@strehl2008mbie, §6]. The lab keeps that stopping rule but plans again only when the count of the pair just tried reaches 1, 2, 4, 8, …: at most 261 plans in 5000 steps on the 10-state river, instead of 5000. Osband et al. describe a similar doubling rule [@osband2013psrl, §6.1].
 
 ::: {#chk-mbie .self-check}
-**Check yourself 4.1.** At the left end the agent has taken left 4 times (it stayed, and was paid 0.005 each time) and has never taken right. With ${c = 1}$ and ${\gamma = 0.95}$, solve @eq-mbie for state 0 alone: what are $\tilde Q(0, \text{right})$ and $\tilde Q(0, \text{left})$? Now plan the plain model instead and add the bonus only when acting: which action wins? Both choose the same action here. Why does the difference between them show up only farther along the river?
+**Check yourself 4.1.** At the left end the agent has taken left 4 times (it stayed, and was paid 0.005 each time) and has never taken right. With ${c = 1}$ and ${\gamma = 0.95}$, solve @eq-mbie for state 0 alone: what are $\tilde Q(0, \text{right})$ and $\tilde Q(0, \text{left})$? Now plan the plain model instead and add the bonus only when acting: which action wins? Where along the river would the two methods first choose differently, and why?
 
 ::: {.callout-tip collapse="true" title="Answer to 4.1"}
 Right is untried, so it is a self-loop with reward 0 and bonus $c/\sqrt{1} = 1$: $\tilde Q(0, \text{right}) = 1 + 0.95\, \tilde V(0)$. Left has $\hat r = 0.005$ and bonus $1/\sqrt 4 = 0.5$: $\tilde Q(0, \text{left}) = 0.505 + 0.95\, \tilde V(0)$. Right is larger, so $\tilde V(0) = 1 + 0.95\, \tilde V(0)$, which gives $\tilde V(0) = 20$, $\tilde Q(0, \text{right}) = 20$ and $\tilde Q(0, \text{left}) = 19.505$, as @eq-untried says.
 
-In the plain model, left is worth $0.005/(1 - 0.95) = 0.1$ and the untried self-loop $0.95 \cdot 0.1 = 0.095$. With the bonus added when acting, left scores $0.1 + 0.5 = 0.6$ and right $0.095 + 1 = 1.095$, so right wins too. Here the untried pair is in the current state, so a one-step bonus sees it. Farther along, the untried pairs are in states the agent has not reached. Their values in the plain model are 0, and nothing in the current state's bonus points toward them.
+In the plain model, left is worth $0.005/(1 - 0.95) = 0.1$ and the untried self-loop $0.95 \cdot 0.1 = 0.095$. With the bonus added when acting, left scores $0.1 + 0.5 = 0.6$ and right $0.095 + 1 = 1.095$, so right wins too: here the two choose alike, because the untried pair is in the current state and a one-step bonus sees it. They first differ once every action of the current state has been tried and the untried pairs lie in states the agent has not reached. Their values in the plain model are 0, and nothing in the current state's bonus points toward them.
 :::
 :::
 
@@ -207,7 +211,7 @@ def mbie_eb_backup(P_hat, R_hat, counts, gamma, c, tol):
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 5** is `mbie_eb_backup(P_hat, R_hat, counts, gamma, c, tol)`, @eq-mbie with the convention of @eq-untried, using Lab 2's `estimate_model` and `value_iteration` (included as reference code). The checkpoint is exact on fixed counts, with pairs never tried. A provided runner logs, estimates, plans and acts with it. **Exercise 7** is the planted bug: a colleague's agent that runs, uses the same $c$, and does something else with it. You read its visitation and the values its plan gives each state, find the line, and fix it. Its checkpoint runs your fixed agent on its own seeds and requires its time at the right end to recover.
+**In the lab.** **Exercise 5** is `mbie_eb_backup(P_hat, R_hat, counts, gamma, c, tol)`, @eq-mbie with the convention of @eq-untried, using Lab 2's `estimate_model` and `value_iteration` (included as reference code). The checkpoint is exact on fixed counts, with pairs never tried. A provided runner logs, estimates, plans and acts with it. **Exercise 7** is the planted bug: a colleague's agent that runs, uses the same $c$, and does something else with it. You read its visitation and the values its plan gives each state, find the line, and fix it. Its checkpoint runs your fixed agent on its own seeds.
 :::
 
 ## 5. Visitation and regret
@@ -223,10 +227,10 @@ $$ {#eq-visitation}
 **Regret** compares the learner with $\pi^*$, the optimal policy from Module 2's value iteration on the true model. Let $\bar r^*_t$ be $\pi^*$'s expected reward at step $t$ from the same start, computed exactly with @eq-policy-chain. Then
 
 $$
-\mathrm{Regret}(T) = \sum_{t=0}^{T-1} \big( \bar r^*_t - r(s_t, a_t) \big),
+\mathrm{Reg}_T = \sum_{t=0}^{T-1} \big( \bar r^*_t - r(s_t, a_t) \big),
 $$ {#eq-regret}
 
-with $r(s_t, a_t)$ the mean reward of what the learner did: means, not draws, as in Module 4. The lab compares 10 seeds per method by interquartile mean (IQM) with 95% bootstrap intervals; overlapping intervals are a tie.
+with $r(s_t, a_t)$ the mean reward of what the learner did. This is Module 4's pseudo-regret $\mathrm{Reg}_T$, with $\pi^*$'s expected reward at step $t$ in place of the best arm's mean. The lab compares 10 seeds per method by interquartile mean (IQM) with 95% bootstrap intervals; overlapping intervals are a tie.
 
 ::: {#demo-lines .demo}
 **Demo (3 min).** Two reference lines come first, and both are exact: uniform random play and $\pi^*$ itself, from the left end of the 10-state river, over 5000 steps. Read them as a room. Where does uniform play spend its time, and how fast does its regret grow? Then say where you expect each of the lab's learners to land between the two lines, and why.
@@ -236,11 +240,15 @@ with $r(s_t, a_t)$ the mean reward of what the learner did: means, not draws, as
 
 ![Expected cumulative regret of uniform play.](/images/06-lines-regret.svg){#fig-lines-regret fig-alt="Expected cumulative regret against the step, from 0 to 5000. Uniform random play's line rises almost straight to 4040.2. The optimal policy's regret is 0 throughout, a flat line along the axis."}
 
-**What to notice:** uniform random play spends 64% of its steps at the left end and almost none at the right end (an expected fraction of $3.7 \times 10^{-5}$), while $\pi^*$ spends 85% of its steps there. Over 5000 steps $\pi^*$ expects to collect 4048.2, and uniform play's expected regret is 4040.2: nearly a straight line, whose slope approaches 0.81 per step, $\pi^*$'s long-run reward per step. Exact expectations from the policy chains, 10-state river, start at the left end.
+Expected visitation and cumulative regret over 5000 steps from the left end of the 10-state river, for uniform random play and for $\pi^*$: exact expectations from the policy chains.
+:::
+
+::: {.callout-tip collapse="true" title="After the room has read the figure"}
+**What to notice:** uniform random play spends 64% of its steps at the left end and almost none at the right end (an expected fraction of $3.7 \times 10^{-5}$), while $\pi^*$ spends 85% of its steps there. Over 5000 steps $\pi^*$ expects to collect 4048.2, and uniform play's expected regret is 4040.2: nearly a straight line, whose slope approaches 0.81 per step, $\pi^*$'s long-run reward per step.
 :::
 :::
 
-::: {.callout-note collapse="true" title="Code: visitation and verdict (open after Lab 6)"}
+::: {.callout-note collapse="true" title="Code: visitation and regret (open after Lab 6)"}
 ```python
 def visitation(states, n_states):
     counts = np.bincount(
@@ -249,21 +257,18 @@ def visitation(states, n_states):
     return counts / counts.sum()
 
 
-def verdict(a, b):
-    lo_a, hi_a = bootstrap_ci(a, iqm)
-    lo_b, hi_b = bootstrap_ci(b, iqm)
-    if hi_a >= lo_b and hi_b >= lo_a:
-        return "tie"
-    return "A" if iqm(a) < iqm(b) else "B"
+def regret(states, actions, R, opt_rewards):
+    states, actions = np.asarray(states), np.asarray(actions)
+    return np.cumsum(opt_rewards - R[states[:-1], actions])
 ```
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 3** is `visitation(states, n_states)`, @eq-visitation, for Lab 3's $\varepsilon$-greedy Q-learning from ${Q_0 = 0}$. Checkpoint 3.1 is exact, on sequences that never reach some states; checkpoint 3.2 runs the reference Q-learning on its own seed and requires its time at the right end to stay below the protocol's threshold. **Exercise 6** runs the three learners on 10 seeds each and computes @eq-regret (provided). You write `verdict(a, b)`, the comparison rule for 5 or more seeds; the checkpoint is exact on fixed per-seed arrays, and the run prints `prl.evaluate.compare` beside your verdicts, with the budget.
+**In the lab.** **Exercise 3** is `visitation(states, n_states)`, @eq-visitation, for Lab 3's $\varepsilon$-greedy Q-learning from ${Q_0 = 0}$. Checkpoint 3.1 is exact, on sequences that never reach some states; checkpoint 3.2 runs the reference Q-learning on its own seed and tests your `visitation` on that run. **Exercise 6** is `regret(states, actions, R, opt_rewards)`, @eq-regret after every step. Its checkpoint is exact on fixed trajectories. The run cell computes it for the three learners on 10 seeds each and compares them with `prl.evaluate.compare`, with the budget.
 :::
 
 ::: {.callout-note collapse="true" title="After the lab: the recorded comparison"}
-![**What to notice:** $\varepsilon$-greedy Q-learning's regret climbs in a straight line to the end, nearly as steep as uniform play's: it never reaches the right end. Optimistic Q-learning's curves bend once it gets there, but keep climbing, because its optimism also sends it back to states it has already learned about. MBIE-EB's curves bend early and stay nearly flat. Cumulative regret against $\pi^*$ (@eq-regret), every seed shown, 10 seeds per method, 5000 steps, 10-state river; the budget and the seeds are in the record.](/images/06-regret-seeds.svg){#fig-regret-seeds fig-alt="Cumulative regret against the step, from 0 to 5000, ten thin lines per method. The epsilon-greedy lines rise straight to the top. The optimistic Q-learning lines rise steeply at first, then bend and keep rising more slowly. The MBIE-EB lines rise only briefly and stay near the bottom."}
+![**What to notice:** $\varepsilon$-greedy Q-learning's regret climbs in a straight line to the end, nearly as steep as uniform play's: it never reaches the right end. Optimistic Q-learning's curves bend once it gets there, but keep climbing, because its optimism also sends it back to states it has already learned about. MBIE-EB's curves bend early and stay nearly flat. Every comparison is decided, none a tie: IQM with 95% bootstrap intervals, MBIE-EB 133.2 [81.9, 171.9], optimistic Q-learning 2611.9 [2513.6, 2672.9], $\varepsilon$-greedy 4025.0 [4024.9, 4025.1]. MBIE-EB spends 0.805 to 0.850 of its steps at the right end; optimistic Q-learning first reaches it at steps 399 to 1215. $\mathrm{Reg}_T$ against $\pi^*$ (@eq-regret) after every step, every seed shown, seeds 0 to 9 per method, 5000 steps, 10-state river (`runs/2026-10-18-local-m06-regret-seeds-exp.json`).](/images/06-regret-seeds.svg){#fig-regret-seeds fig-alt="Cumulative regret against the step, from 0 to 5000, ten thin lines per method. The epsilon-greedy lines rise straight to the top. The optimistic Q-learning lines rise steeply at first, then bend and keep rising more slowly. The MBIE-EB lines rise only briefly and stay near the bottom."}
 :::
 
 ## 6. Where counts stop
@@ -295,7 +300,7 @@ A different route to the same goal: keep a posterior distribution over models, s
 
 **In this section:** what Day 2 leaves for the rest of the week.
 
-Day 2 asked how to gather data when every action costs something. The answer took three forms, and all three are optimism:
+Day 2 asked how to gather data when every action costs something. Its three answers are all optimism:
 
 | Module | Setting | Where the optimism goes |
 |---|---|---|
@@ -303,9 +308,7 @@ Day 2 asked how to gather data when every action costs something. The answer too
 | 5 | Contextual bandit | A width on each action's estimate, shrinking with the data |
 | 6 | MDP | A bonus inside the backup, so it travels to the states that lead to it |
 
-In an MDP the information can be many steps away. A bonus that only compares the actions of the current state is blind to it; one inside the backup is not. And the cost of exploring blindly grows with the distance: a factor of 3 per state on this river.
-
-All three forms divide by something you can count: an arm's pulls, a Gram matrix, $N(s, a)$. Day 3 replaces the tables of Day 1 with features and networks (Modules 7 to 9), where section 6's problem becomes practical: no state recurs exactly, so there is nothing to count. Day 5 removes exploration altogether. Its data is a log someone else collected (Modules 13 and 14). The counts of this module return there as coverage, and a pair the log never visited has no default you can trust: neither Module 2's self-loop nor this module's optimism.
+All three divide by something you can count: an arm's pulls, a Gram matrix, $N(s, a)$. Day 3 replaces tables with features and networks (Modules 7 to 9), where no state recurs exactly and there is nothing to count. Day 5 removes exploration altogether: its data is a log someone else collected (Modules 13 and 14), and a pair the log never visited has no default you can trust.
 
 ## Summary
 
@@ -313,7 +316,7 @@ All three forms divide by something you can count: an arm's pulls, a Gram matrix
 - Under uniform random play the hitting time of the right end solves one linear system (@eq-hitting). Each crossing costs $p_\leftarrow / p_\rightarrow = 3$ times the one before (@eq-crossing), so the time grows like $3^n$: 936.4 steps for 6 states. The result is for one fixed policy and gives an expectation.
 - An optimistic start, $Q_0 = r_{\max} / (1 - \gamma)$ (@eq-optimistic), makes a greedy learner try what it has not tried. It is optimism in tabular form, spent once, with no count behind it.
 - MBIE-EB plans in the estimated model with the bonus $c/\sqrt{N(s, a)}$ inside the backup (@eq-mbie), so the bonus reaches the states that lead to uncertainty. Module 2's self-loop default plus the bonus of one visit makes every state with an untried action worth at least $c/(1 - \gamma)$ (@eq-untried). With Lemma 7's $\beta$, $\tilde Q \ge Q^*$ holds with high probability; with a tuned $c$ nothing guarantees it.
-- Visitation (@eq-visitation) shows where exploration went; regret against $\pi^*$'s expected reward (@eq-regret) prices it. Compare 10 seeds with IQMs and bootstrap intervals, call ties, and state the budget.
+- Visitation (@eq-visitation) shows where exploration went; $\mathrm{Reg}_T$ against $\pi^*$'s expected reward (@eq-regret) prices it. Compare 10 seeds with IQMs and bootstrap intervals, call ties, and state the budget. On the recorded seeds MBIE-EB's regret is lowest, then optimistic Q-learning's, then $\varepsilon$-greedy's, with no ties.
 - Counts need states that recur. Pseudo-counts and RND build counts that generalize, for large state spaces, and give up the guarantee.
 
 ### Equations and where you implement them
@@ -321,23 +324,23 @@ All three forms divide by something you can count: an arm's pulls, a Gram matrix
 | Equation | Lab 6 | Name in the notebook |
 |---|---|---|
 | The policy chain (@eq-policy-chain) | Exercise 1: `policy_transition` | (policy chain) |
-| First-step analysis (@eq-hitting) and crossing times (@eq-crossing) | Exercise 2: `hitting_times`; the run checks the ratio and simulates walks | (hitting time) |
+| First-step analysis (@eq-hitting) and crossing times (@eq-crossing) | Exercise 2: `hitting_times`; the checkpoint also checks the ratio and compares with simulated walks | (hitting time) |
 | Visitation (@eq-visitation) | Exercise 3: `visitation`, for $\varepsilon$-greedy Q-learning | (visitation) |
 | The optimistic start (@eq-optimistic) | Exercise 4: `optimistic_q0`, with Lab 3's `q_learning` | (optimistic start) |
 | The MBIE-EB backup (@eq-mbie) and untried pairs (@eq-untried) | Exercise 5: `mbie_eb_backup`; Exercise 7: fix `mbie_eb_suspect` | (MBIE-EB backup) |
-| Regret (@eq-regret) | Exercise 6: provided; you write `verdict` | (regret) |
+| Regret (@eq-regret) | Exercise 6: `regret`; the run compares the learners with `prl.evaluate.compare` | (regret) |
 | Posterior sampling (section 6, collapsed) | Stretch: `psrl_sample` | — |
 
 ## Gotchas and troubleshooting
 
-- **"ε-greedy gets there eventually."** In expectation, after a time that grows exponentially with the distance: a factor of 3 per state for uniform play on this river (@eq-crossing). A learner that has learned to prefer the small reward nearby is not uniform play, and it is not faster. "Eventually" can be longer than any budget you will run.
+- **"ε-greedy gets there eventually."** In expectation, after a time that grows exponentially with the distance: a factor of 3 per state for uniform play on this river (@eq-crossing). "Eventually" can be longer than any budget you will run.
 - **"Optimistic initialization is a hack."** It is optimism in tabular form. $Q_0 = r_{\max}/(1 - \gamma)$ is an upper bound on every $Q^*$ (@eq-optimistic), and acting greedily on upper bounds is the principle behind UCB1 and MBIE-EB. What it lacks is a count: its optimism is spent by visits and never renewed.
 - **"Add the bonus when acting."** Then it is a bandit bonus, which compares the actions of the current state and sees one step ahead. It belongs in the backup (@eq-mbie), where value iteration carries it to the states that lead to what has not been tried.
 - **"A bigger $c$ is always safer."** Lemma 7's $\beta$, about 55 on the lab's river, guarantees optimism, and keeps the agent trying pairs it already knows well for a long time. A small $c$ can stop exploring too soon. The guarantee and the tuned value are different things; say which one you are using.
-- **"My regret is negative, so my agent beats the optimal policy."** Regret here compares your rewards with the optimal policy's *expected* rewards (@eq-regret). A run that reaches the right end early, or holds it by luck, can be ahead of that expectation for a while. Judge from 10 seeds, not one.
+- **"My regret is negative, so my agent beats the optimal policy."** $\mathrm{Reg}_T$ here compares your rewards with the optimal policy's *expected* rewards (@eq-regret). A run that reaches the right end early, or holds it by luck, can be ahead of that expectation for a while. Judge from 10 seeds, not one.
 - **"My agent reached the right end once, so it explored."** Reaching it once is not holding it. Read the visitation (@eq-visitation): an agent that found the reward and left again spent its steps somewhere else, and its regret keeps rising.
 - **"`visitation` returns the wrong shape."** `np.bincount(states)` stops at the largest state that occurs. When the right end is never visited, which is exactly the case that matters here, the last entries are missing. Pass `minlength=n_states`.
-- **"My `mbie_eb_backup` is off by about 0.1 at the checkpoint."** The checkpoint calls it with a tight `tol`; use the `tol` argument, not the lab's `TOL`. Value iteration stopped at a tolerance $\mathrm{tol}$ returns values within $\gamma\, \mathrm{tol}/(1 - \gamma)$ of the solution ([Module 2, section 1](/modules/02-planning.qmd#eq-vi-stop)): 0.19 at the lab's 0.01.
+- **"My `mbie_eb_backup` is off by up to about 0.2 at the checkpoint."** The checkpoint calls it with a tight `tol`; use the `tol` argument, not the lab's `TOL`. Value iteration stopped at a tolerance $\mathrm{tol}$ returns values within $\gamma\, \mathrm{tol}/(1 - \gamma)$ of the solution ([Module 2, section 1](/modules/02-planning.qmd#eq-vi-stop)): 0.19 at the lab's 0.01.
 - **"`NotImplementedError`."** The function still raises its TODO: you have not written it yet, or you have not run the cell that holds your code. Write the TODO and run its cell. To move on without it, run `lab.use_reference(N)` with the exercise number, and the lab continues with the reference solution; the exercise's solution cell must have run once. Running a solution cell alone does not replace your function.
 
 ## Next steps
