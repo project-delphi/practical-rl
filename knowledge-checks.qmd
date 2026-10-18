@@ -257,7 +257,7 @@ With $\alpha = 0.02$ each update moves $V$ only 2% of the way, so after 1000 epi
 
 Questions for [Module 6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd), two per objective. Each answer ends with the Lab 6 checkpoint that is its evidence. Objective 4 has no checkpoint; its evidence is the briefing's section 6 and the papers it cites.
 
-### Objective 1: compute RiverSwim's hitting time under uniform random play by first-step analysis, and show that it grows by a factor of 3 per state
+### Objective 1: compute RiverSwim's hitting time under uniform random play by first-step analysis, and find how it grows with the length of the chain
 
 [**6.1**]{#q6-1} A chain like RiverSwim's has, under some fixed policy, these per-step probabilities in every interior state: right 0.2, left 0.4, stay 0.4. From the left end it moves right with 0.25 and otherwise stays. For four states, compute the crossing times $u_0$, $u_1$, $u_2$ and the hitting time $h(0)$ of the right end. By what factor does $h(0)$ grow per extra state in a long chain?
 
@@ -272,7 +272,7 @@ $u_0 = 1/0.25 = 4$. Each interior crossing satisfies $u_s = (1 + p_\leftarrow u_
 ::: {.callout-tip collapse="true" title="Answer to 6.2"}
 For every $s \ne n - 1$, $h(s) = 1 + \sum_{s'} P_\pi(s, s')\, h(s')$, with $h(n - 1) = 0$. The target contributes nothing to the sums, so over the other states the system is $(I - M)\, h = \mathbf{1}$, with $M$ the matrix $P_\pi$ restricted to the other states' rows and columns: `P_pi[np.ix_(others, others)]`. Indexing with two lists, `P_pi[others, others]`, pairs them element by element and returns the $n - 1$ diagonal entries as a vector. `np.eye(n - 1) - vector` then broadcasts to a matrix, so the solve runs and returns wrong numbers.
 
-No. The result is about one fixed policy. A learner whose plan steers it right, state after state, does not pay the cost of undoing random slips again and again; the lab's optimistic and MBIE-EB learners reach the right end of the 10-state river within the 5000-step budget, far below uniform play's expected 77,296 steps.
+No. The result is about one fixed policy. A learner whose plan steers it right, state after state, does not pay the cost of undoing random slips again and again. In the recorded runs (seeds 0 to 9) the optimistic learner first reaches the right end of the 10-state river at steps 399 to 1215 and MBIE-EB at steps 82 to 269, far below uniform play's expected 77,296 steps (`runs/2026-10-18-local-m06-regret-seeds-exp.json`).
 
 **Evidence:** Lab 6, checkpoint 2 (rejects the paired-indexing version), and the run cells of Exercises 4 and 5.
 :::
@@ -297,7 +297,7 @@ Here the untried action is in the current state, so a bonus added at selection a
 **Evidence:** Lab 6, checkpoint 5 (exact on fixed counts with untried pairs; it rejects the bonus added after solving) and checkpoint 7 (visitation recovers after the fix).
 :::
 
-### Objective 3: measure state visitation and cumulative regret against the DP optimum over 10 seeds, and call each comparison with its budget
+### Objective 3: write cumulative regret against the DP optimum, and measure it and state visitation over 10 seeds, calling each comparison with its budget
 
 [**6.5**]{#q6-5} On a 4-state chain, an agent acted in the states 0, 0, 1, 0, 1, 2, 2, 2. Compute its visitation. What does `np.bincount(states) / len(states)` return for the same list, and why is that the failure that matters on RiverSwim?
 
@@ -307,14 +307,14 @@ The counts are 3, 2, 3 and 0 over 8 steps, so the visitation is $(0.375, 0.25, 0
 **Evidence:** Lab 6, checkpoint 3.1 (exact, on sequences that never reach some states).
 :::
 
-[**6.6**]{#q6-6} Two learners run 10 seeds each for 5000 steps. Learner A's regret has an IQM of 100 with a 95% bootstrap interval of [40, 160]; learner B's has 2400 with [2300, 2550]. What is the verdict, and what must the sentence that reports it include? What would the verdict be if B's interval were [150, 300]? With only 3 seeds per side, what would you report instead? And how can a single seed's regret be negative?
+[**6.6**]{#q6-6} Over steps 0 to 3, the optimal policy's expected rewards from the start are 0, 0, 0.1 and 0.3. A learner's mean rewards $r(s_t, a_t)$ at the same steps are 0.005, 0, 0 and 0.95. Compute its cumulative regret after every step, $\mathrm{Reg}_1$ to $\mathrm{Reg}_4$. How can it be negative? Then two learners run 10 seeds each: A's $\mathrm{Reg}_T$ has an IQM of 100 with a 95% bootstrap interval of [40, 160], and B's 2400 with [2300, 2550]. What is the verdict, and what must the sentence that reports it include?
 
 ::: {.callout-tip collapse="true" title="Answer to 6.6"}
-The intervals do not overlap and A's IQM is lower, so A has the lower regret at this budget. The sentence states the budget: 5000 steps per run, 10 seeds per method, the wall-clock time and the hardware. If B's interval were [150, 300], it would overlap A's, and the verdict is a tie. With 3 seeds per side the rule is different: show every seed, compare the min–max ranges, call overlapping ranges a tie, and report no interval.
+The per-step regrets are $0 - 0.005 = -0.005$, $0 - 0 = 0$, $0.1 - 0 = 0.1$ and $0.3 - 0.95 = -0.65$, so $\mathrm{Reg}_1, \dots, \mathrm{Reg}_4 = -0.005, -0.005, 0.095, -0.555$. Regret compares with the optimal policy's *expected* reward, not with the most a run could get: a run that reaches the good state early, or holds it longer by luck, can collect more than that expectation for a while.
 
-Regret here is the optimal policy's *expected* reward at each step minus the mean reward of what the learner did. A run that reaches the right end early, or holds it longer by luck, can collect more than that expectation for a while, so its regret can be negative.
+The intervals do not overlap and A's IQM is lower, so A has the lower regret at this budget. The sentence states the budget: steps per run, seeds per method, the wall-clock time and the hardware. Had the intervals overlapped, the verdict would be a tie.
 
-**Evidence:** Lab 6, checkpoint 6 (exact on fixed per-seed arrays, against `prl.evaluate.compare`).
+**Evidence:** Lab 6, checkpoint 6 (`regret`, exact on fixed trajectories, one of which goes below 0), and Exercise 6's run, which compares the three learners with `prl.evaluate.compare` and prints the budget.
 :::
 
 ### Objective 4: explain where count bonuses stop working and what pseudo-counts and RND attempt

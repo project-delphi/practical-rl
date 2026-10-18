@@ -62,7 +62,7 @@ and note the paper's original symbol here.
 | $\tilde Q, \tilde V$ | MBIE-EB's optimistic action values and state values: the solution of the estimated model's backup with the bonus $c/\sqrt{N(s,a)}$ in the reward (Module 6) | Strehl and Littman's $\tilde Q$ (same) |
 | $m$ | MBIE's model-size limit: how many visits of a pair the model uses (Module 6, reference only) | |
 | $\nu(s)$ | visitation: the fraction of a run's steps spent in state $s$ (Module 6) | |
-| $\mathrm{Regret}(T)$, $\bar r^*_t$ | cumulative regret over $T$ steps against the optimal policy's expected reward $\bar r^*_t$ at step $t$ (Module 6) | |
+| $\bar r^*_t$ | the optimal policy's expected reward at step $t$ from the start (Module 6). Module 6 uses Module 4's $\mathrm{Reg}_T$ for $\sum_{t=0}^{T-1} \big(\bar r^*_t - r(s_t, a_t)\big)$, cumulative regret against the DP optimum | |
 | $\hat N(x)$ | pseudo-count of a state $x$, derived from a density model (Module 6, section 6) | Bellemare et al.'s $\hat N_n(x)$ |
 | $\rho_{\text{dens}}, \rho'_{\text{dens}}$ | a density model's probability of a state before and after seeing it once more (Module 6, reference only) | Bellemare et al.'s $\rho_n, \rho'_n$ (clash with $\rho_t$) |
 | $f, \hat f$ | RND's fixed random target network and its trained predictor (Module 6, section 6) | |
