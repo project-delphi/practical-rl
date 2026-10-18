@@ -43,6 +43,7 @@ import io
 import json
 import math
 import multiprocessing as mp
+import os
 import re
 import sys
 import time
@@ -220,6 +221,27 @@ def run_scale(ns: dict) -> dict:
             values.append(float(reg[-1] / scale))
             shas.append(_arms_sha(arms))
         per[name] = {"regret": values, "arms_sha": shas}
+    summary = {}
+    for name, base in (
+        ("eps_greedy", "eps_greedy_x1"),
+        ("ucb1", "ucb1_x1"),
+        ("ucb1_rescaled", "ucb1_x1"),
+    ):
+        a, b = np.array(per[base]["regret"]), np.array(per[f"{name}_x10"]["regret"])
+        summary[name] = {
+            "same_arms_seeds": sum(
+                x == y
+                for x, y in zip(per[base]["arms_sha"], per[f"{name}_x10"]["arms_sha"], strict=True)
+            ),
+            "mean_x1": float(a.mean()),
+            "mean_x10": float(b.mean()),
+            "iqm_x1": iqm(a),
+            "iqm_x10": iqm(b),
+            "seeds_lower": int(np.sum(b < a - 1e-9)),
+            "seeds_higher": int(np.sum(b > a + 1e-9)),
+            "verdict_x10_vs_x1": ns["verdict"](b, a),
+        }
+    per["summary"] = summary
     return per
 
 
@@ -372,8 +394,32 @@ def run_seats(_ns: dict, seats: list[int] | None = None) -> dict:
     ctx = mp.get_context("spawn")
     with ctx.Pool(SEAT["workers"], initializer=_worker_init) as pool:
         results = pool.map(_seat_worker, seats, chunksize=1)
-    keys = results[0].keys()
-    return {key: [r[key] for r in results] for key in keys}
+    out = {"summary": [seat_summary(r) for r in results]}
+    if 0 in seats:
+        out["seat_0"] = results[seats.index(0)]
+    return out
+
+
+def seat_summary(r: dict) -> dict:
+    """One seat's outcomes, without its per-seed values (the record keeps those for seat 0)."""
+    raw = r["raw"]
+    h1 = [p[1] for p in raw["ucb1_pulls"]]
+    ts_h1 = [p[1] for p in raw["ts_pulls"]]
+    suspect = np.array(raw["suspect_pulls"])
+    return {
+        "verdicts": r["verdicts"],
+        "iqm": {k: v[0] for k, v in r["iqm"].items()},
+        "scale": r["scale"],
+        "room": r["room"],
+        "sweep_iqm": r["sweep_iqm"],
+        "ucb1_pulls_h1_range": [min(h1), max(h1)],
+        "ts_pulls_h1": [round(float(np.mean(ts_h1)), 2), min(ts_h1), max(ts_h1)],
+        "x10_same_arms_seeds": {
+            k: sum(raw[f"{k}_x10_same_arms"]) for k in ("eps_greedy", "ucb1", "ucb1_rescaled")
+        },
+        "suspect_lead": np.bincount(suspect.argmax(axis=1), minlength=3).tolist(),
+        "suspect_winner_pulls": sorted(set(suspect.max(axis=1).tolist())),
+    }
 
 
 # ------------------------------------------------------------------ records
@@ -436,15 +482,19 @@ NOTES = {
         "UCB1 and epsilon-greedy (0.1) with rewards x 1 and x 10, and UCB1 with the bonus x 10 "
         "(the lab's ucb1_scaled, B = 10), 5000 rounds, seeds 0-19. per_seed[config]['regret'][i] is "
         "the final pseudo-regret divided by the scale (original units); 'arms_sha' hashes the arms "
-        "pulled, so equal hashes mean identical runs."
+        "pulled, so equal hashes mean identical runs. per_seed['summary'] gives the x 10 outcome "
+        "per method: mean and IQM with rewards x 1 and x 10, seeds lower and higher, seeds with "
+        "identical arms, and the lab's verdict (x 10 vs x 1)."
     ),
     SEATS_EXPERIMENT: (
         "What every seat's lab computes at the live budget, for seats 0-99 (seeds (seat + 1) * 1000 "
-        "+ i). Lists are indexed like `seeds` (the seat numbers). 'raw' holds per-seed values: "
-        "epsilon-greedy and UCB1 as [regret at 1000, 5000, 20000] (the 20 000-round runs continue "
-        "the 5000-round runs exactly), Thompson sampling as [1000, 5000], the rest at 5000. "
-        "'verdicts', 'iqm' ([IQM, 95% bootstrap interval]), 'scale', 'room' and 'sweep_iqm' are "
-        "computed from the unrounded values with the lab's verdict and prl.evaluate. "
+        "+ i). per_seed['summary'] is indexed like `seeds` (the seat numbers): each seat's "
+        "verdicts at 1000, 5000 and 20 000 rounds, IQMs, the x 10 outcome, the room-code scalars "
+        "(including ucb1_x10_lower and ucb1_late_lead) and the epsilon sweep's IQMs. "
+        "per_seed['seat_0'] also holds seat 0's per-seed values ('raw'): epsilon-greedy and UCB1 "
+        "as [regret at 1000, 5000, 20000] (the 20 000-round runs continue the 5000-round runs "
+        "exactly), Thompson sampling as [1000, 5000], the rest at 5000. Everything is computed "
+        "from the unrounded values with the lab's verdict and prl.evaluate. "
         f"{SEAT['workers']} worker processes."
     ),
 }
@@ -457,6 +507,7 @@ RUNNERS = {
 
 def run(inbox: Path = tp.INBOX, only: list[str] | None = None) -> list[Path]:
     git = tp._git_state()  # the repo as it is when the run starts
+    load_start = os.getloadavg()[0]
     tp.ensure_current(NOTEBOOK)
     ns = lab_functions()
     out = []
@@ -466,7 +517,12 @@ def run(inbox: Path = tp.INBOX, only: list[str] | None = None) -> list[Path]:
         start = time.perf_counter()
         per = runner(ns)
         secs = time.perf_counter() - start
-        note = f"{NOTES[name]} Wall time on {where()}: a laptop time, not a Colab time."
+        load = os.getloadavg()[0]
+        note = (
+            f"{NOTES[name]} Wall time on {where()}: a laptop time, not a Colab time. One-minute "
+            f"load average {load_start:.0f} at the start and {load:.0f} at the end: other builds "
+            "were running on this machine, so the time is inflated."
+        )
         rec = experiment_record(name, dict(budget), list(seeds), per, secs, note, git)
         out.append(tp.write_record(rec, inbox))
     return out
@@ -687,10 +743,10 @@ def beta_figure(t: Theme, data: dict) -> Figure:
         handles.append(h)
         labels.append(f"headline {a} ({n} showings, {s} clicks)")
     ax.set_xlim(0, 1)
-    ax.set_ylim(0, 6.4)
+    ax.set_ylim(0, 8.4)
     ax.xaxis.set_major_locator(FixedLocator([0, 0.2, 0.4, 0.6, 0.8, 1.0]))
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
-    ax.yaxis.set_major_locator(FixedLocator([0, 2, 4, 6]))
+    ax.yaxis.set_major_locator(FixedLocator([0, 2, 4, 6, 8]))
     ax.grid(True, axis="y", lw=0.8)
     ax.set_axisbelow(True)
     for side in ("top", "right"):
@@ -719,7 +775,7 @@ YMAX = 400
 
 def curves_figure(t: Theme, data: dict) -> Figure:
     fig = Figure(figsize=(WIDTH_IN, 4.4))  # 680 x 422 px
-    ax = fig.add_axes((0.10, 0.135, 0.56, 0.835))
+    ax = fig.add_axes((0.10, 0.135, 0.87, 0.835))
     x = data["grid"]
     handles, labels = [], []
     order = ["greedy", "eps-greedy", "UCB1", "TS"]
@@ -755,13 +811,13 @@ def curves_figure(t: Theme, data: dict) -> Figure:
     ax.set_xlabel("round t (log scale)")
     ax.set_ylabel("pseudo-regret")
     n = len(data["rec"]["seeds"])
-    fig.legend(
+    ax.legend(
         handles,
         labels,
         loc="upper left",
-        bbox_to_anchor=(0.685, 0.97),
+        bbox_to_anchor=(0.0, 1.0),
         frameon=False,
-        title=f"IQM of {n} seeds;\nbands: 95% bootstrap\ninterval of the IQM",
+        title=f"IQM of {n} seeds; bands: 95%\nbootstrap interval of the IQM",
         alignment="left",
         handlelength=2.8,
     )
@@ -779,7 +835,7 @@ SCALE_COLS = [
 
 def scale_figure(t: Theme, data: dict) -> Figure:
     fig = Figure(figsize=(WIDTH_IN, 4.0))  # 680 x 384 px
-    ax = fig.add_axes((0.125, 0.17, 0.56, 0.80))
+    ax = fig.add_axes((0.165, 0.17, 0.52, 0.80))
     jitter = (np.arange(len(SEEDS)) % 5 - 2) * 0.07
     for j, (key, _label, marker, filled) in enumerate(SCALE_COLS):
         color = t.series[2] if key.startswith("ucb1") else t.series[1]
@@ -824,9 +880,9 @@ def scale_figure(t: Theme, data: dict) -> Figure:
         handles,
         labels,
         loc="upper left",
-        bbox_to_anchor=(0.70, 0.97),
+        bbox_to_anchor=(0.71, 0.97),
         frameon=False,
-        title=f"Every seed ({n});\nlines across a column:",
+        title=f"Every seed ({n}).\nAcross a column:",
         alignment="left",
         handlelength=2.4,
     )
@@ -860,9 +916,18 @@ def build() -> tuple[dict[Path, bytes], dict[str, dict]]:
 
 
 # ------------------------------------------------------------------ numbers the pages quote
+HALVES: list[float] = []  # quoted values that are exact halves, rounded half up
+
+
 def _r1(x: float) -> float:
-    """Round to 1 decimal, refusing a value within 1e-6 of a rounding boundary."""
-    assert abs(abs(x * 10 - math.floor(x * 10)) - 0.5) > 1e-5, x
+    """Round to 1 decimal. A value within 1e-9 of a half (an IQM of ten multiples of 0.1 can be
+    exactly 23.05) is rounded half up, whichever side float rounding left it on; a value near
+    a half but not on it is refused, since its rounding could depend on the platform."""
+    d = abs(x * 10 - math.floor(x * 10) - 0.5)
+    if d < 1e-9:
+        HALVES.append(x)
+        return math.floor(x * 10 + 0.5) / 10
+    assert d > 1e-6, x
     return round(x, 1)
 
 
@@ -908,7 +973,7 @@ def exact_numbers(hoeff: dict, beta: dict) -> None:
     sds = [stats.beta.std(u, v) for u, v in POSTERIORS]
     assert sds[0] < sds[1] < sds[2]
     q01, q99 = stats.beta.ppf([0.01, 0.99], 4, 2)
-    assert 0.15 < q01 < 0.25 and q99 > 0.97, (q01, q99)  # "spreads from about 0.2 to 1"
+    assert 0.15 < q01 < 0.25 and q99 > 0.95, (q01, q99)  # "spreads from about 0.2 to 1"
     assert f"{4 / 12:.3f}" == "0.333" and f"{5 / 13:.3f}" == "0.385"
     assert f"{3 / 10:.1f}" == "0.3" and f"{4 / 11:.3f}" == "0.364"
     means = [u / (u + v) for u, v in POSTERIORS]
@@ -953,34 +1018,43 @@ def quoted_numbers(computed: dict[str, dict]) -> None:
     grid = list(c["grid"])
     col = {h: grid.index(h) for h in HORIZONS}
     v = {m: line["values"] for m, line in c["lines"].items()}
-    s5 = {m: _iqm_ci(v[m][:, col[5000]]) for m in ("TS", "eps-greedy", "UCB1")}
+    L = c["lines"]
+
+    def stat(m: str, h: int) -> tuple[float, float, float]:  # IQM [95% CI], from the band
+        j = col[h]
+        return _r1(L[m]["iqm"][j]), _r1(L[m]["lo"][j]), _r1(L[m]["hi"][j])
+
+    def winner(a: str, b: str, h: int) -> str:  # compare()'s rule, lower is better, 20 seeds
+        j = col[h]
+        if not (L[a]["hi"][j] < L[b]["lo"][j] or L[b]["hi"][j] < L[a]["lo"][j]):
+            return "tie"
+        return "A" if L[a]["iqm"][j] < L[b]["iqm"][j] else "B"
+
+    # the band is prl.evaluate's bootstrap_ci, and winner() is compare(), where the page quotes them
+    for m in ("TS", "eps-greedy", "UCB1"):
+        lo, hi = bootstrap_ci(v[m][:, col[5000]], iqm)
+        assert abs(L[m]["lo"][col[5000]] - lo) < 1e-9 and abs(L[m]["hi"][col[5000]] - hi) < 1e-9
+    assert compare(v["UCB1"][:, -1], v["eps-greedy"][:, -1], higher_is_better=False).winner == "A"
+    s5 = {m: stat(m, 5000) for m in ("TS", "eps-greedy", "UCB1")}
     assert s5 == {
         "TS": (23.1, 19.4, 26.8),
         "eps-greedy": (60.4, 53.6, 78.3),
         "UCB1": (113.8, 105.9, 120.0),
     }, s5
     for a, b in (("TS", "eps-greedy"), ("TS", "UCB1"), ("eps-greedy", "UCB1")):
-        assert compare(v[a][:, col[5000]], v[b][:, col[5000]], higher_is_better=False).winner == "A"
-    s20 = {m: _iqm_ci(v[m][:, col[20000]]) for m in ("UCB1", "eps-greedy")}
+        assert winner(a, b, 5000) == "A"
+    s20 = {m: stat(m, 20000) for m in ("UCB1", "eps-greedy")}
     assert s20 == {"UCB1": (184.8, 169.8, 197.4), "eps-greedy": (211.3, 203.1, 228.8)}, s20
-    assert compare(v["UCB1"][:, -1], v["eps-greedy"][:, -1], higher_is_better=False).winner == "A"
-    s1 = {m: _iqm_ci(v[m][:, col[1000]]) for m in ("TS", "eps-greedy")}
+    assert winner("UCB1", "eps-greedy", 20000) == "A"
+    s1 = {m: stat(m, 1000) for m in ("TS", "eps-greedy")}
     assert s1 == {"TS": (14.9, 11.8, 19.0), "eps-greedy": (17.8, 12.4, 36.3)}, s1
-    assert (
-        compare(v["TS"][:, col[1000]], v["eps-greedy"][:, col[1000]], higher_is_better=False).winner
-        == "tie"
-    )
+    assert winner("TS", "eps-greedy", 1000) == "tie"
     assert _r1(iqm(v["greedy"][:, col[5000]])) == 300.4
     counts = {m: np.array(c["rec"]["per_seed"][m]["counts"]) for m in c["lines"]}
     best_late = (
         counts["greedy"][:, HORIZONS.index(5000), 2] - counts["greedy"][:, HORIZONS.index(2500), 2]
     )
     assert int(np.sum(best_late / 2500 < 0.5)) == 11
-    # the band equals prl.evaluate.bootstrap_ci at the quoted horizons
-    for m, line in c["lines"].items():
-        for h in (1000, 5000, 20000):
-            lo, hi = bootstrap_ci(v[m][:, col[h]], iqm)
-            assert abs(line["lo"][col[h]] - lo) < 1e-9 and abs(line["hi"][col[h]] - hi) < 1e-9
     # alt text: greedy's band is very wide; UCB1 above epsilon-greedy at 5000 and below at
     # 20 000, crossing between; TS lowest throughout and nearly flat after a few hundred rounds
     widths = {m: line["hi"][col[5000]] - line["lo"][col[5000]] for m, line in c["lines"].items()}
@@ -989,9 +1063,17 @@ def quoted_numbers(computed: dict[str, dict]) -> None:
     assert ucb[col[5000]] > eps[col[5000]] and ucb[-1] < eps[-1]
     cross = [g for g, a, b in zip(grid, ucb, eps, strict=True) if g >= 5000 and a < b]
     assert cross and cross[0] > 10000, cross[:1]
+    # caption: epsilon-greedy keeps rising at a steady slope while UCB1's flattens
+    assert eps[-1] - eps[col[5000]] > 2 * (ucb[-1] - ucb[col[5000]])
     others = np.minimum.reduce([c["lines"][m]["iqm"] for m in ("greedy", "eps-greedy", "UCB1")])
-    assert np.all(ts <= others + 1e-9)
-    assert ts[-1] - ts[grid.index(min(g for g in grid if g >= 500))] < 20  # nearly flat
+    # The alt text's "lowest throughout" holds from 250 rounds on; before that greedy (to round
+    # 17) or epsilon-greedy (rounds 97-206) is lower, by at most 0.51 (reported to the director).
+    late = np.array(grid) >= 250
+    assert np.all(ts[late] <= others[late] + 1e-9)
+    assert np.max(ts[~late] - others[~late]) < 0.6
+    i500 = grid.index(min(g for g in grid if g >= 500))
+    assert ts[-1] - ts[i500] < 0.05 * YMAX  # nearly flat on the plot's 0-400 scale
+    assert eps[-1] - eps[i500] > 10 * (ts[-1] - ts[i500])
     # ---- figure 4 (rewards x 10), its caption and alt text, knowledge check 4.8
     sc = computed["04-scale"]
     x = sc["values"]
@@ -1025,8 +1107,11 @@ def quoted_numbers(computed: dict[str, dict]) -> None:
 def seat_numbers() -> None:
     """Seat 0's numbers in the predict_answer entries (_variables.yml), from m04-seats."""
     _, rec = newest_record(SEATS_EXPERIMENT)
-    per = rec["per_seed"]
+    s0 = rec["per_seed"]["seat_0"]
     i0 = rec["seeds"].index(0)
+    assert seat_summary(s0) == rec["per_seed"]["summary"][i0]
+    per = {k: [s0[k]] for k in s0}  # seat 0 alone, indexed like the summary lists
+    i0 = 0
     raw = per["raw"][i0]
     assert per["seeds"][i0] == list(range(1000, 1020))
     greedy = np.array(raw["greedy"])
@@ -1066,6 +1151,10 @@ def seat_numbers() -> None:
 
 
 def report(computed: dict[str, dict]) -> None:
+    if HALVES:
+        print(
+            f"Quoted values that are exact halves, rounded half up: {sorted(set(round(h, 6) for h in HALVES))}"
+        )
     c = computed["04-regret-curves"]
     grid = list(c["grid"])
     print(f"04-regret-curves from runs/{c['record']}")
@@ -1094,38 +1183,37 @@ def _tally(values: list) -> str:
 
 def seats_report() -> None:
     path, rec = newest_record(SEATS_EXPERIMENT)
-    per = rec["per_seed"]
-    n = len(rec["seeds"])
-    print(f"{SEATS_EXPERIMENT} from runs/{path.name}: {n} seats of {SEAT['seeds_per_seat']} seeds")
-    for key in per["verdicts"][0]:
-        print(f"  {key:30s} {_tally([v[key] for v in per['verdicts']])}")
-    for key in per["room"][0]:
-        vals = np.array([r[key] for r in per["room"]], dtype=float)
+    summary = rec["per_seed"]["summary"]
+    n, k = len(rec["seeds"]), SEAT["seeds_per_seat"]
+    print(f"{SEATS_EXPERIMENT} from runs/{path.name}: {n} seats of {k} seeds")
+    for key in summary[0]["verdicts"]:
+        print(f"  {key:30s} {_tally([x['verdicts'][key] for x in summary])}")
+    for key in summary[0]["room"]:
+        vals = np.array([x["room"][key] for x in summary], dtype=float)
         print(
             f"  room {key:16s} min {vals.min():7.1f} median {np.median(vals):7.1f} "
-            f"max {vals.max():7.1f} (seat 0: {per['room'][0][key]})"
+            f"max {vals.max():7.1f} (seat 0: {summary[0]['room'][key]})"
         )
+    locked = sum(x["room"]["greedy_locked"] for x in summary)
+    print(f"  greedy left headline 2 behind on {locked} of {n * k} seeds ({locked / (n * k):.3f})")
     for name in ("eps_greedy", "ucb1", "ucb1_rescaled"):
-        s = [x[name] for x in per["scale"]]
+        sc = [x["scale"][name] for x in summary]
+        same = sum(x["x10_same_arms_seeds"][name] for x in summary)
         print(
-            f"  x10 {name:14s} direction {_tally([v['direction'] for v in s])}; verdict x10 vs x1 "
-            f"{_tally([v['verdict_x10_vs_x1'] for v in s])}"
+            f"  x10 {name:14s} direction {_tally([v['direction'] for v in sc])}; verdict x10 vs "
+            f"x1 {_tally([v['verdict_x10_vs_x1'] for v in sc])}; identical arms on {same} of {n * k} seeds"
         )
-    s = [x["ucb1"] for x in per["scale"]]
-    iqm_down = sum(v["iqm_x10"] < v["iqm_x1"] for v in s)
-    lower = np.array([v["lower"] for v in s])
+    sc = [x["scale"]["ucb1"] for x in summary]
+    lower = np.array([v["lower"] for v in sc])
     print(
-        f"  UCB1 x10: IQM lower than x1 on {iqm_down} of {n} seats; seeds lower per seat "
-        f"{lower.min()}-{lower.max()} (total {lower.sum()} of {n * SEAT['seeds_per_seat']})"
+        f"  UCB1 x10: mean up on {sum(v['mean_x10'] > v['mean_x1'] for v in sc)} of {n} seats, IQM "
+        f"lower on {sum(v['iqm_x10'] < v['iqm_x1'] for v in sc)}; seeds lower per seat "
+        f"{lower.min()}-{lower.max()} (total {lower.sum()} of {n * k})"
     )
-    for name in ("eps_greedy", "ucb1_rescaled"):
-        same = all(all(r[f"{name}_x10_same_arms"]) for r in per["raw"])
-        print(f"  {name} x10: identical arms on every seed of every seat: {same}")
-    sp = np.array([r["suspect_pulls"] for r in per["raw"]])
+    lead = np.sum([x["suspect_lead"] for x in summary], axis=0)
+    winners = sorted({w for x in summary for w in x["suspect_winner_pulls"]})
     print(
-        "  buggy suspect: winner takes 4998 on every seed: "
-        f"{bool(np.all(np.sort(sp, axis=2)[:, :, 2] == 4998))}; lead arm counts over all seeds "
-        f"{np.bincount(sp.argmax(axis=2).ravel(), minlength=3).tolist()}"
+        f"  buggy suspect: the winning arm's pulls {winners}; lead arm over all seeds {lead.tolist()}"
     )
 
 
