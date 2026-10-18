@@ -142,6 +142,29 @@ def run_bandit(policy, stack, r_mean, seed):  # noqa: F811
     return arms, np.cumsum(gaps[arms])
 
 
+@mutant(
+    ex=1,
+    replaces="run_bandit",
+    id="per-round-regret",
+    why="returns the gap of each round, gaps[arms], and forgets the running sum",
+    exact_only=True,
+)
+def run_bandit(policy, stack, r_mean, seed):  # noqa: F811
+    rng = np.random.default_rng(seed)
+    T, n_arms = stack.shape
+    counts = np.zeros(n_arms, dtype=int)
+    sums = np.zeros(n_arms)
+    arms = np.zeros(T, dtype=int)
+    for t in range(T):
+        a = policy(counts, sums, t, rng)
+        reward = stack[counts[a], a]
+        counts[a] += 1
+        sums[a] += reward
+        arms[t] = a
+    gaps = np.max(r_mean) - np.asarray(r_mean)
+    return arms, gaps[arms]
+
+
 # ------------------------------------------------------------------ 1: eps_greedy
 @mutant(
     ex=1,
@@ -197,6 +220,20 @@ def eps_greedy(counts, sums, t, rng, epsilon=0.1):  # noqa: F811
         others = [a for a in range(len(counts)) if a != best]
         return int(others[rng.integers(len(others))])
     return best
+
+
+@mutant(
+    ex=1,
+    replaces="eps_greedy",
+    id="explore-first",
+    why="flips the coin before checking for unpulled arms (the three cases in the wrong order)",
+)
+def eps_greedy(counts, sums, t, rng, epsilon=0.1):  # noqa: F811
+    if rng.random() < epsilon:
+        return int(rng.integers(len(counts)))
+    if np.any(counts == 0):
+        return int(np.argmin(counts))
+    return argmax_tie(sums / counts)  # noqa: F821
 
 
 # ------------------------------------------------------------------ 2: ucb1_index
@@ -297,6 +334,17 @@ def thompson_step(counts, sums, t, rng):  # noqa: F811
     shape_s, shape_f = beta_posterior(counts, sums)  # noqa: F821
     outcomes = rng.random(len(counts)) < shape_s / (shape_s + shape_f)
     return argmax_tie(outcomes)  # noqa: F821
+
+
+@mutant(
+    ex=3,
+    replaces="thompson_step",
+    id="swapped-draw",
+    why="draws rng.beta(1 + F, 1 + S): the posterior of the miss rate, so it hunts the worst arm",
+)
+def thompson_step(counts, sums, t, rng):  # noqa: F811
+    shape_s, shape_f = beta_posterior(counts, sums)  # noqa: F821
+    return argmax_tie(rng.beta(shape_f, shape_s))  # noqa: F821
 
 
 @mutant(ex=3, replaces="thompson_step", id="random", why="pulls a uniformly random arm")
