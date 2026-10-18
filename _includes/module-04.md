@@ -8,7 +8,7 @@ Regret, UCB derived from Hoeffding's inequality, and Thompson sampling from Baye
 :::
 
 ::: {.module-actions}
-[Lab notebook not built yet]{.btn-disabled} [Other ways to run](/setup.qmd#local){.btn-quiet}
+[Open in Colab[, Lab 4: Bandits from first principles (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/04-bandits.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
 :::
 :::
 
@@ -37,10 +37,10 @@ Without GPU
 
 In this module you will:
 
-- Define pseudo-regret and measure it with seed bands.
-- Derive the UCB1 bonus from Hoeffding's inequality and implement it.
-- Implement Beta-Bernoulli Thompson sampling from Bayes' rule.
-- Show how epsilon-greedy and UCB1 depend on epsilon and the reward scale, and explain why.
+- Define pseudo-regret from the known arm means and measure it with seed bands.
+- Derive the UCB1 bonus from Hoeffding's inequality, which assumes rewards in [0, 1], and implement it.
+- Implement Beta-Bernoulli Thompson sampling, which assumes rewards in {0, 1}, from Bayes' rule.
+- Show how epsilon-greedy and UCB1 depend on epsilon and on the reward scale, and explain why from their assumptions.
 
 ## Before you start {#before}
 

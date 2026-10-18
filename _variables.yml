@@ -395,26 +395,61 @@ modules:
     question: Each pull earns reward and also reveals information. How should we choose?
     where_we_are: Module 3's epsilon-greedy explores blindly.
     objectives:
-      - Define pseudo-regret and measure it with seed bands.
-      - Derive the UCB1 bonus from Hoeffding's inequality and implement it.
-      - Implement Beta-Bernoulli Thompson sampling from Bayes' rule.
-      - Show how epsilon-greedy and UCB1 depend on epsilon and the reward scale, and explain why.
+      - Define pseudo-regret from the known arm means and measure it with seed bands.
+      - Derive the UCB1 bonus from Hoeffding's inequality, which assumes rewards in [0, 1], and implement it.
+      - Implement Beta-Bernoulli Thompson sampling, which assumes rewards in {0, 1}, from Bayes' rule.
+      - Show how epsilon-greedy and UCB1 depend on epsilon and on the reward scale, and explain why from their assumptions.
     runtime: colab-cpu
     cost: Free (Google account)
     without_gpu: The whole lab runs.
     scaffold: S3
     testbeds: [Bernoulli bandits]
     compared_with: {kind: truth, what: "pseudo-regret from the known arm means"}
-    planted_bug: {what: "UCB counts never incremented", diagnostic: "arm-pull histogram"}
+    planted_bug: {what: "a UCB1 agent whose counts never grow", diagnostic: "the histogram of pulls per arm: one arm takes every pull after the first round of each, and the bonus is the same for every arm"}
     stretch: Gaussian Thompson sampling
     exercises:
-      - {n: 1, title: "Bandit loop, epsilon-greedy and regret", minutes: 11, writes: [run_bandit, eps_greedy]}
-      - {n: 2, title: UCB1, minutes: 10, writes: [ucb1_index]}
-      - {n: 3, title: Thompson sampling, minutes: 10, writes: [thompson_step]}
-      - {n: 4, title: Three methods over 20 seeds, minutes: 7, writes: []}
-      - {n: 5, title: Reward scale and epsilon, minutes: 6, writes: []}
-      - {n: 6, title: "Planted bug: counts that never grow", minutes: 7, writes: []}
-    status: {briefing: placeholder, lab: planned}
+      # predict_answer: the answer to the Predict prompt (for the pace sheet). Seat numbers are
+      # seat 0 (seeds 1000-1019) from the reference solution; the seats-across numbers come from
+      # the academic director's design scan (scratch code equal to the lab's solutions, 200 seeds
+      # = 10 seats of 20, arm64), to be replaced by the technical expert's recorded runs.
+      # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
+      - n: 1
+        title: "Bandit loop, epsilon-greedy and regret"
+        minutes: 11
+        writes: [run_bandit, eps_greedy]
+        predict_answer: "500.0 = 0.1 + 0.2 + 0 + 0.1 × 4997 (headline 0 from round 3 on); 999.7 = 0.3 + 0.2 × 4997 (headline 1); 0.3, the first three rounds only (headline 2). The run shows all three kinds: seat 0's greedy ends at 500.0 or 999.7 on the seeds where it left headline 2 behind (9 of 20) and at 0.3 to 4.3 on the others."
+        explain_ref: "(pseudo-regret)"
+      - n: 2
+        title: UCB1
+        minutes: 10
+        writes: [ucb1_index]
+        predict_answer: "About 200. The bound is 8 ln 5000 / 0.2² + 1 + π²/3 ≈ 1708; seat 0's UCB1 pulls headline 1 227 times on average (123 to 359 over 20 seeds): the bound holds and is about 7 times too large."
+        explain_ref: "(UCB1)"
+      - n: 3
+        title: Thompson sampling
+        minutes: 10
+        writes: [beta_posterior, thompson_step]
+        predict_answer: "Less often: seat 0's Thompson sampling pulls headline 1 48 times on average (15 to 105), UCB1 227. It never stops for good, because headline 1's posterior keeps some mass above headline 2's draws; its pulls thin out (seat 0: 41 in the first 2500 rounds, 6.5 in the last 2500, and none in the last 2500 on 1 seed of 20)."
+        explain_ref: "(Thompson sampling)"
+      - n: 4
+        title: Three methods over 20 seeds
+        minutes: 7
+        writes: [verdict]
+        predict_answer: "At 5000 rounds Thompson sampling < ε-greedy < UCB1, every pair decided (seat 0: IQM 22.8, 53.2 and 103.7; 10 of 10 seats in the design scan). At 1000 rounds Thompson sampling and ε-greedy are a tie (seat 0: 15.3 and 14.5; a tie on 10 of 10 scanned seats), while UCB1 vs ε-greedy is decided for ε-greedy on seat 0 (8 of 10 scanned seats; a tie on the other 2)."
+        explain_ref: 'Gotcha: "One seed is enough to compare."'
+      - n: 5
+        title: Reward scale and epsilon
+        minutes: 6
+        writes: [scale_directions]
+        predict_answer: "ε-greedy: same, identical pulls on every seed; UCB1 with the same bonus: up in the mean (seat 0: 103.8 to 191.8), yet lower on 13 of 20 seeds and a tie under the 20-seed rule; UCB1 with the bonus × 10: same. The sweep: high regret at both ends of ε (seat 0's IQM 200.9 at ε = 0, 35.4 at 0.05, 252.4 at 0.5)."
+        explain_ref: 'Gotcha: "UCB has no parameters."'
+      - n: 6
+        title: "Planted bug: counts that never grow"
+        minutes: 7
+        writes: [UCB1Suspect]
+        predict_answer: "√(2 ln t) for every arm (about 4.13 at t = 5000), so the bonus cannot tell a well-pulled arm from a neglected one and the sums decide: with counts stuck at 0 the guard divides by 1, the sums are total clicks, and the first arm to lead in clicks is pulled in every later round. Histogram: one arm with 4998 pulls and the other two with 1 each, on every seed (seat 0: the lead went to headline 0 on 11 seeds, 1 on 5 and 2 on 4)."
+        explain_ref: "(UCB1)"
+    status: {briefing: draft, lab: draft}
 
   m05:
     n: 5
