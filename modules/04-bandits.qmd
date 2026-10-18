@@ -1,6 +1,12 @@
 ---
 title: "{{< var modules.m04.title >}}"
-status: placeholder
+live:
+  - {section: 1, minutes: 6}
+  - {section: 2, minutes: 6, activities: [{block: predict-greedy, minutes: 3, label: "Predict: how often does greedy lose the best headline?"}]}
+  - {section: 3, minutes: 10, activities: [{block: chk-ucb, minutes: 3, label: "Check yourself 3.1"}]}
+  - {section: 4, minutes: 9, activities: [{block: chk-ts, minutes: 2, label: "Check yourself 4.1"}]}
+  - {section: 5, minutes: 6, activities: [{block: chk-eps, minutes: 2, label: "Check yourself 5.1"}]}
+  - {section: 6, minutes: 3}
 ---
 
 {{< include /_includes/module-04.md >}}
@@ -11,6 +17,317 @@ status: placeholder
 
 {{< include /_includes/live-04.md >}}
 
-::: {.callout-note}
-This briefing is not written yet. It follows the Module 1 template (see [the plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+## 1. Regret
+
+**In this section:** turn a recommender's simplest choice into a bandit, define what it costs to learn which choice is best, and say how the lab measures that cost.
+
+Day 2's framing problem is a recommender. Start with its simplest decision. A news site has three headlines for one story. Each visitor sees one of them; a click pays 1 and no click pays 0. Headline $a$ has a click rate $r(a)$ that the site does not know. Showing a headline earns a reward and also reveals a little about that headline's rate. Visitor after visitor, the site must choose.
+
+This is a *multi-armed bandit*: an MDP with a single state, so there is nothing to plan, only an action (an *arm*) to choose in each round $t = 0, 1, \dots, T - 1$. The lab's arms have rates $r = (0.4, 0.3, 0.5)$, so headline 2 is the best. Write $r^* = \max_a r(a)$ for the best rate and $\Delta_a = r^* - r(a)$ for arm $a$'s *gap*: here $\Delta = (0.1, 0.2, 0)$. The rates are chosen so that the differences between methods show within a few thousand rounds.
+
+Someone who knew $r^*$ would show headline 2 every time. A learner must show other headlines to find out which is best, and each round it shows arm $a_t$ it gives up $\Delta_{a_t}$ clicks in expectation. Add up what it gives up:
+
+$$
+\begin{aligned}
+\mathrm{Reg}_T &= \sum_{t=0}^{T-1} \big(r^* - r(a_t)\big) \\
+&= \sum_a \Delta_a\, N_T(a),
+\end{aligned}
+$$ {#eq-pseudo-regret}
+
+where $N_T(a)$ counts the pulls of arm $a$ in the $T$ rounds. This is the *pseudo-regret* [@lattimore2020bandit, §4.8, Note 4]. The second line sorts the same sum by arm: each pull of an arm costs its gap. The expectation of $\mathrm{Reg}_T$ is the *regret*, and Lattimore and Szepesvári's regret decomposition is the same split by arm [@lattimore2020bandit, §4.5, Lemma 4.5].
+
+Three things about this definition.
+
+- It uses the true rates $r(a)$, not the rewards received. A lucky click on a worse headline does not hide the mistake, so the noise of the clicks is filtered out.
+- It needs the true rates, so you can compute it only in a simulation where you chose them. A live site sees clicks, not $r(a)$ (section 6).
+- It is random, because which arms a method pulls depends on the rewards it sees. One run is one sample. The lab therefore runs every method on 20 seeds; a seed fixes the rewards and the method's own coin flips. It shows every seed, and compares methods with the workshop's rule: the interquartile mean (IQM) with a bootstrap interval, and overlapping intervals are a tie.
+
+What learning looks like in this measure: a method that keeps pulling a worse arm at a fixed rate pays a fixed amount per round, so its regret grows in proportion to $T$, *linearly*. A method whose regret per round falls toward 0 has $\mathrm{Reg}_T / T \to 0$. The methods of sections 3 and 4 have regret that grows like $\ln T$.
+
+::: {.reference}
+**The reward stack.** The lab draws every arm's rewards before a run starts: row $n$ of arm $a$'s column is what its $(n+1)$-th pull pays. Lattimore and Szepesvári call this the reward-stack model, and note that the regret depends only on the joint law of the actions and rewards, which is the same as when rewards are drawn on demand [@lattimore2020bandit, §4.6]. Two methods run on the same seed then see the same rewards whenever they pull the same arm for the same time, so a difference between them comes from their choices rather than from different luck.
 :::
+
+::: {.callout-note collapse="true" title="Code: run_bandit (open after Lab 4)"}
+```python
+def run_bandit(policy, stack, r_mean, seed):
+    """The bandit loop: the arm of every round and the pseudo-regret."""
+    rng = np.random.default_rng(seed)
+    T, n_arms = stack.shape
+    counts = np.zeros(n_arms, dtype=int)
+    sums = np.zeros(n_arms)
+    arms = np.zeros(T, dtype=int)
+    for t in range(T):
+        a = policy(counts, sums, t, rng)
+        reward = stack[counts[a], a]  # the top of arm a's stack
+        counts[a] += 1
+        sums[a] += reward
+        arms[t] = a
+    gaps = np.max(r_mean) - np.asarray(r_mean)  # Delta_a
+    return arms, np.cumsum(gaps[arms])  # (pseudo-regret)
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 1** has two parts. `run_bandit(policy, stack, r_mean, seed)` is the loop: in round $t$ it asks a policy for an arm, given the pull counts and the reward sums so far, takes that arm's next reward from its stack, and returns the arm of every round and @eq-pseudo-regret after every round. `eps_greedy` is the first policy (section 2). Checkpoint 1.1 is exact: it runs your loop on fixed stacks with a policy that checks, in every round, the counts and sums it is shown.
+:::
+
+## 2. Why greedy fails
+
+**In this section:** see how the simplest learner can lose the best arm for good, and what a constant $\varepsilon$ buys back.
+
+*Greedy* pulls each arm once, then in every round the arm with the best mean so far, $\hat r_t(a)$: the sum of arm $a$'s rewards divided by $N_t(a)$, its pulls in rounds $0, \dots, t-1$. Ties go to the lowest arm. Greedy never pulls an arm to learn about it; it pulls only what looks best now [@russo2018tutorial, §2].
+
+::: {#predict-greedy .predict}
+**Predict (3 min).** Greedy on the lab's headlines, with rates 0.4, 0.3 and 0.5, shows them in that order in rounds 0, 1 and 2. In what fraction of runs does it never show headline 2 again after round 2? What does its regret curve look like in those runs? Write a number and one sentence of reason before opening the answer.
+
+::: {.callout-tip collapse="true" title="Answer"}
+At least half. Headline 2's first showing gets no click with probability $1 - 0.5 = 0.5$, and then its mean is exactly 0. A headline that has been clicked once has a mean above 0, and its mean stays above 0, since an average of 0s and 1s that contains a 1 never returns to 0. So headline 2 is never the best mean again. If neither other headline has a click yet, all three means are 0, the tie goes to headline 0, and headline 0 is shown until it is clicked. Either way headline 2 is never shown again. In those runs every round adds the gap of the headline greedy shows instead: a straight line, linear regret. A run whose first showing of headline 2 is clicked can still lose it later, so "at least half" is not "exactly half". Russo et al. describe the same trap with three arms whose rates are 0.9, 0.8 and 0.7 [@russo2018tutorial, §3, p. 16].
+:::
+:::
+
+**$\varepsilon$-greedy.** Module 3's fix: with probability $\varepsilon$ pull a uniformly random arm, otherwise the greedy one. Every arm keeps being pulled, so no arm is lost for good. The price is a fixed share of rounds spent on arms that are already known to be worse, forever. Auer et al. put it plainly: "the constant exploration probability ε causes a linear (rather than logarithmic) growth in the regret" [@auer2002ucb, p. 239]; section 5 computes the slope. Random exploration also spends the same effort on an arm that is almost surely worse as on one that might be best [@russo2018tutorial, §2, p. 11]. The next two sections explore where the uncertainty is.
+
+::: {.callout-note collapse="true" title="Code: eps_greedy (open after Lab 4)"}
+```python
+def eps_greedy(counts, sums, t, rng, epsilon=0.1):
+    """Each arm once; then explore with probability epsilon."""
+    if np.any(counts == 0):
+        return int(np.argmin(counts))  # an arm never pulled
+    if rng.random() < epsilon:
+        return int(rng.integers(len(counts)))  # any arm
+    return argmax_tie(sums / counts)  # the best mean so far
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** The second part of **Exercise 1** is `eps_greedy(counts, sums, t, rng, epsilon)`; with $\varepsilon = 0$ it is greedy. The run cell plays greedy and $\varepsilon$-greedy with $\varepsilon = 0.1$ on your 20 seeds and draws every seed's regret curve. Checkpoint 1.2 is exact: your function's choices on fixed counts and sums, the share of random pulls over many draws from a fixed seed, and a recorded greedy run on the lab's headlines, replayed round by round, in which headline 2 is never shown again after its first showing.
+:::
+
+## 3. Hoeffding → UCB1
+
+**In this section:** bound how far a sample mean can be from the true rate, turn the bound into an exploration bonus, and read what UCB1's regret theorem promises and what it does not.
+
+**How far can a sample mean be off?** Pull an arm $N$ times and average the rewards: $\hat r$. If the rewards are independent, lie in $[0, 1]$ and have mean $r(a)$, then for every $\eta \ge 0$
+
+$$
+\begin{aligned}
+P\big(\hat r \ge r(a) + \eta\big) &\le e^{-2N\eta^2}, \\
+P\big(\hat r \le r(a) - \eta\big) &\le e^{-2N\eta^2}.
+\end{aligned}
+$$ {#eq-hoeffding}
+
+This is Hoeffding's inequality [@hoeffding1963], in the form Auer et al. use (their Fact 1) and Lattimore and Szepesvári give as their Eq. 5.8 [@auer2002ucb, p. 242; @lattimore2020bandit, §5.4, Note 4]. We state it without proof. It needs nothing about the distribution except independence and the range $[0, 1]$, and it is often loose (@fig-hoeffding). For rewards in a wider range it changes (section 5).
+
+![**What to notice:** the bound lies above the exact probability everywhere, and both fall as $N$ grows, because $N$ multiplies $\eta^2$ in the exponent. The bound is loose: at ${N = 10}$ and $\eta = 0.3$ the exact probability is 0.055 and the bound 0.165; at ${N = 100}$ and $\eta = 0.1$ they are 0.028 and 0.135. A fair coin's sample mean after $N$ tosses: the exact probability that it reaches $0.5 + \eta$ or more (a binomial tail), and the bound $e^{-2N\eta^2}$ of @eq-hoeffding, at $N = 10$ and $N = 100$. Exact computations.](/images/04-hoeffding.svg){#fig-hoeffding fig-alt="Two pairs of curves against eta from 0 to 0.5, on a log scale of probability. For N = 10 and for N = 100, the Hoeffding bound is a smooth curve that lies above the exact binomial tail, which falls in steps. Both curves for N = 100 fall far faster than those for N = 10."}
+
+**From a bound to a bonus.** Choose a failure probability $p_{\text{fail}}$ and solve $e^{-2N\eta^2} = p_{\text{fail}}$ for $\eta$. Then, with probability at least $1 - p_{\text{fail}}$, $r(a) \le \hat r + \sqrt{\ln(1/p_{\text{fail}}) / (2N)}$: an optimistic estimate, as high as the data plausibly allow. UCB1 takes $p_{\text{fail}} = t^{-4}$, where $t$ is the number of rounds played so far, so its confidence grows over time. Since $\ln(t^4)/(2N) = 2\ln t / N$, its *index* is
+
+$$
+U_t(a) = \hat r_t(a) + \sqrt{\frac{2 \ln t}{N_t(a)}} .
+$$ {#eq-ucb1}
+
+UCB1 pulls each arm once, then in every round the arm with the largest index [@auer2002ucb, §2, Fig. 1]; Auer et al.'s $n$, the number of plays so far, is our $t$, and their $n_j$ is our $N_t(a)$. An arm never pulled has an infinite index, which is the same as pulling each arm once first.
+
+**Why optimism works.** When UCB1 pulls a worse arm, that arm's index must exceed the best arm's index, which is very likely above $r^*$. That cannot keep happening: each pull of the worse arm shrinks its bonus, by a factor $\sqrt{N/(N+1)}$, and moves its mean toward its rate, until its index falls below $r^*$ [@lattimore2020bandit, §7.1]. An arm left alone sees its bonus grow like $\sqrt{\ln t}$, so no arm is written off for good, which is what went wrong with greedy. The bonus shrinks like $1/\sqrt{N}$: four times the pulls halve it.
+
+**What the theorem says.** For rewards in $[0, 1]$, after any number $T$ of rounds [@auer2002ucb, Theorem 1]:
+
+$$
+\begin{aligned}
+\mathbb{E}[\mathrm{Reg}_T] \le\ & 8 \sum_{a:\,\Delta_a > 0} \frac{\ln T}{\Delta_a} \\
+& + \Big(1 + \frac{\pi^2}{3}\Big) \sum_a \Delta_a .
+\end{aligned}
+$$ {#eq-ucb1-bound}
+
+The proof bounds each worse arm's expected pulls by $8 \ln T / \Delta_a^2$ plus a constant [@auer2002ucb, Eq. 2] and sums them with @eq-pseudo-regret. The choice $t^{-4}$ is what makes the failure probabilities, summed over every round and every possible count, add up to a constant: that is the $\pi^2/3$.
+
+**What it does not say.** It bounds the expected regret, not the regret of one run. It says how the regret grows with $T$, not which method has less regret at a given $T$. It is an upper bound: how close the actual regret comes to it, the theorem does not say. And it holds for rewards in $[0, 1]$, the range the bonus was solved for.
+
+::: {#chk-ucb .self-check}
+**Check yourself 3.1.** At $t = 100$, headline 0 has been shown 90 times with 54 clicks, headline 1 9 times with 4 clicks, and headline 2 once, with no click. Compute the three UCB1 indices. Which headline does UCB1 show next, and which would greedy show? By @eq-hoeffding, what is the probability that headline 0's true rate lies above its index?
+
+::: {.callout-tip collapse="true" title="Answer to 3.1"}
+$2 \ln 100 = 9.210$. Headline 0: $54/90 = 0.6$ plus $\sqrt{9.210/90} = 0.320$, index 0.920. Headline 1: $4/9 = 0.444$ plus $\sqrt{9.210/9} = 1.012$, index 1.456. Headline 2: $0$ plus $\sqrt{9.210} = 3.035$, index 3.035. UCB1 shows headline 2: one showing tells it almost nothing, and its bonus says so. Greedy shows headline 0, the best mean, and would never show headline 2 again. The bonus was solved from $e^{-2N\eta^2} = t^{-4}$, so the probability that headline 0's rate lies above its index is at most $100^{-4} = 10^{-8}$.
+:::
+:::
+
+::: {.reference}
+**Two versions of the same index.** Lattimore and Szepesvári write the index as $\hat r + \sqrt{2 \ln(1/p_{\text{fail}}) / N}$ for rewards whose noise is 1-subgaussian, and note that rewards in $[0, 1]$ are $1/2$-subgaussian, which is where UCB1's smaller constant comes from; their analysis fixes $p_{\text{fail}}$ from the horizon, while UCB1 lets it shrink with $t$ [@lattimore2020bandit, §7.1, Algorithm 3; §7.3]. Sutton and Barto write the bonus as $c\sqrt{\ln t / N_t(a)}$ with a tunable $c > 0$ [@sutton2018rl, §2.7, Eq. 2.10]; UCB1 is $c = \sqrt{2}$. **Weaker conditions.** Auer et al.'s Theorem 1 also holds when an arm's rewards are not independent, as long as each has mean $r(a)$ given the arm's earlier rewards [@auer2002ucb, p. 241]. **How good is $8/\Delta^2$?** Auer et al. note that the best possible constant, from Lai and Robbins' lower bound, is smaller than UCB1's [@auer2002ucb, p. 238].
+:::
+
+::: {.callout-note collapse="true" title="Code: ucb1_index (open after Lab 4)"}
+```python
+def ucb1_index(counts, sums, t):
+    """r_hat + sqrt(2 ln t / N); inf for an arm never pulled."""
+    index = np.full(len(counts), np.inf)  # never pulled: first
+    seen = counts > 0
+    if seen.any():
+        mean = sums[seen] / counts[seen]
+        bonus = np.sqrt(2 * np.log(t) / counts[seen])
+        index[seen] = mean + bonus  # (UCB1)
+    return index
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 2** is `ucb1_index(counts, sums, t)`: @eq-ucb1 for every arm at once, with $+\infty$ for an arm never pulled. A provided `ucb1` pulls the first arm with the largest index. Checkpoint 2.1 is exact on fixed counts and sums. UCB1 uses no randomness of its own, so on a fixed reward stack its run is fixed: checkpoint 2.2 replays a recorded run round by round and requires your index to pick the same arm every time, which gives the same final counts. **Exercise 6** is the planted bug: a colleague's UCB1, written as an object that keeps its own counts.
+:::
+
+## 4. Thompson sampling from Bayes' rule
+
+**In this section:** keep a whole distribution over each arm's rate, update it with Bayes' rule, and explore by sampling from it.
+
+UCB1 keeps one number per arm and adds a worst-case margin. Thompson sampling keeps a probability distribution over each arm's rate and lets the spread of that distribution decide how much to explore [@thompson1933; @russo2018tutorial, §3].
+
+**The posterior.** Before any data, give arm $a$'s unknown rate $x$ a uniform prior on $[0, 1]$. After $S$ clicks and $F$ non-clicks from that arm, in any order, the likelihood is $x^S (1 - x)^F$: each click has probability $x$ and each non-click $1 - x$, independently. Bayes' rule multiplies prior and likelihood, and normalizes:
+
+$$
+\begin{aligned}
+p(x \mid S, F) &\propto x^{S} (1 - x)^{F} \cdot 1, \\
+\text{that is,}\quad x \mid S, F &\sim \mathrm{Beta}(1 + S,\ 1 + F).
+\end{aligned}
+$$ {#eq-beta-posterior}
+
+The $\mathrm{Beta}(u, v)$ distribution has density proportional to $x^{u-1}(1 - x)^{v-1}$ on $[0, 1]$. The uniform prior is $\mathrm{Beta}(1, 1)$, and every click adds 1 to the first parameter and every non-click 1 to the second [@russo2018tutorial, Example 3.1, p. 14; @lattimore2020bandit, §34.3, Example 34.6]. Prior and posterior belong to the same family: the Beta prior is *conjugate* to 0/1 rewards. The posterior mean is $(1 + S)/(2 + N)$ with $N = S + F$, and the posterior narrows as $N$ grows. For arm $a$ after $t$ rounds we write $S_t(a)$ and $F_t(a)$.
+
+**The method.** In every round, draw one plausible rate $\tilde r_t(a)$ from every arm's posterior, and pull the arm with the largest draw:
+
+$$
+\begin{aligned}
+\tilde r_t(a) &\sim \mathrm{Beta}\big(1 + S_t(a),\ 1 + F_t(a)\big), \\
+a_t &= \arg\max_a \tilde r_t(a).
+\end{aligned}
+$$ {#eq-thompson}
+
+Only the pulled arm's posterior then changes [@russo2018tutorial, Algorithm 3.2]. An arm pulled rarely has a wide posterior, so its draw is sometimes high and it gets pulled again; an arm pulled often has a narrow posterior, and its draw stays near its mean. The probability that an arm is pulled is the posterior probability that it is the best arm: drawing every rate and taking the largest is a way of sampling "which arm is best" from the posterior [@lattimore2020bandit, §36.5, Note 1]. The draw is a plausible *rate*, not a plausible 0/1 reward, a slip Russo et al. warn about [@russo2018tutorial, p. 14].
+
+![**What to notice:** headline 2 has the best mean so far, 3 clicks in 4 showings, and the widest posterior; headline 0's posterior is narrow after 50 showings. Greedy would show headline 2 in every round from here. Thompson sampling shows headline 2 with probability 0.869, headline 0 with 0.077 and headline 1 with 0.054: the posterior probability that each is the best. Posterior densities of the three headlines' rates after 50, 10 and 4 showings with 20, 3 and 3 clicks: Beta(21, 31), Beta(4, 8) and Beta(4, 2). Probabilities computed exactly by numerical integration.](/images/04-beta-posteriors.svg){#fig-beta-posteriors fig-alt="Three density curves over the click rate from 0 to 1. Headline 0's curve is tall and narrow around 0.4. Headline 1's curve is lower and wider around 0.33. Headline 2's curve is the lowest and widest, peaking near 0.75 and spreading from about 0.2 to 1."}
+
+**What it assumes, and what it does not say.** The update of @eq-beta-posterior needs rewards in $\{0, 1\}$: the likelihood $x^r (1 - x)^{1 - r}$ of one reward $r$ means nothing for $r = 10$. It needs a prior for every arm, chosen independently here. A prior matters more in a bandit than in a fixed data set: an arm the prior underrates may never be pulled, so the data never correct it [@lattimore2020bandit, §36.5, Note 5]. Thompson sampling has a bound on its regret averaged over the prior [@lattimore2020bandit, §36.1, Theorem 36.1], and with suitable priors it is asymptotically optimal for one-parameter reward families such as 0/1 rewards; Lattimore and Szepesvári add that it is "not a silver bullet" [@lattimore2020bandit, §36.5, Note 2].
+
+::: {#chk-ts .self-check}
+**Check yourself 4.1.** Headline 1 has been shown 10 times and clicked 3 times. What are its posterior and its posterior mean? It is shown once more and clicked. What are they now? Compare both means with greedy's estimate, the plain average.
+
+::: {.callout-tip collapse="true" title="Answer to 4.1"}
+Before: $\mathrm{Beta}(1 + 3, 1 + 7) = \mathrm{Beta}(4, 8)$, mean $4/12 = 0.333$, while the plain average is $3/10 = 0.3$. After the click: $\mathrm{Beta}(5, 8)$, mean $5/13 = 0.385$; the plain average is $4/11 = 0.364$. The uniform prior counts as one click and one non-click, so it pulls the mean toward 0.5, by less and less as $N$ grows. Only the first parameter changed, because the reward was a click.
+:::
+:::
+
+::: {.callout-note collapse="true" title="Code: beta_posterior and thompson_step (open after Lab 4)"}
+```python
+def beta_posterior(counts, sums):
+    """Beta(1 + S, 1 + F) for every arm, from a uniform prior."""
+    clicks = np.asarray(sums, dtype=float)  # S: rewards of 1
+    misses = counts - clicks  # F: rewards of 0
+    return 1 + clicks, 1 + misses  # (Beta posterior)
+
+
+def thompson_step(counts, sums, t, rng):
+    """One draw per arm from its posterior; the largest wins."""
+    shape_s, shape_f = beta_posterior(counts, sums)
+    draws = rng.beta(shape_s, shape_f)  # one r~(a) per arm
+    return argmax_tie(draws)  # (Thompson sampling)
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 3** is `beta_posterior(counts, sums)`, @eq-beta-posterior for every arm, and `thompson_step(counts, sums, t, rng)`, @eq-thompson. Checkpoint 3.1 is exact on fixed counts. Checkpoint 3.2 calls your `thompson_step` many times on fixed posteriors with a fixed seed and requires each arm's share of the choices to be close to its exact probability of being the best, so a version that plays the posterior mean fails it. Checkpoint 3.3 runs your method on its own seed and requires the regret to fall below a threshold set by the threshold protocol: many seeds of the reference solution and of wrong versions, with a stated gap between them. **Exercise 4** then compares the three methods over 20 seeds with the tie rule, which you write as `verdict`.
+:::
+
+::: {.callout-note collapse="true" title="After the lab: three methods on seeds 0 to 19"}
+![**What to notice:** at 5000 rounds, the lab's horizon, Thompson sampling has the lowest regret, ε-greedy with ε = 0.1 the next, and UCB1 the highest: IQM 23.1 [19.4, 26.8], 60.4 [53.6, 78.3] and 113.8 [105.9, 120.0], every pair decided by the tie rule. ε-greedy's curve keeps rising at a steady slope while UCB1's flattens, and by 20 000 rounds UCB1 is below it, 184.8 [169.8, 197.4] against 211.3 [203.1, 228.8]: a logarithmic bound is a statement about growth, not about a given horizon. At 1000 rounds, Thompson sampling and ε-greedy are a tie. Greedy's IQM at 5000 rounds is 300.4, and 11 of the 20 seeds left headline 2 behind. Pseudo-regret against rounds, on a log scale, for greedy, ε-greedy with ε = 0.1, UCB1 and Thompson sampling on the lab's headlines; IQM of 20 seeds (0 to 19) with a 95% bootstrap band; the intervals in brackets are 95% bootstrap intervals of the IQM (`runs/2026-10-18-local-m04-regret-curves-exp.json`).](/images/04-regret-curves.svg){#fig-regret-curves fig-alt="Four curves of pseudo-regret against rounds from 1 to 20,000 on a log scale, each with a shaded band. Greedy's band is very wide and rises steeply. Epsilon-greedy's curve rises steadily. UCB1's curve starts above epsilon-greedy's and flattens, crossing below it near the right end. Thompson sampling's curve is the lowest throughout and nearly flat after the first few hundred rounds."}
+:::
+
+## 5. Scale and $\varepsilon$
+
+**In this section:** find the assumption that a change of reward units tests, and price $\varepsilon$-greedy's constant exploration.
+
+**UCB1's bonus is in reward units.** @eq-hoeffding was for rewards in $[0, 1]$. For rewards in $[0, B]$ the exponent becomes $-2N\eta^2/B^2$ [@lattimore2020bandit, §5.4, Eq. 5.8], and solving as in section 3 gives the index
+
+$$
+\hat r_t(a) + B \sqrt{\frac{2 \ln t}{N_t(a)}} .
+$$ {#eq-scaled-bonus}
+
+UCB1 has $B = 1$ written into it: no parameter to tune, but an assumption about the reward's units. Lattimore and Szepesvári say of all their algorithms of this kind that they "rely on the knowledge of σ", the scale of the noise [@lattimore2020bandit, Chapter 6 introduction, p. 91]. Multiply every reward by 10, and every rate, sample mean and gap is multiplied by 10; the bonus of @eq-ucb1 is not.
+
+**$\varepsilon$-greedy has no units.** Its $\varepsilon$ is a probability, and its choice compares sample means only with each other. Thompson sampling's update, @eq-beta-posterior, is defined for rewards in $\{0, 1\}$ only.
+
+**The price of a constant $\varepsilon$.** After the first pulls, $\varepsilon$-greedy pulls a uniformly random arm with probability $\varepsilon$ in every round, and such a pull costs the average gap. So, whatever the greedy part does, the expected pseudo-regret of every round is at least
+
+$$
+\frac{\varepsilon}{|\mathcal{A}|} \sum_a \Delta_a ,
+$$ {#eq-eps-floor}
+
+with $|\mathcal{A}|$ the number of arms. The floor never shrinks, so the regret grows linearly in $T$. A smaller $\varepsilon$ lowers it and brings back section 2's trap: with few random pulls, escaping a wrong greedy choice takes many rounds.
+
+::: {#chk-eps .self-check}
+**Check yourself 5.1.** With the lab's gaps $(0.1, 0.2, 0)$, what is the floor of @eq-eps-floor per round at $\varepsilon = 0.1$, and over 5000 rounds? At $\varepsilon = 0.01$ and at $\varepsilon = 0.5$? Why might $\varepsilon = 0.01$ still end with more regret than $\varepsilon = 0.1$?
+
+::: {.callout-tip collapse="true" title="Answer to 5.1"}
+$\sum_a \Delta_a = 0.3$ and $|\mathcal{A}| = 3$, so the floor is $0.1 \cdot 0.3 / 3 = 0.01$ per round, 50 over 5000 rounds. At $\varepsilon = 0.01$: 0.001 per round, 5 over 5000 rounds. At $\varepsilon = 0.5$: 0.05 per round, 250. The floor counts only the random pulls. With $\varepsilon = 0.01$ a run that starts in greedy's trap (section 2) pulls headline 2 at random only about once every 300 rounds, so it can stay on a worse headline for hundreds or thousands of rounds, paying its gap in each. That cost is not in the floor.
+:::
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 5** multiplies every reward by 10 and reruns $\varepsilon$-greedy, UCB1 with its bonus unchanged, and UCB1 with @eq-scaled-bonus at $B = 10$, all on your 20 seeds and reported in the original units. Before the run you write your predictions in `scale_directions()`: for each method, does the mean regret go up, go down, or stay the same on every seed? The checkpoint compares them with the directions the reference run gives. The cell then tries Thompson sampling on the scaled rewards and sweeps $\varepsilon$ over 0, 0.01, 0.05, 0.1, 0.2 and 0.5.
+:::
+
+::: {.callout-note collapse="true" title="After the lab: rewards × 10, seed by seed"}
+![**What to notice:** ε-greedy's regret is the same on all 20 seeds: multiplying every mean by 10 changes no comparison, and the coin flips are the same, so it pulls the same arms. UCB1 with its bonus unchanged splits in two. On 13 seeds its regret falls, to between 0.3 and 31.9, because the bonus, now small next to the gaps, no longer forces it to pull the worse headlines; on the other 7 it rises, to between 342.2 and 999.4, because, now nearly greedy, it falls into section 2's trap and stays for hundreds or thousands of rounds. The mean rises from 112.2 to 195.1 while the IQM falls from 113.8 to 90.1, and the tie rule calls the two a tie: one summary number hides a distribution with two humps. UCB1 with the bonus × 10 pulls the same arms as UCB1 on the original rewards. Pseudo-regret at 5000 rounds in the original units, every seed (0 to 19), with rewards × 1 and × 10 (`runs/2026-10-18-local-m04-scale-exp.json`).](/images/04-scale.svg){#fig-scale fig-alt="A dot plot with four columns: UCB1 with rewards times 1, UCB1 times 10, epsilon-greedy times 1 and epsilon-greedy times 10. UCB1 times 1 has 20 dots between about 80 and 140. UCB1 times 10 has 13 dots near zero and 7 dots between about 340 and 1000. The two epsilon-greedy columns are identical, with dots between about 45 and 120."}
+:::
+
+## 6. Bridge to context
+
+**In this section:** what today's three methods leave out for a real recommender, and where Day 2 goes next.
+
+**One best arm for everyone.** Today's bandit has a single $r(a)$ per headline, so it learns one best headline for every visitor. If the best headline depends on who is reading, an average rate hides that: the headline that is best on average can be a poor choice for many visitors. Module 5 gives each round a *context*, a feature vector describing the visitor, and models the expected reward as a function of the context and the arm. Both of today's ideas carry over. Optimism becomes LinUCB, whose bonus is the width of a confidence region for a linear model's weights; posterior sampling becomes linear Thompson sampling.
+
+**What a live system can measure.** Pseudo-regret needs the true rates, which only a simulator has. A deployed recommender sees clicks, and if it is to learn later from what it did, it must record what it showed and with what probability. $\varepsilon$-greedy and Thompson sampling choose at random, so each choice has a probability that can be logged; UCB1 is deterministic given its history, so its log holds no record of what else it might have shown. Module 5 builds such a log, and Day 5 evaluates new policies from it.
+
+**Rewards many steps away.** A bandit's reward arrives in the same round as the choice, so a bonus needs to look only one step ahead. Module 6 returns to MDPs, where the reward for exploring may be many steps away, and puts the bonus inside the Bellman backup.
+
+## Summary
+
+- A bandit is an MDP with one state. Pseudo-regret (@eq-pseudo-regret) adds the gap of every arm pulled; it uses the true rates, so it filters out the reward noise and exists only in simulation. It is random, so compare methods over seeds with the tie rule.
+- Greedy can lose the best arm for good: with 0/1 rewards, an arm whose first pull pays 0 is never pulled again once another arm has paid. Its regret is then linear.
+- $\varepsilon$-greedy never loses an arm for good, but pays at least $\frac{\varepsilon}{|\mathcal{A}|}\sum_a \Delta_a$ per round (@eq-eps-floor) forever: linear regret with a smaller slope.
+- Hoeffding's inequality (@eq-hoeffding) bounds how far a mean of rewards in $[0, 1]$ strays. Solving it with $p_{\text{fail}} = t^{-4}$ gives UCB1's bonus $\sqrt{2 \ln t / N_t(a)}$ (@eq-ucb1). Its expected regret grows at most like $\ln T$ (@eq-ucb1-bound), which says how regret grows, not how large it is at a given horizon.
+- With a Beta(1, 1) prior and 0/1 rewards, Bayes' rule gives the posterior $\mathrm{Beta}(1 + S, 1 + F)$ (@eq-beta-posterior). Thompson sampling pulls the arm with the largest posterior draw (@eq-thompson), so each arm is pulled with its posterior probability of being the best.
+- Each method's assumption is a statement about the rewards. UCB1's bonus is in reward units: for rewards in $[0, B]$ it is $B$ times larger (@eq-scaled-bonus). $\varepsilon$-greedy compares means only. The Beta update needs 0/1 rewards.
+
+### Equations and where you implement them
+
+| Equation | Lab 4 | Name in the notebook |
+|---|---|---|
+| Pseudo-regret (@eq-pseudo-regret) | Exercise 1: `run_bandit` | (pseudo-regret) |
+| The floor of $\varepsilon$-greedy (@eq-eps-floor) | Exercise 1: `eps_greedy`; Exercise 5's sweep | (exploration floor) |
+| Hoeffding's inequality (@eq-hoeffding) | Read in Exercises 2 and 5 | (Hoeffding) |
+| The UCB1 index (@eq-ucb1); its regret bound (@eq-ucb1-bound) | Exercise 2: `ucb1_index`; Exercise 6: fix `UCB1Suspect` | (UCB1) |
+| The Beta posterior (@eq-beta-posterior) | Exercise 3: `beta_posterior` | (Beta posterior) |
+| Thompson sampling (@eq-thompson) | Exercise 3: `thompson_step` | (Thompson sampling) |
+| The scaled bonus (@eq-scaled-bonus) | Exercise 5: the provided `ucb1_scaled` | (scaled bonus) |
+
+## Gotchas and troubleshooting
+
+- **"ε = 0.1 is a safe default."** A constant $\varepsilon$ pays at least $\frac{\varepsilon}{|\mathcal{A}|}\sum_a \Delta_a$ in every round, forever (@eq-eps-floor): its regret grows linearly in $T$. Whether that is a good trade depends on the horizon, the gaps and the number of arms, and no single $\varepsilon$ is right for all of them; Exercise 5's sweep shows the cost at both ends.
+- **"UCB has no parameters."** UCB1 has no knob, but it has an assumption: rewards in $[0, 1]$. Its bonus is in reward units (@eq-scaled-bonus), so the same code on rewards in another range explores by a different amount. Exercise 5 measures what changes. Rescale the rewards to $[0, 1]$, or scale the bonus by the range.
+- **"One seed is enough to compare."** One run is one sample of a random regret. A method can look best on one seed and worst on another: greedy has almost no regret on the seeds where it keeps the best arm. Compare over seeds with the tie rule, call overlapping intervals a tie, and state the budget, because a verdict can change with the number of rounds.
+- **"Thompson sampling samples rewards."** It samples a plausible *rate* for every arm from its posterior, then pulls the largest. Sampling a 0/1 outcome instead makes most draws ties and throws away the posterior's width [@russo2018tutorial, p. 14]. Checkpoint 3.2 catches this.
+- **"My regret curve is flat, so the method has found the best arm."** On one seed, greedy's curve is flat whenever it happens to keep the best arm. Look at the pulls per arm over several seeds, and at the bonus: in a healthy UCB1 every worse arm keeps being pulled, a number of times that grows slowly with $t$, and the bonus differs between arms and shrinks with each arm's count.
+- **"`RuntimeWarning: divide by zero encountered in log`, or an index of `nan`."** At $t = 0$ no arm has been pulled, and $\ln 0 = -\infty$. Compute the bonus only for arms with $N_t(a) > 0$, and only when there is one; an arm never pulled gets $+\infty$ and comes first.
+- **"`ValueError: b <= 0` from `rng.beta`."** A Beta parameter became 0 or negative. With 0/1 rewards $1 + F$ is at least 1, so the rewards are not 0/1: if the sums count rewards of 10, say, $F = N - S$ goes negative. The Beta posterior needs rewards in $\{0, 1\}$.
+- **"`NotImplementedError`."** The function still raises its TODO: you have not written it yet, or you have not run the cell that holds your code. Write the TODO and run its cell. To move on without it, run `lab.use_reference(N)` with the exercise number, and the lab continues with the reference solution; the exercise's solution cell must have run once. Running a solution cell alone does not replace your function.
+
+## Next steps
+
+[Module 5](/modules/05-contextual-bandits.qmd) gives each round a context, so the best headline can depend on the visitor, and turns today's optimism and posterior sampling into LinUCB and linear Thompson sampling. It also logs the probability of every choice, for Day 5. [Module 6](/modules/06-exploration-mdps.qmd) returns to MDPs, where a bonus must reach a reward many steps away.
+
+## Further reading
+
+1. @lattimore2020bandit, *Bandit Algorithms*, the free PDF. §4.5 for the regret decomposition (Lemma 4.5) and §4.6 for the reward-stack model; §4.8, Note 4 for pseudo-regret; §5.3 to §5.4 for concentration, with Hoeffding's inequality as Eq. 5.8; the introduction to Chapter 6 on why their algorithms need to know the noise scale; Chapter 7 for UCB and the optimism principle, with §7.3 relating it to UCB1; §34.3, Examples 34.6 and 34.7, for the Beta and Gaussian posteriors; Chapter 36 for Thompson sampling, with its Notes on the prior. Their reward $X_t$ and arm means $\mu_i$ are our $r_t$ and $r(a)$, their $T_i(t)$ is our $N_t(a)$, and their $\delta$ our $p_{\text{fail}}$.
+2. @auer2002ucb, *Finite-time analysis of the multiarmed bandit problem*. §2 and Figure 1 define UCB1; Theorem 1 is @eq-ucb1-bound; §3's Fact 1 is the form of Hoeffding's inequality we use, and the proof of Theorem 1 shows where $t^{-4}$ comes from. Page 239 is the source of the remark on a constant $\varepsilon$, and Figure 3 and Theorem 3 give an $\varepsilon$ that shrinks like $1/t$ and a bound on the probability of a wrong pull.
+3. @russo2018tutorial, *A tutorial on Thompson sampling*. §2 on greedy decisions and dithering; §3 on the Beta–Bernoulli bandit, with the update rule (p. 14), the greedy and Thompson algorithms side by side (Algorithms 3.1 and 3.2) and greedy's trap (p. 16). Later sections take Thompson sampling well beyond independent arms.
+4. @sutton2018rl, *Reinforcement Learning: An Introduction*, 2nd edition. Chapter 2 on bandits; §2.7, Eq. 2.10, writes the UCB bonus with a tunable coefficient $c$.
+5. @hoeffding1963, the origin of the inequality. We have checked its bibliographic record, not opened the paper, and state the inequality from the two sources above.
+6. @thompson1933, the origin of Thompson sampling, for two arms with 0/1 rewards, as Lattimore and Szepesvári describe it. We have checked its bibliographic record, not opened the paper.

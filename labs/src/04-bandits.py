@@ -202,7 +202,7 @@ plt.show()
 # On the seeds where greedy left headline 2 behind, its curve is a straight line: every round
 # adds the same gap (pseudo-regret). Why does greedy never try headline 2 again once its first
 # showing got no click? ε-greedy never stays stuck for good: what does it pay in every round
-# instead, and does its curve flatten? (Gotcha: "ε = 0.1 is a safe default.")
+# instead (exploration floor), and does its curve flatten? (Gotcha: "ε = 0.1 is a safe default.")
 
 # %% role="ex1-chk1"
 from prl.checks import m04  # the checkpoints of this lab
