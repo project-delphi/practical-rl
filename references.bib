@@ -57,7 +57,10 @@
                becomes greedy in the limit (e.g. epsilon = 1/t); s6.5, Q-learning converges w.p. 1 to q* if all pairs keep being updated,
                under a variant of the usual step-size conditions;
                the s6.1 text places TD(lambda) in Chapter 12; the Chapter 6 bibliographical notes (book p. 139): Sarsa introduced by
-               Rummery and Niranjan (1994) as Modified Connectionist Q-learning, the name Sarsa introduced by Sutton (1996).}
+               Rummery and Niranjan (1994) as Modified Connectionist Q-learning, the name Sarsa introduced by Sutton (1996).
+               Also opened (academic director, Module 4, 2026-10-18, RLbook2020.pdf, text extracted): s2.7 (book pp. 35-36): the UCB rule
+               A_t = argmax_a [Q_t(a) + c sqrt(ln t / N_t(a))], Eq. 2.10, with c > 0 controlling exploration and an action with N_t(a) = 0
+               treated as maximizing; Figure 2.4 compares it with epsilon-greedy on the 10-armed testbed. Module 4 cites s2.7, Eq. 2.10.}
 }
 
 @book{lattimore2020bandit,
