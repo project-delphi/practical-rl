@@ -615,7 +615,7 @@ def ellipse_data() -> dict:
 
 def ellipse_figure(t: Theme, data: dict) -> Figure:
     fig = Figure(figsize=(WIDTH_IN, 420 / 96))  # 680 x 420 px
-    ax = fig.add_axes((0.085, 0.13, 0.9, 0.84))
+    ax = fig.add_axes((0.11, 0.13, 0.875, 0.84))
     c = np.round(data["center"], 4)
     semi, axis = data["semi"], data["long_axis"]
     angle = math.degrees(math.atan2(axis[1], axis[0]))  # the long axis, from the w1 axis
@@ -643,19 +643,18 @@ def ellipse_figure(t: Theme, data: dict) -> Figure:
     )
     inv = data["inv"]
     offsets = {  # label position relative to the arrow tip, in data units
-        "(1, 0)": ((0.07, 0.0), "left", "center"),
-        "(0, 1)": ((0.07, 0.03), "left", "center"),
-        "(1, \N{MINUS SIGN}1)/\N{SQUARE ROOT}2": ((0.07, -0.05), "left", "center"),
+        "(1, 0)": (0.07, 0.0),
+        "(0, 1)": (0.07, 0.085),  # above its tangent line
+        "(1, \N{MINUS SIGN}1)/\N{SQUARE ROOT}2": (0.08, -0.06),
     }
-    for (name, u), color in zip(
-        DIRECTIONS.items(), (t.series[1], t.series[2], t.series[3]), strict=True
-    ):
+    colors = (t.series[1], t.series[2], t.series[3])
+    for (name, u), color in zip(DIRECTIONS.items(), colors, strict=True):
         w = data["widths"][name]
         tip = c + w * u
         # The tangent line perpendicular to u touches the ellipse at c + inv u / w.
         touch = c + inv @ u / w
         perp = np.array([-u[1], u[0]])
-        span = np.array([tip + 0.42 * perp, tip - 0.42 * perp])
+        span = np.round([tip + 0.42 * perp, tip - 0.42 * perp], 4)
         ax.plot(span[:, 0], span[:, 1], color=t.neutral, lw=1.4, ls=(0, (4, 2.5)), zorder=2)
         ax.annotate(
             "",
@@ -671,13 +670,13 @@ def ellipse_figure(t: Theme, data: dict) -> Figure:
             zorder=4,
         )
         ax.plot(*np.round(touch, 4), marker="o", ms=5, color=color, mec=t.bg, mew=0.8, zorder=5)
-        (dx, dy), ha, va = offsets[name]
+        dx, dy = offsets[name]
         ax.text(
             tip[0] + dx,
             tip[1] + dy,
             f"{name}: width {w:.3f}",
-            ha=ha,
-            va=va,
+            ha="left",
+            va="center",
             color=t.text,
             fontsize=13,
         )
@@ -685,26 +684,30 @@ def ellipse_figure(t: Theme, data: dict) -> Figure:
     ax.annotate(
         f"{CENTER} = ({c[0]:.3f}, {c[1]:.3f})",
         xy=tuple(c),
-        xytext=(-12, -16),
+        xytext=(-10, -14),
         textcoords="offset points",
         ha="right",
         va="top",
         color=t.text,
         fontsize=13,
+        bbox={"boxstyle": "square,pad=0.15", "facecolor": t.bg, "edgecolor": "none", "alpha": 0.85},
     )
     ax.text(
-        -0.55,
-        1.02,
-        "The ellipse $\\|w - \\hat w\\|_\\Lambda \\leq 1$. Each arrow is a user's\n"
-        "direction, as long as its width $\\|\\phi\\|_{\\Lambda^{-1}}$; dashed: the\n"
-        "tangent line at that distance, where the ellipse ends.",
+        1.62,
+        1.08,
+        "Shaded: $\\Vert w - \\hat{w} \\Vert_\\Lambda \\leq 1$.\n"
+        "Arrow: a user's direction,\n"
+        "as long as its width $\\Vert\\phi\\Vert_{\\Lambda^{-1}}$.\n"
+        "Dashed: the tangent line\n"
+        "at that distance.",
         ha="left",
         va="top",
         color=t.text,
         fontsize=MIN_FONT,
+        linespacing=1.35,
     )
     ax.set_aspect("equal")
-    ax.set_xlim(-0.6, 2.75)
+    ax.set_xlim(-0.45, 2.85)
     ax.set_ylim(-0.75, 1.1)
     ax.xaxis.set_major_locator(FixedLocator([0.0, 0.5, 1.0, 1.5]))
     ax.yaxis.set_major_locator(FixedLocator([-0.5, 0.0, 0.5, 1.0]))
@@ -736,7 +739,7 @@ Y_MAX = 600
 def regime_panel(regime: str):
     def draw(t: Theme, data: dict) -> Figure:
         fig = Figure(figsize=(PANEL_W, PANEL_H))
-        ax = fig.add_axes((0.27, 0.15, 0.68, 0.76))
+        ax = fig.add_axes((0.27, 0.165, 0.68, 0.745))
         x = data["rounds"]
         colors = dict(zip(METHODS, t.series, strict=False))
         for method in METHODS:
@@ -875,12 +878,16 @@ def quoted_numbers(computed: dict[str, dict]) -> None:
     assert s0["ex2_predict_nine"] == 0.9 or abs(s0["ex2_predict_nine"] - 0.9) < 1e-12
     once = [a for a, n in enumerate(s0["ex3_shown_greedy"]) if n == 1]
     assert once == [2, 4, 7, 9], once  # predict_answer Ex3; the page's "four of the ten items"
-    assert s0["ex4_n_draws"] == 20000 and _r(s0["ex4_draws_above"], 4) == 0.0223
+    # "0.0223 of 20000": 447 draws, 0.02235 exactly, which the lab's :.4f prints as 0.0223
+    assert s0["ex4_n_draws"] == 20000 and round(s0["ex4_draws_above"] * 20000) == 447
+    assert f"{s0['ex4_draws_above']:.4f}" == "0.0223"
     assert _r(1 - s0["ex6_best_rows"], 3) == 0.093  # "seat 0: 9.3%"
     assert _r(s0["ex7_stub_weight_new_policy"], 2) == 0.62
     assert s0["ex7_stub_propensities"] == [0.91]  # every row records 0.91: weights all 0.11
     assert _r(s0["ex7_stub_weight_uniform"], 2) == 0.11
-    assert _r(s0["ex6_weight_new_policy"], 2) == 1.06  # "1.06 on the correct log" (env.log's)
+    # "0.62 against 1.05 on the correct log": Exercise 6's env.log log (the lab prints 1.055)
+    assert _r(s0["ex6_weight_new_policy"], 2) == 1.05
+    assert _r(s0["ex6_weight_uniform"], 2) == 1.03  # the Gotcha's "My mean weight is 1.03"
     claims = exercise_5_claims(computed, rec)
     failed = [c for c in claims if not c[1]]
     if ASSERT_EXERCISE_5:
