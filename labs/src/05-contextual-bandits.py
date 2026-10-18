@@ -2,6 +2,8 @@
 # jupyter:
 #   prl:
 #     module: m05
+#     pins:
+#       mabwiser: "2.7.4"
 # ---
 
 # %% [markdown]
@@ -788,8 +790,9 @@ lab.check(7, m05.check_log_suspect, log_suspect)
 # **Parity with MABWiser.** MABWiser 2.7.4 is a maintained bandit library whose LinUCB keeps,
 # for every arm, the same statistics as your `Ridge`: `A_inv` and `Xty` (your `b`). The cell
 # below replays one LinUCB run, fits MABWiser's LinUCB with the same c and λ_ridge on the same
-# stream of (item, click, features), and compares the statistics and the scores. MABWiser is
-# not part of the lab's setup; if it is not installed, the cell says so and skips.
+# stream of (item, click, features), and compares the statistics and the scores. On Colab
+# the setup cell installs MABWiser; elsewhere, if it is not installed, the cell says so and
+# skips.
 
 # %% role="stretch-run"
 try:
