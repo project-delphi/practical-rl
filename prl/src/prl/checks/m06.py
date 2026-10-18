@@ -254,6 +254,26 @@ check_eps_greedy_end = StochasticCheck(
         f"fraction of eps-greedy Q-learning's steps at the right end (state {END}), "
         "from your visitation"
     ),
+    thresholds={
+        # threshold_protocol.py, live budget {"steps": 5000}, N = 100 seeds (0-99), 2026-10-18,
+        # local (Apple M1 Pro, arm64). Solution p99 0; strongest wrong version mutant 'random'
+        # p1 0.4264; gap 0.4264 (minimum 0.2); threshold: the midpoint 0.213221, rounded to
+        # 0.21. 0 of 100 solution seeds fail: flake rate at most about 3/N = 3.0% (rule of
+        # three).
+        "live": (
+            0.21,
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_eps_greedy_end-live-n100-exp.json",
+        ),
+        # threshold_protocol.py, quick budget {"steps": 5000}, N = 100 seeds (0-99), 2026-10-18,
+        # local (Apple M1 Pro, arm64). Solution p99 0; strongest wrong version mutant 'random'
+        # p1 0.4264; gap 0.4264 (minimum 0.2); threshold: the midpoint 0.213221, rounded to
+        # 0.21. 0 of 100 solution seeds fail: flake rate at most about 3/N = 3.0% (rule of
+        # three).
+        "quick": (
+            0.21,
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_eps_greedy_end-quick-n100-exp.json",
+        ),
+    },
 )
 
 
@@ -315,6 +335,26 @@ check_optimistic_reach = StochasticCheck(
     higher_is_better=True,
     min_gap=4.0,
     what="runs of Q-learning from your start that reach the right end (of 10)",
+    thresholds={
+        # threshold_protocol.py, live budget {"runs": 10, "steps": 5000}, N = 100 seeds (0-99),
+        # 2026-10-18, local (Apple M1 Pro, arm64). Solution p1 10; strongest wrong version
+        # mutant 'random' p99 5.01; gap 4.99 (minimum 4); threshold: the midpoint 7.505, rounded
+        # to 7.5. 0 of 100 solution seeds fail: flake rate at most about 3/N = 3.0% (rule of
+        # three).
+        "live": (
+            7.5,
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_optimistic_reach-live-n100-exp.json",
+        ),
+        # threshold_protocol.py, quick budget {"runs": 10, "steps": 5000}, N = 100 seeds (0-99),
+        # 2026-10-18, local (Apple M1 Pro, arm64). Solution p1 10; strongest wrong version
+        # mutant 'random' p99 5.01; gap 4.99 (minimum 4); threshold: the midpoint 7.505, rounded
+        # to 7.5. 0 of 100 solution seeds fail: flake rate at most about 3/N = 3.0% (rule of
+        # three).
+        "quick": (
+            7.5,
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_optimistic_reach-quick-n100-exp.json",
+        ),
+    },
 )
 
 
@@ -428,6 +468,26 @@ check_mbie_eb_suspect = StochasticCheck(
     higher_is_better=True,
     min_gap=0.3,
     what=f"fraction of your agent's steps at the right end (state {END}), mean of 3 runs",
+    thresholds={
+        # threshold_protocol.py, live budget {"runs": 3, "steps": 5000}, N = 100 seeds (0-99),
+        # 2026-10-18, local (Apple M1 Pro, arm64). Solution p1 0.8077; strongest wrong version
+        # mutant 'random' p99 0.0004673; gap 0.8073 (minimum 0.3); threshold: the midpoint
+        # 0.404094, rounded to 0.4. 0 of 100 solution seeds fail: flake rate at most about 3/N =
+        # 3.0% (rule of three).
+        "live": (
+            0.4,
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_mbie_eb_suspect-live-n100-exp.json",
+        ),
+        # threshold_protocol.py, quick budget {"runs": 3, "steps": 5000}, N = 100 seeds (0-99),
+        # 2026-10-18, local (Apple M1 Pro, arm64). Solution p1 0.8077; strongest wrong version
+        # mutant 'random' p99 0.0004673; gap 0.8073 (minimum 0.3); threshold: the midpoint
+        # 0.404094, rounded to 0.4. 0 of 100 solution seeds fail: flake rate at most about 3/N =
+        # 3.0% (rule of three).
+        "quick": (
+            0.4,
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_mbie_eb_suspect-quick-n100-exp.json",
+        ),
+    },
 )
 
 
