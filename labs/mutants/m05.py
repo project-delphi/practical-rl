@@ -179,9 +179,9 @@ def lints_sample(model, v, rng):  # noqa: F811
     ex=4, replaces="lints_sample", id="upper-factor", why="multiplies z by L^T (the upper factor)"
 )
 def lints_sample(model, v, rng):  # noqa: F811
-    theta_hat = model.A_inv @ model.b
+    mean = model.A_inv @ model.b
     L = np.linalg.cholesky(model.A_inv)
-    return theta_hat + v * L.T @ rng.standard_normal(len(theta_hat))
+    return mean + v * L.T @ rng.standard_normal(len(mean))
 
 
 @mutant(ex=4, replaces="lints_sample", id="own-rng", why="ignores rng: the same draw every call")

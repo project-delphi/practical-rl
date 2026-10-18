@@ -908,15 +908,15 @@ def m05_lints() -> bytes:
     A_inv = np.linalg.inv(A)
     b = np.array([1.0, -0.5, 0.25])
     v, n_draws = 0.5, 4000
-    theta_hat = A_inv @ b
+    mean = A_inv @ b
     # The reference sampler (the lab's solution) on the checkpoint's draw, to show its margin:
     # the checkpoint allows 6 standard errors for each mean and 0.2 for each entry of the
     # whitened covariance.
     rng = np.random.default_rng(11)
     L = np.linalg.cholesky(A_inv)
-    draws = np.array([theta_hat + v * L @ rng.standard_normal(3) for _ in range(n_draws)])
+    draws = np.array([mean + v * L @ rng.standard_normal(3) for _ in range(n_draws)])
     se = v * np.sqrt(np.diag(A_inv) / n_draws)
-    z = (draws.mean(axis=0) - theta_hat) / se
+    z = (draws.mean(axis=0) - mean) / se
     Li = np.linalg.inv(L)
     white = Li @ (np.cov(draws.T) / v**2) @ Li.T
     dev = np.abs(white - np.eye(3)).max()
@@ -931,7 +931,7 @@ def m05_lints() -> bytes:
         b=b,
         v=np.array(v),
         n_draws=np.array(n_draws, dtype=np.int64),
-        theta_hat=theta_hat,
+        estimate=mean,
         ref_max_z=np.array(np.abs(z).max()),
         ref_max_dev=np.array(dev),
     )
@@ -1001,11 +1001,12 @@ def m05_logging() -> bytes:
     eps10 = np.array([0.0, 0.1, 0.3, 1.0])
     expected4 = _m05_eps_greedy(scores4, eps4)
     assert np.allclose(expected4, [0.025, 0.925, 0.025, 0.025], atol=1e-15)
-    theta_fix = np.round(np.random.default_rng(51).normal(size=(M05_K, M05_D_RAW + 1)), 3)
+    # Fixed score weights for the logging checkpoints: scores(x) = W @ phi(x). Not a learner's.
+    W = np.round(np.random.default_rng(51).normal(size=(M05_K, M05_D_RAW + 1)), 3)
     K = M05_K
 
     def scores(x):
-        return theta_fix @ _m05_features(x)
+        return W @ _m05_features(x)
 
     # Exercise 6's checkpoint logs with env.log and the reference log_policy at epsilon 0.1.
     log_eps, log_n, log_seed = 0.1, 4000, 52
@@ -1043,7 +1044,7 @@ def m05_logging() -> bytes:
         scores10=scores10,
         eps10=eps10,
         expected10=np.array([_m05_eps_greedy(scores10, e) for e in eps10]),
-        theta_fix=theta_fix,
+        score_weights=W,
         log_eps=np.array(log_eps),
         log_n=np.array(log_n, dtype=np.int64),
         log_seed=np.array(log_seed, dtype=np.int64),

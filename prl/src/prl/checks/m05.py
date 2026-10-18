@@ -3,11 +3,11 @@
 Every check is exact: its expected values come from fixtures written by
 scripts/make_expected.py (m05_*), computed once on fixed inputs. Nothing here fits a model.
 Exercises 3 and 4 get fixed containers (`A`, `A_inv`, `b`, `n` and `predict(x) =
-theta_hat^T x`), not learners. Exercise 4's sampler is checked on the moments of a
+(A_inv @ b) @ x`), not learners. Exercise 4's sampler is checked on the moments of a
 fixed-seed draw: the outcome is a fixed function of the participant's code, and the
 tolerances (6 standard errors per mean, 0.2 per whitened-covariance entry, about 9 standard
 errors) pass any correct sampler, whatever order it draws in. Exercises 6 and 7 log from
-RecSim with a fixed score table (`theta_fix`); Exercise 7's behavior policy is the
+RecSim with a fixed table of score weights (`score_weights`); Exercise 7's behavior policy is the
 epsilon-greedy written below, not the participant's `log_policy`.
 
 Every check turns a wrong shape, None, NaN or an invalid log into CheckFailed itself, so
@@ -30,7 +30,7 @@ from ..evaluate import Budget, compare
 from . import CheckFailed, _fmt, expected
 
 K, D_RAW, CATALOG = 10, 5, 0  # the lab's catalog: RecSim(10, 5, seed=0)
-LINTS_MEAN_SE = 6.0  # each draw mean within 6 standard errors of theta_hat
+LINTS_MEAN_SE = 6.0  # each draw mean within 6 standard errors of A_inv b
 LINTS_COV_TOL = 0.2  # each whitened-covariance entry within 0.2 of I (about 9 sd)
 WEIGHT_SE = 4.0  # the mean importance weight within 4 standard errors of 1
 SHARE_SE = 5.0  # Exercise 7: the share of rows not showing the best item, within 5 SE
@@ -78,7 +78,7 @@ def _number(out: Any, what: str) -> float:
     if np.ndim(out) != 0:
         raise CheckFailed(
             f"{what} should return one number, but returned shape {np.shape(out)}. "
-            "theta_hat^T x is a scalar: wrap it in float(...)."
+            "The prediction is one number: wrap it in float(...)."
         )
     try:
         value = float(out)
@@ -143,7 +143,7 @@ def check_ridge(cls: Callable[..., Any]) -> None:
         if p0 != 0.0:
             raise CheckFailed(
                 f"{name}.predict(x) is {p0:.6g} before any update; with b = 0 the prediction "
-                "is 0. predict returns theta_hat^T x with theta_hat = A_inv @ b."
+                "is 0. predict returns (A_inv @ b) @ x: the estimate A_inv b times x."
             )
         for x, reward in zip(X, r, strict=True):
             m.update(x.copy(), float(reward))
@@ -184,9 +184,9 @@ def check_ridge(cls: Callable[..., Any]) -> None:
             got = _number(m.predict(p.copy()), f"{name}.predict(x) {what}")
             if abs(got - want) > 1e-9:
                 hint = (
-                    "That is (A @ b) . x: theta_hat is A_inv @ b, not A @ b."
+                    "That is (A @ b) @ x: the estimate is A_inv @ b, not A @ b."
                     if abs(got - float(fx["pred_with_A"][j, k])) < 1e-9
-                    else "predict returns theta_hat^T x with theta_hat = A_inv @ b."
+                    else "predict returns (A_inv @ b) @ x, the estimate A_inv b times x."
                 )
                 raise CheckFailed(
                     f"{name}.predict({p.tolist()}) {what} is {got:.6g}; the closed form "
@@ -206,7 +206,7 @@ _LINUCB_HINTS = {
 
 
 def check_linucb_scores(fn: Callable[..., Any]) -> None:
-    """Exercise 3: theta_hat_a^T x + c sqrt(x^T A_a^-1 x) on fixed models, and c / sqrt(1 + n)."""
+    """Exercise 3: m.predict(x) + c sqrt(x^T A_a^-1 x) on fixed models, and c / sqrt(1 + n)."""
     fx = expected("m05_linucb")
     x = fx["x"]
     for i, c in enumerate(float(v) for v in fx["cs"]):
@@ -224,8 +224,7 @@ def check_linucb_scores(fn: Callable[..., Any]) -> None:
             "The score of item a is m.predict(x) + c * np.sqrt(x @ m.A_inv @ x).",
         )
         raise CheckFailed(
-            f"{what} = {_fmt(got)}; theta_hat_a^T x + c sqrt(x^T A_a^-1 x) gives {_fmt(want)}. "
-            f"{hint}"
+            f"{what} = {_fmt(got)}; m.predict(x) + c sqrt(x^T A_a^-1 x) gives {_fmt(want)}. {hint}"
         )
     u, ns = fx["u"], fx["unit_ns"]
     for i, c in enumerate(float(v) for v in fx["cs"]):
@@ -251,22 +250,22 @@ def check_linucb_scores(fn: Callable[..., Any]) -> None:
 
 # ------------------------------------------------------------------ 4 lints_sample
 def check_lints_sample(fn: Callable[..., Any]) -> None:
-    """Exercise 4: one draw from N(theta_hat, v^2 A^-1), checked on a fixed-seed sample.
+    """Exercise 4: one draw from N(A^-1 b, v^2 A^-1), checked on a fixed-seed sample.
 
     (a) shape and finite values; (b) the same seed gives the same draw; (c) two seeds give
     two draws; (d) n_draws consecutive draws from default_rng(11): each mean within 6
-    standard errors of theta_hat, and the covariance, whitened by A^-1's Cholesky factor
+    standard errors of the estimate A^-1 b, and the covariance, whitened by A^-1's Cholesky factor
     (L^-1 (S / v^2) L^-T), within 0.2 of I in every entry. A correct sampler's entries have
     a standard deviation of about sqrt(2 / n_draws) = 0.022 (diagonal) or 0.016, so 0.2 is
     about 9 of them, whatever order the sampler draws in.
     """
     fx = expected("m05_lints")
-    A, A_inv, b, theta_hat = fx["A"], fx["A_inv"], fx["b"], fx["theta_hat"]
+    A, A_inv, b, mean = fx["A"], fx["A_inv"], fx["b"], fx["estimate"]
     v, n_draws, d = float(fx["v"]), int(fx["n_draws"]), len(fx["b"])
 
     def draw(rng: np.random.Generator) -> np.ndarray:
         out = fn(_Model(A, A_inv, b, 12), v, rng)
-        return _array(out, (d,), f"lints_sample(model, v={v:g}, rng)", unit=", one theta")
+        return _array(out, (d,), f"lints_sample(model, v={v:g}, rng)", unit=", one draw")
 
     one = draw(np.random.default_rng(7))
     if not np.array_equal(one, draw(np.random.default_rng(7))):
@@ -277,8 +276,8 @@ def check_lints_sample(fn: Callable[..., Any]) -> None:
         )
     if np.array_equal(one, draw(np.random.default_rng(8))):
         hint = (
-            "It returns theta_hat itself, which makes LinTS greedy: add v L z."
-            if np.allclose(one, theta_hat, atol=1e-12, rtol=0.0)
+            "It returns the estimate A_inv @ b itself, which makes LinTS greedy: add v L z."
+            if np.allclose(one, mean, atol=1e-12, rtol=0.0)
             else "It ignores `rng`: draw z with rng.standard_normal(d)."
         )
         raise CheckFailed(
@@ -287,11 +286,11 @@ def check_lints_sample(fn: Callable[..., Any]) -> None:
     rng = np.random.default_rng(11)
     draws = np.array([draw(rng) for _ in range(n_draws)])
     se = v * np.sqrt(np.diag(A_inv) / n_draws)
-    z = (draws.mean(axis=0) - theta_hat) / se
+    z = (draws.mean(axis=0) - mean) / se
     if np.abs(z).max() > LINTS_MEAN_SE:
         raise CheckFailed(
-            f"The mean of {n_draws} draws is {_fmt(draws.mean(axis=0))}; theta_hat = "
-            f"A_inv @ b is {_fmt(theta_hat)}, {np.abs(z).max():.1f} standard errors away "
+            f"The mean of {n_draws} draws is {_fmt(draws.mean(axis=0))}; the estimate "
+            f"A_inv @ b is {_fmt(mean)}, {np.abs(z).max():.1f} standard errors away "
             f"(a correct sampler is within {LINTS_MEAN_SE:g}). Center the draw at "
             "model.A_inv @ model.b."
         )
@@ -317,8 +316,8 @@ def check_lints_sample(fn: Callable[..., Any]) -> None:
         raise CheckFailed(
             f"The covariance of {n_draws} draws, whitened by A_inv (L^-1 (S / v^2) L^-T with "
             f"L L^T = A_inv), should be close to the identity; its worst entry is off by "
-            f"{dev:.2f} (a correct sampler: below {LINTS_COV_TOL:g}).{hint} Draw theta_hat + "
-            "v L z with L = np.linalg.cholesky(model.A_inv) and z = rng.standard_normal(d)."
+            f"{dev:.2f} (a correct sampler: below {LINTS_COV_TOL:g}).{hint} Draw "
+            "A_inv @ b + v L z with L = np.linalg.cholesky(model.A_inv) and z = rng.standard_normal(d)."
         )
 
 
@@ -424,12 +423,12 @@ def check_log_policy(fn: Callable[..., Any]) -> None:
         else:
             hint = "Every item gets epsilon / K, and the best-scoring item 1 - epsilon more."
         raise CheckFailed(f"{what} = {_fmt(got)}; epsilon-greedy gives {_fmt(want)}. {hint}")
-    # In context: a logged run on RecSim, with fixed scores theta_fix @ phi(x).
-    theta, eps, n_log = fx["theta_fix"], float(fx["log_eps"]), int(fx["log_n"])
+    # In context: a logged run on RecSim, with fixed scores score_weights @ phi(x).
+    W, eps, n_log = fx["score_weights"], float(fx["log_eps"]), int(fx["log_n"])
     env = RecSim(K, D_RAW, seed=CATALOG)
 
     def policy(x: np.ndarray, _rng: Any = None) -> Any:
-        return fn(theta @ _features(x), eps)
+        return fn(W @ _features(x), eps)
 
     x0 = env.sample_context(np.random.default_rng(57))
     _probabilities(policy(x0), K, f"log_policy(scores of one RecSim user, epsilon={eps:g})")
@@ -448,12 +447,12 @@ def check_log_policy(fn: Callable[..., Any]) -> None:
 
 
 # ------------------------------------------------------------------ 7 log_suspect
-def _suspect_policy(theta: np.ndarray, eps: float) -> Callable[..., np.ndarray]:
-    """The checkpoint's behavior policy: epsilon-greedy over the fixed scores theta @ phi(x)."""
+def _suspect_policy(W: np.ndarray, eps: float) -> Callable[..., np.ndarray]:
+    """The checkpoint's behavior policy: epsilon-greedy over the fixed scores W @ phi(x)."""
 
     def policy(x: np.ndarray, _rng: Any = None) -> np.ndarray:
         probs = np.full(K, eps / K)
-        probs[int(np.argmax(theta @ _features(x)))] += 1.0 - eps
+        probs[int(np.argmax(W @ _features(x)))] += 1.0 - eps
         return probs
 
     return policy
@@ -463,7 +462,7 @@ def check_log_suspect(fn: Callable[..., Any]) -> None:
     """Exercise 7: a log whose every propensity is the shown item's probability."""
     fx = expected("m05_logging")
     eps, n = float(fx["suspect_eps"]), int(fx["suspect_n"])
-    policy = _suspect_policy(fx["theta_fix"], eps)
+    policy = _suspect_policy(fx["score_weights"], eps)
     env = RecSim(K, D_RAW, seed=CATALOG)
     log = fn(env, policy, n, int(fx["suspect_seed"]))
     if log is None:
