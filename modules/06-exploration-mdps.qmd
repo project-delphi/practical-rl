@@ -48,7 +48,10 @@ $$ {#eq-policy-chain}
 Take uniform random play, $\pi(a \mid s) = \tfrac12$ for both actions. Let $h(s)$ be the expected number of steps to first reach the right end, $n - 1$, starting from $s$: the *hitting time*. At the target nothing is left to spend. From any other state one step is spent, and the walk continues from wherever it lands. This is *first-step analysis*:
 
 $$
-h(s) = 1 + \sum_{s'} P_\pi(s, s')\, h(s'), \qquad h(n - 1) = 0 .
+\begin{aligned}
+h(s) &= 1 + \sum_{s'} P_\pi(s, s')\, h(s'), \\
+h(n - 1) &= 0 .
+\end{aligned}
 $$ {#eq-hitting}
 
 Over the $n - 1$ states other than the target, @eq-hitting is one linear system, $(I - M)\, h = \mathbf{1}$, where $M$ is $P_\pi$ without the target's row and column. Module 1 solved $(I - \gamma P_\pi)\, V^\pi = r_\pi$ the same way ([Module 1, section 3](/modules/01-mdps-bellman.qmd#eq-exact)).
@@ -117,7 +120,7 @@ def hitting_times(P_pi, target):
 Every reward lies in $[0, r_{\max}]$, so no discounted return can exceed $r_{\max} + \gamma r_{\max} + \gamma^2 r_{\max} + \cdots$. Start every estimate there:
 
 $$
-Q_0(s, a) = V_{\max} = \frac{r_{\max}}{1 - \gamma} \;\ge\; Q^*(s, a)
+Q_0(s, a) = V_{\max} = \frac{r_{\max}}{1 - \gamma} \ge Q^*(s, a)
 $$ {#eq-optimistic}
 
 for every pair $(s, a)$. On RiverSwim ${V_{\max} = 20}$, and the largest $Q^*$ is 16.68. An update pulls $Q(s, a)$ toward $r + \gamma \max_{a'} Q(s', a')$. Once a real reward and a real next state enter that target, it falls below $V_{\max}$, so every pair the agent tries loses value. A pair it has not tried keeps $V_{\max}$. The greedy action is then the untried one, until the tried ones have lost enough. The agent explores because its numbers are optimistic, not because a coin told it to. Sutton and Barto show such *optimistic initial values* making even a purely greedy method explore a bandit [@sutton2018rl, §2.6].
@@ -173,7 +176,13 @@ in every state with an action never tried. With ${c = r_{\max}}$ that is $V_{\ma
 **The role of $c$.** Strehl and Littman's Lemma 7 chooses $\beta$, by Hoeffding's inequality as for UCB1 in Module 4, so that $\tilde Q \ge Q^*$ holds at every step with high probability [@strehl2008mbie, Lemma 7]. On the lab's river that $\beta$ is about 55, a bonus 55 times the largest reward. Their experiments tune ${C = \beta / R_{\max}}$ by a broad search instead; the best on their RiverSwim was ${C = 0.4}$ [@strehl2008mbie, §6, Fig. 2]. The lab's ${c = 1}$ is not tuned. It makes @eq-untried match the optimistic start.
 
 ::: {.reference}
-**Lemma 7's $\beta$.** $\beta = \frac{1}{1-\gamma} \sqrt{\ln(2 |\mathcal{S}| |\mathcal{A}| m / p_{\text{fail}})/2}$, where $m$ caps how many visits of a pair the model uses and $p_{\text{fail}}$ is a failure probability (their $\delta$). With that $\beta$ and rewards in $[0, 1]$, $\tilde Q \ge Q^*$ holds at every step with probability at least $1 - p_{\text{fail}}/2$. The proof applies Hoeffding's inequality to $r + \gamma V^*(s')$, which lies in $[0, 1/(1 - \gamma)]$, and starts value iteration at $1/(1 - \gamma)$ [@strehl2008mbie, Appendix B]: the same step as UCB1's bonus, with the horizon as the range. The value 55 uses ${|\mathcal{S}| = 10}$, ${|\mathcal{A}| = 2}$, ${m = 5000}$ and ${p_{\text{fail}} = 0.05}$; it is 55.1.
+**Lemma 7's $\beta$.**
+
+$$
+\beta = \frac{1}{1-\gamma} \sqrt{\frac{\ln(2 |\mathcal{S}| |\mathcal{A}| m / p_{\text{fail}})}{2}},
+$$
+
+where $m$ caps how many visits of a pair the model uses and $p_{\text{fail}}$ is a failure probability (their $\delta$). With that $\beta$ and rewards in $[0, 1]$, $\tilde Q \ge Q^*$ holds at every step with probability at least $1 - p_{\text{fail}}/2$. The proof applies Hoeffding's inequality to $r + \gamma V^*(s')$, which lies in $[0, 1/(1 - \gamma)]$, and starts value iteration at $1/(1 - \gamma)$ [@strehl2008mbie, Appendix B]: the same step as UCB1's bonus, with the horizon as the range. The value 55 uses ${|\mathcal{S}| = 10}$, ${|\mathcal{A}| = 2}$, ${m = 5000}$ and ${p_{\text{fail}} = 0.05}$; it is 55.1.
 :::
 
 **What it does not say.** Lemma 7 holds for its $\beta$, not for a tuned $c$: with ${c = 1}$ nothing guarantees $\tilde Q \ge Q^*$. Their Theorem 2 bounds the number of steps on which the agent is not near-optimal; it is not a bound on the regret over 5000 steps. And they solve @eq-mbie again at every step, until no value changes by more than 0.01 [@strehl2008mbie, §6]. The lab keeps that stopping rule but plans again only when the count of the pair just tried reaches 1, 2, 4, 8, …: at most 261 plans in 5000 steps on the 10-state river, instead of 5000. Osband et al. describe a similar doubling rule [@osband2013psrl, §6.1].
@@ -303,7 +312,7 @@ All three forms divide by something you can count: an arm's pulls, a Gram matrix
 - RiverSwim puts a large reward at the far end of a chain whose easy direction leads away from it. Its probabilities are ours, close to Osband et al.'s version.
 - Under uniform random play the hitting time of the right end solves one linear system (@eq-hitting). Each crossing costs $p_\leftarrow / p_\rightarrow = 3$ times the one before (@eq-crossing), so the time grows like $3^n$: 936.4 steps for 6 states. The result is for one fixed policy and gives an expectation.
 - An optimistic start, $Q_0 = r_{\max} / (1 - \gamma)$ (@eq-optimistic), makes a greedy learner try what it has not tried. It is optimism in tabular form, spent once, with no count behind it.
-- MBIE-EB plans in the estimated model with the bonus $c/\sqrt{N(s, a)}$ inside the backup (@eq-mbie), so the bonus reaches the states that lead to uncertainty. Module 2's self-loop default plus the bonus of one visit makes every state with an untried action worth at least $c/(1 - \gamma)$ (@eq-untried). Lemma 7's $\beta$ guarantees $\tilde Q \ge Q^*$; a tuned $c$ does not.
+- MBIE-EB plans in the estimated model with the bonus $c/\sqrt{N(s, a)}$ inside the backup (@eq-mbie), so the bonus reaches the states that lead to uncertainty. Module 2's self-loop default plus the bonus of one visit makes every state with an untried action worth at least $c/(1 - \gamma)$ (@eq-untried). With Lemma 7's $\beta$, $\tilde Q \ge Q^*$ holds with high probability; with a tuned $c$ nothing guarantees it.
 - Visitation (@eq-visitation) shows where exploration went; regret against $\pi^*$'s expected reward (@eq-regret) prices it. Compare 10 seeds with IQMs and bootstrap intervals, call ties, and state the budget.
 - Counts need states that recur. Pseudo-counts and RND build counts that generalize, for large state spaces, and give up the guarantee.
 
