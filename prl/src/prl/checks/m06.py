@@ -2,9 +2,9 @@
 
 Exact checks compare the participant's function with fixtures written by
 scripts/make_expected.py (fixed chains and policies, the exact hitting times and Q* of the
-lab's river, fixed models with untried pairs, fixed per-seed regrets). Stochastic checks are
-StochasticCheck declarations: a metric of the participant's function at a budget, with
-thresholds set by scripts/threshold_protocol.py.
+lab's river, fixed models with untried pairs, fixed trajectories for regret). Stochastic
+checks are StochasticCheck declarations: a metric of the participant's function at a budget,
+with thresholds set by scripts/threshold_protocol.py.
 
 No learning algorithm lives here. The metrics run the participant's (or the lab's
 reference) learner on a fresh river, record the states it visited, and measure where it
@@ -14,6 +14,7 @@ went; the learning, the planning and the bonus are the participant's code.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 import gymnasium as gym
@@ -402,43 +403,53 @@ def check_mbie_eb_backup(fn: Callable[..., Any]) -> None:
         assert_close(Q, want, atol=1e-6, rtol=0, what=what, hint=hint)
 
 
-# ------------------------------------------------------------------ 6 the verdict (exact)
-def _interval(lo_hi: np.ndarray) -> str:
-    return f"[{float(lo_hi[0]):.1f}, {float(lo_hi[1]):.1f}]"
+# ------------------------------------------------------------------ 6 regret (exact)
+_REGRET_HINTS = (
+    ("per_step", "these are the per-step regrets. Reg_t is their running sum: np.cumsum."),
+    (
+        "next",
+        "the reward of step t comes from s_t and a_t. states holds one more entry than "
+        "actions (s_T has no action): use states[:-1].",
+    ),
+    (
+        "best",
+        "you compared with the best action in the state the learner was in. Regret compares "
+        "with the optimal policy's expected reward at each step from the start: opt_rewards.",
+    ),
+    ("average", "that is the running average. Reg_t is the running sum, not divided by t."),
+    (
+        "clipped",
+        "a step can have negative regret (the learner beat the optimal policy's expectation "
+        "at that step); keep it in the sum.",
+    ),
+)
 
 
-def check_verdict(fn: Callable[..., Any]) -> None:
-    fx = expected("m06_verdict")
+def check_regret(fn: Callable[..., Any]) -> None:
+    fx = expected("m06_regret")
     for i in range(int(fx["n_cases"])):
-        a, b, want = fx[f"a_{i}"], fx[f"b_{i}"], str(fx[f"want_{i}"])
-        what = f"verdict(a, b) on fixed regrets, 10 seeds a side ({fx[f'label_{i}']})"
-        got = _call(fn, a.copy(), b.copy(), what=what)
-        if not isinstance(got, str) or got not in ("A", "B", "tie"):
-            raise CheckFailed(f"{what} returned {got!r}; it should return 'A', 'B' or 'tie'.")
-        if got == want:
-            continue
-        ci_a, ci_b = fx[f"ci_a_{i}"], fx[f"ci_b_{i}"]
-        facts = (
-            f"IQM of a {float(fx[f'iqm_a_{i}']):.1f} {_interval(ci_a)}, IQM of b "
-            f"{float(fx[f'iqm_b_{i}']):.1f} {_interval(ci_b)} (95% bootstrap intervals, "
-            "bootstrap_ci(x, iqm) at its defaults)"
-        )
-        if want == "tie":
-            hint = "the two intervals overlap, so the rule calls a tie."
-        elif got == "tie":
-            m_a, m_b = fx[f"mean_ci_a_{i}"], fx[f"mean_ci_b_{i}"]
-            if m_a[1] >= m_b[0] and m_b[1] >= m_a[0]:
-                hint = (
-                    "the intervals of the IQM do not overlap, but the intervals of the MEAN "
-                    f"do ({_interval(m_a)} and {_interval(m_b)}): bootstrap_ci(x) uses the "
-                    "mean by default; pass iqm as the statistic."
-                )
-            else:
-                hint = "the intervals do not overlap, so this is not a tie."
-        else:
-            hint = "regret is a cost: the side with the LOWER IQM wins."
-        raise CheckFailed(
-            f"{what} returned {got!r}; the rule gives {want!r}: {facts}. Hint: {hint}"
+        states, actions = fx[f"states_{i}"], fx[f"actions_{i}"]
+        R, opt, want = fx[f"R_{i}"], fx[f"opt_{i}"], fx[f"want_{i}"]
+        T = len(actions)
+        args = (states.tolist(), actions.tolist()) if T == 1 else (states.copy(), actions.copy())
+        what = f"regret(states, actions, R, opt_rewards) on {fx[f'label_{i}']} (T = {T})"
+        out = _call(fn, *args, R.copy(), opt.copy(), what=what)
+        if out is not None and np.ndim(out) == 0:
+            raise CheckFailed(
+                f"{what} returned one number, {float(out):.6g}. Return Reg_t after every "
+                f"step: {T} entries, the last of which is Reg_T."
+            )
+        got = _array(out, (T,), what, hint=f"one entry per step: {T} entries, Reg_1..Reg_T.")
+        hint = "Reg_t = sum over k < t of (opt_rewards[k] - R[s_k, a_k]): np.cumsum."
+        if not np.allclose(got, want, atol=1e-9):
+            if np.allclose(got, -want, atol=1e-9):
+                hint = "your signs are reversed: regret is the optimum minus what the learner got."
+            for key, words in _REGRET_HINTS:
+                if np.allclose(got, fx[f"{key}_{i}"], atol=1e-9):
+                    hint = words
+                    break
+        assert_close(
+            got, want, atol=1e-12 if not want.any() else 1e-9, rtol=0, what=what, hint=hint
         )
 
 
@@ -459,7 +470,22 @@ def _suspect_end(mbie_eb_suspect: Callable[..., Any], *, seed: int, steps: int, 
     return float(np.mean(fractions))
 
 
-check_mbie_eb_suspect = StochasticCheck(
+@dataclass(frozen=True, eq=False)
+class _HintedCheck(StochasticCheck):
+    """A StochasticCheck whose threshold failure ends with a hint for the participant."""
+
+    hint: str = ""
+
+    def __call__(self, *fns: Any) -> None:
+        try:
+            super().__call__(*fns)
+        except CheckFailed as exc:
+            if not str(exc).startswith(f"{self.what} ="):
+                raise  # a wrong shape, say: its own message says what to fix
+            raise CheckFailed(f"{exc} Hint: {self.hint}") from None
+
+
+check_mbie_eb_suspect = _HintedCheck(
     ex=7,
     functions="mbie_eb_suspect",
     metric=_suspect_end,
@@ -468,6 +494,11 @@ check_mbie_eb_suspect = StochasticCheck(
     higher_is_better=True,
     min_gap=0.3,
     what=f"fraction of your agent's steps at the right end (state {END}), mean of 3 runs",
+    hint=(
+        "if your agent no longer adds the bonus when it picks an action, check that the bonus "
+        "moved into the plan: an agent with no bonus anywhere never explores. The bonus must go "
+        "into the reward that value iteration backs up (mbie_eb_backup), not vanish."
+    ),
     thresholds={
         # threshold_protocol.py, live budget {"runs": 3, "steps": 5000}, N = 100 seeds (0-99),
         # 2026-10-18, local (Apple M1 Pro, arm64). Solution p1 0.8077; strongest wrong version
@@ -547,6 +578,6 @@ __all__ = [
     "check_optimistic_reach",
     "check_policy_transition",
     "check_psrl_sample",
-    "check_verdict",
+    "check_regret",
     "check_visitation",
 ]

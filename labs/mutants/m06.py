@@ -313,6 +313,34 @@ def mbie_eb_suspect(env, steps, c, gamma, seed):
     return np.array(states), np.array(actions), Q
 
 
+@mutant(
+    ex=7,
+    replaces="mbie_eb_suspect",
+    id="bonus-deleted",
+    why="deletes the selection bonus without moving it into the backup: no bonus anywhere",
+)
+def mbie_eb_suspect(env, steps, c, gamma, seed):  # noqa: F811
+    n_s, n_a = env.observation_space.n, env.action_space.n
+    log, states, actions = [], [], []
+    counts = np.zeros((n_s, n_a), dtype=int)
+    s, _ = env.reset(seed=seed)
+    stale = True
+    for _ in range(steps):
+        if stale:
+            P_hat, R_hat, N = estimate_model(log, n_s, n_a)  # noqa: F821
+            Q = value_iteration(P_hat, R_hat, gamma, TOL)[1]  # noqa: F821
+        a = int(greedy(Q[[s]])[0])  # noqa: F821
+        s2, r, terminated, truncated, _ = env.step(a)
+        log.append((s, a, r, s2))
+        states.append(s)
+        actions.append(a)
+        counts[s, a] += 1
+        stale = counts[s, a] & (counts[s, a] - 1) == 0
+        s = s2
+    states.append(s)
+    return np.array(states), np.array(actions), Q
+
+
 @mutant(ex=7, replaces="mbie_eb_suspect", id="random", why="acts at random and never plans")
 def mbie_eb_suspect(env, steps, c, gamma, seed):  # noqa: F811
     rng = np.random.default_rng(seed)

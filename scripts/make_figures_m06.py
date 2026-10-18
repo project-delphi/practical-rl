@@ -131,7 +131,8 @@ def run_regret(ns: dict) -> dict:
         for name, run in learners.items():
             with contextlib.redirect_stdout(io.StringIO()):
                 st, ac, _ = run(ns["make_river"](b["n_chain"], b["steps"]), seed)
-            curve = np.concatenate([[0.0], ns["regret"](st, ac)])
+            reg = ns["regret"](st, ac, ns["river"].R, ns["OPT"])  # Exercise 6's reference
+            curve = np.concatenate([[0.0], reg])
             v = ns["visitation"](st[:-1], ns["S"])
             per.setdefault(f"{name}_regret", []).append(round(float(curve[-1]), 9))
             per.setdefault(f"{name}_curve", []).append([round(float(x), 6) for x in curve[::EVERY]])
@@ -576,6 +577,14 @@ def _r(x: float, d: int) -> float:
     return round(float(x), d)
 
 
+def _round_range(values, d: int) -> tuple[float, float]:
+    return _r(min(values), d), _r(max(values), d)
+
+
+#: The colleague's agent's fraction of steps at state 0 on the record's seeds (min, max).
+SUSPECT_STATE0 = (0.727, 0.745)
+
+
 def exact_numbers(computed: dict) -> dict:
     """Section 2-5 numbers (the director's m06_page_numbers.py, folded in), all exact."""
     out: dict = {}
@@ -716,10 +725,29 @@ def quoted_numbers(computed: dict) -> dict:
     ):
         v = compare(final[a], final[b], higher_is_better=False)
         assert v.winner == "A", (a, b, v.sentence)
-    # Exercise 7's predict_answer: the colleague's agent, none or almost none at the right end,
-    # more than half at the left end.
-    assert visit["suspect"][:, 9].max() < 0.01
-    assert visit["suspect"][:, 0].min() > 0.5
+    # The quoted ranges (the page's section 2 and section 5 folds, the predict_answers of
+    # Exercises 3 to 6, knowledge check 6.2) and the room code's reach counts on these seeds.
+    assert _round_range(visit["eps-greedy"][:, 0], 3) == (0.972, 0.983)
+    reach = {k: sum(f is not None for f in first[k]) for k in LEARNERS}
+    assert (reach["eps-greedy"], reach["optimistic"], reach["MBIE-EB"]) == (0, n, n)
+    assert (min(first["optimistic"]), max(first["optimistic"])) == (399, 1215)
+    assert (min(first["MBIE-EB"]), max(first["MBIE-EB"])) == (82, 269)
+    assert _round_range(visit["MBIE-EB"][:, 9], 3) == (0.805, 0.85)
+    cis = {k: tuple(_r(x, 1) for x in (iqm(final[k]), *bootstrap_ci(final[k], iqm))) for k in DRAWN}
+    assert cis == {
+        "MBIE-EB": (133.2, 81.9, 171.9),
+        "optimistic": (2611.9, 2513.6, 2672.9),
+        "eps-greedy": (4025.0, 4024.9, 4025.1),
+    }, cis
+    # Knowledge check 6.6 (hypothetical rewards, exact arithmetic): Reg_1..Reg_4.
+    kc66 = np.cumsum(np.array([0, 0, 0.1, 0.3]) - np.array([0.005, 0, 0, 0.95]))
+    assert [_r(x, 9) for x in kc66] == [-0.005, -0.005, 0.095, -0.555]
+    # Exercise 7's predict_answer: the colleague's agent (the ex7-stub cell) never reaches the
+    # right end and spends more than half of its steps at state 0, on every seed.
+    assert all(f is None for f in first["suspect"]) and visit["suspect"][:, 9].max() == 0.0
+    assert _round_range(visit["suspect"][:, 0], 3) == SUSPECT_STATE0, _round_range(
+        visit["suspect"][:, 0], 3
+    )
     return {
         "ex": ex,
         "slope": slope,

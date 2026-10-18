@@ -12,7 +12,6 @@ import pytest
 
 from prl import envs
 from prl.checks import CheckFailed, StochasticCheck, expected, m06
-from prl.evaluate import compare
 
 
 # ------------------------------------------------------------------ independent implementations
@@ -55,8 +54,13 @@ def mbie_eb_backup(P_hat, R_hat, counts, gamma, c, tol):
         Q = new
 
 
-def verdict(a, b):
-    return {"A": "A", "B": "B", "tie": "tie"}[compare(a, b, higher_is_better=False).winner]
+def regret(states, actions, R, opt_rewards):
+    """A loop over the steps (not the lab's np.cumsum)."""
+    out, total = [], 0.0
+    for t, a in enumerate(actions):
+        total += opt_rewards[t] - R[int(states[t]), int(a)]
+        out.append(total)
+    return out
 
 
 def psrl_rewards_first(P_hat, R_hat, counts, rng):
@@ -90,7 +94,7 @@ def psrl_by_gamma(P_hat, R_hat, counts, rng):
         (m06.check_visitation, visitation),
         (m06.check_optimistic_q0, optimistic_q0),
         (m06.check_mbie_eb_backup, mbie_eb_backup),
-        (m06.check_verdict, verdict),
+        (m06.check_regret, regret),
         (m06.check_psrl_sample, psrl_rewards_first),
         (m06.check_psrl_sample, psrl_by_gamma),
     ],
@@ -117,8 +121,10 @@ def test_exact_checks_accept_independent_implementations(check, fn):
             m06.check_mbie_eb_backup,
             lambda P, R, N, g, c, tol: mbie_eb_backup(P, R, N, g, c, tol)[:, 0],
         ),
-        (m06.check_verdict, lambda a, b: "a"),
-        (m06.check_verdict, lambda a, b: None),
+        (m06.check_regret, lambda s, a, R, opt: None),
+        (m06.check_regret, lambda s, a, R, opt: regret(s, a, R, opt)[:-1]),
+        (m06.check_regret, lambda s, a, R, opt: float(np.sum(regret(s, a, R, opt)))),
+        (m06.check_regret, lambda s, a, R, opt: np.full(len(a), np.nan)),
         (m06.check_psrl_sample, lambda P, R, N, rng: (P, R)),
         (m06.check_psrl_sample, lambda P, R, N, rng: P),
     ],
@@ -151,17 +157,36 @@ def test_hints_name_the_usual_mistakes():
         m06.check_mbie_eb_backup(
             lambda P, R, N, g, c, tol: fx[f"after_{cases[(g, c, N.tobytes())]}"].copy()
         )
-    with pytest.raises(CheckFailed, match="MEAN"):
-        from prl.evaluate import bootstrap_ci
+    with pytest.raises(CheckFailed, match="running sum"):
+        m06.check_regret(lambda s, a, R, opt: np.diff(regret(s, a, R, opt), prepend=0.0))
+    with pytest.raises(CheckFailed, match="reversed"):
+        m06.check_regret(lambda s, a, R, opt: -np.asarray(regret(s, a, R, opt)))
+    with pytest.raises(CheckFailed, match="states\\[:-1\\]"):
+        m06.check_regret(lambda s, a, R, opt: regret(s[1:], a, R, opt))
 
-        def mean_rule(a, b):
-            lo_a, hi_a = bootstrap_ci(a)
-            lo_b, hi_b = bootstrap_ci(b)
-            if hi_a >= lo_b and hi_b >= lo_a:
-                return "tie"
-            return "A" if np.mean(a) < np.mean(b) else "B"
 
-        m06.check_verdict(mean_rule)
+def test_regret_fixture_cases():
+    fx = expected("m06_regret")
+    assert np.all(fx["want_0"] == 0.0)  # pi*'s own deterministic run: exactly no regret
+    assert np.allclose(fx["want_1"], [-0.005, -0.01, -0.01, 0.99, 1.99, 1.99, 1.99])
+    assert fx["want_3"].min() < 0 < fx["want_3"][-1]  # a lucky run: below 0, then above
+    assert np.allclose(fx["want_4"], [-0.005])
+
+
+def _never_explores(env, steps, c, gamma, seed):
+    """Stands in for an agent with no bonus anywhere: it always swims left."""
+    env.reset(seed=seed)
+    states = [0] + [int(env.step(0)[0]) for _ in range(steps)]
+    return np.array(states), np.zeros(steps, dtype=int), np.zeros((10, 2))
+
+
+def test_checkpoint_7_hints_where_the_bonus_belongs_only_on_a_threshold_failure():
+    with pytest.raises(CheckFailed, match="not vanish") as info:
+        m06.check_mbie_eb_suspect(_never_explores)
+    assert str(info.value).startswith(m06.check_mbie_eb_suspect.what)
+    with pytest.raises(CheckFailed) as info:
+        m06.check_mbie_eb_suspect(lambda env, *a: (np.zeros(3), np.zeros(2), None))
+    assert "Hint" not in str(info.value)  # a wrong shape keeps its own message
 
 
 # ------------------------------------------------------------------ fixtures

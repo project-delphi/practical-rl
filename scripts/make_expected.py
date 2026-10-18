@@ -938,44 +938,98 @@ def m06_mbie() -> bytes:
     return _save("m06_mbie", **out)
 
 
-#: Exercise 6's verdict cases: each holds by at least this margin in regret, so a correct rule
-#: with a different bootstrap draw (or a re-sampled one) gives the same verdict.
-M06_VERDICT_MARGIN = 50.0
+def _expected_rewards(mdp, pi, steps):
+    """The lab's expected_rewards: pi's exact expected reward at each step from the start."""
+    P_pi, r_pi = _policy_chain(mdp.P, pi), (pi * mdp.R).sum(axis=1)
+    d = np.zeros(mdp.n_states)
+    d[mdp.start] = 1.0
+    out = np.empty(steps)
+    for t in range(steps):
+        out[t] = d @ r_pi
+        d = d @ P_pi
+    return out
 
 
-def m06_verdict() -> bytes:
-    """Exercise 6: per-seed regrets (10 seeds a side), the rule's verdict and its intervals."""
+def _rollout(mdp, act, steps, rng):
+    """States s_0..s_T and actions a_0..a_{T-1} from the start; act(s, rng) picks the action."""
+    s, states, actions = mdp.start, [mdp.start], []
+    for _ in range(steps):
+        a = act(s, rng)
+        s, _, _ = mdp.sample_step(s, a, rng)
+        states.append(s)
+        actions.append(a)
+    return np.array(states, dtype=np.int64), np.array(actions, dtype=np.int64)
+
+
+def m06_regret() -> bytes:
+    """Exercise 6: Reg_t after every step on fixed trajectories, and the usual mistakes' values."""
     sys.path.insert(0, str(ROOT / "prl" / "src"))
-    from prl.evaluate import bootstrap_ci, compare, iqm
+    from prl.envs import RiverSwim
 
-    rng = np.random.default_rng(M06_SEED)
-    low, high = np.round(rng.normal(150, 30, 10), 1), np.round(rng.normal(2400, 80, 10), 1)
-    a3, b3 = np.round(rng.normal(900, 150, 10), 1), np.round(rng.normal(910, 150, 10), 1)
-    a4 = np.append(np.round(rng.normal(1000, 15, 9), 1), 3400.0)  # one seed far above the rest
-    b4 = np.round(rng.normal(1600, 15, 10), 1)
+    sure = RiverSwim(4, p_right=1.0, p_stay=0.0, p_left=0.0, gamma=M06_GAMMA)  # deterministic
+    river6, river10 = _riverswim(6), _riverswim(10)
+    pi6 = _optimal(river6.P, river6.R, M06_GAMMA, tol=1e-12)[1]
+    pi10 = _optimal(river10.P, river10.R, M06_GAMMA, tol=1e-12)[1]
+    pi_sure = _optimal(sure.P, sure.R, M06_GAMMA, tol=1e-12)[1]
+    assert np.all(pi6 == 1) and np.all(pi10 == 1) and np.all(pi_sure == 1)
+    right = sure.policy_matrix(pi_sure)
     cases = [
-        ("A's regret is far lower", low, high, "A"),
-        ("B's regret is far lower", high, low, "B"),
-        ("the two IQM intervals overlap", a3, b3, "tie"),
-        ("one of A's seeds is far above the rest", a4, b4, "A"),
+        (
+            "pi*'s own run of a deterministic 4-state chain",
+            sure,
+            right,
+            np.array([0, 1, 2, 3, 3, 3, 3, 3]),
+            np.ones(7, dtype=np.int64),
+        ),
+        (
+            "the same chain: left, left, then right five times",
+            sure,
+            right,
+            np.array([0, 0, 0, 1, 2, 3, 3, 3]),
+            np.array([0, 0, 1, 1, 1, 1, 1]),
+        ),
+        (
+            "300 steps of uniform random play on RiverSwim(10)",
+            river10,
+            river10.policy_matrix(pi10),
+            *_rollout(river10, lambda s, rng: int(rng.integers(2)), 300, np.random.default_rng(0)),
+        ),
+        (
+            "200 steps of the optimal policy on RiverSwim(6), a lucky run",
+            river6,
+            river6.policy_matrix(pi6),
+            *_rollout(river6, lambda s, rng: int(pi6[s]), 200, np.random.default_rng(1)),
+        ),
+        ("one step: left at the left end", sure, right, np.array([0, 0]), np.array([0])),
     ]
     out: dict[str, np.ndarray] = {"n_cases": np.array(len(cases), dtype=np.int64)}
-    for i, (label, a, b, want) in enumerate(cases):
-        v = compare(a, b, higher_is_better=False)
-        assert v.winner == want, (label, v.sentence)
-        ci_a, ci_b = bootstrap_ci(a, iqm), bootstrap_ci(b, iqm)
-        mean_a, mean_b = bootstrap_ci(a), bootstrap_ci(b)
-        sep = max(ci_b[0] - ci_a[1], ci_a[0] - ci_b[1])  # > 0: separated; < 0: overlap
-        assert abs(sep) >= M06_VERDICT_MARGIN, (label, sep)
-        out.update({f"a_{i}": a, f"b_{i}": b, f"want_{i}": np.array(want)})
-        out.update({f"ci_a_{i}": np.array(ci_a), f"ci_b_{i}": np.array(ci_b)})
-        out.update({f"mean_ci_a_{i}": np.array(mean_a), f"mean_ci_b_{i}": np.array(mean_b)})
-        out.update({f"iqm_a_{i}": np.array(iqm(a)), f"iqm_b_{i}": np.array(iqm(b))})
+    for i, (label, mdp, pi_star, states, actions) in enumerate(cases):
+        T = len(actions)
+        opt = _expected_rewards(mdp, pi_star, T)
+        here = mdp.R[states[:-1]]
+        r = here[np.arange(T), actions]
+        assert np.all(mdp.P[states[:-1], actions, states[1:]] > 0), label  # a possible run
+        steps = opt - r
+        out.update(
+            {f"states_{i}": states.astype(np.int64), f"actions_{i}": actions.astype(np.int64)}
+        )
+        out.update({f"R_{i}": mdp.R, f"opt_{i}": opt, f"want_{i}": np.cumsum(steps)})
         out[f"label_{i}"] = np.array(label)
-    # Case 3 is the one the mean's intervals call differently: they overlap by a margin.
-    m_a, m_b = out["mean_ci_a_3"], out["mean_ci_b_3"]
-    assert min(m_a[1] - m_b[0], m_b[1] - m_a[0]) >= M06_VERDICT_MARGIN
-    return _save("m06_verdict", **out)
+        # The usual mistakes, for the check's hints (labs/mutants/m06.py has each as a mutant).
+        out[f"per_step_{i}"] = steps
+        out[f"next_{i}"] = np.cumsum(opt - mdp.R[states[1:], actions])
+        out[f"best_{i}"] = np.cumsum(here.max(axis=1) - r)
+        out[f"average_{i}"] = np.cumsum(steps) / np.arange(1, T + 1)
+        out[f"clipped_{i}"] = np.cumsum(np.maximum(0.0, steps))
+    assert np.all(out["want_0"] == 0.0), "pi*'s own deterministic run has no regret at all"
+    assert np.allclose(out["want_1"], [-0.005, -0.01, -0.01, 0.99, 1.99, 1.99, 1.99], atol=1e-12)
+    w3 = out["want_3"]
+    assert w3.min() < -3 and w3[-1] > 2, "the lucky run goes below 0 and ends above it"
+    assert np.allclose(out["want_4"], [-0.005], atol=1e-12)
+    # Every mistake differs from the answer on case 1 (the left-left-right run).
+    for key in ("per_step", "next", "best", "average", "clipped"):
+        assert np.abs(out[f"{key}_1"] - out["want_1"]).max() > 0.004, key
+    return _save("m06_regret", **out)
 
 
 def m06_psrl() -> bytes:
@@ -1022,7 +1076,7 @@ FIXTURES = {
     "m06_chain": m06_chain,
     "m06_q0": m06_q0,
     "m06_mbie": m06_mbie,
-    "m06_verdict": m06_verdict,
+    "m06_regret": m06_regret,
     "m06_psrl": m06_psrl,
 }
 
