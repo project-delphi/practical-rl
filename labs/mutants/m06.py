@@ -1,4 +1,4 @@
-"""Plausible wrong versions of Module 6's functions (first draft, academic director).
+"""Plausible wrong versions of Module 6's functions (academic director; technical expert).
 
 scripts/check_notebooks.py --mode verify swaps each one into the notebook and requires
 every exact checkpoint that calls the function to reject it; stochastic checkpoints are
@@ -9,8 +9,9 @@ gap. Each mutant is a mistake a participant could plausibly make; `why` says whi
 
 `exact_only=True` marks a wrong version that a budgeted metric cannot separate from the
 solution but an exact checkpoint rejects by construction: an optimistic start of r_max
-instead of r_max / (1 - gamma) still reaches RiverSwim's right end (checkpoint 4.1
-rejects it; 4.2 cannot).
+instead of r_max / (1 - gamma) still reaches RiverSwim's right end, and so does
+gamma r_max / (1 - gamma) = 19, which is above every Q* of the river (16.68 at most):
+checkpoint 4.1 rejects both; 4.2 cannot.
 
 Names the notebook defines (estimate_model, value_iteration, greedy, bootstrap_ci, iqm,
 TOL) are used as the notebook has them.
@@ -67,6 +68,21 @@ def hitting_times(P_pi, target):  # noqa: F811
     others = [s for s in range(n) if s != target]
     h = np.zeros(n)
     M = P_pi.T[np.ix_(others, others)]
+    h[others] = np.linalg.solve(np.eye(n - 1) - M, np.ones(n - 1))
+    return h
+
+
+@mutant(
+    ex=2,
+    replaces="hitting_times",
+    id="last-target",
+    why="assumes the target is the last state: solves over states 0..n-2 whatever target is",
+)
+def hitting_times(P_pi, target):  # noqa: F811
+    n = len(P_pi)
+    others = list(range(n - 1))
+    h = np.zeros(n)
+    M = P_pi[np.ix_(others, others)]
     h[others] = np.linalg.solve(np.eye(n - 1) - M, np.ones(n - 1))
     return h
 
@@ -142,6 +158,17 @@ def optimistic_q0(r_max, gamma, n_states, n_actions):  # noqa: F811
     return np.full((n_states, n_actions), float(r_max))
 
 
+@mutant(
+    ex=4,
+    replaces="optimistic_q0",
+    id="gamma-over-one-minus-gamma",
+    why="starts the geometric series at gamma: gamma r_max / (1 - gamma), 19 on the river",
+    exact_only=True,
+)
+def optimistic_q0(r_max, gamma, n_states, n_actions):  # noqa: F811
+    return np.full((n_states, n_actions), gamma * r_max / (1 - gamma))
+
+
 @mutant(ex=4, replaces="optimistic_q0", id="random", why="a random start near 0")
 def optimistic_q0(r_max, gamma, n_states, n_actions):  # noqa: F811
     return np.random.default_rng(0).normal(size=(n_states, n_actions))
@@ -176,6 +203,17 @@ def mbie_eb_backup(P_hat, R_hat, counts, gamma, c, tol):  # noqa: F811
 def mbie_eb_backup(P_hat, R_hat, counts, gamma, c, tol):  # noqa: F811
     bonus = np.where(counts > 0, c / np.sqrt(np.maximum(counts, 1)), 0.0)
     return value_iteration(P_hat, R_hat + bonus, gamma, tol)[1]  # noqa: F821
+
+
+@mutant(
+    ex=5,
+    replaces="mbie_eb_backup",
+    id="lab-tol",
+    why="solves to the lab's TOL = 0.01, not the tol it is given (off by up to 0.19)",
+)
+def mbie_eb_backup(P_hat, R_hat, counts, gamma, c, tol):  # noqa: F811
+    bonus = c / np.sqrt(np.maximum(counts, 1))
+    return value_iteration(P_hat, R_hat + bonus, gamma, TOL)[1]  # noqa: F821
 
 
 @mutant(ex=5, replaces="mbie_eb_backup", id="returns-v", why="returns V, not Q")
