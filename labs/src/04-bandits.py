@@ -721,7 +721,7 @@ print(
 print(f"Pulls per headline by round {T}, first 5 seeds (your UCB1 in brackets):")
 for i in range(5):
     print(f"  seed {SEEDS[i]}: {hist[i].tolist()}   [{pulls[i].tolist()}]")
-lab.metric("suspect_iqm", round(iqm(final_suspect), 1))
+lab.metric("suspect_pulls", hist.mean(axis=0).round(1).tolist())  # per headline, not pooled
 fig, ax = plt.subplots()
 xs = np.arange(N_ARMS)
 for shift, (h, label, hatch) in zip(
