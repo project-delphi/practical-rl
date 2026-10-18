@@ -4,11 +4,11 @@
 |---|---|---|
 | 0–2 | 1. RiverSwim | — |
 | 2–12 | 2. First-step hitting time | [Predict: linear or exponential?](#predict-growth) (3 min) |
-| 12–17 | 3. Optimistic initialization | [Check yourself 3.1](#chk-optimism) (2 min) |
-| 17–25 | 4. The bonus belongs in the backup | [Check yourself 4.1](#chk-mbie) (2 min) |
-| 25–30 | 5. Visitation and regret | [Demo: the two reference lines](#demo-lines) (3 min) |
-| 30–35 | 6. Where counts stop | — |
-| 35–40 | 7. Bridge | — |
-| **40** | **Total** | **30 exposition + 10 activities** |
+| 12–18 | 3. Optimistic initialization | [Check yourself 3.1](#chk-optimism) (2 min) |
+| 18–28 | 4. The bonus belongs in the backup | [Check yourself 4.1](#chk-mbie) (3 min) |
+| 28–34 | 5. Visitation and regret | [Demo: the two reference lines](#demo-lines) (3 min) |
+| 34–38 | 6. Where counts stop | — |
+| 38–40 | 7. Bridge | — |
+| **40** | **Total** | **29 exposition + 11 activities** |
 : Briefing, 40 min {.agenda}
 :::

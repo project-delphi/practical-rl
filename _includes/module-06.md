@@ -4,7 +4,7 @@
 [Briefing 14:45 · Lab 15:25 · Debrief 16:35]{.module-clock}
 
 ::: {.module-summary}
-Why epsilon-greedy fails on RiverSwim, and how optimism and count bonuses fix it.
+How to explore when the reward is many steps away: hitting times, optimism and count bonuses on RiverSwim.
 :::
 
 ::: {.module-actions}
@@ -20,7 +20,7 @@ Level
 :   [300 · Advanced](/index.qmd#levels)
 
 Lab runtime
-:   Google Colab, CPU runtime · core 51 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
+:   Google Colab, CPU runtime · core 52 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
 
 Cost
 :   Free (Google account)
@@ -37,9 +37,9 @@ Without GPU
 
 In this module you will:
 
-- Compute RiverSwim's hitting time under uniform random play by first-step analysis, and show that it grows by a factor of 3 per state.
+- Compute RiverSwim's hitting time under uniform random play by first-step analysis, and find how it grows with the length of the chain.
 - Implement optimistic initialization and MBIE-EB's bonus inside the backup of an estimated model, and explain why the bonus belongs there.
-- Measure state visitation and cumulative regret against the DP optimum over 10 seeds, and call each comparison with its budget.
+- Write cumulative regret against the DP optimum, and measure it and state visitation over 10 seeds, calling each comparison with its budget.
 - Explain where count bonuses stop working and what pseudo-counts and RND attempt.
 
 ## Before you start {#before}
