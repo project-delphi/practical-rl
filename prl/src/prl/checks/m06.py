@@ -263,7 +263,7 @@ check_eps_greedy_end = StochasticCheck(
         # three).
         "live": (
             0.21,
-            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_eps_greedy_end-live-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_eps_greedy_end-live-n100-exp-2.json",
         ),
         # threshold_protocol.py, quick budget {"steps": 5000}, N = 100 seeds (0-99), 2026-10-18,
         # local (Apple M1 Pro, arm64). Solution p99 0; strongest wrong version mutant 'random'
@@ -272,7 +272,7 @@ check_eps_greedy_end = StochasticCheck(
         # three).
         "quick": (
             0.21,
-            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_eps_greedy_end-quick-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_eps_greedy_end-quick-n100-exp-2.json",
         ),
     },
 )
@@ -344,7 +344,7 @@ check_optimistic_reach = StochasticCheck(
         # three).
         "live": (
             7.5,
-            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_optimistic_reach-live-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_optimistic_reach-live-n100-exp-2.json",
         ),
         # threshold_protocol.py, quick budget {"runs": 10, "steps": 5000}, N = 100 seeds (0-99),
         # 2026-10-18, local (Apple M1 Pro, arm64). Solution p1 10; strongest wrong version
@@ -353,7 +353,7 @@ check_optimistic_reach = StochasticCheck(
         # three).
         "quick": (
             7.5,
-            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_optimistic_reach-quick-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_optimistic_reach-quick-n100-exp-2.json",
         ),
     },
 )
@@ -507,7 +507,7 @@ check_mbie_eb_suspect = _HintedCheck(
         # 3.0% (rule of three).
         "live": (
             0.4,
-            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_mbie_eb_suspect-live-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_mbie_eb_suspect-live-n100-exp-2.json",
         ),
         # threshold_protocol.py, quick budget {"runs": 3, "steps": 5000}, N = 100 seeds (0-99),
         # 2026-10-18, local (Apple M1 Pro, arm64). Solution p1 0.8077; strongest wrong version
@@ -516,7 +516,7 @@ check_mbie_eb_suspect = _HintedCheck(
         # 3.0% (rule of three).
         "quick": (
             0.4,
-            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_mbie_eb_suspect-quick-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m06-check_mbie_eb_suspect-quick-n100-exp-2.json",
         ),
     },
 )
