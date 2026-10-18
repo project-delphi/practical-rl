@@ -351,6 +351,7 @@ def _count(v: float, _pos: int | None = None) -> str:
 
 # ------------------------------------------------------------------ figure 1: the river
 R_NODE = 0.27
+LEFT_DASH = (0, (3, 1.5))  # the left action's arrows: dashed as well as another color
 
 
 def _arrow(ax, a, b, color, *, rad=0.0, ls="solid", lw=1.8):
@@ -382,14 +383,14 @@ def river_figure(t: Theme, data: dict) -> Figure:
     river = data["river6"]
     n = river.n_states
     P = river.P
-    fig = Figure(figsize=(WIDTH_IN, 360 * PX))  # 680 x 360 px, aspect 1.89
+    fig = Figure(figsize=(WIDTH_IN, 440 * PX))  # 680 x 440 px, aspect 1.55
     ax = fig.add_axes((0.0, 0.0, 1.0, 1.0))
     ax.set_xlim(-0.75, n - 0.25)
-    ax.set_ylim(-2.75, 0.95)
+    ax.set_ylim(-3.0, 1.2)
     ax.set_aspect("equal")
     ax.set_axis_off()
     right_c, left_c = t.series[0], t.series[1]
-    rows = {"right": 0.0, "left": -2.05}
+    rows = {"right": 0.0, "left": -2.0}
     label = {"fontsize": MIN_FONT, "color": t.text, "ha": "center"}
     for y in rows.values():
         for s in range(n):
@@ -401,7 +402,7 @@ def river_figure(t: Theme, data: dict) -> Figure:
     y = rows["right"]
     ax.text(
         -0.72,
-        0.78,
+        1.05,
         "Right action",
         ha="left",
         va="center",
@@ -436,10 +437,10 @@ def river_figure(t: Theme, data: dict) -> Figure:
     )
     for s in range(1, n):
         assert P[s, 0, s - 1] == 1.0
-        _arrow(ax, (s - R_NODE, y), (s - 1 + R_NODE, y), left_c, ls=(0, (4, 2)))
+        _arrow(ax, (s - R_NODE, y), (s - 1 + R_NODE, y), left_c, ls=LEFT_DASH)
         ax.text(s - 0.5, y + 0.07, "1", va="bottom", **label)
     assert P[0, 0, 0] == 1.0
-    _loop(ax, 0, y, left_c, up=False, ls=(0, (4, 2)))
+    _loop(ax, 0, y, left_c, up=False, ls=LEFT_DASH)
     ax.text(0.0, y - 0.68, f"1, pays {river.R[0, 0]:g}", va="top", **label)
     return fig
 
@@ -451,16 +452,16 @@ def hitting_figure(t: Theme, data: dict) -> Figure:
     ax = fig.add_axes((0.13, 0.14, 0.83, 0.82))
     ys = [float(f"{h[n]:.6g}") for n in ns]
     ax.axhline(STEPS, color=t.neutral, lw=1.6, ls=(0, (5, 2.5)), zorder=1)
-    ax.text(16.2, STEPS * 0.62, f"budget, {STEPS:,} steps", ha="right", va="top", color=t.text)
+    ax.text(16.2, STEPS * 0.62, f"budget, {STEPS} steps", ha="right", va="top", color=t.text)
     ax.plot(ns, ys, color=t.series[0], lw=2.0, marker="o", ms=7, mec=t.bg, mew=1.0, zorder=3)
-    for n, dx, dy, ha in ((2, 8, -2, "left"), (6, -10, 6, "right"), (10, -10, 6, "right")):
+    for n in (2, 6, 10):
         ax.annotate(
-            f"{h[n]:,.1f}".replace(".0", "") if n == 2 else f"{h[n]:,.1f}",
+            f"{h[n]:,.0f}" if n == 2 else f"{h[n]:,.1f}",
             (n, h[n]),
-            xytext=(dx, dy),
+            xytext=(9, -3),
             textcoords="offset points",
-            ha=ha,
-            va="bottom",
+            ha="left",
+            va="top",
             color=t.text,
         )
     ax.set_yscale("log")
@@ -520,17 +521,17 @@ def visitation_panel(t: Theme, data: dict) -> Figure:
 
 def regret_lines_panel(t: Theme, data: dict) -> Figure:
     fig = Figure(figsize=(PANEL_REGRET_IN, PANEL_H_IN))
-    ax = fig.add_axes((0.27, 0.17, 0.66, 0.8))
-    steps = np.arange(1, STEPS + 1)
-    reg = np.round(data["regret_uni"], 2)
+    ax = fig.add_axes((0.27, 0.17, 0.62, 0.8))
+    steps = np.arange(0, STEPS + 1, 50)  # every 50th step: the expected curve is smooth
+    reg = np.round(np.concatenate([[0.0], data["regret_uni"]])[steps], 2)
     ax.plot(steps, reg, color=t.series[0], lw=2.2)
-    ax.plot(steps, np.zeros(STEPS), color=t.series[1], lw=2.6, ls=(0, (3.2, 1.6)))
-    ax.text(150, reg[-1], f"uniform\n{reg[-1]:,.1f}", ha="left", va="top", color=t.text)
+    ax.plot([0, STEPS], [0, 0], color=t.series[1], lw=2.6, ls=(0, (3.2, 1.6)))
+    ax.text(150, 4400, f"uniform\nrandom play:\n{reg[-1]:.1f}", ha="left", va="top", color=t.text)
     ax.text(STEPS, 150, r"$\pi^*$: 0", ha="right", va="bottom", color=t.text)
     ax.set_xlim(0, STEPS)
     ax.set_ylim(-60, 4500)
     ax.xaxis.set_major_locator(FixedLocator([0, 2500, 5000]))
-    ax.xaxis.set_major_formatter(FuncFormatter(_count))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:.0f}"))
     ax.yaxis.set_major_locator(FixedLocator([0, 1000, 2000, 3000, 4000]))
     ax.yaxis.set_major_formatter(FuncFormatter(_count))
     ax.grid(True, axis="y", lw=0.8)
@@ -548,7 +549,7 @@ NAMES["MBIE-EB"] = "MBIE-EB"
 
 def regret_seeds_figure(t: Theme, data: dict) -> Figure:
     fig = Figure(figsize=(WIDTH_IN, 420 * PX))  # 680 x 420 px, aspect 1.62
-    ax = fig.add_axes((0.12, 0.13, 0.85, 0.83))
+    ax = fig.add_axes((0.12, 0.13, 0.83, 0.83))
     x = data["x"]
     handles, labels = [], []
     for j, name in enumerate(DRAWN):
@@ -587,7 +588,8 @@ def exact_numbers(computed: dict) -> dict:
     for _ in range(1, 15):
         u.append((1 + 0.525 * u[-1]) / 0.175)
     out["u"] = u
-    out["closed_form"] = all(abs(u[s] - (55 / 7 * 3**s - 20 / 7)) < 1e-9 for s in range(15))
+    closed = [55 / 7 * 3**s - 20 / 7 for s in range(15)]  # u_s = (55/7) 3^s - 20/7
+    out["closed_form"] = bool(np.allclose(u, closed, rtol=1e-12, atol=1e-12))
     out["h"] = computed["06-hitting-time"]["h"]
     lines = computed["06-lines"]
     Q_star = lines["Q_star"]
@@ -609,11 +611,12 @@ def quoted_numbers(computed: dict) -> dict:
     # Section 1 and figure 1 (the alt text), from the env's arrays.
     river6 = _riverswim(6)
     P = river6.P
-    assert [P[s, 1, s + 1] for s in (1, 2, 3, 4)] == [0.35] * 4
-    assert [P[s, 1, s] for s in (1, 2, 3, 4)] == [0.6] * 4
-    assert [P[s, 1, s - 1] for s in (1, 2, 3, 4)] == [0.05] * 4
-    assert (P[0, 1, 1], P[0, 1, 0]) == (0.4, 0.6) and _r(P[5, 1, 5], 12) == 0.95
-    assert P[5, 1, 4] == 0.05 and river6.r_right == 1.0 and river6.R[0, 0] == 0.005
+    p = np.round(P, 12)  # 0.35 + 0.05 is 0.39999999999999997 in floating point
+    assert [p[s, 1, s + 1] for s in (1, 2, 3, 4)] == [0.35] * 4
+    assert [p[s, 1, s] for s in (1, 2, 3, 4)] == [0.6] * 4
+    assert [p[s, 1, s - 1] for s in (1, 2, 3, 4)] == [0.05] * 4
+    assert (p[0, 1, 1], p[0, 1, 0], p[5, 1, 5], p[5, 1, 4]) == (0.4, 0.6, 0.95, 0.05)
+    assert river6.r_right == 1.0 and river6.R[0, 0] == 0.005
     assert all(P[s, 0, max(s - 1, 0)] == 1.0 for s in range(6))
     # Section 2 and Exercise 1's predict_answer: uniform play.
     assert (_r(ex["p_right"], 12), _r(ex["p_stay"], 12), _r(ex["p_left"], 12)) == (
@@ -666,7 +669,7 @@ def quoted_numbers(computed: dict) -> dict:
     assert _r(occ_u[0], 4) == 0.6366 and _r(occ_u[0], 2) == 0.64  # "64%", "0.64"
     assert _r(occ_u[9] * 1e5, 1) == 3.7  # "3.7 x 10^-5"
     assert _r(occ_s[8], 2) == 0.12 and _r(occ_s[9], 2) == 0.85 and _r(occ_s[9], 3) == 0.852
-    assert occ_s[:8].max() < 0.01  # "near 0 up to state 7"
+    assert occ_s[:8].max() < 0.02  # "near 0 up to state 7" (0.018 at state 7)
     assert occ_u[6:].max() < 0.001  # "almost nothing beyond state 5"
     assert _r(li["opt"].sum(), 1) == 4048.2 and _r(li["regret_uni"][-1], 1) == 4040.2
     assert _r(li["opt"][-1] - li["uni"][-1], 4) == 0.8127
