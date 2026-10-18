@@ -1,7 +1,7 @@
 """A module page's code equals the lab solution of the same name.
 
 Module pages show reference code in ```python blocks (for example "Code: value_iteration
-(open after Lab 2)"). Every top-level function there whose name matches a solution in the
+(open after Lab 2)"). Every top-level function or class method there whose name matches a solution in the
 lab (labs/src/NN-slug.py, cells exN-sol and stretch-sol) must equal that solution, token
 for token, decorators and docstrings aside. So the page can never show code that fails the lab's
 checkpoints (the Module 2 UI review found the page's policy_iteration had drifted).
@@ -24,25 +24,35 @@ BLOCK = re.compile(r"^```python\n(.*?)^```", re.S | re.M)
 KNOWN_DRIFT: dict[str, str] = {}
 
 
-def _defs(source: str) -> dict[str, str]:
-    """Top-level function definitions as ast dumps keyed by name.
+def _strip(node: ast.FunctionDef) -> str:
+    """A function's ast dump without decorators or docstring."""
+    node.decorator_list = []
+    body = node.body
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        node.body = body[1:] or [ast.Pass()]
+    return ast.dump(node, include_attributes=False)
 
-    Decorators and the docstring are removed: a page may show the code without the lab's
-    docstring, but every statement must be the solution's.
+
+def _defs(source: str) -> dict[str, str]:
+    """Top-level functions, and the methods of top-level classes, as ast dumps.
+
+    Keys are `name` for a function and `Class.method` for a method, so a page may show
+    some of a class's methods. Decorators and docstrings are removed: a page may show the
+    code without the lab's docstrings, but every statement must be the solution's.
     """
     out = {}
     for node in ast.parse(source).body:
         if isinstance(node, ast.FunctionDef):
-            node.decorator_list = []
-            body = node.body
-            if (
-                body
-                and isinstance(body[0], ast.Expr)
-                and isinstance(body[0].value, ast.Constant)
-                and isinstance(body[0].value.value, str)
-            ):
-                node.body = body[1:] or [ast.Pass()]
-            out[node.name] = ast.dump(node, include_attributes=False)
+            out[node.name] = _strip(node)
+        elif isinstance(node, ast.ClassDef):
+            for item in node.body:
+                if isinstance(item, ast.FunctionDef):
+                    out[f"{node.name}.{item.name}"] = _strip(item)
     return out
 
 
