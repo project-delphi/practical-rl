@@ -135,8 +135,8 @@ UCB1 pulls each arm once, then in every round the arm with the largest index [@a
 
 $$
 \begin{aligned}
-\mathbb{E}[\mathrm{Reg}_T] \le\ & 8 \sum_{a:\,\Delta_a > 0} \frac{\ln T}{\Delta_a} \\
-& + \Big(1 + \frac{\pi^2}{3}\Big) \sum_a \Delta_a .
+&\mathbb{E}[\mathrm{Reg}_T] \le \sum_{\Delta_a > 0} \frac{8 \ln T}{\Delta_a} \\
+&\qquad + \Big(1 + \frac{\pi^2}{3}\Big) \sum_a \Delta_a .
 \end{aligned}
 $$ {#eq-ucb1-bound}
 
@@ -180,12 +180,12 @@ def ucb1_index(counts, sums, t):
 
 UCB1 keeps one number per arm and adds a worst-case margin. Thompson sampling keeps a probability distribution over each arm's rate and lets the spread of that distribution decide how much to explore [@thompson1933; @russo2018tutorial, §3].
 
-**The posterior.** Before any data, give arm $a$'s unknown rate $x$ a uniform prior on $[0, 1]$. After $S$ clicks and $F$ non-clicks from that arm, in any order, the likelihood is $x^S (1 - x)^F$: each click has probability $x$ and each non-click $1 - x$, independently. Bayes' rule multiplies prior and likelihood, and normalizes:
+**The posterior.** Before any data, give arm $a$'s unknown rate $x$ a uniform prior on $[0, 1]$. After $S$ clicks and $F$ non-clicks from that arm, in any order, the likelihood is $x^S (1 - x)^F$: each click has probability $x$ and each non-click $1 - x$, independently. Bayes' rule multiplies the prior, whose density is 1, by the likelihood, and normalizes. The posterior density $p(x)$ of the rate, given $S$ and $F$, is
 
 $$
 \begin{aligned}
-p(x \mid S, F) &\propto x^{S} (1 - x)^{F} \cdot 1, \\
-\text{that is,}\quad x \mid S, F &\sim \mathrm{Beta}(1 + S,\ 1 + F).
+p(x) &\propto x^{S} (1 - x)^{F}, \\
+x &\sim \mathrm{Beta}(1 + S,\ 1 + F).
 \end{aligned}
 $$ {#eq-beta-posterior}
 
@@ -195,12 +195,12 @@ The $\mathrm{Beta}(u, v)$ distribution has density proportional to $x^{u-1}(1 - 
 
 $$
 \begin{aligned}
-\tilde r_t(a) &\sim \mathrm{Beta}\big(1 + S_t(a),\ 1 + F_t(a)\big), \\
-a_t &= \arg\max_a \tilde r_t(a).
+\tilde r_t(a) &\sim \text{the posterior of } r(a), \\
+a_t &= \arg\max_a \tilde r_t(a),
 \end{aligned}
 $$ {#eq-thompson}
 
-Only the pulled arm's posterior then changes [@russo2018tutorial, Algorithm 3.2]. An arm pulled rarely has a wide posterior, so its draw is sometimes high and it gets pulled again; an arm pulled often has a narrow posterior, and its draw stays near its mean. The probability that an arm is pulled is the posterior probability that it is the best arm: drawing every rate and taking the largest is a way of sampling "which arm is best" from the posterior [@lattimore2020bandit, §36.5, Note 1]. The draw is a plausible *rate*, not a plausible 0/1 reward, a slip Russo et al. warn about [@russo2018tutorial, p. 14].
+with arm $a$'s posterior $\mathrm{Beta}(1 + S_t(a), 1 + F_t(a))$ from @eq-beta-posterior. Only the pulled arm's posterior then changes [@russo2018tutorial, Algorithm 3.2]. An arm pulled rarely has a wide posterior, so its draw is sometimes high and it gets pulled again; an arm pulled often has a narrow posterior, and its draw stays near its mean. The probability that an arm is pulled is the posterior probability that it is the best arm: drawing every rate and taking the largest is a way of sampling "which arm is best" from the posterior [@lattimore2020bandit, §36.5, Note 1]. The draw is a plausible *rate*, not a plausible 0/1 reward, a slip Russo et al. warn about [@russo2018tutorial, p. 14].
 
 ![**What to notice:** headline 2 has the best mean so far, 3 clicks in 4 showings, and the widest posterior; headline 0's posterior is narrow after 50 showings. Greedy would show headline 2 in every round from here. Thompson sampling shows headline 2 with probability 0.869, headline 0 with 0.077 and headline 1 with 0.054: the posterior probability that each is the best. Posterior densities of the three headlines' rates after 50, 10 and 4 showings with 20, 3 and 3 clicks: Beta(21, 31), Beta(4, 8) and Beta(4, 2). Probabilities computed exactly by numerical integration.](/images/04-beta-posteriors.svg){#fig-beta-posteriors fig-alt="Three density curves over the click rate from 0 to 1. Headline 0's curve is tall and narrow around 0.4. Headline 1's curve is lower and wider around 0.33. Headline 2's curve is the lowest and widest, peaking near 0.75 and spreading from about 0.2 to 1."}
 
