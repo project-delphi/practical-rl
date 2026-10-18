@@ -290,7 +290,10 @@
                more than once". s3.1: recoding probability rho'_n(x); Eq. 1 and Eq. 2, the pseudo-count N^_n(x) = rho_n(x)(1 - rho'_n(x))/(rho'_n(x) - rho_n(x));
                if rho_n is the empirical distribution, N^_n = N_n; "if the model generalizes across states then so do pseudo-counts". s6.1 Eq. 4: bonus
                beta (N^_n(x) + 0.01)^(-1/2) with beta = 0.05 from a coarse sweep, used with Double DQN on five hard Atari games. Module 6 cites s1, s3.1
-               (Eqs. 1-2) and s6.1 (Eq. 4).}
+               (Eqs. 1-2) and s6.1 (Eq. 4). Also s4 (same reading): pseudo-counts correspond to empirical counts in the tabular setting,
+               so "this approach also preserves known theoretical guarantees"; the authors are "confident" similar results can be proved
+               in non-tabular settings (not proved there). s4 also reports Kolter and Ng (2009), not opened: no algorithm with a bonus
+               upper bounded by beta N(x)^(-1) can guarantee PAC-MDP optimality. Module 6 cites s4 for the tabular statement only.}
 }
 
 @inproceedings{burda2019rnd,
