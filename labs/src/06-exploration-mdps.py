@@ -874,6 +874,9 @@ st, ac, _ = run_planner(make_river(N_CHAIN, budget.steps), budget.steps, plan_ps
 hit = first_visit(st, END)
 print(
     f"PSRL, seed {RUN_SEED}: first visit {'never' if hit is None else f'step {hit}'}; "
-    f"regret {regret(st, ac)[-1]:.1f} (MBIE-EB on the same seed: "
-    f"{regret(states_mb, actions_mb)[-1]:.1f}). Single seed, not a ranking."
+    f"regret {regret(st, ac)[-1]:.1f}"
+)
+print(
+    f"  (MBIE-EB on the same seed: {regret(states_mb, actions_mb)[-1]:.1f}). "
+    "Single seed, not a ranking."
 )
