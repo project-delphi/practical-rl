@@ -761,6 +761,302 @@ def m03_decomposition() -> bytes:
     return _save("m03_decomposition", **out)
 
 
+# ---------------------------------------------------------------- Module 5: contextual bandits
+# The lab's constants (labs/src/05-contextual-bandits.py): K items, contexts of dimension 5,
+# the catalog seed. Checkpoint seeds are 51-57, clear of the seats' (SEED + 1) * 1000 + i.
+M05_K, M05_D_RAW, M05_CATALOG = 10, 5, 0
+
+
+def _m05_features(x):
+    return np.append(x, 1.0)
+
+
+def _m05_ridge_closed_form(X, r, lam):
+    """Ridge by the closed form (fixture code; never shipped in prl)."""
+    A = lam * np.eye(X.shape[1]) + X.T @ X
+    b = X.T @ r
+    return A, b, np.linalg.inv(A), np.linalg.solve(A, b)
+
+
+def _m05_eps_greedy(scores, eps):
+    """The workshop's epsilon-greedy as probabilities: eps / K everywhere, 1 - eps on the best."""
+    probs = np.full(len(scores), eps / len(scores))
+    probs[int(np.argmax(scores))] += 1.0 - eps
+    return probs
+
+
+def m05_reward() -> bytes:
+    """Exercise 1: r(x, a) = clip(0.5 + scale theta_a^T x, 0.02, 0.98), by hand and on RecSim."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import RecSim
+
+    hand = [
+        ([[1, 0], [0, 2], [-3, 3]], [0.5, 0.5], 0.15),  # interior: (0.575, 0.65, 0.5)
+        ([[2, 0], [0, -4], [10, 10]], [0.5, 0.5], 0.15),  # top clip: 2.0 -> 0.98
+        ([[1, 0], [0, 1], [-3, 0]], [2.0, 1.0], 0.3),  # both clips: (0.98, 0.8, 0.02)
+    ]
+    theta = np.array([h[0] for h in hand], dtype=float)
+    x = np.array([h[1] for h in hand], dtype=float)
+    scale = np.array([h[2] for h in hand], dtype=float)
+    lin = np.einsum("ckd,cd->ck", theta, x)
+    want = np.clip(0.5 + scale[:, None] * lin, 0.02, 0.98)
+    by_hand = [[0.575, 0.65, 0.5], [0.65, 0.2, 0.98], [0.98, 0.8, 0.02]]
+    assert np.allclose(want, by_hand, atol=1e-15), want
+    env = RecSim(M05_K, M05_D_RAW, seed=M05_CATALOG)
+    recsim_x = env.sample_context(np.random.default_rng(55))
+    return _save(
+        "m05_reward",
+        hand_theta=theta,
+        hand_x=x,
+        hand_scale=scale,
+        hand_expected=want,
+        # The usual mistakes, for the checkpoint's hints.
+        hand_no_clip=0.5 + scale[:, None] * lin,
+        hand_no_intercept=np.clip(scale[:, None] * lin, 0.02, 0.98),
+        hand_no_scale=np.clip(0.5 + lin, 0.02, 0.98),
+        recsim_x=recsim_x,
+        recsim_expected=env.expected_reward(recsim_x),
+    )
+
+
+def m05_ridge() -> bytes:
+    """Exercise 2: seven updates of a 3-feature Ridge, for two penalties, against the closed form."""
+    rng = np.random.default_rng(54)
+    X = np.round(rng.normal(0.0, 1.5, size=(7, 3)), 2)  # rows far from unit length
+    r = np.array([1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0])
+    lams = np.array([1.0, 0.5])
+    probes = np.round(rng.normal(size=(3, 3)), 2)
+    A, A_inv, theta, pred = [], [], [], []
+    for lam in lams:
+        a, b, a_inv, th = _m05_ridge_closed_form(X, r, float(lam))
+        A.append(a)
+        A_inv.append(a_inv)
+        theta.append(th)
+        pred.append(probes @ th)
+    assert np.all(np.linalg.norm(X, axis=1) > 1.2), "non-unit rows"
+    return _save(
+        "m05_ridge",
+        X=X,
+        r=r,
+        lams=lams,
+        probes=probes,
+        A=np.array(A),
+        b=X.T @ r,
+        A_inv=np.array(A_inv),
+        pred=np.array(pred),
+        # The usual mistakes, for the hints: b = sum x, and predict with A in place of A^-1.
+        b_without_reward=X.sum(axis=0),
+        pred_with_A=np.array([probes @ (a @ (X.T @ r)) for a in A]),
+    )
+
+
+def m05_linucb() -> bytes:
+    """Exercise 3: LinUCB scores on fixed models, and the width of a unit x seen n times."""
+    rng = np.random.default_rng(56)
+    A, A_inv, b, n = [], [], [], []
+    for k in range(3):
+        M = rng.normal(size=(3, 4 + 2 * k))
+        a = np.eye(3) + M @ M.T  # a Gram matrix: lam I + sum x x^T, not diagonal
+        A.append(a)
+        A_inv.append(np.linalg.inv(a))
+        b.append(rng.normal(size=3))
+        n.append(M.shape[1])
+    A, A_inv, b = np.array(A), np.array(A_inv), np.array(b)
+    x = np.array([0.6, -0.3, 1.1])
+    cs = np.array([0.5, 2.0])
+    means = np.einsum("kij,kj->ki", A_inv, b) @ x
+    quad = np.einsum("i,kij,j->k", x, A_inv, x)
+    quad_A = np.einsum("i,kij,j->k", x, A, x)
+    scores = np.array([means + c * np.sqrt(quad) for c in cs])
+    wrong = {
+        "variance": np.array([means + c * quad for c in cs]),
+        "A_not_inverse": np.array([means + c * np.sqrt(quad_A) for c in cs]),
+        "width_only": np.array([c * np.sqrt(quad) for c in cs]),
+        "c_inside_sqrt": np.array([means + np.sqrt(c * quad) for c in cs]),
+    }
+    for name, w in wrong.items():  # every mistake is visibly wrong at one c at least
+        assert np.abs(w - scores).max() > 1e-3, name
+    u = np.array([1.0, 2.0, 2.0]) / 3.0
+    ns = np.array([0, 1, 10, 100])
+    unit_A = np.array([np.eye(3) + k * np.outer(u, u) for k in ns])
+    return _save(
+        "m05_linucb",
+        A=A,
+        A_inv=A_inv,
+        b=b,
+        n=np.array(n, dtype=np.int64),
+        x=x,
+        cs=cs,
+        scores=scores,
+        **{f"wrong_{k}": v for k, v in wrong.items()},
+        u=u,
+        unit_ns=ns,
+        unit_A=unit_A,
+        unit_A_inv=np.array([np.linalg.inv(a) for a in unit_A]),
+        unit_scores=np.array([c / np.sqrt(1.0 + ns) for c in cs]),
+    )
+
+
+def m05_lints() -> bytes:
+    """Exercise 4: a fixed model for the sampler's moments, and the reference's margins.
+
+    A's correlations are strong enough that every wrong covariance is far from v^2 A^-1 once
+    whitened: the upper Cholesky factor (L^T L) by 1.44, v^2 I by 2.0, v A^-1 by 1.0 and
+    v^2 A by 11, against the checkpoint's 0.2 (a correct sampler's entries have sd 0.022).
+    """
+    A = np.array([[3.0, 1.5, 0.0], [1.5, 2.0, 0.9], [0.0, 0.9, 1.5]])
+    A_inv = np.linalg.inv(A)
+    b = np.array([1.0, -0.5, 0.25])
+    v, n_draws = 0.5, 4000
+    theta_hat = A_inv @ b
+    # The reference sampler (the lab's solution) on the checkpoint's draw, to show its margin:
+    # the checkpoint allows 6 standard errors for each mean and 0.2 for each entry of the
+    # whitened covariance.
+    rng = np.random.default_rng(11)
+    L = np.linalg.cholesky(A_inv)
+    draws = np.array([theta_hat + v * L @ rng.standard_normal(3) for _ in range(n_draws)])
+    se = v * np.sqrt(np.diag(A_inv) / n_draws)
+    z = (draws.mean(axis=0) - theta_hat) / se
+    Li = np.linalg.inv(L)
+    white = Li @ (np.cov(draws.T) / v**2) @ Li.T
+    dev = np.abs(white - np.eye(3)).max()
+    assert np.abs(z).max() < 3 and dev < 0.1, (z, dev)
+    wrong = {"upper": L.T @ L, "isotropic": np.eye(3), "sqrt-v": A_inv / v, "A": A}
+    for name, cov in wrong.items():
+        assert np.abs(Li @ cov @ Li.T - np.eye(3)).max() > 0.95, name
+    return _save(
+        "m05_lints",
+        A=A,
+        A_inv=A_inv,
+        b=b,
+        v=np.array(v),
+        n_draws=np.array(n_draws, dtype=np.int64),
+        theta_hat=theta_hat,
+        ref_max_z=np.array(np.abs(z).max()),
+        ref_max_dev=np.array(dev),
+    )
+
+
+def m05_verdicts() -> bytes:
+    """Exercise 5: four tables of final regrets and prl.evaluate.compare's verdicts on them."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.evaluate import Budget, compare
+
+    tables = {
+        "clear": ([200, 210, 190, 205, 220], [100, 105, 110, 95, 102], [150, 260, 180, 230, 200]),
+        "reverse": (
+            [150, 160, 155, 145, 170],
+            [300, 310, 305, 290, 320],
+            [152, 158, 150, 149, 166],
+        ),
+        "three-seeds": ([200, 220, 210], [100, 120, 110], [190, 230, 205]),
+        "one-seed": ([200], [100], [150]),
+    }
+    by_hand = {
+        "clear": ("LinUCB", "tie"),
+        "reverse": ("greedy", "tie"),
+        "three-seeds": ("LinUCB", "tie"),
+        "one-seed": ("single seed", "single seed"),
+    }
+    methods = ("greedy", "LinUCB", "LinTS")
+    budget = Budget(steps=3000, seeds=5)
+    regrets = np.full((len(tables), 3, 5), np.nan)
+    n_seeds = np.zeros(len(tables), dtype=np.int64)
+    words = []
+    for i, (regime, rows) in enumerate(tables.items()):
+        n_seeds[i] = len(rows[0])
+        for j, row in enumerate(rows):
+            regrets[i, j, : len(row)] = row
+        got = []
+        for k, method in ((1, "LinUCB"), (2, "LinTS")):
+            v = compare(
+                rows[k], rows[0], names=(method, "greedy"), budget=budget, higher_is_better=False
+            )
+            got.append({"A": method, "B": "greedy"}.get(v.winner, v.winner))
+            if v.winner in ("A", "B"):  # a clear call: the intervals are well apart
+                lo_a, hi_a = v.summary_a[1:]
+                lo_b, hi_b = v.summary_b[1:]
+                assert max(lo_a - hi_b, lo_b - hi_a) > 10, (regime, method)
+        assert tuple(got) == by_hand[regime], (regime, got)
+        words.append(got)
+    return _save(
+        "m05_verdicts",
+        regimes=np.array(list(tables)),
+        methods=np.array(methods),
+        regrets=regrets,
+        n_seeds=n_seeds,
+        steps=np.array(budget.steps, dtype=np.int64),
+        seeds=np.array(budget.seeds, dtype=np.int64),
+        expected=np.array(words),
+    )
+
+
+def m05_logging() -> bytes:
+    """Exercises 6 and 7: epsilon-greedy probabilities, and RecSim logs with known propensities."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import RecSim
+
+    scores4, eps4 = np.array([0.1, 0.5, 0.3, 0.2]), 0.1
+    scores10 = np.array([0.3, 0.1, 0.72, 0.2, 0.5, 0.65, 0.0, 0.4, 0.45, 0.6])
+    eps10 = np.array([0.0, 0.1, 0.3, 1.0])
+    expected4 = _m05_eps_greedy(scores4, eps4)
+    assert np.allclose(expected4, [0.025, 0.925, 0.025, 0.025], atol=1e-15)
+    theta_fix = np.round(np.random.default_rng(51).normal(size=(M05_K, M05_D_RAW + 1)), 3)
+    K = M05_K
+
+    def scores(x):
+        return theta_fix @ _m05_features(x)
+
+    # Exercise 6's checkpoint logs with env.log and the reference log_policy at epsilon 0.1.
+    log_eps, log_n, log_seed = 0.1, 4000, 52
+    env = RecSim(K, M05_D_RAW, seed=M05_CATALOG)
+    log = env.log(lambda x, rng: _m05_eps_greedy(scores(x), log_eps), log_n, seed=log_seed)
+    w = 1.0 / (K * log.P)
+    log_z = (w.mean() - 1.0) / (w.std(ddof=1) / np.sqrt(log_n))
+    # Exercise 7's checkpoint: the fixed log_suspect (the lab's solution) with its own
+    # epsilon-greedy policy at epsilon 0.2, on RecSim's stream `seed`, method coin seed + 1.
+    sus_eps, sus_n, sus_seed = 0.2, 3000, 53
+    env = RecSim(K, M05_D_RAW, seed=M05_CATALOG)
+    env.reset(seed=sus_seed)
+    rng = np.random.default_rng(sus_seed + 1)
+    A, P, best = [], [], []
+    for _ in range(sus_n):
+        probs = _m05_eps_greedy(scores(env.context()), sus_eps)
+        a = int(rng.choice(K, p=probs))
+        env.step(a)
+        A.append(a)
+        P.append(probs[a])
+        best.append(int(np.argmax(probs)))
+    A, P, best = np.array(A), np.array(P), np.array(best)
+    share = float(np.mean(A != best))
+    p_other = sus_eps * (K - 1) / K
+    share_z = (share - p_other) / np.sqrt(p_other * (1 - p_other) / sus_n)
+    w = (1.0 / K) / P
+    sus_z = (w.mean() - 1.0) / (w.std(ddof=1) / np.sqrt(sus_n))
+    # The checkpoints allow 4 (weights) and 5 (share) standard errors; the reference is well inside.
+    assert max(abs(log_z), abs(share_z), abs(sus_z)) < 3, (log_z, share_z, sus_z)
+    return _save(
+        "m05_logging",
+        scores4=scores4,
+        eps4=np.array(eps4),
+        expected4=expected4,
+        scores10=scores10,
+        eps10=eps10,
+        expected10=np.array([_m05_eps_greedy(scores10, e) for e in eps10]),
+        theta_fix=theta_fix,
+        log_eps=np.array(log_eps),
+        log_n=np.array(log_n, dtype=np.int64),
+        log_seed=np.array(log_seed, dtype=np.int64),
+        ref_log_z=np.array(log_z),
+        suspect_eps=np.array(sus_eps),
+        suspect_n=np.array(sus_n, dtype=np.int64),
+        suspect_seed=np.array(sus_seed, dtype=np.int64),
+        ref_suspect_share=np.array(share),
+        ref_suspect_share_z=np.array(share_z),
+        ref_suspect_z=np.array(sus_z),
+    )
+
+
 FIXTURES = {
     "m01_returns": m01_returns,
     "m01_eval": m01_eval,
@@ -771,6 +1067,12 @@ FIXTURES = {
     "m03_prediction": m03_prediction,
     "m03_nstep": m03_nstep,
     "m03_decomposition": m03_decomposition,
+    "m05_reward": m05_reward,
+    "m05_ridge": m05_ridge,
+    "m05_linucb": m05_linucb,
+    "m05_lints": m05_lints,
+    "m05_verdicts": m05_verdicts,
+    "m05_logging": m05_logging,
 }
 
 
