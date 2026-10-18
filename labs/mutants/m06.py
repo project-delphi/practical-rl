@@ -222,35 +222,63 @@ def mbie_eb_backup(P_hat, R_hat, counts, gamma, c, tol):  # noqa: F811
     return value_iteration(P_hat, R_hat + bonus, gamma, tol)[0]  # noqa: F821
 
 
-# ---- Exercise 6: verdict -----------------------------------------------------------------
+# ---- Exercise 6: regret ------------------------------------------------------------------
 
 
-@mutant(ex=6, replaces="verdict", id="no-tie", why="never calls a tie: the lower IQM wins")
-def verdict(a, b):
-    return "A" if iqm(a) < iqm(b) else "B"  # noqa: F821
+@mutant(
+    ex=6, replaces="regret", id="per-step", why="returns each step's regret, not the running sum"
+)
+def regret(states, actions, R, opt_rewards):
+    states, actions = np.asarray(states), np.asarray(actions)
+    return opt_rewards - R[states[:-1], actions]
 
 
-@mutant(ex=6, replaces="verdict", id="mean-not-iqm", why="means and their intervals, not IQMs")
-def verdict(a, b):  # noqa: F811
-    lo_a, hi_a = bootstrap_ci(a)  # noqa: F821
-    lo_b, hi_b = bootstrap_ci(b)  # noqa: F821
-    if hi_a >= lo_b and hi_b >= lo_a:
-        return "tie"
-    return "A" if np.mean(a) < np.mean(b) else "B"
+@mutant(ex=6, replaces="regret", id="sign", why="subtracts the optimum from what the learner got")
+def regret(states, actions, R, opt_rewards):  # noqa: F811
+    states, actions = np.asarray(states), np.asarray(actions)
+    return np.cumsum(R[states[:-1], actions] - opt_rewards)
 
 
-@mutant(ex=6, replaces="verdict", id="higher-wins", why="treats higher regret as better")
-def verdict(a, b):  # noqa: F811
-    lo_a, hi_a = bootstrap_ci(a, iqm)  # noqa: F821
-    lo_b, hi_b = bootstrap_ci(b, iqm)  # noqa: F821
-    if hi_a >= lo_b and hi_b >= lo_a:
-        return "tie"
-    return "A" if iqm(a) > iqm(b) else "B"  # noqa: F821
+@mutant(
+    ex=6,
+    replaces="regret",
+    id="next-states",
+    why="pairs each action with the state it led to, states[1:]",
+)
+def regret(states, actions, R, opt_rewards):  # noqa: F811
+    states, actions = np.asarray(states), np.asarray(actions)
+    return np.cumsum(opt_rewards - R[states[1:], actions])
 
 
-@mutant(ex=6, replaces="verdict", id="always-tie", why="calls every comparison a tie")
-def verdict(a, b):  # noqa: F811
-    return "tie"
+@mutant(
+    ex=6,
+    replaces="regret",
+    id="best-action-here",
+    why="compares with the best action in the state the learner was in, not with the optimal policy",
+)
+def regret(states, actions, R, opt_rewards):  # noqa: F811
+    states, actions = np.asarray(states), np.asarray(actions)
+    here = R[states[:-1]]
+    return np.cumsum(here.max(axis=1) - here[np.arange(len(actions)), actions])
+
+
+@mutant(ex=6, replaces="regret", id="final-only", why="returns only the total, Reg_T")
+def regret(states, actions, R, opt_rewards):  # noqa: F811
+    states, actions = np.asarray(states), np.asarray(actions)
+    return np.sum(opt_rewards - R[states[:-1], actions])
+
+
+@mutant(ex=6, replaces="regret", id="average", why="divides the running sum by the number of steps")
+def regret(states, actions, R, opt_rewards):  # noqa: F811
+    states, actions = np.asarray(states), np.asarray(actions)
+    total = np.cumsum(opt_rewards - R[states[:-1], actions])
+    return total / np.arange(1, len(total) + 1)
+
+
+@mutant(ex=6, replaces="regret", id="clipped", why="counts no step as negative regret")
+def regret(states, actions, R, opt_rewards):  # noqa: F811
+    states, actions = np.asarray(states), np.asarray(actions)
+    return np.cumsum(np.maximum(0.0, opt_rewards - R[states[:-1], actions]))
 
 
 # ---- Exercise 7: the planted bug ---------------------------------------------------------
@@ -272,7 +300,7 @@ def mbie_eb_suspect(env, steps, c, gamma, seed):
         if stale:
             P_hat, R_hat, N = estimate_model(log, n_s, n_a)  # noqa: F821
             Q = value_iteration(P_hat, R_hat, gamma, TOL)[1]  # noqa: F821
-            bonus = c / np.sqrt(np.maximum(N, 1))
+        bonus = c / np.sqrt(np.maximum(counts, 1))
         a = int(greedy(Q[[s]] + bonus[[s]])[0])  # noqa: F821
         s2, r, terminated, truncated, _ = env.step(a)
         log.append((s, a, r, s2))

@@ -13,7 +13,7 @@
 # watch that time grow by a factor of about 3 per state. Then you run three learners on a
 # 10-state river for 5000 steps: Lab 3's ε-greedy Q-learning, the same learner with an
 # optimistic start, and MBIE-EB, which plans in an estimated model with a count bonus inside
-# the backup. You finish by finding a bonus in the wrong place in someone else's agent.
+# the backup. You finish by finding a bug in someone else's agent.
 #
 # The briefing's equations are named in brackets, for example (hitting time) or (MBIE-EB
 # backup). Its table "Equations and where you implement them" gives each name's equation
@@ -98,7 +98,8 @@ print("  holding position at the right end with the right action.")
 # **The chain a fixed policy makes.** Fix a policy π, an (S, A) matrix of action
 # probabilities. The next state then depends only on the current one, through
 # P_π(s, s') = Σ_a π(a | s) P(s' | s, a) (policy chain). Uniform random play, π = ½ for each
-# action, is the policy of the briefing's first-step analysis.
+# action, is the policy of the briefing's first-step analysis. This is the P_π line of your
+# Lab 1 `evaluate_exact`: here it is the object, not a step.
 
 # %% [markdown] role="ex1-predict"
 # Under uniform random play on the 6-state river, what is the chance of staying at the right
@@ -119,8 +120,8 @@ def policy_transition(P, pi):
 
 
 # %% [markdown] role="ex1-hint"
-# `np.einsum("sa,sat->st", pi, P)` sums over the action index a. So does
-# `(pi[:, :, None] * P).sum(axis=1)`. Check that every row of your result sums to 1.
+# Row s of P_π mixes the rows P[s, a, :] with the weights pi[s, a]. Write it as a sum over a,
+# then as one `np.einsum`: which index is summed away? Check that every row sums to 1.
 
 
 # %% role="ex1-sol"
@@ -145,7 +146,8 @@ print(f"The right end: stay {P_pi6[5, 5]:.3f}, left {P_pi6[5, 4]:.3f}")
 # The left action always succeeds, so a step left combines a sure move with the right
 # action's slip: ½ · 1 + ½ · 0.05. A step right needs the right action and its 0.35. Which
 # ratio of two numbers in an interior row of (policy chain) will set how fast the hitting
-# time grows? If the left action also failed 5% of the time, would that ratio go up or down?
+# time grows? If the left action stayed put 5% of the time instead of moving, would that ratio
+# go up or down?
 
 # %% role="ex1-chk"
 lab.check(1, m06.check_policy_transition, policy_transition)
@@ -177,10 +179,10 @@ def simulate_hitting(P_pi, target, walks, rng, start=0):
 
 
 # %% [markdown] role="ex2-predict"
-# The briefing worked out h(6) ≈ 936 steps for the 6-state river, and showed that each extra
-# state multiplies the hitting time by about 3. Without solving anything, predict h(10) for
-# the 10-state river of Exercises 3 to 7. How many times longer is that than their budget of
-# 5000 steps?
+# The briefing worked out h(0) ≈ 936 steps from the left end of the 6-state river, and showed
+# that each extra state multiplies the hitting time by about 3. Without solving anything,
+# predict h(0) for the 10-state river of Exercises 3 to 7. How many times the lab's budget of
+# 5000 steps is that?
 
 
 # %% role="ex2-stub"
@@ -201,8 +203,9 @@ def hitting_times(P_pi, target):
 
 
 # %% [markdown] role="ex2-hint"
-# `P_pi[np.ix_(others, others)]` is M. `np.linalg.solve(np.eye(n - 1) - M, np.ones(n - 1))`
-# is x. Why is h[target] not one of the unknowns? Because nothing is spent once you are there.
+# `np.ix_(rows, cols)` selects a block of a matrix; plain `P_pi[others, others]` does not.
+# Solve with `np.linalg.solve`, not an inverse; the right-hand side has one entry per unknown.
+# Why is h[target] not an unknown? Nothing is spent once you are there.
 
 
 # %% role="ex2-sol"
@@ -257,7 +260,8 @@ lab.check(2, m06.check_hitting_times, hitting_times)
 # `q_learning` runs unchanged. Every learner runs one episode of `budget.steps` steps from
 # the left end, as in Strehl and Littman's experiments (no resets). The two reference lines
 # are exact expectations: uniform random play, and the DP-optimal policy from Lab 2's value
-# iteration on the true model.
+# iteration on the true model. Run this cell. `run_q_learning` and `first_visit` are what later
+# cells call; the rest draws the two reference lines.
 
 
 # %%
@@ -344,8 +348,8 @@ def visitation(states, n_states):
 
 
 # %% [markdown] role="ex3-hint"
-# `np.bincount(states)` counts each value, but its length is the largest state that occurs
-# plus one: a state never reached would be missing from the end. Pass `minlength=n_states`.
+# `np.bincount` counts each value, but its length is the largest state that occurs plus one.
+# Which of its arguments keeps the states that were never reached?
 
 
 # %% role="ex3-sol"
@@ -387,10 +391,10 @@ ax.legend()
 plt.show()
 
 # %% [markdown] role="ex3-explain"
-# Read Q at the left end: once the left action has paid 0.005, it beats the right action's
-# 0, and the greedy choice there is left. How often does a right move happen at the left end
-# now, against ½ under uniform random play? Which number in the hitting-time ratio got worse,
-# and by how much? (Gotcha: "ε-greedy gets there eventually.")
+# Read Q at the left end: once the left action has paid 0.005, it beats the right action, and
+# the greedy choice there is left. How often does the agent choose right at the left end now,
+# against ½ under uniform random play, and how often does it move right (0.4 of those)? Which
+# number in the hitting-time ratio got worse? (Gotcha: "ε-greedy gets there eventually.")
 
 # %% role="ex3-chk1"
 lab.check(3, m06.check_visitation, visitation, label="3.1")
@@ -406,7 +410,8 @@ lab.check(3, m06.check_eps_greedy_end, visitation, q_learning, label="3.2")
 
 # %% [markdown] role="ex4-predict"
 # With the optimistic start, in how many of your 10 seeds will Q-learning reach the right end
-# within 5000 steps? Will its first visit take tens of steps, hundreds, or tens of thousands?
+# within 5000 steps? Will its first visit come within about a hundred steps, within a few
+# hundred to a thousand or so, or not within the 5000-step budget?
 
 
 # %% role="ex4-stub"
@@ -445,7 +450,7 @@ reached = sum(f is not None for f in firsts)
 shown = ", ".join("never" if f is None else str(f) for f in firsts)
 print(f"Reached the right end within {budget.steps} steps on {reached} of {len(seeds4)} seeds.")
 print(f"First visit, seed by seed: {shown}")
-lab.metric("opt_reached", reached)  # room code
+lab.metric("optimistic_ex4", {"reached": reached, "first_visits": firsts})
 fig, ax = plt.subplots()
 ax.bar(x - 0.2, v_eps, width=0.4, color=prl.plot.SERIES[0], label="eps-greedy, Q0 = 0")
 ax.bar(
@@ -459,7 +464,7 @@ ax.bar(
 ax.set(
     xlabel="state (0 = left end)",
     ylabel="fraction of steps",
-    title=f"Visitation, first seed of each ({seeds4[0]}, {RUN_SEED})",
+    title=f"Visitation, one seed each ({RUN_SEED}, {seeds4[0]}): single seed, not a ranking",
 )
 ax.legend()
 plt.show()
@@ -467,10 +472,8 @@ plt.show()
 # %% [markdown] role="ex4-explain"
 # Each update pulls Q(s, a) toward r + γ max Q(s', ·), and every pair not yet tried still
 # holds 20 (optimistic start). Why does that keep pulling the agent into states it has not
-# seen? Its visitation is spread over the whole river: what is still pulling it away from the
-# right end after it has found the reward there? Sutton and Barto call optimistic initial
-# values a simple trick for stationary problems: what would happen to its exploration if the
-# river changed after step 5000? (Gotcha: "Optimistic initialization is a hack.")
+# seen? Read its visitation: what is still pulling it away from the right end after it has
+# found the reward there? (Gotcha: "Optimistic initialization is a hack.")
 
 # %% role="ex4-chk1"
 lab.check(4, m06.check_optimistic_q0, optimistic_q0, label="4.1")
@@ -542,8 +545,9 @@ def mbie_eb_backup(P_hat, R_hat, counts, gamma, c, tol):
 
 
 # %% [markdown] role="ex5-hint"
-# `c / np.sqrt(np.maximum(counts, 1))` has the shape of R_hat. value_iteration returns
-# (V, Q, sweeps); you need the Q, built from the reward plus the bonus.
+# A count of 0 must give the bonus of a count of 1: which NumPy function keeps an array from
+# falling below 1? The bonus goes into the reward before value iteration runs, not onto its
+# result. `value_iteration` returns (V, Q, sweeps).
 
 
 # %% role="ex5-sol"
@@ -572,7 +576,7 @@ N_mb = pair_counts(states_mb, actions_mb)
 print("  N(s, a), one column per state (0 = left end):")
 print("    left  ", " ".join(f"{n:5d}" for n in N_mb[:, LEFT]))
 print("    right ", " ".join(f"{n:5d}" for n in N_mb[:, RIGHT]))
-lab.metric("mbie_end", round(float(v_mb[END]), 3))  # room code
+lab.metric("mbie_end", round(float(v_mb[END]), 3))  # room code: Exercise 5's own seed
 fig, ax = plt.subplots()
 ax.bar(x, v_mb, color=prl.plot.SERIES[2], label=f"MBIE-EB, seed {RUN_SEED}")
 ax.plot(
@@ -591,12 +595,13 @@ plt.show()
 lab.check(5, m06.check_mbie_eb_backup, mbie_eb_backup)
 
 # %% [markdown] role="ex6-head"
-# **Regret over 10 seeds.** The provided cell runs the three learners on 10 seeds each and
-# computes each run's cumulative regret against the DP-optimal policy: the optimal policy's
-# expected reward at each step from the left end, minus r(s_t, a_t), the mean reward of what
-# the learner did, summed (regret). With 10 seeds per side, compare interquartile means
-# (IQMs) with 95% bootstrap intervals, and call a tie when the intervals overlap. Write that
-# rule as `verdict`.
+# **Regret over 10 seeds.** Regret prices exploration. At step t, take the optimal policy's
+# expected reward from the left end, `OPT[t]` (computed exactly above, with (policy chain)),
+# minus r(s_t, a_t), the mean reward of what the learner did, and keep a running sum: Reg_t
+# after every step (regret). It is Lab 4's pseudo-regret, with the optimal policy's expected
+# reward in place of the best arm's mean. Write `regret`. The provided cell then runs the
+# three learners on 10 seeds each and compares them with `prl.evaluate.compare`: IQMs with
+# 95% bootstrap intervals, and the tie rule you wrote in Lab 4.
 
 # %% [markdown] role="ex6-predict"
 # Rank ε-greedy Q-learning, optimistic Q-learning and MBIE-EB by their regret after 5000
@@ -604,41 +609,34 @@ lab.check(5, m06.check_mbie_eb_backup, mbie_eb_backup)
 
 
 # %% role="ex6-stub"
-def verdict(a, b):
-    """'A', 'B' or 'tie' for two arrays of per-seed regrets (lower is better).
+def regret(states, actions, R, opt_rewards):
+    """Cumulative regret against the optimal policy, after every step (regret).
 
-    The rule for 5 or more seeds: the IQM of each side with a 95% bootstrap interval,
-    prl.evaluate.bootstrap_ci(x, iqm) at its defaults; overlapping intervals are a tie;
-    otherwise the side with the lower IQM wins.
+    states holds s_0..s_T (T + 1 entries) and actions a_0..a_{T-1} (T entries); R[s, a] is the
+    mean reward; opt_rewards holds the optimal policy's expected reward at steps 0..T-1 from
+    the same start. Returns T entries: entry t is Reg_{t+1}, so the last one is Reg_T.
     """
-    # TODO 6: two intervals, one overlap test, one comparison of the IQMs.
+    states, actions = np.asarray(states), np.asarray(actions)
+    # TODO 6: the mean reward of each step taken, then a running sum of opt_rewards minus it.
     raise NotImplementedError(
-        "TODO 6: write verdict, or run lab.use_reference(6) to continue with the solution"
+        "TODO 6: write regret, or run lab.use_reference(6) to continue with the solution"
     )
 
 
 # %% [markdown] role="ex6-hint"
-# `lo, hi = bootstrap_ci(a, iqm)`. Two intervals [lo_a, hi_a] and [lo_b, hi_b] overlap when
-# hi_a ≥ lo_b and hi_b ≥ lo_a. Lower regret is better.
+# Index `R` with two arrays, one of states and one of actions, to get one mean reward per
+# step. Which entry of `states` has no action?
 
 
 # %% role="ex6-sol"
 @lab.solution(6)
-def verdict(a, b):
-    """The rule for 5+ seeds: IQMs with bootstrap CIs; overlap is a tie."""
-    lo_a, hi_a = bootstrap_ci(a, iqm)
-    lo_b, hi_b = bootstrap_ci(b, iqm)
-    if hi_a >= lo_b and hi_b >= lo_a:  # the intervals overlap
-        return "tie"
-    return "A" if iqm(a) < iqm(b) else "B"
+def regret(states, actions, R, opt_rewards):
+    """Reg_t after every step: a running sum of opt_rewards - r(s_t, a_t) (regret)."""
+    states, actions = np.asarray(states), np.asarray(actions)
+    return np.cumsum(opt_rewards - R[states[:-1], actions])
 
 
 # %% role="ex6-run"
-def regret(states, actions):
-    """Provided: cumulative regret against the optimal policy's expected rewards (regret)."""
-    return np.cumsum(OPT - river.R[np.asarray(states)[:-1], np.asarray(actions)])
-
-
 learners = {
     "eps-greedy": lambda env, k: run_q_learning(env, budget.steps, 0.0, k),
     "optimistic": lambda env, k: run_q_learning(env, budget.steps, Q0, k),
@@ -648,10 +646,13 @@ seeds6 = [RUN_SEED + 100 + k for k in range(budget.seeds)]
 lab.seeds(seeds6)
 start = time.perf_counter()
 curves = {name: [] for name in learners}
+reach = {name: 0 for name in learners}
 for name, run in learners.items():
     for k in seeds6:
         st, ac, _ = run(make_river(N_CHAIN, budget.steps), k)
-        curves[name].append(regret(st, ac))
+        curves[name].append(regret(st, ac, river.R, OPT))
+        reach[name] += first_visit(st, END) is not None
+    print(f"  {name}: {len(seeds6)} runs done; {reach[name]} reached the right end")
 seconds = time.perf_counter() - start
 final = {name: np.array([c[-1] for c in cs]) for name, cs in curves.items()}
 cost = Budget(
@@ -660,21 +661,21 @@ cost = Budget(
     wall_clock_s=seconds,
     hardware=prl.runtime.detect().cpu,
 )
-print(f"Regret after {budget.steps} steps, seeds {seeds6[0]}-{seeds6[-1]}:")
+print(f"Reg_T after {budget.steps} steps, seeds {seeds6[0]}-{seeds6[-1]}, IQM [95% bootstrap CI]:")
 for name, r in final.items():
     lo, hi = bootstrap_ci(r, iqm)
     print(
-        f"  {name:10s} IQM {iqm(r):7.1f}  [{lo:7.1f}, {hi:7.1f}]  "
-        f"min {r.min():7.1f}  max {r.max():7.1f}"
+        f"  {name:10s} {iqm(r):7.1f} [{lo:7.1f}, {hi:7.1f}]  min {r.min():7.1f}  max {r.max():7.1f}"
     )
 pairs = [("MBIE-EB", "optimistic"), ("MBIE-EB", "eps-greedy"), ("optimistic", "eps-greedy")]
 for a, b in pairs:
-    print(f"{a} (A) vs {b} (B): your verdict {verdict(final[a], final[b])}")
     v = compare(final[a], final[b], names=(a, b), budget=cost, higher_is_better=False)
-    print(
-        textwrap.fill(f"compare: {v.sentence}", 96, initial_indent="  ", subsequent_indent="    ")
-    )
+    print(f"{a} (A) vs {b} (B): {v.winner}")
+print(textwrap.fill(cost.sentence(), 96))
 lab.metric("regret", {name: [round(float(x), 1) for x in r] for name, r in final.items()})
+lab.metric("reach_eps", reach["eps-greedy"])  # room code: runs of 10 reaching the right end
+lab.metric("reach_opt", reach["optimistic"])
+lab.metric("reach_mbie", reach["MBIE-EB"])
 lab.metric("regret_eps", round(iqm(final["eps-greedy"]), 1))  # room code: the three IQMs
 lab.metric("regret_opt", round(iqm(final["optimistic"]), 1))
 lab.metric("regret_mbie", round(iqm(final["MBIE-EB"]), 1))
@@ -693,13 +694,12 @@ ax.legend()
 plt.show()
 
 # %% [markdown] role="ex6-explain"
-# Each verdict comes with its budget. Which learner's regret grows in a straight line to the
-# end, and what is that line's slope in reward per step (regret)? Optimistic Q-learning
-# reaches the right end, yet its regret is far above MBIE-EB's: compare their visitation in
-# Exercises 4 and 5. Where do its extra steps go?
+# Which learner's regret grows in a straight line to the end, and what is that line's slope
+# in reward per step (regret)? Compare optimistic Q-learning's regret with MBIE-EB's, then
+# their visitation in Exercises 4 and 5. Where do its extra steps go?
 
 # %% role="ex6-chk"
-lab.check(6, m06.check_verdict, verdict)
+lab.check(6, m06.check_regret, regret)
 
 # %% [markdown] role="ex7-head"
 # **Planted bug.** A colleague wrote their own MBIE-EB agent. It counts, estimates the model
@@ -726,7 +726,7 @@ def mbie_eb_suspect(env, steps, c, gamma, seed):
         if stale:
             P_hat, R_hat, N = estimate_model(log, n_s, n_a)
             Q = value_iteration(P_hat, R_hat, gamma, TOL)[1]
-            bonus = c / np.sqrt(np.maximum(N, 1))
+        bonus = c / np.sqrt(np.maximum(counts, 1))
         a = int(greedy(Q[[s]] + bonus[[s]])[0])
         s2, r, terminated, truncated, _ = env.step(a)
         log.append((s, a, r, s2))
@@ -783,11 +783,11 @@ print("  value of each state in its last plan, max over a of Q:")
 print("   ", " ".join(f"{v:6.2f}" for v in Q_s.max(axis=1)))
 print("  the same for MBIE-EB's last plan (Exercise 5):")
 print("   ", " ".join(f"{v:6.2f}" for v in Q_mb.max(axis=1)))
-lab.metric("suspect_end", round(float(v_s[END]), 3))  # room code: after your fix
+lab.metric("fixed_agent", {"right_end": round(float(v_s[END]), 3), "first_visit": hit})
 fig, (ax_v, ax_q) = plt.subplots(1, 2, figsize=(10, 3.6))
 ax_v.bar(x - 0.2, v_s, width=0.4, color=prl.plot.SERIES[3], hatch="//", label="colleague")
 ax_v.bar(x + 0.2, v_mb, width=0.4, color=prl.plot.SERIES[2], label="MBIE-EB (Ex. 5)")
-ax_v.set(xlabel="state", ylabel="fraction of steps", title="Where it went")
+ax_v.set(xlabel="state", ylabel="fraction of steps", title="Where it went (single seed)")
 ax_v.legend()
 ax_q.plot(x, Q_s.max(axis=1), ls="--", marker="^", color=prl.plot.SERIES[3], label="colleague")
 ax_q.plot(x, Q_mb.max(axis=1), marker="o", color=prl.plot.SERIES[2], label="MBIE-EB (Ex. 5)")
@@ -796,20 +796,18 @@ ax_q.legend()
 plt.show()
 
 # %% [markdown] role="ex7-explain"
-# Before your fix, the colleague's plan gave every state it had not reached a value of 0, and
-# its visitation piled up near the left end, as ε-greedy's did. Its bonus was not idle: at
-# each state it made the agent switch between the two actions as their counts grew. Why was
-# that not enough to reach the right end? Which line puts the bonus where (MBIE-EB backup)
-# says it belongs? (Gotcha: "Add the bonus when acting.")
+# What value did the colleague's plan give the states it never reached, and what did
+# MBIE-EB's plan give them? Its bonus was not idle: at each state it made the agent switch
+# between the two actions as their counts grew. Why was that not enough to reach the right
+# end? Which line puts the bonus where (MBIE-EB backup) says it belongs? (Gotcha: "Add the
+# bonus when acting.")
 #
-# **Diagnostics for this lab.** For an exploring agent, plot its visitation against the two
-# reference lines, and print the value its plan or its Q gives each state. A learner that
-# never leaves the first few states, while its plan values every unreached state at 0, is
-# not being drawn anywhere new: its optimism, if any, does not reach past the states it has
-# seen. A healthy optimistic learner's plan values unreached states highly (MBIE-EB: at
-# least c/(1 − γ)), its visitation moves right state by state, and its regret curve bends
-# flat once it holds the right end. A regret curve that stays a straight line to the end
-# means the agent never found the reward, whatever its code says about exploring.
+# **Diagnostics for this lab.** Plot an exploring agent's visitation against the two
+# reference lines, and print the value its plan gives each state. A plan that values every
+# unreached state at 0 draws the agent nowhere new. A healthy optimistic plan values them
+# highly (MBIE-EB: at least c/(1 − γ)), its visitation moves right state by state, and its
+# regret curve bends flat once it holds the right end. A regret curve that stays a straight
+# line to the end means the agent never found the reward.
 
 # %% role="ex7-chk"
 lab.check(7, m06.check_mbie_eb_suspect, mbie_eb_suspect)
@@ -817,11 +815,11 @@ lab.check(7, m06.check_mbie_eb_suspect, mbie_eb_suspect)
 # %% [markdown]
 # **Your room code.** The last cell, `lab.finish()`, prints one line that starts with
 # `ROOM m06`. It holds your seat, the checkpoints you passed, whether QUICK budgets ran, and
-# the numbers the debrief pools: how many of your 10 optimistic seeds reached the right end
-# (`opt_reached`, Exercise 4), MBIE-EB's fraction of steps at the right end (`mbie_end`,
-# Exercise 5), the three regret IQMs (`regret_eps`, `regret_opt`, `regret_mbie`,
-# Exercise 6), and your fixed agent's fraction at the right end (`suspect_end`, Exercise 7).
-# Paste it where your instructor says. Your run record keeps every number the lab printed.
+# the numbers the debrief pools, from Exercise 6's 10 seeds per method: how many runs of each
+# learner reached the right end (`reach_eps`, `reach_opt`, `reach_mbie`) and the three regret
+# IQMs (`regret_eps`, `regret_opt`, `regret_mbie`); and MBIE-EB's fraction of steps at the
+# right end on your seat's seed (`mbie_end`, Exercise 5). Paste it where your instructor says.
+# Your run record keeps every number the lab printed, including Exercises 4 and 7.
 
 # %% [markdown] role="stretch"
 # **Posterior sampling (PSRL).** Instead of a bonus, keep a posterior over models, sample one
@@ -874,9 +872,9 @@ st, ac, _ = run_planner(make_river(N_CHAIN, budget.steps), budget.steps, plan_ps
 hit = first_visit(st, END)
 print(
     f"PSRL, seed {RUN_SEED}: first visit {'never' if hit is None else f'step {hit}'}; "
-    f"regret {regret(st, ac)[-1]:.1f}"
+    f"Reg_T {regret(st, ac, river.R, OPT)[-1]:.1f}"
 )
 print(
-    f"  (MBIE-EB on the same seed: {regret(states_mb, actions_mb)[-1]:.1f}). "
+    f"  (MBIE-EB on the same seed: {regret(states_mb, actions_mb, river.R, OPT)[-1]:.1f}). "
     "Single seed, not a ranking."
 )
