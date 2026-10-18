@@ -673,8 +673,9 @@ def scale_data() -> dict:
     return {
         "record": path.name,
         "rec": rec,
-        "values": {k: np.array(v["regret"]) for k, v in per.items()},
-        "sha": {k: v["arms_sha"] for k, v in per.items()},
+        "values": {k: np.array(v["regret"]) for k, v in per.items() if k != "summary"},
+        "sha": {k: v["arms_sha"] for k, v in per.items() if k != "summary"},
+        "summary": per["summary"],
     }
 
 
@@ -1090,6 +1091,11 @@ def quoted_numbers(computed: dict[str, dict]) -> None:
     assert np.allclose(x["eps_greedy_x1"], x["eps_greedy_x10"], rtol=0, atol=1e-9)
     assert (_r1(x["ucb1_x1"].min()), _r1(x["ucb1_x1"].max())) == (78.8, 140.4)  # "about 80 and 140"
     assert (_r1(x["eps_greedy_x1"].min()), _r1(x["eps_greedy_x1"].max())) == (45.7, 121.6)
+    sm = sc["summary"]
+    assert (sm["eps_greedy"]["same_arms_seeds"], sm["ucb1_rescaled"]["same_arms_seeds"]) == (20, 20)
+    assert (sm["ucb1"]["seeds_lower"], sm["ucb1"]["seeds_higher"]) == (13, 7)
+    assert sm["ucb1"]["verdict_x10_vs_x1"] == "tie" and sm["ucb1"]["same_arms_seeds"] == 0
+    assert (_r1(sm["ucb1"]["mean_x10"]), _r1(sm["ucb1"]["iqm_x10"])) == (195.1, 90.1)
     near_zero = x["ucb1_x10"][down]
     assert near_zero.max() < 35 and x["ucb1_x10"][up].min() > 340  # "13 near zero, 7 from 340"
     # the record agrees with checkpoint 5's fixture (make_expected's own implementation) and
