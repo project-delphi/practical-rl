@@ -48,9 +48,9 @@ budget = lab.use_settings(
 # Your seat's seeds start here, clear of the briefing's, the figures' and the checks' seeds
 # (0-99), so every seat in the room adds new evidence.
 RUN_SEED = (SEED + 1) * 1000
+print(f"Budget: {budget.T} rounds per run; {budget.n_log} rounds per log.")
 print(
-    f"Budget: {budget.T} rounds per run; {budget.n_log} rounds per log. "
-    f"K = {K} items, d = {D_RAW}, c = {C}, v = {V}, epsilon = {EPSILON}"
+    f"K = {K} items; contexts of dimension {D_RAW}, features d = {D}; c = {C}, v = {V}, epsilon = {EPSILON}"
 )
 
 
@@ -81,7 +81,8 @@ env.reset(seed=RUN_SEED)
 x = env.context()
 print(f"RecSim: {env.n_items} items, contexts of dimension {env.d}, scale {env.scale}")
 print("one user's context x:", np.round(x, 3))
-print("click probability of each item for this user:", np.round(env.expected_reward(x), 3))
+print("click probability of each item for this user:")
+print("  ", np.round(env.expected_reward(x), 3))
 print("show item 0 ->", "click" if env.step(0) else "no click")
 
 # %% [markdown] role="ex1-head"
