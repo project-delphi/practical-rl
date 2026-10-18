@@ -68,3 +68,18 @@ def test_test_doubles_and_shims_are_recorded(capsys):
     assert "TEST DOUBLE" in out and "SHIM" in out
     assert any(d["double"] == "tiny random LM" for d in runtime.test_doubles_used())
     assert any(s["name"].startswith("trl") for s in runtime.shims_used())
+
+
+def test_printed_lines_fit_the_notebook_width(capsys, monkeypatch, tmp_path):
+    """Generated output stays within 100 columns (the Module 2 UI review)."""
+    from prl import lab as harness
+    from prl import runtime
+
+    many = [f"package{i}" for i in range(40)]
+    assert all(len(line) <= 100 for line in runtime.wrap_items("Packages: ", many).splitlines())
+    assert runtime.wrap_items("Packages: ", ["a 1", "b 2"]) == "Packages: a 1 · b 2"
+    runtime.print_versions(extra=many)
+    monkeypatch.setenv("PRL_WORKED", "1")
+    harness.init("03-model-free", "0123456789abcdef", designed="colab-cpu", api=1, ns={})
+    out = capsys.readouterr().out
+    assert all(len(line) <= 100 for line in out.splitlines()), max(out.splitlines(), key=len)

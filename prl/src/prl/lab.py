@@ -532,9 +532,8 @@ def init(
     ns[_STATE_KEY] = state
     lab = Lab(ns)
     mode = "WORKED (solutions bound)" if lab.worked else "your code"
-    print(
-        f"{notebook} · prl {__version__} · designed for {designed} · QUICK = {is_quick} ({reason}) · {mode}"
-    )
+    print(f"{notebook} · prl {__version__} · {mode}")
+    print(f"designed for {designed} · QUICK = {is_quick} ({reason})")
     return lab
 
 
