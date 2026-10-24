@@ -9,7 +9,7 @@ Each entry gives our working default, who decides, and when. When an entry is re
 
 **Owners:** user (you), AD (academic director), PE (pedagogy expert), TE (technical expert), UI (UI expert), lead (the main session).
 
-Last updated 2026-10-17 (Phase 3, Day 1: Modules 2 and 3).
+Last updated 2026-10-17 (Phase 3, Day 1: Modules 2 and 3); Module 9 items added 2026-10-24.
 
 **Phase 1 merged without its two human Colab smoke runs** (00-setup on Colab CPU and one
 `DPOTrainer` step on a T4); their records are not filed. Everything due at "Phase 1 exit"
@@ -171,7 +171,7 @@ They stay listed here until you confirm them.
 | B14 | Equations reconstructed from extracted PDF text (Dudík DR Eq. 1; SNIPS Eq. 7; SAC-v2 target entropy; Ouyang Eq. 2's pretraining term; DeepSeekMath symbols) | Re-check against the typeset PDF before quoting | AD | When quoted |
 | B15 | ~~A source for "BC is competitive on expert data"~~ **Resolved:** Kumar, Hong, Singh & Levine 2022, §4.2, Thm 4.3, Practical Observation 4.1. Its venue (ICLR 2022) is still to be confirmed on the proceedings page. | — | AD | Phase 3 (Day 5) |
 | B16 | ~~The probe-environments source~~ **Resolved:** Jones 2021 blog post, "Use probe environments" (5 probes) | — | — | — |
-| B17 | Section numbers in Agarwal et al. 2021 come from arXiv v4, not the camera-ready | Check the camera-ready | AD | Phase 3 (Day 3) |
+| B17 | ~~Section numbers in Agarwal et al. 2021 come from arXiv v4, not the camera-ready~~ **Resolved (2026-10-24, AD, Module 9):** the NeurIPS 2021 proceedings PDF has the same numbers: §4.1 stratified bootstrap CIs (pp. 5–6), §4.2 performance profiles, §4.3 robust aggregate metrics and the IQM (pp. 7–8); recorded in `references.bib` | — | — | — |
 | B51 | Burda et al. 2019 (RND) was read on arXiv v1 (30 Oct 2018); Module 6 cites its §2.1, §2.2 and §2.2.1 by v1's numbers, not the ICLR 2019 camera-ready's | Open the camera-ready (OpenReview was blocked by a bot check on 2026-10-09) | AD | Phase 5 |
 | B52 | Bellemare et al. 2016 was read on arXiv v2 and Osband et al. 2013 on arXiv v5, not the NeurIPS proceedings PDFs; section, equation, figure and table numbers come from those versions. Bellemare et al.'s §4 reports a negative result of Kolter and Ng (2009) on bonuses at most beta/N, which we have not opened; Module 6 attributes it to Bellemare et al.'s report | Compare with the proceedings PDFs; open Kolter and Ng before citing it directly | AD | Phase 5 |
 | B18 | Gymnasium paper title. The arXiv v4 PDF says "A **Standardized** Interface" (opened 2026-10-10, AD); `references.bib` follows the proceedings BibTeX, "A Standard Interface", which was not re-opened. Which title does the bib cite? | Re-open the NeurIPS 2025 proceedings page | AD | Phase 5 |
@@ -196,6 +196,15 @@ They stay listed here until you confirm them.
 | B34 | ~~How often a seat's 20-seed run shows UCB1 × 10's mean going down.~~ **Resolved (2026-10-24):** on 3 of 100 seats (`runs/2026-10-18-local-m04-seats-exp.json`). Checkpoint 5.2 now grades only "same" against "changes" (lead decision 7), so no seat's own run can contradict it. | — | — | — |
 | B35 | Module 4's live compute on Colab is not measured. The worked notebook record took 42.7 s live and 30.4 s QUICK on an Apple M1 Pro under load (`runs/2026-10-18-local-04-bandits-27090ede.json`, `-2.json`, before the second pass). The second pass adds 800,000 steps to Exercise 4 (about 8 s on the same laptop, an estimate). Estimate for Colab: under 3 minutes for the whole notebook, no cell near 3 minutes. | A Colab run of the worked notebook, recorded | TE / user | Before release |
 
+**Module 9 (debugging and evaluation)**
+
+| # | Item | How it gets checked | Owner | When |
+|---|---|---|---|---|
+| B80 | Every Module 9 number from a run is pending a record: the healthy-run answers of Exercise 1, the signal values of runs A–D (Exercises 2–5), the probe values (Exercise 6), the sweep (Exercise 7) and the live seed's band (Exercise 8). The first pass used a scratch DQN close to Module 8's draft configuration (`_notes/m09-ad/`, not a record); the page and the `predict_answer` entries quote only exact arithmetic or say "pending record". | The m09 experiment records and `scripts/make_figures_m09.py` asserting each quoted number | TE | Phase 3 (Day 3, M9) |
+| B81 | Whether each signal separates its run on Module 8's final shared DQN. In the scratch scan (5 seeds each, 50,000 steps): run A's relative TD error was about 3× the healthy one (0.030–0.037 against 0.010), run C's Q drift was in the thousands against at most about 170 for every other run, `gather_check` was 0 except on run B (0.97–0.98), and `target_lag` was 0 except on run D (49,500). A second scratch scan (3 seeds) found that × 100 does not reliably break learning when the base learning rate is 2.5e-4 or 1e-4. | The generator asserts a margin for each signal on every seed (handoff); a failure goes back to the AD | TE / AD | Before the datasets ship |
+| B82 | Agarwal et al. 2021's Figure A.18 (the single-task bootstrap with few runs) was not opened; Module 9 quotes only §4.1's sentence that cites it. | Open the appendix before saying more | AD | Phase 5 |
+| B83 | rliable's archive date (2025-10-15) comes from the Phase 0 entry and was not re-checked; Module 9 says only that the repository is archived. | Re-open the repository page | AD | Phase 5 |
+
 ## C. Decisions still open
 
 | # | Question | Default | Owner | Needed by |
@@ -212,6 +221,10 @@ They stay listed here until you confirm them.
 | C10 | Turn on the repository setting "Allow GitHub Actions to create and approve pull requests" so `health.yml` can open Colab-freeze PRs? It is off today; until then the job pushes the branch, links a compare page in its summary and fails. | Yes | user | Before the first upstream freeze change |
 | C11 | The threshold protocol runs in colab-sim and on arm64, but a check holds one threshold per budget. Which platform sets it? | colab-sim sets it; the arm64 record must show zero solution failures and zero passing mutants at that threshold | TE | Phase 3, Day 1 (M3) |
 | C12 | Where do participants send their Module 0 run record, and who collects it (email, form or shared folder)? Module 0's objective says "submit", but no channel exists; the page and notebook say "keep the file; your instructor will say where to send it". | — | user | Before pre-work is sent out |
+| C36 | Run A is "the reference learning rate × 100". It breaks learning only if the reference rate is large enough: in the scratch scans, × 100 broke learning from 1e-3 on 5 of 5 seeds, but not reliably from 2.5e-4 or 1e-4 (3 seeds each). | Keep × 100 while Module 8's rate is 1e-3 (its draft). If Module 8 lowers it, run A uses a fixed large rate and the page says so | AD / lead | When Module 8's configuration is fixed |
+| C37 | Exercise 8's band: a dedicated 10-seed `m09_reference` band (the sweep's × 1 row at the live budget plus a QUICK record), or Module 8's band of the same configuration. | Dedicated, so the band has 10 seeds and the same seeds as the sweep | TE / lead | Before the bands are exported |
+| C38 | Exercise 8's checkpoint: a threshold check on the return the live cell already computed, or a `StochasticCheck` that trains again (doubling the live compute). | Check the computed value; the threshold comes from the protocol at both budgets | TE | Phase 3 (Day 3, M9) |
+| C39 | The diagnosis checkpoints (2.2–5.2) are multiple choice, and the signal names PLAN gives (`target_lag`, `gather_check`) nearly name the cause. | Keep PLAN's names; the six causes include two distractors (reward scale, an unlucky seed), and each run cell prints the signal for all five runs, so the choice rests on the comparison | PE / AD | Pedagogy review |
 
 ## Resolved
 

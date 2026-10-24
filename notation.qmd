@@ -91,3 +91,10 @@ and note the paper's original symbol here.
 | $\hat N(x)$ | pseudo-count of a state $x$, derived from a density model (Module 6, section 6) | Bellemare et al.'s $\hat N_n(x)$ |
 | $\rho_{\text{dens}}, \rho'_{\text{dens}}$ | a density model's probability of a state before and after seeing it once more (Module 6, reference only) | Bellemare et al.'s $\rho_n, \rho'_n$ (clash with $\rho_t$) |
 | $f, \hat f$ | RND's fixed random target network and its trained predictor (Module 6, section 6) | |
+| $\bar Q_t$, $\bar G_t$ | at log step $t$: the mean over a fixed set of start states of $\max_a Q(s, a; w_t)$, and the mean discounted return $G_0$ of the episodes that ended in the 5,000 steps before $t$; $\bar Q_t - \bar G_t$ is the Q drift (Module 9; `q_drift` in code) | |
+| relative TD error | the mean $\lvert\delta\rvert$ over a log interval's batches divided by the mean over their rows of $\max_a Q(s, a; w)$ (Module 9; `td_error_scale` in code); no symbol | |
+| $z_1, \dots, z_n$; $z_{(i)}$ | one result per seed, and the $i$-th smallest of them (Module 9) | Agarwal et al.'s $x_{1:M,1:N}$ for $N$ runs on $M$ tasks (our $x$ is a context) |
+| $\ell$ | the number of values the IQM drops from each end, $\ell = \lfloor n/4 \rfloor$ (Module 9) | |
+| $\operatorname{IQM}(z)$ | the interquartile mean, $\frac{1}{n - 2\ell}\sum_{i=\ell+1}^{n-\ell} z_{(i)}$: SciPy's `trim_mean(z, 0.25)` (Module 9) | |
+| $z^{(b)}$, $n_{\text{boot}}$ | the $b$-th bootstrap resample ($n$ draws from $z$ with replacement) and the number of resamples (Module 9; `n_boot = 5000` in `prl.evaluate`) | |
+| $\hat Z_i$ | a noisy estimate of configuration $i$'s score, as in a sweep (Module 9, section 6) | |
