@@ -450,43 +450,43 @@ modules:
         title: Frame the recommender
         minutes: 5
         writes: [reward_fn]
-        predict_answer: "The same 1000 users, exactly: the item shown never changes who comes next, so there is no state transition. Not the same clicks: each item has its own click probability (seat 0: 486 clicks for item 0, 464 for item 9)."
+        predict_answer: "About 500 each (seat 0: 486 and 464; runs/2026-10-18-local-m05-seats-exp.json). x is drawn from N(0, I/5), which is symmetric about 0, and the clip is symmetric about 0.5, so in the well-specified regime every item's click probability averaged over users is exactly 0.5. Module 4's bandit would see ten equal means, and no item it could pick earns more than showing items at random. Which item is best depends only on the user (the run cell counts how often each item is best)."
         explain_ref: 'Gotcha: "Every recommender is a contextual bandit."'
       - n: 2
         title: Incremental ridge regression
         minutes: 8
         writes: [Ridge]
-        predict_answer: "0.9 = n/(n + λ) with n = 9, λ = 1: the penalty λI acts like λ extra observations with reward 0 in every direction, and its pull fades as n grows."
+        predict_answer: "0.9 = n/(n + λ_ridge) with n = 9 and λ_ridge = 1: the penalty λ_ridge I acts like λ_ridge extra observations with reward 0 in every direction, and its pull fades as n grows."
         explain_ref: "(Sherman–Morrison)"
       - n: 3
         title: LinUCB
         minutes: 10
         writes: [linucb_scores]
-        predict_answer: "c/√101 ≈ 0.0995c (0.050 at the lab's c = 0.5): for a unit x, xᵀ(I + n x xᵀ)⁻¹x = 1/(1 + n) by Sherman–Morrison. Pace sheet for the Explain: at seat 0, greedy showed four items only at the launch (items 2, 4, 7 and 9, once each)."
+        predict_answer: "Width 1/√101 ≈ 0.0995; bonus c/√101 ≈ 0.050 at c = 0.5: for a unit φ, φᵀ(I + n φφᵀ)⁻¹φ = 1/(1 + n) by Sherman–Morrison. Pace sheet for the Explain: at seat 0, greedy showed four items only at the launch (items 2, 4, 7 and 9, once each; m05-seats)."
         explain_ref: "(width)"
       - n: 4
         title: Linear Thompson sampling
-        minutes: 7
+        minutes: 6
         writes: [lints_sample]
-        predict_answer: "About 1 draw in 44: P(Z > c/v) = P(Z > 2) ≈ 0.0228, whatever the item and the user (seat 0 measured 0.0223 over 20000 draws)."
+        predict_answer: "About 1 draw in 44: P(Z > c/v) = P(Z > 2) ≈ 0.0228, whatever the item and the user (seat 0: 447 of 20000 draws; m05-seats)."
         explain_ref: "(LinTS)"
       - n: 5
-        title: Three regimes, five seeds
-        minutes: 8
+        title: Three regimes and a warm launch
+        minutes: 10
         writes: [verdicts]
-        predict_answer: "LinUCB never loses, and at 5 seeds it often ties. Seat 0 (seeds 1100–1104): LinUCB beats greedy when well-specified and misspecified and ties under drift; LinTS ties in all three. Across seats 0–29, greedy wins no comparison; LinUCB beats it at 18, 25 and 9 of 30 seats (well-specified, misspecified, drifting) and LinTS at 12, 16 and 3; the rest are ties. LinUCB's IQM lead is smaller under drift than when well-specified at 27 of 30 seats."
+        predict_answer: "(1) No: at every seat, both methods' IQM regret is below greedy's in all three regimes (seats 0–29, m05-seats). (2) Smaller under drift, at 27 of 30 seats. (3) It shrinks, and at five seeds the call usually vanishes: the well-specified LinUCB call is a tie at 29 of 30 seats with three passes, against 12 of 30 with one, and the median lead falls from 121.7 to 38.3; at 2 of the 30 seats LinUCB's IQM is even above greedy's, within a tie (runs/2026-10-18-local-m05-launch-exp.json). The tie count varies by seat: with one pass, LinUCB's calls are ties at 12, 5 and 21 of 30 seats (well-specified, misspecified, drifting). Seat 0: LinUCB beats greedy well-specified and misspecified and ties under drift and after the warm launch; LinTS ties in all four."
         explain_ref: 'Gotcha: "Narrow widths mean the model is right."'
       - n: 6
         title: A logging policy with propensities
         minutes: 6
         writes: [log_policy]
-        predict_answer: "0.91 = 1 − ε + ε/K for the best-scoring item and 0.01 = ε/K for each other item; about ε(K − 1)/K = 9% of rows show another item (seat 0: 9.3%)."
+        predict_answer: "About 9%, not 10%: the explore draw can land on the best item too, so ε(K − 1)/K = 0.09 of rows show another item (seat 0: 9.3%; m05-seats). Those rows record ε/K = 0.01; rows that show the best item record 1 − ε + ε/K = 0.91."
         explain_ref: "(importance weight)"
       - n: 7
         title: "Planted bug: the wrong propensity"
         minutes: 5
         writes: [log_suspect]
-        predict_answer: "0.1/0.91 ≈ 0.11 when the best item was shown and 0.1/0.01 = 10 otherwise; the mean must be 1 (0.91 × 0.11 + 0.09 × 10), up to sampling error. The suspect records 0.91 on every row, so every one of its uniform-target weights is 0.11 and so is its mean, on every seat; seat 0's new_policy gives 0.62 against 1.05 on the correct log."
+        predict_answer: "0.1/0.91 ≈ 0.11 on rows that show the best item, about 91% of rows, and 0.1/0.01 = 10 on the rest, about 9%; so the mean is 1 (0.91 × 0.11 + 0.09 × 10), up to sampling error. The suspect records 0.91 on every row, so every one of its uniform-target weights is 0.11 and so is its mean, on every seat; seat 0's new_policy gives 0.62 against 1.05 on the correct log (m05-seats)."
         explain_ref: 'Gotcha: "The propensity is bookkeeping."'
     status: {briefing: draft, lab: draft}
 

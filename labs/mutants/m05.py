@@ -30,7 +30,7 @@ def reward_fn(theta, x, scale):  # noqa: F811
 
 
 # ------------------------------------------------------------------ 2 Ridge
-@mutant(ex=2, replaces="Ridge", id="b-without-reward", why="adds x to b, not r x")
+@mutant(ex=2, replaces="Ridge", id="b-without-reward", why="adds phi to b, not r phi")
 class Ridge:
     def __init__(self, d, lam=1.0):
         self.A = lam * np.eye(d)
@@ -38,15 +38,15 @@ class Ridge:
         self.b = np.zeros(d)
         self.n = 0
 
-    def update(self, x, r):
-        self.A += np.outer(x, x)
-        self.b += x
-        Ax = self.A_inv @ x
-        self.A_inv -= np.outer(Ax, Ax) / (1.0 + x @ Ax)
+    def update(self, phi, r):
+        self.A += np.outer(phi, phi)
+        self.b += phi
+        Ap = self.A_inv @ phi
+        self.A_inv -= np.outer(Ap, Ap) / (1.0 + phi @ Ap)
         self.n += 1
 
-    def predict(self, x):
-        return float(self.A_inv @ self.b @ x)
+    def predict(self, phi):
+        return float(self.A_inv @ self.b @ phi)
 
 
 @mutant(ex=2, replaces="Ridge", id="sm-sign", why="adds the Sherman-Morrison term")
@@ -57,18 +57,18 @@ class Ridge:  # noqa: F811
         self.b = np.zeros(d)
         self.n = 0
 
-    def update(self, x, r):
-        self.A += np.outer(x, x)
-        self.b += r * x
-        Ax = self.A_inv @ x
-        self.A_inv += np.outer(Ax, Ax) / (1.0 + x @ Ax)
+    def update(self, phi, r):
+        self.A += np.outer(phi, phi)
+        self.b += r * phi
+        Ap = self.A_inv @ phi
+        self.A_inv += np.outer(Ap, Ap) / (1.0 + phi @ Ap)
         self.n += 1
 
-    def predict(self, x):
-        return float(self.A_inv @ self.b @ x)
+    def predict(self, phi):
+        return float(self.A_inv @ self.b @ phi)
 
 
-@mutant(ex=2, replaces="Ridge", id="sm-no-one", why="drops the 1 in 1 + x^T A^-1 x")
+@mutant(ex=2, replaces="Ridge", id="sm-no-one", why="drops the 1 in 1 + phi^T A^-1 phi")
 class Ridge:  # noqa: F811
     def __init__(self, d, lam=1.0):
         self.A = lam * np.eye(d)
@@ -76,15 +76,15 @@ class Ridge:  # noqa: F811
         self.b = np.zeros(d)
         self.n = 0
 
-    def update(self, x, r):
-        self.A += np.outer(x, x)
-        self.b += r * x
-        Ax = self.A_inv @ x
-        self.A_inv -= np.outer(Ax, Ax) / (x @ Ax)
+    def update(self, phi, r):
+        self.A += np.outer(phi, phi)
+        self.b += r * phi
+        Ap = self.A_inv @ phi
+        self.A_inv -= np.outer(Ap, Ap) / (phi @ Ap)
         self.n += 1
 
-    def predict(self, x):
-        return float(self.A_inv @ self.b @ x)
+    def predict(self, phi):
+        return float(self.A_inv @ self.b @ phi)
 
 
 @mutant(ex=2, replaces="Ridge", id="stale-inverse", why="updates A and b but never A_inv")
@@ -95,13 +95,13 @@ class Ridge:  # noqa: F811
         self.b = np.zeros(d)
         self.n = 0
 
-    def update(self, x, r):
-        self.A += np.outer(x, x)
-        self.b += r * x
+    def update(self, phi, r):
+        self.A += np.outer(phi, phi)
+        self.b += r * phi
         self.n += 1
 
-    def predict(self, x):
-        return float(self.A_inv @ self.b @ x)
+    def predict(self, phi):
+        return float(self.A_inv @ self.b @ phi)
 
 
 @mutant(ex=2, replaces="Ridge", id="predict-with-A", why="multiplies b by A, not A^-1")
@@ -112,67 +112,67 @@ class Ridge:  # noqa: F811
         self.b = np.zeros(d)
         self.n = 0
 
-    def update(self, x, r):
-        self.A += np.outer(x, x)
-        self.b += r * x
-        Ax = self.A_inv @ x
-        self.A_inv -= np.outer(Ax, Ax) / (1.0 + x @ Ax)
+    def update(self, phi, r):
+        self.A += np.outer(phi, phi)
+        self.b += r * phi
+        Ap = self.A_inv @ phi
+        self.A_inv -= np.outer(Ap, Ap) / (1.0 + phi @ Ap)
         self.n += 1
 
-    def predict(self, x):
-        return float(self.A @ self.b @ x)
+    def predict(self, phi):
+        return float(self.A @ self.b @ phi)
 
 
 # ------------------------------------------------------------------ 3 linucb_scores
-@mutant(ex=3, replaces="linucb_scores", id="no-sqrt", why="adds c x^T A^-1 x, a variance")
-def linucb_scores(models, x, c):
-    means = np.array([m.predict(x) for m in models])
-    widths = np.array([x @ m.A_inv @ x for m in models])
+@mutant(ex=3, replaces="linucb_scores", id="no-sqrt", why="adds c phi^T A^-1 phi, a variance")
+def linucb_scores(models, phi, c):
+    means = np.array([m.predict(phi) for m in models])
+    widths = np.array([phi @ m.A_inv @ phi for m in models])
     return means + c * widths
 
 
 @mutant(ex=3, replaces="linucb_scores", id="A-not-inverse", why="uses A where A^-1 belongs")
-def linucb_scores(models, x, c):  # noqa: F811
-    means = np.array([m.predict(x) for m in models])
-    widths = np.array([np.sqrt(x @ m.A @ x) for m in models])
+def linucb_scores(models, phi, c):  # noqa: F811
+    means = np.array([m.predict(phi) for m in models])
+    widths = np.array([np.sqrt(phi @ m.A @ phi) for m in models])
     return means + c * widths
 
 
 @mutant(ex=3, replaces="linucb_scores", id="width-only", why="returns the bonus alone")
-def linucb_scores(models, x, c):  # noqa: F811
-    return c * np.array([np.sqrt(x @ m.A_inv @ x) for m in models])
+def linucb_scores(models, phi, c):  # noqa: F811
+    return c * np.array([np.sqrt(phi @ m.A_inv @ phi) for m in models])
 
 
-@mutant(ex=3, replaces="linucb_scores", id="c-inside-sqrt", why="takes sqrt(c x^T A^-1 x)")
-def linucb_scores(models, x, c):  # noqa: F811
-    means = np.array([m.predict(x) for m in models])
-    return means + np.array([np.sqrt(c * x @ m.A_inv @ x) for m in models])
+@mutant(ex=3, replaces="linucb_scores", id="c-inside-sqrt", why="takes sqrt(c phi^T A^-1 phi)")
+def linucb_scores(models, phi, c):  # noqa: F811
+    means = np.array([m.predict(phi) for m in models])
+    return means + np.array([np.sqrt(c * phi @ m.A_inv @ phi) for m in models])
 
 
 # ------------------------------------------------------------------ 4 lints_sample
-@mutant(ex=4, replaces="lints_sample", id="returns-mean", why="returns theta_hat: greedy")
+@mutant(ex=4, replaces="lints_sample", id="returns-mean", why="returns w_hat: greedy")
 def lints_sample(model, v, rng):
     return model.A_inv @ model.b
 
 
 @mutant(ex=4, replaces="lints_sample", id="sqrt-v", why="scales by sqrt(v), covariance v A^-1")
 def lints_sample(model, v, rng):  # noqa: F811
-    theta_hat = model.A_inv @ model.b
+    w_hat = model.A_inv @ model.b
     L = np.linalg.cholesky(model.A_inv)
-    return theta_hat + np.sqrt(v) * L @ rng.standard_normal(len(theta_hat))
+    return w_hat + np.sqrt(v) * L @ rng.standard_normal(len(w_hat))
 
 
 @mutant(ex=4, replaces="lints_sample", id="A-not-inverse", why="factors A, not A^-1")
 def lints_sample(model, v, rng):  # noqa: F811
-    theta_hat = model.A_inv @ model.b
+    w_hat = model.A_inv @ model.b
     L = np.linalg.cholesky(model.A)
-    return theta_hat + v * L @ rng.standard_normal(len(theta_hat))
+    return w_hat + v * L @ rng.standard_normal(len(w_hat))
 
 
 @mutant(ex=4, replaces="lints_sample", id="isotropic", why="ignores A^-1: covariance v^2 I")
 def lints_sample(model, v, rng):  # noqa: F811
-    theta_hat = model.A_inv @ model.b
-    return theta_hat + v * rng.standard_normal(len(theta_hat))
+    w_hat = model.A_inv @ model.b
+    return w_hat + v * rng.standard_normal(len(w_hat))
 
 
 @mutant(
@@ -186,10 +186,10 @@ def lints_sample(model, v, rng):  # noqa: F811
 
 @mutant(ex=4, replaces="lints_sample", id="own-rng", why="ignores rng: the same draw every call")
 def lints_sample(model, v, rng):  # noqa: F811
-    theta_hat = model.A_inv @ model.b
+    w_hat = model.A_inv @ model.b
     L = np.linalg.cholesky(model.A_inv)
-    z = np.random.default_rng(0).standard_normal(len(theta_hat))
-    return theta_hat + v * L @ z
+    z = np.random.default_rng(0).standard_normal(len(w_hat))
+    return w_hat + v * L @ z
 
 
 # ------------------------------------------------------------------ 5 verdicts
