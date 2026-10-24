@@ -74,7 +74,7 @@ def run_bandit(policy, stack, r_mean, seed):
 
 ## 2. Why greedy fails
 
-**In this section:** see how the simplest learner can lose the best arm for good, and what a constant $\varepsilon$ buys back.
+**In this section:** see how often the simplest learner loses the best arm, and what a constant $\varepsilon$ buys back.
 
 *Greedy* pulls each arm once, then in every round the arm with the best mean so far, $\hat r_t(a)$: the sum of arm $a$'s rewards divided by $N_t(a)$, its pulls in rounds $0, \dots, t-1$. Ties go to the lowest arm. Greedy never pulls an arm to learn about it; it pulls only what looks best now [@russo2018tutorial, §2].
 
@@ -82,7 +82,7 @@ def run_bandit(policy, stack, r_mean, seed):
 **Predict (3 min).** Greedy on the lab's headlines, with rates 0.4, 0.3 and 0.5, shows them in that order in rounds 0, 1 and 2. In what fraction of runs does it never show headline 2 again after round 2? What does its regret curve look like in those runs? Write a number and one sentence of reason before opening the answer.
 
 ::: {.callout-tip collapse="true" title="Answer"}
-At least half. Headline 2's first showing gets no click with probability $1 - 0.5 = 0.5$, and then its mean is exactly 0. A headline that has been clicked once has a mean above 0, and its mean stays above 0, since an average of 0s and 1s that contains a 1 never returns to 0. So headline 2 is never the best mean again. If neither other headline has a click yet, all three means are 0, the tie goes to headline 0, and headline 0 is shown until it is clicked. Either way headline 2 is never shown again. In those runs every round adds the gap of the headline greedy shows instead: a straight line, linear regret. A run whose first showing of headline 2 is clicked can still lose it later, so "at least half" is not "exactly half". Russo et al. describe the same trap with three arms whose rates are 0.9, 0.8 and 0.7 [@russo2018tutorial, §3, p. 16].
+Half. Headline 2's first showing gets no click with probability $1 - 0.5 = 0.5$, and then its mean is exactly 0. A headline that has been clicked once has a mean above 0, and its mean stays above 0, since an average of 0s and 1s that contains a 1 never returns to 0. So headline 2 is never the best mean again. If neither other headline has a click yet, all three means are 0, the tie goes to headline 0, and headline 0 is shown until it is clicked. Either way headline 2 is never shown again. In those runs every round adds the gap of the headline greedy shows instead: a straight line, linear regret. If the first showing is clicked, headline 2's mean is 1, and it is shown again as soon as the headline ahead of it misses once, which in 5000 rounds is all but certain. It can still be left behind later, so more than half of all runs end without headline 2; Exercise 1 counts them. Russo et al. describe the same trap with three arms whose rates are 0.9, 0.8 and 0.7 [@russo2018tutorial, §3, p. 16].
 :::
 :::
 
@@ -145,7 +145,7 @@ The proof bounds each worse arm's expected pulls by $8 \ln T / \Delta_a^2$ plus 
 **What it does not say.** It bounds the expected regret, not the regret of one run. It says how the regret grows with $T$, not which method has less regret at a given $T$. It is an upper bound: how close the actual regret comes to it, the theorem does not say. And it holds for rewards in $[0, 1]$, the range the bonus was solved for.
 
 ::: {#chk-ucb .self-check}
-**Check yourself 3.1.** At $t = 100$, headline 0 has been shown 90 times with 54 clicks, headline 1 9 times with 4 clicks, and headline 2 once, with no click. Compute the three UCB1 indices. Which headline does UCB1 show next, and which would greedy show? By @eq-hoeffding, what is the probability that headline 0's true rate lies above its index?
+**Check yourself 3.1.** At ${t = 100}$ (so $2 \ln t \approx 9.21$), headline 0 has been shown 90 times with 54 clicks, headline 1 9 times with 4 clicks, and headline 2 once, with no click. Compute the three UCB1 indices. Which headline does UCB1 show next, and which would greedy show? By @eq-hoeffding, what is the probability that headline 0's true rate lies above its index?
 
 ::: {.callout-tip collapse="true" title="Answer to 3.1"}
 $2 \ln 100 = 9.210$. Headline 0: $54/90 = 0.6$ plus $\sqrt{9.210/90} = 0.320$, index 0.920. Headline 1: $4/9 = 0.444$ plus $\sqrt{9.210/9} = 1.012$, index 1.456. Headline 2: $0$ plus $\sqrt{9.210} = 3.035$, index 3.035. UCB1 shows headline 2: one showing tells it almost nothing, and its bonus says so. Greedy shows headline 0, the best mean, and would never show headline 2 again. The bonus was solved from $e^{-2N\eta^2} = t^{-4}$, so the probability that headline 0's rate lies above its index is at most $100^{-4} = 10^{-8}$.
@@ -171,7 +171,7 @@ def ucb1_index(counts, sums, t):
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 2** is `ucb1_index(counts, sums, t)`: @eq-ucb1 for every arm at once, with $+\infty$ for an arm never pulled. A provided `ucb1` pulls the first arm with the largest index. Checkpoint 2.1 is exact on fixed counts and sums. UCB1 uses no randomness of its own, so on a fixed reward stack its run is fixed: checkpoint 2.2 replays a recorded run round by round and requires your index to pick the same arm every time, which gives the same final counts. **Exercise 6** is the planted bug: a colleague's UCB1, written as an object that keeps its own counts.
+**In the lab.** **Exercise 2** is `ucb1_index(counts, sums, t)`: @eq-ucb1 for every arm at once, with $+\infty$ for an arm never pulled. A provided `ucb1` pulls the first arm with the largest index. Checkpoint 2.1 is exact on fixed counts and sums. UCB1 uses no randomness of its own, so on a fixed reward stack its run is fixed: checkpoint 2.2 replays a recorded run round by round and requires your index to pick the same arm every time, which gives the same final counts. **Exercise 6** is the planted bug: a colleague's UCB1, written as an object.
 :::
 
 ## 4. Thompson sampling from Bayes' rule
@@ -232,11 +232,13 @@ def thompson_step(counts, sums, t, rng):
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 3** is `beta_posterior(counts, sums)`, @eq-beta-posterior for every arm, and `thompson_step(counts, sums, t, rng)`, @eq-thompson. Checkpoint 3.1 is exact on fixed counts. Checkpoint 3.2 calls your `thompson_step` many times on fixed posteriors with a fixed seed and requires each arm's share of the choices to be close to its exact probability of being the best, so a version that plays the posterior mean fails it. Checkpoint 3.3 runs your method on its own seed and requires the regret to fall below a threshold set by the threshold protocol: many seeds of the reference solution and of wrong versions, with a stated gap between them. **Exercise 4** then compares the three methods over 20 seeds with the tie rule, which you write as `verdict`.
+**In the lab.** **Exercise 3** is `beta_posterior(counts, sums)`, @eq-beta-posterior for every arm, and `thompson_step(counts, sums, t, rng)`, @eq-thompson. Checkpoint 3.1 is exact on fixed counts. Checkpoint 3.2 calls your `thompson_step` many times on fixed posteriors with a fixed seed and requires each arm's share of the choices to be close to its exact probability of being the best, so a version that plays the posterior mean fails it. Checkpoint 3.3 runs your method on its own seed and requires the regret to fall below a threshold set by the threshold protocol: many seeds of the reference solution and of wrong versions, with a stated gap between them. **Exercise 4** then compares the three methods over 20 seeds with the tie rule, which you write as `verdict`, after 1000, 5000 and 20 000 rounds. Labs 5 and 6 call `prl.evaluate.compare`, which applies the same rule.
 :::
 
 ::: {.callout-note collapse="true" title="After the lab: three methods on seeds 0 to 19"}
-![**What to notice:** at 5000 rounds, the lab's horizon, Thompson sampling has the lowest regret, ε-greedy with ε = 0.1 the next, and UCB1 the highest: IQM 23.1 [19.4, 26.8], 60.4 [53.6, 78.3] and 113.8 [105.9, 120.0], every pair decided by the tie rule. ε-greedy's curve keeps rising at a steady slope while UCB1's flattens, and by 20 000 rounds UCB1 is below it, 184.8 [169.8, 197.4] against 211.3 [203.1, 228.8]: a logarithmic bound is a statement about growth, not about a given horizon. At 1000 rounds, Thompson sampling and ε-greedy are a tie. Greedy's IQM at 5000 rounds is 300.4, and 11 of the 20 seeds left headline 2 behind. Pseudo-regret against rounds, on a log scale, for greedy, ε-greedy with ε = 0.1, UCB1 and Thompson sampling on the lab's headlines; IQM of 20 seeds (0 to 19) with a 95% bootstrap band; the intervals in brackets are 95% bootstrap intervals of the IQM (`runs/2026-10-18-local-m04-regret-curves-exp.json`).](/images/04-regret-curves.svg){#fig-regret-curves fig-alt="Four curves of pseudo-regret against rounds from 1 to 20,000 on a log scale, each with a shaded band. Greedy's band is very wide and rises steeply. Epsilon-greedy's curve rises steadily. UCB1's curve starts above epsilon-greedy's and flattens, crossing below it near the right end. Thompson sampling's curve is the lowest throughout and nearly flat after the first few hundred rounds."}
+![**What to notice:** at 5000 rounds, the lab's horizon, Thompson sampling has the lowest regret, ε-greedy with ε = 0.1 the next, and UCB1 the highest. ε-greedy's curve keeps rising at a steady slope while UCB1's flattens, and by 20 000 rounds UCB1 is below it. Pseudo-regret against rounds, on a log scale, for greedy, ε-greedy with ε = 0.1, UCB1 and Thompson sampling on the lab's headlines; IQM of 20 seeds (0 to 19) with a 95% bootstrap band (`runs/2026-10-18-local-m04-regret-curves-exp.json`).](/images/04-regret-curves.svg){#fig-regret-curves fig-alt="Four curves of pseudo-regret against rounds from 1 to 20,000 on a log scale, each with a shaded band. Greedy's band is very wide and rises steeply. Epsilon-greedy's curve rises steadily. UCB1's curve starts above epsilon-greedy's and flattens, crossing below it near the right end. Thompson sampling's curve is the lowest from a few hundred rounds on, and nearly flat after that."}
+
+At 5000 rounds the IQMs are 23.1 [19.4, 26.8] for Thompson sampling, 60.4 [53.6, 78.3] for ε-greedy and 113.8 [105.9, 120.0] for UCB1, each pair decided by the tie rule; at 20 000 rounds UCB1's is 184.8 [169.8, 197.4] against ε-greedy's 211.3 [203.1, 228.8]. The brackets are 95% bootstrap intervals of the IQM. A logarithmic bound is a statement about growth, not about a given horizon. At 1000 rounds Thompson sampling and ε-greedy are a tie. Greedy's IQM at 5000 rounds is 300.4, and 11 of the 20 seeds left headline 2 behind. The lab's own runs on 100 seats of 20 seeds each tell the same story: at 5000 rounds Thompson sampling is lower than both others on every seat, and ε-greedy is lower than UCB1 on 92 seats, a tie on 8; at 20 000 rounds UCB1 is lower on 82 seats, a tie on 18, and ε-greedy is never lower (`runs/2026-10-18-local-m04-seats-exp.json`).
 :::
 
 ## 5. Scale and $\varepsilon$
@@ -249,7 +251,7 @@ $$
 \hat r_t(a) + B \sqrt{\frac{2 \ln t}{N_t(a)}} .
 $$ {#eq-scaled-bonus}
 
-UCB1 has $B = 1$ written into it: no parameter to tune, but an assumption about the reward's units. Lattimore and Szepesvári say of all their algorithms of this kind that they "rely on the knowledge of σ", the scale of the noise [@lattimore2020bandit, Chapter 6 introduction, p. 91]. Multiply every reward by 10, and every rate, sample mean and gap is multiplied by 10; the bonus of @eq-ucb1 is not.
+UCB1 has $B = 1$ written into it: no parameter to tune, but an assumption about the reward's units. Lattimore and Szepesvári say of all their algorithms of this kind that they "rely on the knowledge of σ", the scale of the noise [@lattimore2020bandit, Chapter 6 introduction, p. 91].
 
 **$\varepsilon$-greedy has no units.** Its $\varepsilon$ is a probability, and its choice compares sample means only with each other. Thompson sampling's update, @eq-beta-posterior, is defined for rewards in $\{0, 1\}$ only.
 
@@ -262,19 +264,29 @@ $$ {#eq-eps-floor}
 with $|\mathcal{A}|$ the number of arms. The floor never shrinks, so the regret grows linearly in $T$. A smaller $\varepsilon$ lowers it and brings back section 2's trap: with few random pulls, escaping a wrong greedy choice takes many rounds.
 
 ::: {#chk-eps .self-check}
-**Check yourself 5.1.** With the lab's gaps $(0.1, 0.2, 0)$, what is the floor of @eq-eps-floor per round at $\varepsilon = 0.1$, and over 5000 rounds? At $\varepsilon = 0.01$ and at $\varepsilon = 0.5$? Why might $\varepsilon = 0.01$ still end with more regret than $\varepsilon = 0.1$?
+**Check yourself 5.1.** With the lab's gaps $(0.1, 0.2, 0)$, what is the floor of @eq-eps-floor per round at $\varepsilon = 0.1$, and over 5000 rounds? At $\varepsilon = 0.01$? Why might $\varepsilon = 0.01$ still end with more regret than $\varepsilon = 0.1$?
 
 ::: {.callout-tip collapse="true" title="Answer to 5.1"}
-$\sum_a \Delta_a = 0.3$ and $|\mathcal{A}| = 3$, so the floor is $0.1 \cdot 0.3 / 3 = 0.01$ per round, 50 over 5000 rounds. At $\varepsilon = 0.01$: 0.001 per round, 5 over 5000 rounds. At $\varepsilon = 0.5$: 0.05 per round, 250. The floor counts only the random pulls. With $\varepsilon = 0.01$ a run that starts in greedy's trap (section 2) pulls headline 2 at random only about once every 300 rounds, so it can stay on a worse headline for hundreds or thousands of rounds, paying its gap in each. That cost is not in the floor.
+$\sum_a \Delta_a = 0.3$ and $|\mathcal{A}| = 3$, so the floor is $0.1 \cdot 0.3 / 3 = 0.01$ per round, 50 over 5000 rounds. At $\varepsilon = 0.01$: 0.001 per round, 5 over 5000 rounds. The floor counts only the random pulls. With $\varepsilon = 0.01$ a run that starts in greedy's trap (section 2) pulls headline 2 at random only about once every 300 rounds, so it can stay on a worse headline for hundreds or thousands of rounds, paying its gap in each. That cost is not in the floor.
 :::
+:::
+
+::: {.callout-note collapse="true" title="Code: ucb1_for_range (open after Lab 4)"}
+```python
+def ucb1_for_range(counts, sums, t, B):
+    """UCB1 on rewards in [0, B]: rescale, index, scale back."""
+    return B * ucb1_index(counts, sums / B, t)  # (scaled bonus)
+```
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 5** multiplies every reward by 10 and reruns $\varepsilon$-greedy, UCB1 with its bonus unchanged, and UCB1 with @eq-scaled-bonus at $B = 10$, all on your 20 seeds and reported in the original units. Before the run you write your predictions in `scale_directions()`: for each method, does the mean regret go up, go down, or stay the same on every seed? The checkpoint compares them with the directions the reference run gives. The cell then tries Thompson sampling on the scaled rewards and sweeps $\varepsilon$ over 0, 0.01, 0.05, 0.1, 0.2 and 0.5.
+**In the lab.** **Exercise 5** multiplies every reward by 10. You write `ucb1_for_range(counts, sums, t, B)`, @eq-scaled-bonus on top of your `ucb1_index`, and, before the run, your predictions in `scale_directions()`: for each method, will it pull the same arms on every seed, or will its choices change? Checkpoint 5.1 is exact on fixed counts; checkpoint 5.2 grades only "same" against "changes". The provided cell reruns $\varepsilon$-greedy, UCB1 with its bonus unchanged, and UCB1 with your `ucb1_for_range` at $B = 10$ on your 20 seeds, reports them in the original units, tries Thompson sampling on the scaled rewards, and sweeps $\varepsilon$ over 0, 0.01, 0.05, 0.1, 0.2 and 0.5.
 :::
 
 ::: {.callout-note collapse="true" title="After the lab: rewards × 10, seed by seed"}
-![**What to notice:** ε-greedy's regret is the same on all 20 seeds: multiplying every mean by 10 changes no comparison, and the coin flips are the same, so it pulls the same arms. UCB1 with its bonus unchanged splits in two. On 13 seeds its regret falls, to between 0.3 and 31.9, because the bonus, now small next to the gaps, no longer forces it to pull the worse headlines; on the other 7 it rises, to between 342.2 and 999.4, because, now nearly greedy, it falls into section 2's trap and stays for hundreds or thousands of rounds. The mean rises from 112.2 to 195.1 while the IQM falls from 113.8 to 90.1, and the tie rule calls the two a tie: one summary number hides a distribution with two humps. UCB1 with the bonus × 10 pulls the same arms as UCB1 on the original rewards. Pseudo-regret at 5000 rounds in the original units, every seed (0 to 19), with rewards × 1 and × 10 (`runs/2026-10-18-local-m04-scale-exp.json`).](/images/04-scale.svg){#fig-scale fig-alt="A dot plot with four columns: UCB1 with rewards times 1, UCB1 times 10, epsilon-greedy times 1 and epsilon-greedy times 10. UCB1 times 1 has 20 dots between about 80 and 140. UCB1 times 10 has 13 dots near zero and 7 dots between about 340 and 1000. The two epsilon-greedy columns are identical, with dots between about 45 and 120."}
+![**What to notice:** ε-greedy's regret is the same on all 20 seeds, while UCB1 with its bonus unchanged splits in two: on 13 seeds its regret falls, to between 0.3 and 31.9, and on the other 7 it rises, to between 342.2 and 999.4. The mean rises from 112.2 to 195.1 while the IQM falls from 113.8 to 90.1, and the tie rule calls the two a tie. Pseudo-regret at 5000 rounds in the original units, every seed (0 to 19), with rewards × 1 and × 10 (`runs/2026-10-18-local-m04-scale-exp.json`).](/images/04-scale.svg){#fig-scale fig-alt="A dot plot with four columns: UCB1 with rewards times 1, UCB1 times 10, epsilon-greedy times 1 and epsilon-greedy times 10. UCB1 times 1 has 20 dots between about 80 and 140. UCB1 times 10 has 13 dots near zero and 7 dots between about 340 and 1000. The two epsilon-greedy columns are identical, with dots between about 45 and 120."}
+
+Multiplying every mean by 10 changes no comparison between them, and the coin flips are the same, so ε-greedy pulls the same arms. UCB1's bonus, now small next to the gaps, no longer forces it to pull the worse headlines: on most seeds that saves regret, and on the others, nearly greedy, it falls into section 2's trap and stays for hundreds or thousands of rounds. One summary number hides a distribution with two humps. UCB1 with `ucb1_for_range` at $B = 10$ pulls the same arms as UCB1 on the original rewards. On 100 seats of 20 seeds each, UCB1's mean with the same bonus rises on 97 seats and falls on 3, its IQM falls on 41, the tie rule calls a tie on 96, and 1174 of the 2000 seeds improve; ε-greedy and UCB1 with `ucb1_for_range` pull identical arms on all 2000 (`runs/2026-10-18-local-m04-seats-exp.json`).
 :::
 
 ## 6. Bridge to context
@@ -306,12 +318,13 @@ $\sum_a \Delta_a = 0.3$ and $|\mathcal{A}| = 3$, so the floor is $0.1 \cdot 0.3 
 | The UCB1 index (@eq-ucb1); its regret bound (@eq-ucb1-bound) | Exercise 2: `ucb1_index`; Exercise 6: fix `UCB1Suspect` | (UCB1) |
 | The Beta posterior (@eq-beta-posterior) | Exercise 3: `beta_posterior` | (Beta posterior) |
 | Thompson sampling (@eq-thompson) | Exercise 3: `thompson_step` | (Thompson sampling) |
-| The scaled bonus (@eq-scaled-bonus) | Exercise 5: the provided `ucb1_scaled` | (scaled bonus) |
+| The scaled bonus (@eq-scaled-bonus) | Exercise 5: `ucb1_for_range` | (scaled bonus) |
 
 ## Gotchas and troubleshooting
 
 - **"ε = 0.1 is a safe default."** A constant $\varepsilon$ pays at least $\frac{\varepsilon}{|\mathcal{A}|}\sum_a \Delta_a$ in every round, forever (@eq-eps-floor): its regret grows linearly in $T$. Whether that is a good trade depends on the horizon, the gaps and the number of arms, and no single $\varepsilon$ is right for all of them; Exercise 5's sweep shows the cost at both ends.
 - **"UCB has no parameters."** UCB1 has no knob, but it has an assumption: rewards in $[0, 1]$. Its bonus is in reward units (@eq-scaled-bonus), so the same code on rewards in another range explores by a different amount. Exercise 5 measures what changes. Rescale the rewards to $[0, 1]$, or scale the bonus by the range.
+- **"UCB1 has a logarithmic regret bound, so it beats ε-greedy."** The bound says how UCB1's expected regret grows with $T$, not which method is lower at the horizon you run. That depends on the gaps, the constants and $T$: a constant $\varepsilon$ pays its floor (@eq-eps-floor) forever, while UCB1 pays more early to make sure of every arm. A verdict holds for its budget. State the rounds and seeds, and check a second horizon before you generalize.
 - **"One seed is enough to compare."** One run is one sample of a random regret. A method can look best on one seed and worst on another: greedy has almost no regret on the seeds where it keeps the best arm. Compare over seeds with the tie rule, call overlapping intervals a tie, and state the budget: rounds, seeds and hardware.
 - **"Thompson sampling samples rewards."** It samples a plausible *rate* for every arm from its posterior, then pulls the largest. Sampling a 0/1 outcome instead makes most draws ties and throws away the posterior's width [@russo2018tutorial, p. 14]. Checkpoint 3.2 catches this.
 - **"My regret curve is flat, so the method has found the best arm."** On one seed, greedy's curve is flat whenever it happens to keep the best arm. Look at the pulls per arm over several seeds, and at the bonus: in a healthy UCB1 every worse arm keeps being pulled, a number of times that grows slowly with $t$, and the bonus differs between arms and shrinks with each arm's count.
