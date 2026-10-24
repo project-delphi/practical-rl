@@ -57,7 +57,11 @@
                becomes greedy in the limit (e.g. epsilon = 1/t); s6.5, Q-learning converges w.p. 1 to q* if all pairs keep being updated,
                under a variant of the usual step-size conditions;
                the s6.1 text places TD(lambda) in Chapter 12; the Chapter 6 bibliographical notes (book p. 139): Sarsa introduced by
-               Rummery and Niranjan (1994) as Modified Connectionist Q-learning, the name Sarsa introduced by Sutton (1996).}
+               Rummery and Niranjan (1994) as Modified Connectionist Q-learning, the name Sarsa introduced by Sutton (1996).
+               Also opened (academic director, Module 5, 2026-10-17, RLbook2020.pdf): s2.9 Associative Search (Contextual Bandits) (book p. 41): such tasks
+               'are often now called contextual bandits'; they are intermediate between the k-armed bandit and the full problem; 'each action affects only
+               the immediate reward. If actions are allowed to affect the next situation as well as the reward, then we have the full reinforcement
+               learning problem.' Module 5 cites s2.9.}
 }
 
 @book{lattimore2020bandit,
@@ -71,7 +75,17 @@
   annote    = {Verified 2026-10-09. Opened the free PDF and the DOI record. Cite by chapter or theorem, because PDF page numbers differ from print.
                Concentration Ch. 5 (s5.3; Thm 5.3 subgaussian tail; Cor 5.5 sample mean; Hoeffding's lemma is Exercise 5.11);
                ETC Ch. 6; UCB Ch. 7 (s7.1); contextual Ch. 18; stochastic linear bandits Ch. 19 (LinUCB s19.2, Eqs. 19.7, 19.13; Thm 19.2);
-               least-squares confidence Ch. 20 (Thms 20.4, 20.5); Thompson sampling Ch. 36 (s36.1, s36.3).}
+               least-squares confidence Ch. 20 (Thms 20.4, 20.5); Thompson sampling Ch. 36 (s36.1, s36.3).
+               Also opened (academic director, Module 5, 2026-10-17, book.pdf from the URL above, 597 PDF pages, text extracted with pypdf; book page numbers):
+               s19.2 (pp. 240-242): the stochastic linear bandit and its random pseudo-regret; regularized least squares, Eq. 19.4, its solution, Eq. 19.5,
+               V_0 = lambda I and V_t, Eq. 19.6; 'Choosing lambda > 0 helps because it ensures that the loss function has a unique minimiser even when
+               A_1, ..., A_t do not span R^d'; the ellipsoid ||theta - theta_hat_{t-1}||^2_{V_{t-1}} <= beta_t, Eq. 19.7. s19.3 (pp. 243-245): Assumption 19.1,
+               Theorem 19.2, Eq. 19.8, Corollary 19.3 (R_n <= C d sqrt(n) log(nL)), and Eq. 19.13, the action argmax <theta_hat, a> + sqrt(beta_t) ||a||_{V^-1}.
+               Ch. 20 opening (pp. 254-256): confidence sets for bandit data are 'a surprisingly delicate matter'; with lambda = 0, independent 1-subgaussian
+               noise and a fixed design, Eq. 20.2, P(<theta_hat - theta*, x> >= sqrt(2 ||x||^2_{V^-1} log(1/delta))) <= delta; 'this analysis only works because
+               V_t was assumed to be deterministic'. s20.1 (pp. 256-260): conditionally 1-subgaussian noise, Eq. 20.4, lambda > 0; Theorem 20.4; Theorem 20.5
+               (p. 260), ||theta_hat_t - theta*||_{V_t(lambda)} < sqrt(lambda) ||theta*||_2 + sqrt(2 log(1/delta) + log(det V_t(lambda) / lambda^d)) for all t
+               with probability at least 1 - delta, and the set C_t with m_2. Module 5 cites s19.2, s19.3, Ch. 20 and s20.1.}
 }
 
 @misc{agarwal2022rltheory,
@@ -196,7 +210,18 @@
   year      = {2010},
   doi       = {10.1145/1772690.1772758},
   annote    = {Verified 2026-10-09 via the DOI record and arXiv 1003.0146. Cite: Algorithm 1 = LinUCB with disjoint linear models (s3);
-               Algorithm 2 = hybrid (s3.2); offline replay evaluation s4, Algorithm 3, Thm 1 (unbiased under a uniformly random logging policy).}
+               Algorithm 2 = hybrid (s3.2); offline replay evaluation s4, Algorithm 3, Thm 1 (unbiased under a uniformly random logging policy).
+               Also opened (academic director, Module 5, 2026-10-17): arXiv 1003.0146v2 (1 Mar 2012), text extracted with pypdf. s2.1: the contextual-bandit
+               protocol; 'no feedback ... is observed for unchosen arms'; Eq. 1, the T-trial regret. s3.1: the disjoint model, Eq. 2 ('the parameters are not
+               shared among different arms'); ridge, Eq. 3, (D_a^T D_a + I_d)^-1 D_a^T c_a, so lambda = 1; Eq. 4, the confidence bound with alpha = 1 +
+               sqrt(ln(2/delta)/2), stated with 'it can be shown [27]' (not opened) when the responses are independent given the design rows; Eq. 5, the
+               selection rule with A_a = D_a^T D_a + I_d; the Bayesian reading (Gaussian posterior with mean theta_hat_a and covariance A_a^-1); 'the value
+               of alpha given in Eq. (4) may be conservatively large in some applications'. Algorithm 1 (arXiv p. 4): A_a <- I_d and b_a <- 0 for a new arm,
+               theta_hat_a = A_a^-1 b_a, p = theta_hat_a^T x + alpha sqrt(x^T A_a^-1 x), argmax with ties broken arbitrarily, A_a += x x^T, b_a += r x.
+               s3.2: the hybrid model, Algorithm 2. s4: the offline evaluator assumes i.i.d. events and a logging policy that chose each arm uniformly at
+               random; 'this latter assumption can be weakened considerably so that any randomized logging policy is allowed'; Algorithm 3; Theorem 1.
+               s5.2.2 Feature Construction: feature vectors augmented with a constant feature of value 1; the final six-entry user feature ends in a
+               constant 1. Module 5 cites s2.1, s3.1, s3.2, s4 and s5.2.2.}
 }
 
 @inproceedings{agrawal2013linearts,
@@ -209,7 +234,14 @@
   pages     = {127--135},
   year      = {2013},
   url       = {https://proceedings.mlr.press/v28/agrawal13.html},
-  annote    = {Verified 2026-10-09 via the PMLR page and arXiv 1209.3352.}
+  annote    = {Verified 2026-10-09 via the PMLR page and arXiv 1209.3352.
+               Also opened (academic director, Module 5, 2026-10-17): arXiv 1209.3352v4 (3 Feb 2014), text extracted with pypdf. s2.1: N arms, a context
+               b_i(t) per arm, one shared parameter mu, E[r_i(t) | b_i(t), history] = b_i(t)^T mu; the noise is conditionally R-sub-Gaussian, 'satisfied
+               whenever r_i(t) is in [b_i(t)^T mu - R, b_i(t)^T mu + R]'; also ||b_i(t)|| <= 1, ||mu|| <= 1. s2.2: Gaussian likelihood N(b_i(t)^T mu, v^2)
+               with v = R sqrt(9 d ln(T/delta)); B(t) = I_d + sum b b^T; mu_hat(t) = B(t)^-1 sum b r; posterior N(mu_hat(t), v^2 B(t)^-1); the Gaussian prior
+               and likelihood 'are only used above to design' the algorithm, and the analysis assumes only the R-sub-Gaussian noise. Algorithm 1 (arXiv p. 6):
+               draw mu_tilde(t) from N(mu_hat(t), v^2 B(t)^-1) and play argmax_i b_i(t)^T mu_tilde(t); v_t = R sqrt(9 d ln(t/delta)) when T is unknown, the
+               version analyzed. s2.3, Theorem 1: the regret bound. Module 5 cites s2.1, s2.2 and Algorithm 1.}
 }
 
 @article{strehl2008mbie,
