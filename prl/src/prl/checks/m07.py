@@ -537,9 +537,13 @@ class _HintedCheck(StochasticCheck):
             raise CheckFailed(f"{exc} Hint: {self.hint}") from None
 
 
-#: The lab's budgets (its settings cell), the keys train_linear_q takes.
+#: The lab's live budget (its settings cell), in the keys train_linear_q takes. The training
+#: checkpoints use it under QUICK too: at the lab's QUICK budget (10,000 steps, epsilon over
+#: 4,000) the threshold protocol found no threshold (100 seeds: the solution's p1 140.8
+#: against action-0-target's p99 122.1, a gap of 18.6, below the stated 20, and one solution
+#: seed under the midpoint). One checkpoint call at the live budget takes about 1 s on a
+#: laptop (Apple M1 Pro; not a Colab time).
 LIVE = {"steps": 30_000, "eps_steps": 10_000, "log_every": 1000}
-QUICK = {"steps": 10_000, "eps_steps": 4_000, "log_every": 1000}
 _WHAT = "greedy return after training on the checkpoint's seed (mean of 10 episodes)"
 
 check_linear_q_training = _HintedCheck(
@@ -547,7 +551,7 @@ check_linear_q_training = _HintedCheck(
     functions="linear_q_update",
     metric=_linear_q_return,
     live=LIVE,
-    quick=QUICK,
+    quick=LIVE,
     higher_is_better=True,
     min_gap=20.0,
     what=_WHAT,
@@ -564,7 +568,7 @@ check_colleague_training = _HintedCheck(
     functions=("linear_q_update", "colleague_features"),
     metric=_colleague_return,
     live=LIVE,
-    quick=QUICK,
+    quick=LIVE,
     higher_is_better=True,
     min_gap=20.0,
     what=_WHAT,
