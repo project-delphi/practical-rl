@@ -3,11 +3,11 @@
 | Minutes | Section | In the room |
 |---|---|---|
 | 0–3 | 1. A teammate's DQN stopped learning | — |
-| 3–13 | 2. What to log | [Demo: read a healthy run](#demo-dashboard) (3 min) |
+| 3–13 | 2. What to log | [Demo: vote, then read a healthy run](#demo-dashboard) (3 min) |
 | 13–21 | 3. The checklist and probe environments | [Check yourself 3.1](#chk-probes) (2 min) |
 | 21–27 | 4. Seeds | [Predict: outside a 5-seed band?](#predict-band) (3 min) |
-| 27–35 | 5. IQM and the bootstrap | [Check yourself 5.1](#chk-iqm) (2 min) |
-| 35–40 | 6. Budget sentences, ties and sweeps | — |
-| **40** | **Total** | **30 exposition + 10 activities** |
+| 27–36 | 5. IQM and the bootstrap | [Check yourself 5.1](#chk-iqm) (3 min) |
+| 36–40 | 6. Budget sentences, ties and sweeps | — |
+| **40** | **Total** | **29 exposition + 11 activities** |
 : Briefing, 40 min {.agenda}
 :::

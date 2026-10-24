@@ -682,63 +682,51 @@ modules:
     scaffold: S2
     testbeds: [CartPole-v1, probe environments]
     compared_with: {kind: band, what: "recorded bands of the reference DQN at the same budget"}
-    planted_bug: {what: "four recorded broken runs of the reference DQN (A to D)", diagnostic: "the signal each participant writes, then a probe environment"}
+    planted_bug: {what: "four recorded broken runs of the reference DQN (A to D)", diagnostic: "one table of four signals on every run (two exact checks, two scale signals), the logged rewards, then probe environments"}
     diagnostics: "Q at fixed start states against the discounted return earned, the relative TD error, the gather check on a logged batch, and the target network's lag; then probes 1 and 2"
     stretch: "Jones's probe 3: two steps and discounting"
     exercises:
-      # Every number below is "pending record": it comes from the AD's scratch design scan
-      # (_notes/m09-ad/, not a record) or from exact arithmetic, as marked. The technical expert
-      # replaces each with the m09 records (see _notes/m09-handoff.md).
+      # Every number below is exact arithmetic, or "pending record": it then comes from the AD's
+      # scratch design scan (_notes/m09-ad/, not a record) and the technical expert replaces it
+      # with the m09 records (see _notes/m09-handoff.md). Pattern design: lead decision 12.
       # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
       - n: 1
-        title: Healthy logs
-        minutes: 5
-        writes: [healthy_predictions]
-        predict_answer: "loss b: after an early drop it stays level or rises slowly, because the targets grow with Q; q_start b: Q at the start states climbs over the whole run; td_max c: the largest |δ| in a batch is close to Q itself, about 100 times the mean, on the transitions where the pole falls (target r, prediction near Q at states that did not end). Pending record (scratch scan: loss about 0.4, max/mean |δ| about 120)."
-        explain_ref: 'Gotcha: "The loss should go down."'
-      - n: 2
-        title: Broken run A
-        minutes: 6
-        writes: [td_error_scale, diagnose_a]
-        predict_answer: "A rising loss and |δ| fit a large learning rate, a wrong gather or a missing mask; a reward scale would raise them too, but not the relative TD error. Healthy relative TD error about 0.01 in the second half; run A about 3 times that on every seed. Diagnosis: lr. Pending record (scratch scan: 0.010 against 0.030-0.037)."
-        explain_ref: "(relative TD error)"
-      - n: 3
-        title: Broken run B
-        minutes: 6
-        writes: [gather_check, diagnose_b]
-        predict_answer: "The loss uses Q(s_i, a_i) = snap_q[s, i, a_i] on every row, so gather_check is 0.0 on the healthy run (exact); on run B nearly every row differs: gathering along dimension 0 returns Q(s_{a_i}, 0), which matches only row 0 when its action is 0, or a row that repeats row 0's transition (the batch is drawn with replacement), so about 31 of 32 rows are wrong (pending record; scratch 0.97-0.98). Diagnosis: gather."
+        title: Two exact checks
+        minutes: 9
+        writes: [gather_check, target_lag]
+        predict_answer: "gather_check is exactly 0.0 on every healthy seed: the logged gathered value is the very tensor the loss used, from the same forward pass (exact). target_lag at the last log point: 0 on the healthy run, because the target is synced at every log step and its probe values changed since the previous log point (exact); 49,500 = 50,000 - 500 for a target that never syncs (exact). The healthy run's largest lag, 500 at step 1,000, comes before the first gradient step (t = 1,004), when a sync copies unchanged weights (exact for Module 8's loop)."
         explain_ref: "(TD error)"
-      - n: 4
-        title: Broken run C
-        minutes: 6
-        writes: [q_drift, diagnose_c]
-        predict_answer: "The sum of 0.99^t for t = 0..499 is 99.34 (exact; with the truncation bootstrap a correct Q may reach about 100). Q far above that means the backup adds value no episode delivers: the missing mask is the first suspect, though a diverging step size can also push Q up (Module 8's scratch scan saw this at lr × 0.1), which is why Exercise 6 confirms on a probe. Run C's drift is in the thousands, against within about ±20 for the healthy run and below 200 for runs A and B. Diagnosis: mask. Pending record (scratch scan)."
-        explain_ref: "(Q drift)"
-      - n: 5
-        title: Broken run D
-        minutes: 6
-        writes: [target_lag, diagnose_d]
-        predict_answer: "No: the target never moves, so the online network fits a fixed regression target and the loss vanishes while Q stays near the reward, 1 + 0.99 × (the random start's values). Healthy target_lag: at most 500 after learning starts (sync and log both every 500 steps, exact by construction); run D: the whole run after the first log point, 49,500 steps at the live budget (exact). Diagnosis: sync."
-        explain_ref: "(masked target)"
-      - n: 6
-        title: Probe environments
+      - n: 2
+        title: Two scale signals
         minutes: 10
+        writes: [q_drift, td_error_scale]
+        predict_answer: "The sum of 0.99^t for t = 0..499 is 99.34 (exact; with the truncation bootstrap a correct Q may reach about 100). The healthy relative TD error in the second half is about 0.01 (pending record), and it varies from seed to seed."
+        explain_ref: "(Q drift)"
+      - n: 3
+        title: Broken runs A to D
+        minutes: 7
+        writes: [diagnoses]
+        predict_answer: "Missing mask: the Q drift rises far above the healthy range (Q above 99.34, because targets past the end of an episode add value no episode delivers); the exact checks stay healthy; the relative TD error need not change, since δ and Q grow together. Learning rate far too large: the relative TD error rises (updates overshoot their targets) and the Q drift may rise; the exact checks stay healthy. Diagnoses: B gather (the gather check fails), D sync (the target never changes), C mask (Q far above 99.34 with rewards of 1), A lr by elimination (both exact checks pass, Q in range, rewards 1, all 3 seeds fail). 'reward' is ruled out by the logged batches' rewards (all 1.0), not by the relative TD error, which a reward scale leaves unchanged. Magnitudes pending record."
+        explain_ref: 'Gotcha: "An out-of-range signal names the cause."'
+      - n: 4
+        title: Probe environments
+        minutes: 11
         writes: [ConstantRewardEnv, ObsRewardEnv]
-        predict_answer: "Q = 1 with the mask; without it Q = 1 + 0.99 Q, so Q = 100 (exact). In 2,000 steps with a sync every 100 the unmasked Q only reaches about 1 + 0.99 + … + 0.99^19 = 18.2 (exact for 20 completed regressions). Run C fails probes 1 and 2 (Q about 18 instead of 1; about ±18 instead of ±1); run B passes probe 1 and fails probe 2 (Q(±1) near 0); runs A and D pass both. Pending record (scratch scan: C 18.13; B 0.04 and 0.02)."
+        predict_answer: "Q = 1 with the mask; without it Q = 1 + 0.99 Q, so Q = 100 (exact). With 20 target copies after the first gradient step (step 65; copies every 100 to step 2,000), the unmasked Q is about 1 + 0.99 + … + 0.99^19 = 18.2 if each period's regression converges (exact under that assumption). Runs B and C fail probe 2 (C fails probe 1 as well); runs A and D pass both. Pending record (scratch: C 18.02-18.13; B's Q(±1) 0.02-0.18)."
         explain_ref: 'Gotcha: "The probes pass, so the agent is correct."'
-      - n: 7
+      - n: 5
         title: Reporting a recorded sweep
-        minutes: 8
+        minutes: 9
         writes: [iqm, bootstrap_ci]
-        predict_answer: "Pending record (m09_sweep). Whether ×1 has the highest IQM, which neighbors tie with it, and whether seed 0 alone gives the same ranking all come from the record; with 10 seeds the IQM averages the middle 6 values (exact)."
+        predict_answer: "Pending record (m09_sweep): whether ×1 has the highest IQM, which rates tie with it, whether seed 0 alone gives the same ranking, and where the mean and the IQM differ most (expected where seeds reach the 500 cap or collapse). With 10 seeds the IQM averages the middle 6 values (exact)."
         explain_ref: "(IQM)"
-      - n: 8
+      - n: 6
         title: One live seed
-        minutes: 5
-        writes: []
-        predict_answer: "At most 2/11 ≈ 0.18, exactly 2/11 if no two returns tie (a new seed is equally likely to take any of the 11 ranks). Ties at the 500 cap make it smaller. Adding one seed moves the IQM by less than half the interval's width on most seats: pending record."
+        minutes: 6
+        writes: [band_position]
+        predict_answer: "About 20 × 2/11 ≈ 4 seats outside if the band's top is below 500 (exact under exchangeability, no ties); about 20 × 1/11 ≈ 2 if a recorded seed reached 500, because no return can exceed it. Which case holds is pending the record (the scratch band's top is 500). Checked at the debrief from the room's live_position tally. Adding one seed moves the IQM by less than half the interval's width on most seats: pending record."
         explain_ref: "(band)"
-    budgets: {live: {steps: 50000, log_every: 500, eval_every: 5000, probe_steps: 2000}, quick: {steps: 10000, log_every: 500, eval_every: 2500, probe_steps: 2000}}
+    budgets: {live: {steps: 50000, log_every: 500, eval_every: 5000, eval_episodes: 10, probe_steps: 2000}, quick: {steps: 10000, log_every: 500, eval_every: 1000, eval_episodes: 10, probe_steps: 2000}}
     status: {briefing: draft, lab: draft}
     estimate_minutes: null
 

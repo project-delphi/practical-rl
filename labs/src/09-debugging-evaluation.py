@@ -9,10 +9,11 @@
 # %% [markdown]
 # A teammate's DQN on CartPole has stopped learning. In this lab you read the recorded logs of
 # five runs of Module 8's reference DQN at the same budget: one healthy run and four broken
-# ones, A to D, each recorded on 3 seeds. For each broken run you write the signal that exposes
-# it and choose a diagnosis. Then you write two probe environments and run every agent on
-# them, to confirm the diagnoses. Last, you report a recorded learning-rate sweep with the
-# interquartile mean (IQM) and bootstrap intervals, and add one live seed of your own.
+# ones, A to D, each recorded on 3 seeds. You write four signals and try them on the healthy
+# run, then diagnose the four broken runs from all four signals at once. You write two probe
+# environments and run every agent on them, to test the diagnoses. Last, you report a recorded
+# learning-rate sweep with the interquartile mean (IQM) and bootstrap intervals, and place one
+# live seed of your own against its band.
 #
 # The briefing's equations are named in brackets, for example (TD error) or (IQM). Its table
 # "Equations and where you implement them" gives each name's equation number.
@@ -202,13 +203,13 @@ def train_dqn(
             opt.step()
             td = (y - q_sa).detach().abs()
             done = batch.terminated > 0.5
-            q_max = q_values.max(1).values.mean()
+            q_max = q_values.detach().max(1).values.mean()
             for k, x in (("loss", loss.detach()), ("td", td.mean()), ("td_max", td.max())):
                 acc[k].append(float(x))
             acc["q_max"].append(float(q_max))
             acc["gn"].append(float(gn))
             if done.any():
-                acc["q_term"].append(float(q_sa[done].mean()))
+                acc["q_term"].append(float(q_sa.detach()[done].mean()))
             while pending and t >= pending[0]:
                 pending.pop(0)
                 values = (t, q_values, batch.act, q_sa, y, batch.rew, done)
@@ -269,15 +270,20 @@ _LOG_KEYS = (
 
 
 # %% [markdown]
-# ### Provided: the recorded runs, one run's log, and the dashboard
+# ### Provided: the recorded runs, one run's log, and the plots
 #
 # `prl.data.load("m09_broken_runs")` holds the healthy run and runs A to D, each on seeds 0, 1
 # and 2, at the live budget. `run_log(run, seed)` returns one run's log as a dict, with the
-# keys `train_dqn` writes. `dashboard(runs)` draws four panels for the runs you name, every
-# seed as its own line.
+# keys `train_dqn` writes. `dashboard(runs)` draws the return, the loss, the mean |δ| and Q at
+# the start states for the runs you name, every seed as its own line.
 
 
 # %%
+RUNS = prl.data.load("m09_broken_runs")
+GAMMA = float(RUNS["gamma"])
+G_MAX = sum(GAMMA**t for t in range(500))  # the most a 500-step CartPole episode can earn
+
+
 def run_log(run, seed):
     """Provided: the log of one recorded run ("healthy", "A" ... "D") and seed (0, 1, 2)."""
     s = int(np.flatnonzero(RUNS["seeds"] == seed)[0])
@@ -301,6 +307,11 @@ def smooth_returns(log, every=2500):
     return edges, np.array(means)
 
 
+def q_start(log):
+    """Provided: Q at the start states at every log point, the mean over them of max_a Q."""
+    return log["q_probe"].max(axis=-1).mean(axis=-1).astype(float)
+
+
 # The healthy run is the reference, drawn as reference lines are; A-D differ by line style too.
 RUN_STYLE = {
     "healthy": dict(color=prl.plot.NEUTRAL_LIGHT, ls="-"),
@@ -311,239 +322,84 @@ RUN_STYLE = {
 }
 
 
-def dashboard(runs, title):
-    """Provided: return, loss, mean |delta| and Q at the start states, every seed."""
-    fig, axes = plt.subplots(2, 2, figsize=(10, 6.4), sharex=True)
-    for run in runs:
-        for k, seed in enumerate(RUNS["seeds"]):
-            log = run_log(run, int(seed))
-            label = f"run {run}" if (k == 0 and run != "healthy") else None
-            label = "healthy" if (k == 0 and run == "healthy") else label
-            kw = dict(lw=1.2, alpha=0.85, label=label, **RUN_STYLE[run])
-            axes[0, 0].plot(*smooth_returns(log), **kw)
-            axes[0, 1].plot(log["step"], log["loss"], **kw)
-            axes[1, 0].plot(log["step"], log["td_abs_mean"], **kw)
-            q_start = log["q_probe"].max(axis=-1).mean(axis=-1)
-            axes[1, 1].plot(log["step"], q_start, **kw)
-    axes[0, 0].set(ylabel="return (episodes per 2,500 steps)")
-    axes[0, 1].set(ylabel="mean loss", yscale="log")
-    axes[1, 0].set(ylabel="mean |δ|", yscale="log", xlabel="env step")
-    axes[1, 1].set(ylabel="Q at the start states", yscale="symlog", xlabel="env step")
-    axes[0, 0].legend()
+def dashboard(runs, title, panels=("return", "loss", "td", "q")):
+    """Provided: the chosen panels for the runs you name, every seed as its own line."""
+    draw = {
+        "return": ("return (episodes per 2,500 steps)", "linear", smooth_returns),
+        "loss": ("mean loss", "log", lambda g: (g["step"], g["loss"])),
+        "td": ("mean |δ|", "log", lambda g: (g["step"], g["td_abs_mean"])),
+        "q": ("Q at the start states", "symlog", lambda g: (g["step"], q_start(g))),
+    }
+    fig, axes = plt.subplots(1, len(panels), figsize=(4.2 * len(panels), 3.6))
+    for ax, panel in zip(np.atleast_1d(axes), panels, strict=True):
+        ylabel, scale, xy = draw[panel]
+        for run in runs:
+            for k, seed in enumerate(RUNS["seeds"]):
+                name = "healthy" if run == "healthy" else f"run {run}"
+                kw = dict(lw=1.2, alpha=0.85, label=name if k == 0 else None)
+                ax.plot(*xy(run_log(run, int(seed))), **kw, **RUN_STYLE[run])
+        if panel == "q":
+            ax.axhline(G_MAX, color=prl.plot.NEUTRAL_LIGHT, ls=":", lw=1, label="99.34")
+        ax.set(ylabel=ylabel, yscale=scale, xlabel="env step")
+    np.atleast_1d(axes)[0].legend()
     fig.suptitle(title)
     plt.show()
 
 
-SIGNALS = {}  # signal name -> {run: summary per seed}; printed as a table as you go
-
-
-def signal_table(name, fn, summary):
-    """Provided: apply your signal to every run and seed; print one summary per seed."""
-    SIGNALS[name] = {
-        run: [summary(fn(run_log(run, int(s)))) for s in RUNS["seeds"]] for run in RUN_STYLE
-    }
-    print(f"{name}, seeds {RUNS['seeds'].tolist()}:")
-    for run, values in SIGNALS[name].items():
-        print(f"  {run:8s}" + "".join(f"{v:>12.4g}" for v in values))
-
-
-# The causes to choose from in Exercises 2-5. Several runs can share a symptom; one cause each.
-CAUSES = {
-    "mask": "The terminal mask is missing: targets bootstrap past the end of an episode.",
-    "sync": "The target network is never updated from the online network.",
-    "lr": "The learning rate is far too large.",
-    "gather": "The loss reads the wrong entries of Q(s, .), not Q(s, a) for the action taken.",
-    "reward": "The rewards are scaled up: every reward is many times CartPole's 1.",
-    "seed": "Nothing is wrong with the code or the configuration: an unlucky seed.",
-}
-
-
-# %% [markdown] role="ex1-head"
-# **Healthy logs.** Every `log_every` = 500 env steps, `train_dqn` writes the mean loss and the
-# mean and largest |δ| over the batches since the last write, δ = y − Q(s, a; w) (TD error);
-# the mean over the batch of max_a Q(s, a; w); and Q at 8 fixed start states, from both the
-# online and the target network. At each episode's end it writes the return, the discounted
-# return from the first state and the end step. At three steps it keeps one whole batch: Q(s, ·)
-# for every row, the actions, the values the loss used and the targets. Before you look at the
-# healthy run, write down what you expect three of its curves to do, in `healthy_predictions`.
-#
-# 1. `"loss"`: the mean loss over the run (a) falls steadily toward 0; (b) drops in the first
-#    few thousand steps, then stays level or rises slowly while Q grows; (c) rises without
-#    bound.
-# 2. `"q_start"`: Q at the start states (a) stays near 1, CartPole's reward per step;
-#    (b) climbs over the run; (c) jumps to its final value within the first 5,000 steps.
-# 3. `"td_max"`: the largest |δ| in a batch (a) is about the mean |δ|; (b) is about 10 times
-#    the mean; (c) is close to Q itself, about 100 times the mean.
-
-# %% [markdown] role="ex1-predict"
-# Answer the three questions above in `healthy_predictions`, with one sentence of reason for
-# each as a comment, before you run the next cell. The checkpoint records your answers; it does
-# not grade them.
-
-
-# %% role="ex1-stub"
-def healthy_predictions():
-    """Your predictions for the healthy run: a dict with the keys "loss", "q_start" and
-    "td_max", each "a", "b" or "c" (the questions above)."""
-    # TODO 1: return {"loss": ..., "q_start": ..., "td_max": ...}, with a reason as a comment.
-    raise NotImplementedError(
-        "TODO 1: write healthy_predictions, or run lab.use_reference(1) to continue"
-    )
-
-
-# %% [markdown] role="ex1-hint"
-# The target y moves as Q moves: what happens to the size of δ while Q climbs from 0 toward
-# the return the agent earns? For the largest |δ|, think of the transitions where the pole
-# falls: their target is y = r, while the network's Q there looks like Q at nearby states that
-# did not end.
-
-
-# %% role="ex1-sol"
-@lab.solution(1)
-def healthy_predictions():
-    """What the healthy record shows (pending the record)."""
-    return {
-        "loss": "b",  # the targets grow with Q, so the loss need not fall
-        "q_start": "b",  # Q climbs toward the discounted return
-        "td_max": "c",  # terminal rows: Q near the others', y = r
-    }
-
-
-# %% role="ex1-run"
-predicted = healthy_predictions()
-RUNS = prl.data.load("m09_broken_runs")
-dashboard(["healthy"], "The healthy run, 3 seeds")
-for seed in RUNS["seeds"]:
-    log = run_log("healthy", int(seed))
-    at = np.searchsorted(log["step"], [5_000, 25_000, log["step"][-1]])
-    q_start = log["q_probe"].max(axis=-1).mean(axis=-1).astype(float)
-    ratio = np.nanmedian(log["td_abs_max"] / log["td_abs_mean"])
-    print(
-        f"seed {seed}: at steps {log['step'][at].tolist()}, mean loss "
-        f"{np.round(log['loss'][at].astype(float), 3).tolist()}, Q at the start states "
-        f"{np.round(q_start[at], 1).tolist()}; largest |δ| / mean |δ|, median {ratio:.0f}"
-    )
-print(f"You predicted {predicted}.")
-lab.metric("healthy_predictions", predicted)
-
-# %% [markdown] role="ex1-explain"
-# Q at the start states climbs for the whole run, so every target y = r + γ max Q(s′; w⁻)
-# climbs with it, and a loss computed against a moving target need not fall. Which of your
-# three predictions held? Why is the largest |δ| so much larger than the mean, and on which
-# transitions do you expect it? (Gotcha: "The loss should go down.")
-
-# %% role="ex1-chk"
-lab.check(1, m09.check_healthy_predictions, healthy_predictions)
-
-# %% [markdown] role="ex2-head"
-# **Broken run A.** The teammate's first run. Its return stays far below the healthy run's on
-# all 3 seeds. The dashboard puts it next to the healthy run. Then write `td_error_scale`: at
-# every log point, the mean |δ| divided by the mean over the batch of max_a Q(s, a; w)
-# (relative TD error). Dividing by Q makes the signal free of the reward's units: a run whose
-# rewards were all 10 times larger would have 10 times larger δ and 10 times larger Q. Then
-# choose run A's cause from `CAUSES` in `diagnose_a`.
-
-# %% [markdown] role="ex2-predict"
-# Run A's loss and mean |δ| end several times higher than the healthy run's. Which causes in
-# `CAUSES` could do that? On the healthy run, what do you expect the relative TD error to be in
-# the second half, roughly: 0.001, 0.01 or 0.1?
-
-
-# %% role="ex2-stub"
-def td_error_scale(log):
-    """The relative TD error at every log point: log["td_abs_mean"] / |log["q_max_mean"]|,
-    both of shape (L,). Returns an array of shape (L,)."""
-    # TODO 2 (part 1): one line.
-    raise NotImplementedError(
-        "TODO 2: write td_error_scale, or run lab.use_reference(2) to continue"
-    )
-
-
-def diagnose_a():
-    """Your diagnosis of run A: one key of CAUSES."""
-    # TODO 2 (part 2): return "mask", "sync", "lr", "gather", "reward" or "seed".
-    raise NotImplementedError("TODO 2: write diagnose_a, or run lab.use_reference(2) to continue")
-
-
-# %% [markdown] role="ex2-hint"
-# NumPy divides two arrays element by element; `np.abs` takes care of a negative Q. For the
-# diagnosis: the signal divides out the reward's scale, so which causes can it still see? The
-# last cell of this exercise prints your signal for every run, not only A.
-
-
-# %% role="ex2-sol"
-@lab.solution(2)
-def td_error_scale(log):
-    """Mean |delta| over the batch Q scale, per log point."""
-    q_scale = np.abs(log["q_max_mean"])
-    return log["td_abs_mean"] / q_scale  # (relative TD error)
-
-
-@lab.solution(2)
-def diagnose_a():
-    """Run A: the learning rate is 100 times the reference."""
-    return "lr"
-
-
-# %% role="ex2-run"
 def second_half_median(x):
     """Provided: the median of a signal over the second half of the run."""
     return float(np.nanmedian(np.asarray(x)[len(x) // 2 :]))
 
 
-dashboard(["healthy", "A"], "Run A against the healthy run")
-signal_table("td_error_scale", td_error_scale, second_half_median)
-print(f"Your diagnosis of run A: {CAUSES.get(diagnose_a(), diagnose_a())}")
-
-# %% [markdown] role="ex2-explain"
-# The healthy run's relative TD error is small and steady, run A's several times higher on
-# every seed: each update moves Q further than the targets justify (relative TD error). Which
-# other run shows a high value, and why does that make this signal alone too weak to decide?
-# Why can "reward" not be A's cause, given how the signal is built? Exercise 6 runs A on the
-# probe environments.
-
-# %% role="ex2-chk1"
-lab.check(2, m09.check_td_error_scale, td_error_scale, label="2.1")
-
-# %% role="ex2-chk2"
-lab.check(2, m09.check_diagnose_a, diagnose_a, label="2.2")
-
-# %% [markdown] role="ex3-head"
-# **Broken run B.** Its return stays at the level of a policy that pushes the cart the same
-# way every step. At three steps the log kept a whole batch: `snap_q`, Q(s, ·; w) for every
-# row (shape (S, B, |𝒜|): S = 3 snapshots of B = 32 rows, |𝒜| = 2 actions), `snap_actions`,
-# the action of every row (S, B), and `snap_gathered`, the value the loss used (S, B).
-# Write `gather_check`: the share of rows whose gathered value is not Q(s_i, a_i). Then choose
-# run B's cause in `diagnose_b`.
-
-# %% [markdown] role="ex3-predict"
-# In a correct DQN, what is the value the loss uses for row i, in terms of `snap_q` and
-# `snap_actions`? What will `gather_check` return on the healthy run? On run B?
+def last_five(x):
+    """Provided: the mean of a signal over its last five log points."""
+    return float(np.nanmean(np.asarray(x)[-5:]))
 
 
-# %% role="ex3-stub"
+# %% [markdown] role="ex1-head"
+# **Two exact checks.** Some properties of a correct DQN hold exactly, so a log can check them.
+# In each logged batch, the value the loss used for row i is Q(s_i, a_i; w), read from the same
+# forward pass (TD error). And the target network's values change at every sync. At three
+# steps the log kept one batch: `snap_q`, Q(s, ·; w) for every row (shape (S, B, |𝒜|), here
+# S = 3 snapshots of B = 32 rows and |𝒜| = 2 actions), `snap_actions` (S, B) and
+# `snap_gathered` (S, B), the value the loss used. Every 500 steps, when the target is also
+# synced, the log kept the target network's Q at 8 fixed start states, `q_probe_target`
+# (shape (L, 8, 2)). Write `gather_check` and `target_lag`. The run cell tries them on the
+# healthy run only, every seed.
+
+# %% [markdown] role="ex1-predict"
+# On the healthy run, will `gather_check` be about 0.01, exactly 0.0, or a value that changes
+# with the seed? What will `target_lag` be at the last log point of the healthy run, and of a
+# run whose target never syncs (log points from step 500 to 50,000)?
+
+
+# %% role="ex1-stub"
 def gather_check(log):
-    """The share of snapshot rows whose log["snap_gathered"] value differs from
-    log["snap_q"][s, i, a] with a = log["snap_actions"][s, i]. Use np.isclose(..., rtol=1e-5,
-    atol=1e-6) to compare. Returns one float in [0, 1]."""
-    # TODO 3 (part 1): pick Q(s_i, a_i) out of snap_q for every row, then compare.
-    raise NotImplementedError("TODO 3: write gather_check, or run lab.use_reference(3) to continue")
+    """The share of snapshot rows whose log["snap_gathered"] value is not Q(s_i, a_i), the
+    entry of log["snap_q"] for the row's action log["snap_actions"]. Compare with
+    np.isclose(..., rtol=1e-5, atol=1e-6). Returns one float in [0, 1]."""
+    # TODO 1 (part 1): pick Q(s_i, a_i) for every row, then compare.
+    raise NotImplementedError("TODO 1: write gather_check, or run lab.use_reference(1) to continue")
 
 
-def diagnose_b():
-    """Your diagnosis of run B: one key of CAUSES."""
-    # TODO 3 (part 2): return one key of CAUSES.
-    raise NotImplementedError("TODO 3: write diagnose_b, or run lab.use_reference(3) to continue")
+def target_lag(log):
+    """Env steps since the target network's probe values last changed, at every log point:
+    lag[0] = 0; for i >= 1, lag[i] = step[i] - step[j], where j <= i is the latest log point
+    at which log["q_probe_target"][j] differs from [j - 1] in any entry (j = 0 if none).
+    Returns an int array of shape (L,)."""
+    # TODO 1 (part 2): one loop over the log points, remembering the step of the last change.
+    raise NotImplementedError("TODO 1: write target_lag, or run lab.use_reference(1) to continue")
 
 
-# %% [markdown] role="ex3-hint"
-# `np.take_along_axis(q, a[..., None], axis=-1)` picks one entry of the last axis of `q` per
-# row, with `a` holding the index; drop the extra axis with `[..., 0]`. `~np.isclose(...)` marks
-# the rows that differ, and the mean of a boolean array is the share of True.
+# %% [markdown] role="ex1-hint"
+# `np.take_along_axis` picks one entry per row along an axis; its index array needs as many
+# dimensions as `snap_q`. The mean of a boolean array is the share of True. In `target_lag`,
+# keep `last`, the step of the latest change, starting at `step[0]`; `np.any(a != b)` is True
+# if any entry differs.
 
 
-# %% role="ex3-sol"
-@lab.solution(3)
+# %% role="ex1-sol"
+@lab.solution(1)
 def gather_check(log):
     """Share of batch rows whose gathered value is not Q(s_i, a_i)."""
     q, a = log["snap_q"], log["snap_actions"]
@@ -552,150 +408,7 @@ def gather_check(log):
     return float(wrong.mean())
 
 
-@lab.solution(3)
-def diagnose_b():
-    """Run B: gather_q reads the wrong entries of Q(s, .)."""
-    return "gather"
-
-
-# %% role="ex3-run"
-dashboard(["healthy", "B"], "Run B against the healthy run")
-signal_table("gather_check", gather_check, float)
-log_b = run_log("B", 0)
-q_spread = np.abs(log_b["q_probe"][-1, :, 0] - log_b["q_probe"][-1, :, 1]).mean()
-print(f"Run B, seed 0, end of run: mean |Q(s, 0) - Q(s, 1)| at the start states {q_spread:.1f}")
-print(f"Your diagnosis of run B: {CAUSES.get(diagnose_b(), diagnose_b())}")
-
-# %% [markdown] role="ex3-explain"
-# The TD error compares the target with Q(s, a; w) for the action a that was taken (TD error).
-# On the healthy run the gathered value is that entry on every row; on run B it almost never
-# is. Run B's two actions end far apart at the start states: which action's values does its
-# loss train, and why does that make the greedy policy push the same way every step?
-
-# %% role="ex3-chk1"
-lab.check(3, m09.check_gather_check, gather_check, label="3.1")
-
-# %% role="ex3-chk2"
-lab.check(3, m09.check_diagnose_b, diagnose_b, label="3.2")
-
-# %% [markdown] role="ex4-head"
-# **Broken run C.** Its return never leaves the minimum. Compare what the network believes
-# with what the agent earns: at every log point, Q at the start states (the mean over the 8
-# probe states of max_a Q(s, a; w)) minus the mean discounted return of the episodes that ended
-# in the last `window` env steps (Q drift). Both are estimates of the value of the start
-# states, so a healthy run keeps them close. Write `q_drift`, then choose run C's cause.
-
-# %% [markdown] role="ex4-predict"
-# CartPole pays 1 per step and stops at 500 steps. At γ = 0.99, what is the largest discounted
-# return any episode can earn from its first state? If run C's Q at the start states ends far
-# above that number, which causes in `CAUSES` could explain it?
-
-
-# %% role="ex4-stub"
-def q_drift(log, window=5000):
-    """Q drift at every log point i: q_bar[i] minus the mean of log["ep_disc_return"] over the
-    episodes with t - window < log["ep_end_step"] <= t, where t = log["step"][i] and q_bar =
-    log["q_probe"].max(axis=-1).mean(axis=-1). NaN where no episode ended in the window.
-    Returns an array of shape (L,)."""
-    # TODO 4 (part 1): q_bar first; then a loop over the log points.
-    raise NotImplementedError("TODO 4: write q_drift, or run lab.use_reference(4) to continue")
-
-
-def diagnose_c():
-    """Your diagnosis of run C: one key of CAUSES."""
-    # TODO 4 (part 2): return one key of CAUSES.
-    raise NotImplementedError("TODO 4: write diagnose_c, or run lab.use_reference(4) to continue")
-
-
-# %% [markdown] role="ex4-hint"
-# `log["q_probe"]` has shape (L, 8, 2): the max over the last axis, then the mean over the
-# next, leaves one number per log point. Start the output with `np.full(L, np.nan)`, and select
-# the recent episodes with a boolean mask on `log["ep_end_step"]`.
-
-
-# %% role="ex4-sol"
-@lab.solution(4)
-def q_drift(log, window=5000):
-    """Q at the probe states minus recent discounted returns."""
-    q_bar = log["q_probe"].max(axis=-1).mean(axis=-1)  # (L,)
-    end, g0 = log["ep_end_step"], log["ep_disc_return"]
-    drift = np.full(len(log["step"]), np.nan)
-    for i, t in enumerate(log["step"]):
-        recent = (end > t - window) & (end <= t)
-        if recent.any():
-            drift[i] = q_bar[i] - g0[recent].mean()  # (Q drift)
-    return drift
-
-
-@lab.solution(4)
-def diagnose_c():
-    """Run C: the terminal mask is missing."""
-    return "mask"
-
-
-# %% role="ex4-run"
-def last_five(x):
-    """Provided: the mean of a signal over its last five log points."""
-    return float(np.nanmean(np.asarray(x)[-5:]))
-
-
-dashboard(["healthy", "C"], "Run C against the healthy run")
-signal_table("q_drift", q_drift, last_five)
-gamma = float(RUNS["gamma"])
-print(f"The most any CartPole episode can earn from its first state at γ = {gamma}:")
-print(f"  {sum(gamma**t for t in range(500)):.2f} (500 rewards of 1)")
-print(f"Your diagnosis of run C: {CAUSES.get(diagnose_c(), diagnose_c())}")
-
-# %% [markdown] role="ex4-explain"
-# Run C's Q at the start states is far above anything an episode can earn, and keeps rising.
-# The target of a transition that ends the episode is r alone, because of the factor
-# (1 − terminated) (masked target): what is it without that factor, and why does that let Q
-# grow past every return? Which other runs show a positive drift, and how large is it next to
-# run C's (Q drift)? Exercise 6 confirms the diagnosis on a probe.
-
-# %% role="ex4-chk1"
-lab.check(4, m09.check_q_drift, q_drift, label="4.1")
-
-# %% role="ex4-chk2"
-lab.check(4, m09.check_diagnose_c, diagnose_c, label="4.2")
-
-# %% [markdown] role="ex5-head"
-# **Broken run D.** Its loss is the smallest of all five runs, and its return stays at the
-# minimum. The log keeps Q at the start states from the target network as well,
-# `q_probe_target` (shape (L, 8, 2)). Write `target_lag`: at every log point, the number of env
-# steps since the target network's values at the probe states last changed. Then choose run
-# D's cause.
-
-# %% [markdown] role="ex5-predict"
-# Run D's loss falls below one hundredth of the healthy run's within a few thousand steps and
-# stays there. Is that good news? In the healthy run the target network is synced every 500
-# env steps and the log is written every 500 steps: what is the largest `target_lag` you expect
-# there, after learning starts?
-
-
-# %% role="ex5-stub"
-def target_lag(log):
-    """Env steps since the target network's probe values last changed, at every log point:
-    lag[0] = 0; for i >= 1, lag[i] = step[i] - step[j], where j <= i is the latest log point
-    at which log["q_probe_target"][j] differs from [j - 1] in any entry (j = 0 if none).
-    Returns an int array of shape (L,)."""
-    # TODO 5 (part 1): one loop over the log points, remembering the step of the last change.
-    raise NotImplementedError("TODO 5: write target_lag, or run lab.use_reference(5) to continue")
-
-
-def diagnose_d():
-    """Your diagnosis of run D: one key of CAUSES."""
-    # TODO 5 (part 2): return one key of CAUSES.
-    raise NotImplementedError("TODO 5: write diagnose_d, or run lab.use_reference(5) to continue")
-
-
-# %% [markdown] role="ex5-hint"
-# `np.any(a != b)` is True if any entry differs. Keep `last`, the step of the latest change,
-# starting at `step[0]`, and write `step[i] - last` at every log point.
-
-
-# %% role="ex5-sol"
-@lab.solution(5)
+@lab.solution(1)
 def target_lag(log):
     """Env steps since the target network's values last changed."""
     q_tgt, step = log["q_probe_target"], log["step"]
@@ -708,89 +421,322 @@ def target_lag(log):
     return lag
 
 
-@lab.solution(5)
-def diagnose_d():
-    """Run D: the target network is never synced."""
-    return "sync"
+# %% role="ex1-run"
+dashboard(["healthy"], "The healthy run, 3 seeds")
+for seed in RUNS["seeds"]:
+    log = run_log("healthy", int(seed))
+    lag = target_lag(log)
+    print(
+        f"healthy, seed {seed}: gather_check {gather_check(log)}; target_lag at the last log "
+        f"point {lag[-1]}, largest {lag.max()} (at step {log['step'][np.argmax(lag)]:,})"
+    )
+
+# %% [markdown] role="ex1-explain"
+# Why is the healthy gather check exactly 0.0 and not merely small, and what would a value near
+# 1 say about the code (TD error)? The largest lag comes early in the run: before the first
+# gradient step, what does a sync copy? What would a `target_lag` that grows with the step say?
+
+# %% role="ex1-chk1"
+lab.check(1, m09.check_gather_check, gather_check, label="1.1")
+
+# %% role="ex1-chk2"
+lab.check(1, m09.check_target_lag, target_lag, label="1.2")
+
+# %% [markdown] role="ex2-head"
+# **Two scale signals.** Compare what the network believes with what the agent earns: at every
+# log point, Q at the start states (the mean over the 8 probe states of max_a Q(s, a; w)) minus
+# the mean discounted return of the episodes that ended in the last `window` env steps
+# (Q drift). And the TD error against the scale of Q: the mean |δ| divided by the mean over the
+# batch of max_a Q(s, a; w) (relative TD error). Write `q_drift` and `td_error_scale`. The run
+# cell tries them on the healthy run, every seed.
+
+# %% [markdown] role="ex2-predict"
+# CartPole pays 1 per step and stops at 500 steps. At γ = 0.99, what is the largest discounted
+# return any episode can earn from its first state? On the healthy run, will the relative TD
+# error in the second half be about 0.001, 0.01 or 0.1?
 
 
-# %% role="ex5-run"
-dashboard(["healthy", "D"], "Run D against the healthy run")
-signal_table("target_lag", target_lag, lambda lag: float(np.max(lag)))
-q_d = run_log("D", 0)["q_probe"][-1].max(axis=-1).mean()
-print(f"Run D, seed 0, end of run: Q at the start states {q_d:.3f}")
-print(f"Your diagnosis of run D: {CAUSES.get(diagnose_d(), diagnose_d())}")
-diagnoses = {
-    run: f()
-    for run, f in zip("ABCD", (diagnose_a, diagnose_b, diagnose_c, diagnose_d), strict=True)
+# %% role="ex2-stub"
+def q_drift(log, window=5000):
+    """Q drift at every log point i: q_bar[i] minus the mean of log["ep_disc_return"] over the
+    episodes with t - window < log["ep_end_step"] <= t, where t = log["step"][i] and q_bar =
+    log["q_probe"].max(axis=-1).mean(axis=-1). NaN where no episode ended in the window.
+    Returns an array of shape (L,)."""
+    # TODO 2 (part 1): q_bar first; then a loop over the log points.
+    raise NotImplementedError("TODO 2: write q_drift, or run lab.use_reference(2) to continue")
+
+
+def td_error_scale(log):
+    """The relative TD error at every log point: log["td_abs_mean"] / |log["q_max_mean"]|,
+    both of shape (L,). Returns an array of shape (L,)."""
+    # TODO 2 (part 2): one line.
+    raise NotImplementedError(
+        "TODO 2: write td_error_scale, or run lab.use_reference(2) to continue"
+    )
+
+
+# %% [markdown] role="ex2-hint"
+# `log["q_probe"]` has shape (L, 8, 2): a max over one axis and a mean over the next leave one
+# number per log point. Start the output with `np.full(L, np.nan)`, and pick the recent
+# episodes with a boolean mask on `log["ep_end_step"]`. NumPy divides arrays element by element.
+
+
+# %% role="ex2-sol"
+@lab.solution(2)
+def q_drift(log, window=5000):
+    """Q at the probe states minus recent discounted returns."""
+    q_bar = log["q_probe"].max(axis=-1).mean(axis=-1)  # (L,)
+    end, g0 = log["ep_end_step"], log["ep_disc_return"]
+    drift = np.full(len(log["step"]), np.nan)
+    for i, t in enumerate(log["step"]):
+        recent = (end > t - window) & (end <= t)
+        if recent.any():
+            drift[i] = q_bar[i] - g0[recent].mean()  # (Q drift)
+    return drift
+
+
+@lab.solution(2)
+def td_error_scale(log):
+    """Mean |delta| over the batch Q scale, per log point."""
+    q_scale = np.abs(log["q_max_mean"])
+    return log["td_abs_mean"] / q_scale  # (relative TD error)
+
+
+# %% role="ex2-run"
+print(f"The most any CartPole episode can earn from its first state at γ = {GAMMA}: {G_MAX:.2f}")
+fig, (ax_q, ax_r) = plt.subplots(1, 2, figsize=(10, 3.6))
+for k, seed in enumerate(RUNS["seeds"]):
+    log = run_log("healthy", int(seed))
+    drift, scale = q_drift(log), td_error_scale(log)
+    print(
+        f"healthy, seed {seed}: Q drift (last 5 log points) {last_five(drift):6.2f}; "
+        f"relative TD error (second half, median) {second_half_median(scale):.4f}"
+    )
+    label = "healthy" if k == 0 else None
+    ax_q.plot(log["step"], q_start(log), label=label, **RUN_STYLE["healthy"])
+    ax_q.plot(
+        log["step"],
+        q_start(log) - drift,
+        ls="--",
+        color=prl.plot.SERIES[0],
+        label="discounted return earned" if k == 0 else None,
+    )
+    ax_r.plot(log["step"], scale, **RUN_STYLE["healthy"])
+ax_q.axhline(G_MAX, color=prl.plot.NEUTRAL_LIGHT, ls=":", lw=1, label=f"{G_MAX:.2f}")
+ax_q.set(xlabel="env step", ylabel="Q at the start states", title="Q against the return earned")
+ax_r.set(xlabel="env step", ylabel="mean |δ| / mean max Q", yscale="log", title="Relative TD error")
+ax_q.legend()
+plt.show()
+
+# %% [markdown] role="ex2-explain"
+# On the healthy run, is Q at the start states above or below the discounted return earned,
+# and how close does either come to 99.34 (Q drift)? How much does the relative TD error vary
+# from seed to seed? Why is it unchanged when every reward is 10 times larger?
+
+# %% role="ex2-chk1"
+lab.check(2, m09.check_q_drift, q_drift, label="2.1")
+
+# %% role="ex2-chk2"
+lab.check(2, m09.check_td_error_scale, td_error_scale, label="2.2")
+
+# %% [markdown] role="ex3-head"
+# **Broken runs A to D.** The teammate's four runs. Each has exactly one of these causes:
+#
+# | Key | Cause |
+# |---|---|
+# | `"mask"` | The terminal mask is missing: targets bootstrap past the end of an episode. |
+# | `"sync"` | The target network is never updated from the online network. |
+# | `"lr"` | The learning rate is far too large. |
+# | `"gather"` | The loss reads the wrong entries of Q(s, ·), not Q(s, a) for the action taken. |
+# | `"reward"` | The rewards are scaled up: every reward is many times CartPole's 1. |
+# | `"seed"` | Nothing is wrong with the code or the configuration: an unlucky seed. |
+#
+# The run cell computes your four signals on every run and seed, prints the rewards the logged
+# batches held, and draws the return and Q panels of all five runs. Write your diagnoses in
+# `diagnoses`, with the evidence for each as a comment.
+
+# %% [markdown] role="ex3-predict"
+# Before you run the cell: for a run whose terminal mask is missing, which of your four signals
+# should leave the healthy range, and which way? For a run whose learning rate is far too
+# large?
+
+
+# %% role="ex3-stub"
+def diagnoses():
+    """Your diagnosis of each broken run: a dict with the keys "A", "B", "C" and "D", each
+    one key of the table above ("mask", "sync", "lr", "gather", "reward" or "seed")."""
+    # TODO 3: return {"A": ..., "B": ..., "C": ..., "D": ...}, the evidence as comments.
+    raise NotImplementedError("TODO 3: write diagnoses, or run lab.use_reference(3) to continue")
+
+
+# %% [markdown] role="ex3-hint"
+# Start with the exact checks: a check that fails names its cause. For a run that passes both,
+# is its Q above any return an episode can earn? 'seed': how many seeds failed? 'reward': which
+# rewards did the logged batches hold? What is left is a setting, not a bug.
+
+
+# %% role="ex3-sol"
+@lab.solution(3)
+def diagnoses():
+    """What made runs A to D (see How runs A to D were made)."""
+    return {
+        "A": "lr",  # exact checks pass, Q in range, rewards 1, 3 of 3 fail
+        "B": "gather",  # the gather check fails
+        "C": "mask",  # Q far above 99.34 with rewards of 1
+        "D": "sync",  # the target never changes
+    }
+
+
+# %% role="ex3-run"
+def short(v):
+    """Provided: a number in at most 7 characters."""
+    if abs(v) >= 1000:
+        return f"{v:,.0f}"
+    return f"{v:.0f}" if abs(v) >= 10 else f"{v:.3g}"
+
+
+SUMMARY = {  # column -> (your signal, how one seed's curve is summarized)
+    "gather_check": (gather_check, float),
+    "target_lag, last": (target_lag, lambda lag: float(lag[-1])),
+    "Q drift, last 5": (q_drift, last_five),
+    "rel. TD error, 2nd half": (td_error_scale, second_half_median),
 }
-lab.metric("diagnoses", diagnoses)
-print("Your four signals on every run (one value per seed) are in the tables above.")
+values = {
+    name: {run: [summ(fn(run_log(run, int(s)))) for s in RUNS["seeds"]] for run in RUN_STYLE}
+    for name, (fn, summ) in SUMMARY.items()
+}
+healthy_td = np.median(values["rel. TD error, 2nd half"]["healthy"])
+print(f"Each cell: the range over seeds {RUNS['seeds'].tolist()}. The relative TD error also as")
+print("a multiple of the healthy median.")
+WIDTH = {"gather_check": 15, "target_lag, last": 17, "Q drift, last 5": 17}
+print(f"{'run':8s}" + "".join(f"{name:>{WIDTH.get(name, 26)}s}" for name in SUMMARY))
+for run in RUN_STYLE:
+    row = []
+    for name in SUMMARY:
+        lo, hi = min(values[name][run]), max(values[name][run])
+        cell = short(lo) if short(lo) == short(hi) else f"{short(lo)} to {short(hi)}"
+        if name == "rel. TD error, 2nd half":
+            cell += f" ({hi / healthy_td:.1f}x)"
+        row.append(f"{cell:>{WIDTH.get(name, 26)}s}")
+    print(f"{run:8s}" + "".join(row))
+print(f"Other evidence (Q at the start states can reach about {G_MAX:.2f} at most):")
+for run in RUN_STYLE:
+    logs = [run_log(run, int(s)) for s in RUNS["seeds"]]
+    seen = np.unique(np.concatenate([g["snap_reward"].ravel() for g in logs]))
+    q_end = [q_start(g)[-1] for g in logs]
+    final = [smooth_returns(g)[1][-1] for g in logs]
+    print(
+        f"  {run:8s} rewards in the batches {seen.tolist()}; Q at start, end "
+        f"{short(min(q_end))} to {short(max(q_end))}; return, end {[round(x) for x in final]}"
+    )
+dashboard(list(RUN_STYLE), "All five runs, 3 seeds each", panels=("return", "q"))
+print(f"Your diagnoses: {diagnoses()}")
 
-# %% [markdown] role="ex5-explain"
-# The target y = r + γ(1 − terminated) max Q(s′; w⁻) uses the target network's parameters w⁻
-# (masked target). If w⁻ never changes, what fixed regression problem is the online network
-# solving, and what value of Q solves it when w⁻ is the network's random start? Why is a tiny
-# loss here a sign of trouble rather than success? Look back at your four tables: which signals
-# single out one run, and which flag more than one?
+# %% [markdown] role="ex3-explain"
+# Run B fails the gather check and is out of range on two more signals: why does one wrong
+# gather move them too? Which signals single out one cause, and which flag several? For run A,
+# which evidence rules out each of the other five causes? (Gotcha: "An out-of-range signal
+# names the cause.")
 
-# %% role="ex5-chk1"
-lab.check(5, m09.check_target_lag, target_lag, label="5.1")
+# %% role="ex3-chk1"
+lab.check(3, m09.check_diagnosis, diagnoses, "A", label="3.1")
 
-# %% role="ex5-chk2"
-lab.check(5, m09.check_diagnose_d, diagnose_d, label="5.2")
+# %% role="ex3-chk2"
+lab.check(3, m09.check_diagnosis, diagnoses, "B", label="3.2")
 
-# %% [markdown] role="ex6-head"
+# %% role="ex3-chk3"
+lab.check(3, m09.check_diagnosis, diagnoses, "C", label="3.3")
+
+# %% role="ex3-chk4"
+lab.check(3, m09.check_diagnosis, diagnoses, "D", label="3.4")
+
+# %% [markdown]
+# ### How runs A to D were made
+#
+# This cell shows how the teammate made runs A to D: a configuration change, or a function
+# swapped into `train_dqn`, never an edit of the shared code. Run it after checkpoints 3.1-3.4.
+
+
+# %%
+def td_target_no_mask(batch, q_next, gamma):
+    """Run C's td_target: it ignores terminated."""
+    return batch.rew + gamma * q_next
+
+
+def gather_q_dim0(q_values, actions):
+    """Run B's gather_q: dimension 0 instead of 1."""
+    return q_values.gather(0, actions.long().unsqueeze(1)).squeeze(1)
+
+
+AGENTS = {  # run -> (configuration changes, functions swapped in)
+    "healthy": ({}, {}),
+    "A": (dict(lr=CONFIG.lr * 100), {}),
+    "B": ({}, dict(gather_q=gather_q_dim0)),
+    "C": ({}, dict(td_target=td_target_no_mask)),
+    "D": (dict(target_sync=None), {}),
+}
+
+
+def train_agent(run, make_env, config, seed, steps, **kwargs):
+    """Provided: train_dqn as run `run` was made; the reference functions come back after."""
+    changes, swaps = AGENTS[run]
+    saved = {name: globals()[name] for name in swaps}
+    globals().update(swaps)
+    try:
+        return train_dqn(make_env, dataclasses.replace(config, **changes), seed, steps, **kwargs)
+    finally:
+        globals().update(saved)
+
+
+# %% [markdown] role="ex4-head"
 # **Probe environments.** A diagnosis from logs is a hypothesis. A probe environment tests one
-# piece of an agent in an environment so small that the right answer is known (Jones 2021).
-# Write two, as Gymnasium environments with a one-dimensional observation in [−1, 1] and one
-# action, where every episode is one step long and ends with `terminated=True`:
-# `ConstantRewardEnv` (probe 1: observation 0, reward +1) and `ObsRewardEnv` (probe 2:
-# observation +1 or −1 with equal probability, reward equal to the observation; the step
-# returns the same observation). The run cell then trains the healthy agent and the agents of
-# runs A to D on both probes, with the configurations and functions that made runs A to D.
+# piece of an agent where the right answer is known (Jones 2021). Write probe 1,
+# `ConstantRewardEnv` (reward +1 every episode), and probe 2, `ObsRewardEnv` (reward equal to
+# a random observation of +1 or −1). The run cell trains the healthy agent and the agents of
+# runs A to D on both.
 
-# %% [markdown] role="ex6-predict"
-# Probe 1 pays 1 and ends after one step. At γ = 0.99, what Q should a correct agent learn?
-# What Q would an agent that ignores `terminated` converge to, if it trained long enough? Which
-# of runs A to D will fail probe 1, which will fail probe 2, and which will pass both?
+# %% [markdown] role="ex4-predict"
+# Probe 1 pays 1 and ends after one step. At γ = 0.99, what Q should a correct agent learn, and
+# what Q would an agent that ignores `terminated` converge to? The probe run syncs the target
+# every 100 steps for 2,000 steps: about what Q will run C show at the end? Which runs will
+# fail probe 2?
 
 
-# %% role="ex6-stub"
+# %% role="ex4-stub"
 class ConstantRewardEnv(gym.Env):
-    """Probe 1. observation_space = gym.spaces.Box(-1.0, 1.0, shape=(1,), dtype=np.float32);
-    action_space = gym.spaces.Discrete(1). reset(seed=None, options=None) calls
-    super().reset(seed=seed) and returns (np.zeros(1, np.float32), {}); step(action) returns
-    (np.zeros(1, np.float32), 1.0, True, False, {})."""
+    """Probe 1 (Jones): one action; the observation is always 0; every episode is one step
+    long, pays +1 and ends with terminated=True. Spaces: a float32 Box of shape (1,) on
+    [-1, 1], and Discrete(1). reset(*, seed=None, options=None) passes seed to super().reset()
+    and returns (observation, info)."""
 
-    # TODO 6 (part 1): __init__ sets the two spaces; then reset and step.
+    # TODO 4 (part 1): __init__ sets the two spaces; then reset and step.
     def __init__(self):
         raise NotImplementedError(
-            "TODO 6: write ConstantRewardEnv, or run lab.use_reference(6) to continue"
+            "TODO 4: write ConstantRewardEnv, or run lab.use_reference(4) to continue"
         )
 
 
 class ObsRewardEnv(gym.Env):
-    """Probe 2. The same spaces. reset draws the observation o = +1.0 or -1.0 with
-    self.np_random.random() < 0.5 giving +1.0, and returns (np.array([o], np.float32), {});
-    step returns (np.array([o], np.float32), o, True, False, {}): the same observation, and
-    the reward o."""
+    """Probe 2 (Jones): the same spaces; the observation is +1 or -1 with equal probability,
+    drawn from self.np_random at reset; the reward equals it; every episode is one step long
+    and ends with terminated=True; step returns the same observation."""
 
-    # TODO 6 (part 2): keep o on self between reset and step.
+    # TODO 4 (part 2): keep the observation on self between reset and step.
     def __init__(self):
         raise NotImplementedError(
-            "TODO 6: write ObsRewardEnv, or run lab.use_reference(6) to continue"
+            "TODO 4: write ObsRewardEnv, or run lab.use_reference(4) to continue"
         )
 
 
-# %% [markdown] role="ex6-hint"
+# %% [markdown] role="ex4-hint"
 # `super().reset(seed=seed)` seeds `self.np_random`, Gymnasium's generator for the
 # environment, so the same seed gives the same observations. Return float32 arrays of shape
-# (1,), not Python floats: the agent stacks them into a batch.
+# (1,), not Python floats: the agent stacks them into a batch. `step` returns five things:
+# observation, reward, terminated, truncated, info.
 
 
-# %% role="ex6-sol"
-@lab.solution(6)
+# %% role="ex4-sol"
+@lab.solution(4)
 class ConstantRewardEnv(gym.Env):
     """Probe 1: observation 0, one step, reward +1."""
 
@@ -807,7 +753,7 @@ class ConstantRewardEnv(gym.Env):
         return np.zeros(1, np.float32), 1.0, True, False, {}
 
 
-@lab.solution(6)
+@lab.solution(4)
 class ObsRewardEnv(gym.Env):
     """Probe 2: observation +1 or -1, one step, reward = observation."""
 
@@ -826,55 +772,29 @@ class ObsRewardEnv(gym.Env):
         return np.array([self.obs], np.float32), self.obs, True, False, {}
 
 
-# %% role="ex6-run"
-def td_target_no_mask(batch, q_next, gamma):
-    """Run C's td_target: it ignores terminated."""
-    return batch.rew + gamma * q_next
-
-
-def gather_q_dim0(q_values, actions):
-    """Run B's gather_q: dimension 0 instead of 1."""
-    return q_values.gather(0, actions.long().unsqueeze(1)).squeeze(1)
-
-
-# How runs A to D were made, now that you have diagnosed them: a configuration change or a
-# function swapped into train_dqn. labs/shared is never edited.
-AGENTS = {
-    "healthy": ({}, {}),
-    "A": (dict(lr=CONFIG.lr * 100), {}),
-    "B": ({}, dict(gather_q=gather_q_dim0)),
-    "C": ({}, dict(td_target=td_target_no_mask)),
-    "D": (dict(target_sync=None), {}),
-}
+# %% role="ex4-run"
 PROBE_CONFIG = dataclasses.replace(
     CONFIG, learning_starts=64, target_sync=100, train_freq=1, eps_fraction=0.0
 )
-
-
-def train_agent(run, make_env, config, seed, **kwargs):
-    """Provided: train_dqn as run `run` was made; the reference functions come back after."""
-    changes, swaps = AGENTS[run]
-    saved = {name: globals()[name] for name in swaps}
-    globals().update(swaps)
-    try:
-        changed = dataclasses.replace(config, **changes)
-        return train_dqn(make_env, changed, seed, budget.probe_steps, **kwargs)
-    finally:
-        globals().update(saved)
-
-
 probes = {
-    "probe 1": (ConstantRewardEnv, np.array([[0.0]], np.float32), [1.0]),
-    "probe 2": (ObsRewardEnv, np.array([[-1.0], [1.0]], np.float32), [-1.0, 1.0]),
+    "probe 1": (ConstantRewardEnv, np.array([[0.0]], np.float32)),
+    "probe 2": (ObsRewardEnv, np.array([[-1.0], [1.0]], np.float32)),
 }
 probe_q = {}
 start = time.perf_counter()
 print(f"Each agent on each probe: {budget.probe_steps:,} steps, target sync every 100.")
 for run in AGENTS:
     cells = []
-    for name, (env_cls, obs, want) in probes.items():
+    for name, (env_cls, obs) in probes.items():
         q_net, _ = train_agent(
-            run, env_cls, PROBE_CONFIG, RUN_SEED, log_every=100, probe_obs=obs, verbose=False
+            run,
+            env_cls,
+            PROBE_CONFIG,
+            RUN_SEED,
+            budget.probe_steps,
+            log_every=100,
+            probe_obs=obs,
+            verbose=False,
         )
         with torch.no_grad():
             got = q_net(torch.as_tensor(obs))[:, 0].numpy()
@@ -886,73 +806,66 @@ print("Exact answers: probe 1, Q(+0) = 1; probe 2, Q(-1) = -1 and Q(+1) = +1.")
 print(f"{len(AGENTS) * len(probes)} probe runs in {time.perf_counter() - start:.0f} s.")
 lab.metric("probe_q_c", round(float(probe_q[("C", "probe 1")][0]), 2))  # room code
 
-# %% [markdown] role="ex6-explain"
-# Run C's Q on probe 1 is far above 1 but still far below where it is heading: count the
-# target syncs in the run and use (masked target) to explain the number. Why does run B pass
-# probe 1 and fail probe 2? Runs A and D pass both probes: what does a passing probe rule out,
-# and what does it not? Which probe of Jones's list would catch run D? (Gotcha: "The probes
-# pass, so the agent is correct.")
+# %% [markdown] role="ex4-explain"
+# Run C's Q on probe 1 is far from both 1 and 100: count the target syncs in the run and use
+# (masked target) to explain its value. Which runs passed both probes, and what does a pass
+# rule out, and what not? (Gotcha: "The probes pass, so the agent is correct.")
 #
 # **Diagnostics for this lab.** Log more than the return and the loss: the mean and largest
-# |δ|, Q at fixed start states from both networks, the discounted return of every episode, and
-# now and then one whole batch. Healthy looks like this: Q at the start states climbs toward the
-# discounted return the agent earns and stays near it; the relative TD error is small and
-# steady; the gathered value is Q(s_i, a_i) on every row; the target's values change at every
-# sync. Broken looks like this: Q above every possible return (a missing mask); a loss that
-# vanishes while Q stays at the reward (a frozen target); gathered values that are not
-# Q(s_i, a_i) (a wrong index); a relative TD error several times the healthy one (too large a
-# step). Then confirm with probes: they are quick, and a correct agent gets them right to a few
-# decimals.
+# |δ|, Q at fixed start states from both networks, the discounted return of every episode,
+# and now and then one whole batch. Check the exact invariants first: the gathered value is
+# Q(s_i, a_i) on every row, and the target's values change at every sync. Then compare Q at the
+# start states with the return earned, and the relative TD error with the healthy seeds'
+# range. Then test what is left on probes: a correct agent gets them right to a few decimals.
 
-# %% role="ex6-chk1"
-lab.check(6, m09.check_constant_reward_env, ConstantRewardEnv, label="6.1")
+# %% role="ex4-chk1"
+lab.check(4, m09.check_constant_reward_env, ConstantRewardEnv, label="4.1")
 
-# %% role="ex6-chk2"
-lab.check(6, m09.check_obs_reward_env, ObsRewardEnv, label="6.2")
+# %% role="ex4-chk2"
+lab.check(4, m09.check_obs_reward_env, ObsRewardEnv, label="4.2")
 
-# %% [markdown] role="ex7-head"
+# %% [markdown] role="ex5-head"
 # **A recorded sweep.** The teammate's next question: is the reference learning rate a good
 # one? `prl.data.load("m09_sweep")` holds 5 learning rates, 0.1, 0.3, 1, 3 and 10 times the
 # reference, each run on seeds 0 to 9 at the live budget, and each run's greedy return at the
-# end (`final_return`, shape (5, 10)). Write the two tools the workshop compares with:
-# `iqm(x)`, the interquartile mean (IQM), and `bootstrap_ci(x, statistic, ...)`, the percentile
-# bootstrap interval (bootstrap CI). Write them exactly as described: the checkpoints compare
-# them with `prl.evaluate.iqm` and `prl.evaluate.bootstrap_ci` on the same inputs.
+# end (`final_return`, shape (5, 10)). Write `iqm(x)`, the interquartile mean (IQM), and
+# `bootstrap_ci(x, statistic, ...)`, the percentile bootstrap interval (bootstrap CI), exactly
+# as described: the checkpoints compare them with `prl.evaluate.iqm` and
+# `prl.evaluate.bootstrap_ci` on the same inputs.
 
-# %% [markdown] role="ex7-predict"
+# %% [markdown] role="ex5-predict"
 # Will the reference (×1) have the highest IQM of the five? Will the tie rule separate it from
 # ×0.3 and ×3? If you had run only seed 0 of each learning rate, would you rank the five the
 # same way as by their IQMs over 10 seeds?
 
 
-# %% role="ex7-stub"
+# %% role="ex5-stub"
 def iqm(x):
     """The interquartile mean (IQM) of the values in x: sort them, drop k = floor(n / 4) from
     each end (n = len(x)), and return the mean of the rest as a float. n = 10 drops 2 from each
     end and averages 6."""
-    # TODO 7 (part 1): three lines.
-    raise NotImplementedError("TODO 7: write iqm, or run lab.use_reference(7) to continue")
+    # TODO 5 (part 1): three lines.
+    raise NotImplementedError("TODO 5: write iqm, or run lab.use_reference(5) to continue")
 
 
 def bootstrap_ci(x, statistic=np.mean, *, level=0.95, n_boot=5000, seed=0):
-    """Percentile bootstrap interval for statistic(x) (bootstrap CI). x = np.asarray(x,
-    dtype=float).ravel(); rng = np.random.default_rng(seed); draw every index at once,
-    idx = rng.integers(0, n, size=(n_boot, n)); compute statistic(x[row]) for each row of idx;
-    return the two quantiles (1 - level) / 2 and 1 - (1 - level) / 2 of those n_boot values
-    (np.quantile) as a tuple of two floats."""
-    # TODO 7 (part 2): five lines.
-    raise NotImplementedError("TODO 7: write bootstrap_ci, or run lab.use_reference(7) to continue")
+    """Percentile bootstrap interval for statistic(x) (bootstrap CI): n_boot resamples of x,
+    each n values drawn with replacement using np.random.default_rng(seed); statistic of each;
+    returns the (1 - level) / 2 and 1 - (1 - level) / 2 quantiles (np.quantile) as two
+    floats."""
+    # TODO 5 (part 2): about five lines.
+    raise NotImplementedError("TODO 5: write bootstrap_ci, or run lab.use_reference(5) to continue")
 
 
-# %% [markdown] role="ex7-hint"
+# %% [markdown] role="ex5-hint"
 # `np.sort(x)[k : n - k]` keeps the middle values. In `bootstrap_ci`, the indices must come
 # from `np.random.default_rng(seed)`, the generator `prl.evaluate` uses, so that the same seed
 # gives the same resamples and the checkpoint can compare the exact interval. `x[row]` with an
 # array of indices is one resample: n values drawn with replacement.
 
 
-# %% role="ex7-sol"
-@lab.solution(7)
+# %% role="ex5-sol"
+@lab.solution(5)
 def iqm(x):
     """Mean of the middle values after dropping floor(n/4) per end."""
     x = np.sort(np.asarray(x, dtype=float).ravel())
@@ -960,7 +873,7 @@ def iqm(x):
     return float(x[k : len(x) - k].mean())  # (IQM)
 
 
-@lab.solution(7)
+@lab.solution(5)
 def bootstrap_ci(x, statistic=np.mean, *, level=0.95, n_boot=5000, seed=0):
     """Percentile bootstrap interval for statistic(x)."""
     x = np.asarray(x, dtype=float).ravel()
@@ -972,7 +885,7 @@ def bootstrap_ci(x, statistic=np.mean, *, level=0.95, n_boot=5000, seed=0):
     return float(lo), float(hi)
 
 
-# %% role="ex7-run"
+# %% role="ex5-run"
 SWEEP = prl.data.load("m09_sweep")
 factors, final = SWEEP["lr_factor"], SWEEP["final_return"]
 ref = int(np.flatnonzero(factors == 1.0)[0])
@@ -981,23 +894,23 @@ print(f"Greedy return at {int(SWEEP['budget_steps']):,} steps, {final.shape[1]} 
 for f, x in zip(factors, final, strict=True):
     lo, hi = bootstrap_ci(x, iqm)
     summary.append((iqm(x), lo, hi))
-    seeds = " ".join(f"{v:5.0f}" for v in x)
-    print(f"  lr x{f:<4g} IQM {iqm(x):6.1f} [{lo:6.1f}, {hi:6.1f}]   seeds: {seeds}")
+    print(f"  lr x{f:<4g} IQM {iqm(x):6.1f} [{lo:6.1f}, {hi:6.1f}]  mean {x.mean():6.1f}")
+    print(f"           seeds: {' '.join(f'{v:4.0f}' for v in x)}")
+for i, f in enumerate(factors):
+    if i != ref:
+        v = compare(final[i], final[ref], names=(f"lr x{f:g}", "lr x1"))
+        print(textwrap.fill(v.sentence.split(" (IQM")[0], 98, initial_indent="  "))
 sweep_budget = Budget(
     steps=int(SWEEP["budget_steps"]),
     seeds=final.shape[1],
     wall_clock_s=float(SWEEP["seconds"].sum()),
     hardware=str(SWEEP["hardware"]),
 )
-for i, f in enumerate(factors):
-    if i != ref:
-        v = compare(final[i], final[ref], names=(f"lr x{f:g}", "lr x1"))
-        print(textwrap.fill(v.sentence.split(" (IQM")[0], 98, initial_indent="  "))
 print(textwrap.fill(sweep_budget.sentence(), 98))
 by_seed0 = [f"x{factors[i]:g}" for i in np.argsort(-final[:, 0], kind="stable")]
 by_iqm = [f"x{factors[i]:g}" for i in np.argsort([-s[0] for s in summary], kind="stable")]
-print(f"Ranked by IQM:    {by_iqm}")
-print(f"Ranked by seed 0: {by_seed0}")
+print(f"Ranked by IQM:        {' > '.join(by_iqm)}")
+print(f"Ranked by seed 0 only: {' > '.join(by_seed0)}")
 fig, ax = plt.subplots()
 xs = np.arange(len(factors))
 spread = np.linspace(-0.2, 0.2, final.shape[1])  # one x per seed, so equal values stay apart
@@ -1014,6 +927,7 @@ ax.errorbar(
     color=prl.plot.SERIES[0],
     label="IQM [95% bootstrap CI]",
 )
+ax.plot(xs, final.mean(axis=1), "x", color=prl.plot.SERIES[1], label="mean")
 ax.set(
     xticks=xs,
     xticklabels=[f"x{f:g}" for f in factors],
@@ -1024,35 +938,61 @@ ax.set(
 ax.legend()
 plt.show()
 
-# %% [markdown] role="ex7-explain"
-# Ten seeds is few, so the IQM keeps 6 values (IQM) and the interval is wide. Which rates does
-# the tie rule separate from the reference, and which tie? What does a flat top say about how
-# carefully the learning rate needs tuning, and what does a cliff on one side say? The highest
-# IQM of five configurations is the largest of five noisy estimates: is it likely to be too
-# high or too low as an estimate of that configuration's true performance? (Gotcha: "The best
-# configuration's score is its expected score.")
+# %% [markdown] role="ex5-explain"
+# Which rates does the tie rule separate from the reference, and which tie? On which rates do
+# the mean and the IQM differ most, and why (IQM)? The highest IQM of five configurations is
+# the largest of five noisy estimates: is it likely to be too high or too low as an estimate of
+# that configuration's true performance? (Gotcha: "The best configuration's score is its
+# expected score.")
 
-# %% role="ex7-chk1"
-lab.check(7, m09.check_iqm, iqm, label="7.1")
+# %% role="ex5-chk1"
+lab.check(5, m09.check_iqm, iqm, label="5.1")
 
-# %% role="ex7-chk2"
-lab.check(7, m09.check_bootstrap_ci, bootstrap_ci, label="7.2")
+# %% role="ex5-chk2"
+lab.check(5, m09.check_bootstrap_ci, bootstrap_ci, label="5.2")
 
-# %% [markdown] role="ex8-head"
+# %% [markdown] role="ex6-head"
 # **One live seed.** Train the reference configuration yourself, on your seat's seed, at the
 # lab's budget, and place your run against the recorded band of the reference configuration at
 # the same budget (`prl.data.band`). Your seed is one more draw from the same distribution as
-# the recorded seeds. The cell reports where it lands, the IQM and interval of the recorded
-# seeds with and without yours (your `iqm` and `bootstrap_ci`), your four signals on your own
-# log, and the budget sentence of your run.
+# the recorded seeds. Write `band_position`, which says where a value lands against a band. The
+# cell reports it, the IQM and interval of the recorded seeds with and without yours, your four
+# signals on your own log, and the budget sentence of your run.
 
-# %% [markdown] role="ex8-predict"
-# The band has 10 recorded seeds. If your seed comes from the same distribution, what is the
-# chance that its return lands above the band's largest or below its smallest? Will adding your
-# seed move the IQM by more or by less than half the width of the interval?
+# %% [markdown] role="ex6-predict"
+# About 20 seats each run one seed against this 10-seed band. About how many seats will land
+# outside it? Look at the band's top value first: can any seat land above a band that reaches
+# 500? Will adding your seed move the IQM by more or by less than half the width of its
+# interval?
 
 
-# %% role="ex8-run"
+# %% role="ex6-stub"
+def band_position(value, recorded):
+    """+1 if value is above every recorded value, -1 if below every one, 0 otherwise. A value
+    equal to the band's top or bottom is inside (band)."""
+    # TODO 6: two comparisons with the band's ends.
+    raise NotImplementedError(
+        "TODO 6: write band_position, or run lab.use_reference(6) to continue"
+    )
+
+
+# %% [markdown] role="ex6-hint"
+# The band runs from `np.min(recorded)` to `np.max(recorded)`. Only a strict inequality puts a
+# value outside.
+
+
+# %% role="ex6-sol"
+@lab.solution(6)
+def band_position(value, recorded):
+    """Above (+1), below (-1) or inside (0) the band's range."""
+    if value > np.max(recorded):
+        return 1
+    if value < np.min(recorded):
+        return -1
+    return 0  # (band)
+
+
+# %% role="ex6-run"
 band = prl.data.band("m09_reference", budget)  # the recording at your budget
 start = time.perf_counter()
 print(f"Training the reference DQN on seed {RUN_SEED} for {budget.steps:,} steps:", flush=True)
@@ -1069,21 +1009,9 @@ q_live, log_live = train_dqn(
 seconds_live = time.perf_counter() - start
 live_return = float(log_live["eval_return"][-1])  # the band's metric at the last grid point
 recorded = np.asarray(band["runs"], dtype=float)[:, -1]
-position = int(live_return > recorded.max()) - int(live_return < recorded.min())
-where = {1: "above the band", 0: "inside the band", -1: "below the band"}[position]
-print(
-    f"Your greedy return: {live_return:.1f}, {where} [{recorded.min():.1f}, {recorded.max():.1f}]"
-)
+lab.metric("live_return", round(live_return, 1))  # room code
+print(f"Your greedy return: {live_return:.1f}; band [{recorded.min():.1f}, {recorded.max():.1f}]")
 print(f"Band: {band['metric']}; {len(band['seeds'])} seeds; record {band['record']}.")
-with_you = np.append(recorded, live_return)
-for label, x in (("recorded seeds", recorded), ("with yours", with_you)):
-    lo, hi = bootstrap_ci(x, iqm)
-    print(f"  IQM of the {len(x)} {label}: {iqm(x):.1f} [{lo:.1f}, {hi:.1f}]")
-print("Your four signals on your own run:")
-print(f"  td_error_scale (second-half median) {second_half_median(td_error_scale(log_live)):.4f}")
-print(f"  gather_check {gather_check(log_live):.3f}")
-print(f"  q_drift (last five log points) {last_five(q_drift(log_live)):.2f}")
-print(f"  target_lag (largest) {int(np.max(target_lag(log_live)))}")
 live_budget = Budget(steps=budget.steps, seeds=1, wall_clock_s=seconds_live, hardware=HARDWARE)
 print(textwrap.fill(live_budget.sentence() + " Single seed, not a ranking.", 98))
 fig, ax = plt.subplots()
@@ -1105,25 +1033,40 @@ ax.set(
 )
 ax.legend()
 plt.show()
-lab.metric("live_return", round(live_return, 1))  # room code
+# Your functions last, so a missing one cannot cost you the training run above.
+position = band_position(live_return, recorded)
 lab.metric("live_position", position)  # room code: -1 below, 0 inside, +1 above the band
+print(f"Your seed is {({1: 'above', 0: 'inside', -1: 'below'})[position]} the band.")
+with_you = np.append(recorded, live_return)
+for label, x in (("recorded seeds", recorded), ("with yours", with_you)):
+    lo, hi = bootstrap_ci(x, iqm)
+    print(f"  IQM of the {len(x)} {label}: {iqm(x):.1f} [{lo:.1f}, {hi:.1f}]")
+print("Your four signals on your own run:")
+print(f"  gather_check {gather_check(log_live):.3f}; target_lag (last) {target_lag(log_live)[-1]}")
+print(
+    f"  Q drift (last 5) {last_five(q_drift(log_live)):.2f}; relative TD error (second half) "
+    f"{second_half_median(td_error_scale(log_live)):.4f}"
+)
 
-# %% [markdown] role="ex8-explain"
-# Your seed landed where it landed: inside the band is not a pass, and outside is not a fail
-# (band). How often should a correct seed land outside a band of 10? Your four signals on your
-# own run: do they look like the healthy run's? Write the sentence you would send the teammate
-# about the reference configuration, with its budget. The debrief pools the room's seeds.
+# %% [markdown] role="ex6-explain"
+# Inside the band is not a pass, and outside is not a fail (band). How many of 20 seats would
+# you expect outside, and what does the band's top value change? Do your four signals look like
+# the healthy run's? Write the sentence you would send the teammate about the reference
+# configuration, with its budget. The debrief pools the room's seeds.
 
-# %% role="ex8-chk"
-lab.check(8, m09.check_live_return, live_return)
+# %% role="ex6-chk1"
+lab.check(6, m09.check_band_position, band_position, label="6.1")
+
+# %% role="ex6-chk2"
+lab.check(6, m09.check_live_return, live_return, label="6.2")
 
 # %% [markdown]
 # **Your room code.** The last cell, `lab.finish()`, prints one line that starts with
-# `ROOM m09`. It holds your seat, the checkpoints you passed, whether QUICK budgets ran, and
-# the numbers the debrief pools: run C's Q on probe 1 after your probe run (`probe_q_c`,
-# Exercise 6), your live seed's greedy return (`live_return`, Exercise 8) and where it landed
-# against the band (`live_position`: −1 below, 0 inside, +1 above). Your run record keeps your
-# predictions and your four diagnoses as well. Paste the line where your instructor says.
+# `ROOM m09`. It holds your seat, the checkpoints you passed (3.1 to 3.4 are your four
+# diagnoses), whether QUICK budgets ran, and the numbers the debrief pools: run C's Q on probe 1
+# after your probe run (`probe_q_c`, Exercise 4), your live seed's greedy return
+# (`live_return`, Exercise 6) and where it landed against the band (`live_position`: −1 below,
+# 0 inside, +1 above). Paste the line where your instructor says.
 
 # %% [markdown] role="stretch"
 # **Probe 3: discounting.** Jones's third probe has one action, the observation 0 and then 1,
@@ -1171,7 +1114,14 @@ lab.check("stretch", m09.check_two_step_env, TwoStepEnv, label="stretch")
 obs3 = np.array([[0.0], [1.0]], np.float32)
 for run in AGENTS:
     q_net, _ = train_agent(
-        run, TwoStepEnv, PROBE_CONFIG, RUN_SEED, log_every=100, probe_obs=obs3, verbose=False
+        run,
+        TwoStepEnv,
+        PROBE_CONFIG,
+        RUN_SEED,
+        budget.probe_steps,
+        log_every=100,
+        probe_obs=obs3,
+        verbose=False,
     )
     with torch.no_grad():
         got = q_net(torch.as_tensor(obs3))[:, 0].numpy()
