@@ -1,0 +1,175 @@
+{
+  "badge_ref": "main",
+  "checkpoints": [
+    {
+      "exercise": 1,
+      "label": "1.1",
+      "pass": true,
+      "seconds": 0.005,
+      "whose": "reference"
+    },
+    {
+      "exercise": 1,
+      "label": "1.2",
+      "pass": true,
+      "seconds": 0.04,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2.1",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2.2",
+      "pass": true,
+      "seconds": 0.014,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.1",
+      "pass": true,
+      "seconds": 0.002,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.2",
+      "pass": true,
+      "seconds": 0.12,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.3",
+      "pass": true,
+      "seconds": 0.048,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4",
+      "pass": true,
+      "seconds": 11.661,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5.1",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5.2",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6",
+      "pass": true,
+      "seconds": 0.008,
+      "whose": "reference"
+    }
+  ],
+  "colab_release": null,
+  "content_sha": "dfaa4f7d8a2c8b5a",
+  "date": "2026-10-24",
+  "dirty": false,
+  "env": "local",
+  "git_sha": "81b9bac67bec10767ec1970831984f3baae99b90",
+  "hardware": {
+    "accel": "cpu",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "notebook",
+  "metrics": {
+    "eps_iqm": 17.0,
+    "eps_sweep_iqm": {
+      "0.0": 51.0,
+      "0.01": 44.2,
+      "0.05": 19.3,
+      "0.1": 17.0,
+      "0.2": 27.3,
+      "0.5": 55.9
+    },
+    "greedy_locked": 5,
+    "scale_directions": {
+      "eps_greedy": "same",
+      "ucb1": "changes",
+      "ucb1_rescaled": "same"
+    },
+    "suspect_pulls": [
+      198.6,
+      111.9,
+      689.5
+    ],
+    "ts_iqm": 16.0,
+    "ucb1_iqm": 42.1,
+    "ucb1_late_lead": -37.3,
+    "ucb1_pulls_h1": 111.9,
+    "ucb1_x10_lower": 6,
+    "verdicts": {
+      "TS vs UCB1 @ 1000": "A",
+      "TS vs UCB1 @ 200": "tie",
+      "TS vs eps-greedy @ 1000": "tie",
+      "TS vs eps-greedy @ 200": "tie",
+      "UCB1 vs eps-greedy @ 1000": "tie",
+      "UCB1 vs eps-greedy @ 200": "tie",
+      "UCB1 vs eps-greedy @ 2000": "B"
+    }
+  },
+  "note": "QUICK budget (PRL_QUICK=1), solutions bound, scripts/check_notebooks.py --mode worked --record. One-minute load average 5.08 at the start and 4.74 at the end; other builds may have been running on this machine. A laptop time, not a Colab time.",
+  "notebook": "04-bandits",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "torch": "2.14.1"
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "quick": true,
+  "quick_reason": "PRL_QUICK=1 is set",
+  "schema": 1,
+  "scope": "notebook",
+  "seat": 0,
+  "seconds": 30.5,
+  "seeds": [
+    1000,
+    1001,
+    1002,
+    1003,
+    1004,
+    1005,
+    1006,
+    1007,
+    1008,
+    1009
+  ],
+  "settings": {
+    "T": 1000,
+    "early": 200,
+    "late": 2000,
+    "seeds": 10
+  },
+  "shims": [],
+  "solutions_bound": true,
+  "source": "tool",
+  "status": "pass",
+  "test_doubles": [],
+  "torch_threads": null
+}

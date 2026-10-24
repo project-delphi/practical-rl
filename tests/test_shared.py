@@ -2,7 +2,7 @@
 
 A later lab pulls an earlier lab's algorithm in with `# %% include labs/shared/NAME.py`.
 Each shared file names its origin on its first line, `# origin: labs/src/NN-slug.py`, and
-every top-level function it defines must match, token for token (decorators aside), the
+every top-level function or class it defines must match, token for token (decorators aside), the
 function of the same name in one of that source's solution cells. So a shared copy can
 never drift from the solution participants wrote.
 """
@@ -20,10 +20,10 @@ ORIGIN = re.compile(r"^#\s*origin:\s*(labs/src/\S+\.py)\s*$")
 
 
 def _defs(tree: ast.Module) -> dict[str, str]:
-    """Top-level function sources, with decorators removed, keyed by name."""
+    """Top-level functions and classes, with decorators removed, keyed by name."""
     out = {}
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef):
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
             node.decorator_list = []
             out[node.name] = ast.dump(node, include_attributes=False)
     return out
@@ -47,7 +47,7 @@ def test_shared_code_equals_its_origin_solution(path: Path):
     origin = ROOT / m.group(1)
     assert origin.exists(), f"{path.name}: origin {m.group(1)} does not exist"
     shared = _defs(ast.parse(path.read_text()))
-    assert shared, f"{path.name} defines no top-level function"
+    assert shared, f"{path.name} defines no top-level function or class"
     solutions = _solution_defs(origin)
     for name, dumped in shared.items():
         assert name in solutions, f"{path.name}: {name} is not a solution in {origin.name}"
