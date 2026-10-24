@@ -62,7 +62,7 @@ and note the paper's original symbol here.
 | $w^*_a$, $\hat w_a$, $\tilde w_a$ | Module 5: item $a$'s true linear reward parameter $(0.15\,\theta_a, 0.5)$, its ridge estimate $\Lambda_a^{-1} b_a$ (code: `w_hat`), and a Thompson draw | Li et al.'s $\theta_a$; Agrawal and Goyal's $\mu$, $\hat\mu(t)$, $\tilde\mu(t)$ |
 | $b_a$ | Module 5: item $a$'s sum $\sum_i r_i\, \phi_i$; $\hat w_a = \Lambda_a^{-1} b_a$ (code: `A` is $\Lambda_a$, `A_inv`, `b`) | Li et al.'s $b_a$ |
 | $\lVert \phi \rVert_{\Lambda^{-1}}$ | the width $\sqrt{\phi^\top \Lambda^{-1} \phi}$ of a prediction in direction $\phi$ (Module 5); $\lVert v \rVert_\Lambda = \sqrt{v^\top \Lambda v}$ | |
-| $\kappa$ | the radius of LinUCB's confidence ellipsoid $\lVert w - \hat w \rVert_\Lambda \le \kappa$ (Module 5) | Lattimore and Szepesvári's $\sqrt{\beta_t}$ (our $\beta$ is the KL coefficient) |
+| $\kappa$, $\kappa_t$ | the radius of LinUCB's confidence ellipsoid $\lVert w - \hat w \rVert_\Lambda \le \kappa$ (Module 5); $\kappa_t$ is the radius in round $t$, and $\zeta_t$ the logarithmic term inside it, in Module 5's collapsed Theorem 20.5 | Lattimore and Szepesvári's $\sqrt{\beta_t}$ (our $\beta$ is the KL coefficient) |
 | $v$ | linear Thompson sampling's scale, $\tilde w_a \sim \mathcal{N}(\hat w_a, v^2 \Lambda_a^{-1})$ (Module 5); not $v_0$ | Agrawal and Goyal's $v$; MABWiser's `alpha` for LinTS |
 | $\xi_i$ | the noise of one observation, $r_i - w^{*\top}\phi_i$ (Module 5) | Lattimore and Szepesvári's $\eta_t$ (our $\eta$ is an error bound) |
 | $\sigma$ | the scale of sub-Gaussian noise (Module 5) | Agrawal and Goyal's $R$ |

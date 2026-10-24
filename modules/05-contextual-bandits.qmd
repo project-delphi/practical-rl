@@ -39,7 +39,10 @@ The state and the transition; the reward can stay the click. Any effect of the a
 **The lab's recommender.** `prl.envs.RecSim` has $K = 10$ items and contexts in $\mathbb{R}^5$, drawn independently from $\mathcal{N}(0, I/5)$. Each item $a$ has a hidden parameter $\theta_a \in \mathbb{R}^5$, and in the well-specified regime the click probability is
 
 $$
-r(x, a) = \operatorname{clip}\big(0.5 + 0.15\, \theta_a^\top x,\ 0.02,\ 0.98\big).
+\begin{aligned}
+r(x, a) &= \operatorname{clip}\big(z,\ 0.02,\ 0.98\big), \\
+z &= 0.5 + 0.15\, \theta_a^\top x .
+\end{aligned}
 $$ {#eq-click-model}
 
 The factor 0.15 is RecSim's `scale`. The clip binds rarely. Inside it, $r(x, a)$ is linear in the features $\phi(x) = (x, 1) \in \mathbb{R}^6$: ${r(x, a) = w_a^{*\top} \phi(x)}$ with $w^*_a = (0.15\,\theta_a,\ 0.5)$. We write $w$ for a linear model's parameter and keep $\theta$ for the simulator's. The constant feature carries the 0.5. We write $d = 6$ for the number of features.
@@ -47,7 +50,10 @@ The factor 0.15 is RecSim's `scale`. The clip binds rarely. Inside it, $r(x, a)$
 **Regret.** Because the simulator knows $r(x, a)$, the lab measures the *pseudo-regret*: in each round, the best item's click probability minus the shown item's,
 
 $$
-\mathrm{Reg}_T = \sum_{t=0}^{T-1} \Big[ \max_a r(x_t, a) - r(x_t, a_t) \Big].
+\begin{aligned}
+\mathrm{Reg}_T = \sum_{t=0}^{T-1} \Big[ &\max_a r(x_t, a) \\
+&- r(x_t, a_t) \Big].
+\end{aligned}
 $$ {#eq-regret}
 
 This is Module 4's pseudo-regret, with the best item now chosen per context. Lower is better.
@@ -85,8 +91,10 @@ $\Lambda_a$ is the $d \times d$ *Gram matrix* of item $a$ [@lattimore2020bandit,
 **Incremental.** Both statistics are sums, so a click adds $\phi\phi^\top$ to $\Lambda_a$ and $r\phi$ to $b_a$: $O(d^2)$ work. Every prediction needs $\Lambda_a^{-1}$, and inverting from scratch costs $O(d^3)$. Keep the inverse current instead, with the *Sherman–Morrison formula*:
 
 $$
-(\Lambda + \phi\phi^\top)^{-1}
-= \Lambda^{-1} - \frac{(\Lambda^{-1}\phi)(\Lambda^{-1}\phi)^\top}{1 + \phi^\top \Lambda^{-1} \phi} .
+\begin{aligned}
+&(\Lambda + \phi\phi^\top)^{-1} \\
+&\quad = \Lambda^{-1} - \frac{(\Lambda^{-1}\phi)(\Lambda^{-1}\phi)^\top}{1 + \phi^\top \Lambda^{-1} \phi} .
+\end{aligned}
 $$ {#eq-sm}
 
 It holds for any invertible symmetric $\Lambda$ with ${1 + \phi^\top \Lambda^{-1}\phi \ne 0}$, which a positive definite $\Lambda$ always satisfies. It is exact algebra, not an approximation; only rounding separates it from a fresh inverse.
@@ -111,7 +119,16 @@ $$
 \end{aligned}
 $$
 
-Check: $\Lambda = I + \phi_1\phi_1^\top + \phi_2\phi_2^\top = \begin{pmatrix} 3 & 1 \\ 1 & 2 \end{pmatrix}$, whose inverse is $\frac15 \begin{pmatrix} 2 & -1 \\ -1 & 3 \end{pmatrix}$, the same. The click total is unchanged, $b = (1, 0)$, so $\hat w = \Lambda^{-1} b = (2/5,\ -1/5)$. The prediction for a user like the second one is $\hat w^\top \phi_2 = 1/5$: the no-click pulled it down from $1/2$.
+Check: $\Lambda = I + \phi_1\phi_1^\top + \phi_2\phi_2^\top$ and its inverse are
+
+$$
+\begin{aligned}
+\Lambda &= \begin{pmatrix} 3 & 1 \\ 1 & 2 \end{pmatrix}, \\
+\Lambda^{-1} &= \frac15 \begin{pmatrix} 2 & -1 \\ -1 & 3 \end{pmatrix},
+\end{aligned}
+$$
+
+the same. The click total is unchanged, $b = (1, 0)$, so $\hat w = \Lambda^{-1} b = (2/5,\ -1/5)$. The prediction for a user like the second one is $\hat w^\top \phi_2 = 1/5$: the no-click pulled it down from $1/2$.
 :::
 
 ::: {.callout-note collapse="true" title="Code: Ridge (open after Lab 5)"}
@@ -172,10 +189,19 @@ This is Li et al.'s Algorithm 1, line 9, and their Eq. 5, with their $\alpha$ wr
 **The baseline.** *Predict-then-greedy* shows the item with the highest prediction $\hat w_a^\top \phi_t$ and adds no width: Module 4's greedy, with a ridge model per item in place of a mean. Every method in the lab starts with the same *launch*: in rounds 0 to $K - 1$ item $t$ is shown, one *impression* (one showing) per item, as if the whole catalog were new.
 
 ::: {#demo-ellipse .demo}
-**Demo: read the ellipse (3 min).** $d = 2$ and ${\lambda_{\text{ridge}} = 1}$. An item has been shown three times to users with $\phi = (1, 0)$ and once to a user with $\phi = (1, 1)$, so $\Lambda = \begin{pmatrix} 5 & 1 \\ 1 & 2 \end{pmatrix}$ and $\Lambda^{-1} = \frac19\begin{pmatrix} 2 & -1 \\ -1 & 5 \end{pmatrix}$. **Predict first, as a room:** rank three new users by the width of their prediction: $(1, 0)$, $(0, 1)$ and $(1, -1)/\sqrt2$.
+**Demo: read the ellipse (3 min).** $d = 2$ and ${\lambda_{\text{ridge}} = 1}$. An item has been shown three times to users with $\phi = (1, 0)$ and once to a user with $\phi = (1, 1)$, so
+
+$$
+\begin{aligned}
+\Lambda &= \begin{pmatrix} 5 & 1 \\ 1 & 2 \end{pmatrix}, \\
+\Lambda^{-1} &= \frac19\begin{pmatrix} 2 & -1 \\ -1 & 5 \end{pmatrix}.
+\end{aligned}
+$$
+
+**Predict first, as a room:** rank three new users by the width of their prediction: $(1, 0)$, $(0, 1)$ and $(1, -1)/\sqrt2$.
 
 ::: {.callout-tip collapse="true" title="Answer: three widths"}
-![The ellipse ${\lVert w - \hat w \rVert_\Lambda \le 1}$ and three directions' widths.](/images/05-ellipse.svg){#fig-ellipse fig-alt="An ellipse centered at w-hat = (0.556, 0.222), tilted, with its long axis close to the vertical direction. Three arrows from the center show three users' directions, each labeled with its width: (1, 0) has width 0.471, (0, 1) has width 0.745, and (1, -1) over root 2 has width 0.707."}
+![**What to notice:** each arrow is one user's direction $\phi$, drawn as long as its width $\lVert \phi \rVert_{\Lambda^{-1}}$. The dashed line at the arrow's tip is perpendicular to it and touches the shaded ellipse ${\lVert w - \hat w \rVert_\Lambda \le 1}$ at the dot, so a width is the ellipse's half-extent in that direction.](/images/05-ellipse.svg){#fig-ellipse fig-alt="An ellipse centered at w-hat = (0.556, 0.222), tilted, with its long axis close to the vertical direction. Three arrows from the center show three users' directions, each as long as its width and labeled with it: (1, 0) has width 0.471, (0, 1) has width 0.745, and (1, -1) over root 2 has width 0.707. At each arrow's tip a dashed line, perpendicular to the arrow, touches the ellipse at a dot."}
 
 From @eq-width with $\Lambda^{-1}$ above: $(1, 0)$ has width $\sqrt{2/9} \approx 0.471$, $(0, 1)$ has $\sqrt{5/9} \approx 0.745$, and $(1, -1)/\sqrt2$ has $\sqrt{1/2} \approx 0.707$. So $(1, 0)$ is narrowest: three of the four users looked like it. $(0, 1)$ is widest, and $(1, -1)/\sqrt2$ is almost as wide: the one user at $(1, 1)$ says much about the direction $(1, 1)$, width $\sqrt{5/18} \approx 0.527$, and little about the direction across it. Each width is the ellipse's half-extent in its direction, and the ellipse is long where the data are thin.
 :::
@@ -198,13 +224,14 @@ Assume noise that is conditionally 1-subgaussian given the past and the current 
 
 $$
 \begin{aligned}
-\lVert \hat w_t - w^* \rVert_{\Lambda_t}
-&< M \sqrt{\lambda_{\text{ridge}}} \\
-&\phantom{{}<{}} + \sqrt{2 \log(1/p_{\text{fail}}) + \log\!\big(\det \Lambda_t / \lambda_{\text{ridge}}^d\big)} .
+&\lVert \hat w_t - w^* \rVert_{\Lambda_t} < \kappa_t, \\
+&\kappa_t = M \sqrt{\lambda_{\text{ridge}}} + \sqrt{\zeta_t}, \\
+&\zeta_t = 2 \log(1/p_{\text{fail}}) \\
+&\qquad + \log\!\big(\det \Lambda_t / \lambda_{\text{ridge}}^d\big) .
 \end{aligned}
 $$
 
-Two things change from the fixed-design argument. The radius grows slowly with the data, through $\log \det \Lambda_t$, which pays for the actions having been chosen by the algorithm; and the first term pays for the penalty's pull toward 0. With this radius in the role of $c$, LinUCB has a guarantee: Theorem 19.2 bounds its regret, and Corollary 19.3 gives order $d\sqrt{T}$ up to a logarithm [@lattimore2020bandit, §19.3]. They write $V_t(\lambda_{\text{ridge}})$ for our $\Lambda_t$.
+Here $\kappa_t$ is the ellipsoid's radius in round $t$. Two things change from the fixed-design argument. The radius grows slowly with the data, through $\log \det \Lambda_t$ in $\zeta_t$, which pays for the actions having been chosen by the algorithm; and the first term pays for the penalty's pull toward 0. With $\kappa_t$ in the role of $c$, and under their boundedness assumptions (Assumption 19.1), LinUCB has a guarantee: Theorem 19.2 bounds its regret, and Corollary 19.3 gives order $d\sqrt{T}$ up to a logarithm [@lattimore2020bandit, §19.3]. They write $V_t(\lambda_{\text{ridge}})$ for our $\Lambda_t$.
 :::
 
 ::: {.callout-note collapse="true" title="Code: linucb_scores (open after Lab 5)"}
@@ -247,10 +274,10 @@ This is Agrawal and Goyal's algorithm, written with one model per item [@agrawal
 :::
 
 ::: {#chk-lints .self-check}
-**Check yourself 4.1.** Two items, one user $\phi$. Item 1 has $\hat w_1^\top\phi = 0.6$ and width $\lVert \phi \rVert_{\Lambda_1^{-1}} = 0.2$; item 2 has $\hat w_2^\top\phi = 0.65$ and width 0.02. With ${c = 0.5}$, which item does LinUCB show? With ${v = 0.25}$, about how often does Thompson sampling show item 1?
+**Check yourself 4.1.** Two items, 0 and 1, and one user $\phi$. Item 0 has $\hat w_0^\top\phi = 0.6$ and width $\lVert \phi \rVert_{\Lambda_0^{-1}} = 0.2$; item 1 has $\hat w_1^\top\phi = 0.65$ and width 0.02. With ${c = 0.5}$, which item does LinUCB show? With ${v = 0.25}$, about how often does Thompson sampling show item 0?
 
 ::: {.callout-tip collapse="true" title="Answer to 4.1"}
-LinUCB's scores are $0.6 + 0.5 \cdot 0.2 = 0.70$ and $0.65 + 0.5 \cdot 0.02 = 0.66$, so it shows item 1, every time. Thompson sampling's drawn scores are normal with means 0.6 and 0.65 and standard deviations $0.25 \cdot 0.2 = 0.05$ and $0.25 \cdot 0.02 = 0.005$. Their difference has mean $-0.05$ and standard deviation $\sqrt{0.05^2 + 0.005^2} \approx 0.0502$, so item 1 wins with probability $P(Z > 0.995) \approx 0.16$: about one user in six. LinUCB explores this item deterministically; Thompson sampling, now and then.
+LinUCB's scores are $0.6 + 0.5 \cdot 0.2 = 0.70$ and $0.65 + 0.5 \cdot 0.02 = 0.66$, so it shows item 0, every time. Thompson sampling's drawn scores are normal with means 0.6 and 0.65 and standard deviations $0.25 \cdot 0.2 = 0.05$ and $0.25 \cdot 0.02 = 0.005$. Their difference has mean $-0.05$ and standard deviation $\sqrt{0.05^2 + 0.005^2} \approx 0.0502$, so item 0 wins with probability $P(Z > 0.995) \approx 0.16$: about one user in six. LinUCB explores this item deterministically; Thompson sampling, now and then.
 :::
 :::
 
@@ -273,29 +300,30 @@ def lints_sample(model, v, rng):
 
 **In this section:** name the two ways the lab's harder regimes break the linear model, and say what each does to the width.
 
-The width of @eq-width measures the noise around a model that is right. Exercise 5 runs two regimes in which it is not, with the same catalog.
+The width of @eq-width measures the noise around a model that is right. Exercise 5 runs two regimes in which it is not.
 
-**Misspecified.** RecSim adds a quadratic term to the click model:
+**Misspecified.** RecSim adds a quadratic term:
 
 $$
 \begin{aligned}
 r(x, a) &= \operatorname{clip}\big(z,\ 0.02,\ 0.98\big), \\
-z &= 0.5 + 0.15\,\big(\theta_a^\top x + \nu\, g(x, a)\big), \\
+z &= 0.5 + 0.15\,\theta_a^\top x \\
+&\phantom{{}={}} + 0.15\,\nu\, g(x, a), \\
 g(x, a) &= (u_a^\top x)^2 - \lVert u_a \rVert^2 / 5 ,
 \end{aligned}
 $$ {#eq-misspec}
 
-with a hidden $u_a$ per item and the weight ${\nu = 1}$ in the lab (RecSim's `misspec`). The term $g$ has mean 0 over users and is quadratic in $x$, so no linear function of $\phi(x)$ can represent it. Ridge then converges to the best linear fit, whose error does not shrink with data. The width does: it depends only on which users the item has seen, not on whether the model is right. A narrow width then means a precise estimate of the wrong function.
+with a hidden $u_a$ per item and the weight ${\nu = 1}$ in the lab (RecSim's `misspec`). The term $g$ has mean 0 over users and is quadratic in $x$, so no linear function of $\phi(x)$ can represent it. Ridge then converges to the best linear fit for the users the item was shown to, whose error does not shrink with data. The width does: it depends only on which users the item has seen, not on whether the model is right. A narrow width then means a precise estimate of the wrong function.
 
-**Drifting.** RecSim rotates every item's parameter over time:
+**Drifting.** RecSim rotates each item's parameter:
 
 $$
 \theta_a(t) = \cos(\omega t)\, \theta_a + \sin(\omega t)\, \theta^{\text{alt}}_a ,
 $$ {#eq-drift}
 
-with a second hidden parameter $\theta^{\text{alt}}_a$ (RecSim's `theta_alt`). The lab sets $\omega = \pi / T$, so by the end of the run ${\theta_a(T) = -\theta_a}$: tastes have reversed. @eq-ridge weights a user from round 10 the same as one from the last round, so $\hat w_a$ estimates an average of past tastes, and the width keeps shrinking as the data grow older. Discounting old observations, or fitting on a recent window, would let the model forget; the lab implements neither.
+with a second hidden parameter $\theta^{\text{alt}}_a$ (RecSim's `theta_alt`). The lab sets $\omega = \pi / T$, so by the end of the run ${\theta_a(T) = -\theta_a}$: tastes have reversed. @eq-ridge weights a user from round 10 the same as one from the last round, so $\hat w_a$ estimates an average of past tastes, and the width keeps shrinking as the data grow older. Discounting old data, or a recent window, would let the model forget; the lab implements neither.
 
-**What this does not say.** Neither break settles whether exploring pays. Both change what the width means, and the lab measures what that costs each method against a method that never explores.
+**What this does not say.** Neither break settles whether exploring pays; both change what the width means, and the lab measures what that costs against a method that never explores.
 
 ::: {.callout-note appearance="simple"}
 **In the lab.** **Exercise 5** runs predict-then-greedy, LinUCB and Thompson sampling in the three regimes, and once more in the well-specified regime after a launch of three passes, with 5 seeds each; the runner is provided. You write `verdicts(regrets, budget)`, which applies the workshop's comparison rule with `prl.evaluate.compare`: interquartile means with 95% bootstrap intervals, a tie when they overlap, and the budget stated. The checkpoint compares your verdicts with `compare` on fixed tables.
@@ -350,7 +378,10 @@ def verdicts(regrets, budget):
 **The lab's logger.** Freeze the LinUCB models, take the item with the highest score, $a_{\text{UCB}}(x)$, and explore with probability $\varepsilon$:
 
 $$
-\pi_b(a \mid x) = (1 - \varepsilon)\, \mathbb{1}[a = a_{\text{UCB}}(x)] + \varepsilon / K .
+\begin{aligned}
+\pi_b(a \mid x) &= (1 - \varepsilon)\, \mathbb{1}[a = a_{\text{UCB}}(x)] \\
+&\phantom{{}={}} + \varepsilon / K .
+\end{aligned}
 $$ {#eq-eps-logging}
 
 Every item has probability at least $\varepsilon / K$, so every item can appear in the log.
@@ -388,7 +419,7 @@ def log_policy(scores, epsilon):
     """epsilon-greedy over scores, as probabilities."""
     n = len(scores)
     probs = np.full(n, epsilon / n)  # every item: epsilon / K
-    probs[argmax_first(scores)] += 1.0 - epsilon  # (eps-greedy logging)
+    probs[argmax_first(scores)] += 1.0 - epsilon  # (ε-greedy logging)
     return probs
 
 
@@ -425,7 +456,7 @@ def log_suspect(env, policy, n, seed):
 ### Equations and where you implement them
 
 | Equation | Lab 5 | Name in the notebook |
-|---|---|---|
+|----------------------------------|----------------------------------------|--------------------------|
 | The click model (@eq-click-model) | Exercise 1: `reward_fn`; the features $\phi(x) = (x, 1)$ are provided | (click model) |
 | Pseudo-regret (@eq-regret) | Provided: the runner `run` | (regret) |
 | Ridge (@eq-ridge) and Sherman–Morrison (@eq-sm) | Exercise 2: `Ridge.update`, `Ridge.predict` | (ridge), (Sherman–Morrison) |
@@ -456,7 +487,7 @@ def log_suspect(env, policy, n, seed):
 
 ## Further reading
 
-1. @li2010linucb, *A Contextual-Bandit Approach to Personalized News Article Recommendation*, WWW 2010; we read arXiv 1003.0146v2. §2.1 for the contextual-bandit protocol and the regret (Eq. 1); §3.1 for the ridge estimate (Eq. 3), the confidence width (Eq. 4), the selection rule (Eq. 5), the Bayesian reading of ridge, and Algorithm 1, LinUCB with disjoint linear models, whose only input is $\alpha$ (our $c$) and whose matrix $A_a$ is our $\Lambda_a$; §3.2 for the hybrid model; §4 for the replay evaluator (Algorithm 3, Theorem 1), which assumes uniformly random logging; §5.2.2 for features that end in a constant 1. The paper states Eq. 4 and cites its proof to other work.
-2. @agrawal2013linearts, *Thompson Sampling for Contextual Bandits with Linear Payoffs*, ICML 2013; we read arXiv 1209.3352v4. §2.1 for the setting and the sub-Gaussian noise assumption (scale $R$, our $\sigma$); §2.2 for the Gaussian prior and likelihood, the posterior $\mathcal{N}(\hat\mu(t), v^2 B(t)^{-1})$, Algorithm 1, and the value of $v$ the analysis uses; Theorem 1 for the regret bound. They write $B(t)$ for our $\Lambda$, $\mu$ for the parameter and $b_i(t)$ for a feature vector.
-3. @lattimore2020bandit, *Bandit Algorithms*. §19.2 for the regularized least-squares estimate (Eqs. 19.4–19.6) and the ellipsoidal confidence set (Eq. 19.7); §19.3 for LinUCB's regret (Theorem 19.2, Corollary 19.3) and the closed form of its action choice (Eq. 19.13). Chapter 20 opens with the fixed-design argument of section 3 (Eq. 20.2) and explains why bandit data need more; §20.1 proves the confidence set for adaptive data (Theorems 20.4 and 20.5). They write $V_t$ for our $\Lambda$, $\lambda$ for our $\lambda_{\text{ridge}}$, $\beta_t$ for our $\kappa^2$, $\eta_t$ for the noise and $\delta$ for our $p_{\text{fail}}$. Cite by chapter and theorem: the free PDF's page numbers differ from print.
+1. @li2010linucb, *A Contextual-Bandit Approach to Personalized News Article Recommendation*, WWW 2010; we read arXiv 1003.0146v2. §2.1 for the contextual-bandit protocol and the regret (Eq. 1); §3.1 for the ridge estimate (Eq. 3), the confidence width (Eq. 4), the selection rule (Eq. 5), the Bayesian reading of ridge, and Algorithm 1, LinUCB with disjoint linear models, whose only input is $\alpha$ (our $c$), whose matrix $A_a$ is our $\Lambda_a$ and whose $\theta_a$ is our $w_a$; §3.2 for the hybrid model; §4 for the replay evaluator (Algorithm 3, Theorem 1), which assumes uniformly random logging; §5.2.2 for features that end in a constant 1. The paper states Eq. 4 and cites its proof to other work.
+2. @agrawal2013linearts, *Thompson Sampling for Contextual Bandits with Linear Payoffs*, ICML 2013; we read arXiv 1209.3352v4. §2.1 for the setting and the sub-Gaussian noise assumption (scale $R$, our $\sigma$); §2.2 for the Gaussian prior and likelihood, the posterior $\mathcal{N}(\hat\mu(t), v^2 B(t)^{-1})$, Algorithm 1, and the value of $v$ the analysis uses; Theorem 1 for the regret bound. They write $B(t)$ for our $\Lambda$, $\mu$ for our $w$ and $b_i(t)$ for a feature vector.
+3. @lattimore2020bandit, *Bandit Algorithms*. §19.2 for the regularized least-squares estimate (Eqs. 19.4–19.6) and the ellipsoidal confidence set (Eq. 19.7); §19.3 for LinUCB's regret (Theorem 19.2, Corollary 19.3) and the closed form of its action choice (Eq. 19.13). Chapter 20 opens with the fixed-design argument of section 3 (Eq. 20.2) and explains why bandit data need more; §20.1 proves the confidence set for adaptive data (Theorems 20.4 and 20.5). They write $V_t$ for our $\Lambda$, $\theta$ for our $w$, $\lambda$ for our $\lambda_{\text{ridge}}$, $\beta_t$ for our $\kappa^2$, $\eta_t$ for the noise and $\delta$ for our $p_{\text{fail}}$. Cite by chapter and theorem: the free PDF's page numbers differ from print.
 4. @sutton2018rl, *Reinforcement Learning: An Introduction*, 2nd edition. §2.9, "Associative Search (Contextual Bandits)", places contextual bandits between the $K$-armed bandit and the full RL problem: a policy is learned, but each action affects only the immediate reward.
