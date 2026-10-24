@@ -35,8 +35,8 @@
   Not built yet.
 - **[8 · DQN from scratch](/modules/08-dqn.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 8]{.visually-hidden}](/readiness.qmd#m08){.chip}  
   Not built yet.
-- **[9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 9]{.visually-hidden}](/readiness.qmd#m09){.chip}  
-  Not built yet.
+- **[9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd)** [Colab CPU]{.chip} [lab draft]{.chip} [readiness [of Lab 9]{.visually-hidden}](/readiness.qmd#m09){.chip}  
+  [Open in Colab[, Lab 9 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/09-debugging-evaluation.ipynb){.btn-quiet target="_blank" rel="noopener"} [Download .ipynb[, Lab 9]{.visually-hidden}](https://github.com/project-delphi/practical-rl/raw/main/notebooks/09-debugging-evaluation.ipynb){.btn-quiet}
 :::
 
 ## Day 4 · Policy optimization

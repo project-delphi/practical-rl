@@ -6,17 +6,17 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 ::: {.lab-steps}
 | # | Exercise | Min |
 |---|---|---|
-| 1 | Healthy logs | 5 |
-| 2 | Broken run 1: no terminal mask | 6 |
-| 3 | Broken run 2: a frozen target | 6 |
-| 4 | Broken run 3: a huge learning rate | 6 |
-| 5 | Broken run 4: the wrong action index | 6 |
-| 6 | Probe environments | 10 |
-| 7 | Reporting a recorded sweep | 8 |
-| 8 | One live run | 5 |
+| 1 | [Healthy logs [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/09-debugging-evaluation.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} | 5 |
+| 2 | [Broken run A [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/09-debugging-evaluation.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 6 |
+| 3 | [Broken run B [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/09-debugging-evaluation.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 6 |
+| 4 | [Broken run C [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/09-debugging-evaluation.ipynb#scrollTo=ex4-head){target="_blank" rel="noopener"} | 6 |
+| 5 | [Broken run D [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/09-debugging-evaluation.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 6 |
+| 6 | [Probe environments [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/09-debugging-evaluation.ipynb#scrollTo=ex6-head){target="_blank" rel="noopener"} | 10 |
+| 7 | [Reporting a recorded sweep [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/09-debugging-evaluation.ipynb#scrollTo=ex7-head){target="_blank" rel="noopener"} | 8 |
+| 8 | [One live seed [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/09-debugging-evaluation.ipynb#scrollTo=ex8-head){target="_blank" rel="noopener"} | 5 |
 | | **Core** | **52 of 70** |
 :::
 
 ::: {.challenge}
-**Stretch (optional).** A two-step probe environment. For anyone who finishes early; nothing later depends on it.
+**Stretch (optional).** Jones's probe 3: two steps and discounting. For anyone who finishes early; nothing later depends on it.
 :::
