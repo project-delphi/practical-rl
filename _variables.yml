@@ -492,31 +492,31 @@ modules:
         title: "Epsilon-greedy and visitation"
         minutes: 7
         writes: [visitation]
-        predict_answer: "more concentrated at the left end, and it never reaches the right end: once left has paid 0.005 at state 0, the greedy action there is left, and a right move needs an exploratory step (0.05 · 0.4 = 0.02 per step, against 0.2 under uniform play); on seeds 0–9 it spends 0.972–0.983 of its steps at state 0 and reaches the right end on none (runs/2026-10-18-local-m06-regret-seeds-exp.json)"
+        predict_answer: "more concentrated at the left end, and it never reaches the right end: once left has paid 0.005 at state 0, the greedy action there is left, and a right move needs an exploratory step (0.05 · 0.4 = 0.02 per step, against 0.2 under uniform play); on seeds 0–9 it spends 0.972–0.983 of its steps at state 0 and reaches the right end on none (runs/2026-10-18-local-m06-regret-seeds-exp-2.json)"
         explain_ref: 'Gotcha: "ε-greedy gets there eventually."'
       - n: 4
         title: Optimistic initialization
         minutes: 6
         writes: [optimistic_q0]
-        predict_answer: "all 10, with the first visit within a few hundred to a thousand or so steps: every untried pair is worth 20, more than anything learned, so the agent tries right in each new state; on seeds 0–9 it reached the right end on 10 of 10, first at steps 399–1215 (runs/2026-10-18-local-m06-regret-seeds-exp.json)"
+        predict_answer: "all 10, with the first visit within a few hundred to a thousand or so steps: every untried pair is worth 20, more than anything learned, so the agent tries right in each new state; on seeds 0–9 it reached the right end on 10 of 10, first at steps 399–1215 (runs/2026-10-18-local-m06-regret-seeds-exp-2.json)"
         explain_ref: "(optimistic start)"
       - n: 5
         title: The MBIE-EB backup
         minutes: 9
         writes: [mbie_eb_backup]
-        predict_answer: "at the right end, over three quarters of the steps, close to the optimal policy's 0.852: every state with an untried action is worth at least c/(1 − γ) = 20 in the plan, so the agent swims right state by state, then holds the right end; on seeds 0–9 it spends 0.805–0.850 of its steps there (runs/2026-10-18-local-m06-regret-seeds-exp.json)"
+        predict_answer: "at the right end, over three quarters of the steps, close to the optimal policy's 0.852: every state with an untried action is worth at least c/(1 − γ) = 20 in the plan, so the agent swims right state by state, then holds the right end; on seeds 0–9 it spends 0.805–0.850 of its steps there (runs/2026-10-18-local-m06-regret-seeds-exp-2.json)"
         explain_ref: "(MBIE-EB backup)"
       - n: 6
         title: Cumulative regret over 10 seeds
         minutes: 8
         writes: [regret]
-        predict_answer: "MBIE-EB lowest, then optimistic Q-learning, then ε-greedy, with no ties at 10 seeds: ε-greedy never leaves the left end, and optimistic Q-learning keeps revisiting states it already knows; on seeds 0–9 the IQMs are 133.2 [81.9, 171.9], 2611.9 [2513.6, 2672.9] and 4025.0 [4024.9, 4025.1] (runs/2026-10-18-local-m06-regret-seeds-exp.json)"
+        predict_answer: "MBIE-EB lowest, then optimistic Q-learning, then ε-greedy, with no ties at 10 seeds: ε-greedy never leaves the left end, and optimistic Q-learning keeps revisiting states it already knows; on seeds 0–9 the IQMs are 133.2 [81.9, 171.9], 2611.9 [2513.6, 2672.9] and 4025.0 [4024.9, 4025.1] (runs/2026-10-18-local-m06-regret-seeds-exp-2.json)"
         explain_ref: "(regret)"
       - n: 7
         title: "Planted bug: a bonus in the wrong place"
         minutes: 8
         writes: [mbie_eb_suspect]
-        predict_answer: "none at the right end, and more than half at the left end: the bonus only compares the two actions of the current state, and the plain plan values every unreached state at 0; on the lab's own code (laptop), seeds 0–99, it never reaches the right end and spends 0.716–0.758 of its steps at state 0 (the record's colleague row predates this version of the stub and is being refiled)"
+        predict_answer: "none at the right end, and more than half at the left end: the bonus only compares the two actions of the current state, and the plain plan values every unreached state at 0; on seeds 0–9 it never reaches the right end and spends 0.727–0.745 of its steps at state 0 (runs/2026-10-18-local-m06-regret-seeds-exp-2.json)"
         explain_ref: 'Gotcha: "Add the bonus when acting."'
     status: {briefing: draft, lab: draft}
 

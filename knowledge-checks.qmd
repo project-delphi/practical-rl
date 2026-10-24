@@ -272,7 +272,7 @@ $u_0 = 1/0.25 = 4$. Each interior crossing satisfies $u_s = (1 + p_\leftarrow u_
 ::: {.callout-tip collapse="true" title="Answer to 6.2"}
 For every $s \ne n - 1$, $h(s) = 1 + \sum_{s'} P_\pi(s, s')\, h(s')$, with $h(n - 1) = 0$. The target contributes nothing to the sums, so over the other states the system is $(I - M)\, h = \mathbf{1}$, with $M$ the matrix $P_\pi$ restricted to the other states' rows and columns: `P_pi[np.ix_(others, others)]`. Indexing with two lists, `P_pi[others, others]`, pairs them element by element and returns the $n - 1$ diagonal entries as a vector. `np.eye(n - 1) - vector` then broadcasts to a matrix, so the solve runs and returns wrong numbers.
 
-No. The result is about one fixed policy. A learner whose plan steers it right, state after state, does not pay the cost of undoing random slips again and again. In the recorded runs (seeds 0 to 9) the optimistic learner first reaches the right end of the 10-state river at steps 399 to 1215 and MBIE-EB at steps 82 to 269, far below uniform play's expected 77,296 steps (`runs/2026-10-18-local-m06-regret-seeds-exp.json`).
+No. The result is about one fixed policy. A learner whose plan steers it right, state after state, does not pay the cost of undoing random slips again and again. In the recorded runs (seeds 0 to 9) the optimistic learner first reaches the right end of the 10-state river at steps 399 to 1215 and MBIE-EB at steps 82 to 269, far below uniform play's expected 77,296 steps (`runs/2026-10-18-local-m06-regret-seeds-exp-2.json`).
 
 **Evidence:** Lab 6, checkpoint 2 (rejects the paired-indexing version), and the run cells of Exercises 4 and 5.
 :::
