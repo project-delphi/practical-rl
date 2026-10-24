@@ -429,15 +429,42 @@ Total: 29 + 9 + 2. **Collapsed:** L&S Thm 20.5; delayed feedback.
 - **Question.** How do we explore when the reward is many steps away?
 
 **Objectives:**
-1. Compute the expected hitting time of RiverSwim's right end under a *fixed* policy (uniform random) by first-step analysis. Show it grows like (p_L/p_R)^n with chain length n. Chain length is our generalization; the original has 6 states.
-2. Implement optimistic initialization, and MBIE-EB (Strehl & Littman 2008, §3.2, Eq. 8: a bonus β/√N(s,a) inside the backup of the estimated model), using the reference `estimate_model` and VI from M2.
-3. Measure state visitation and cumulative regret against the DP-optimal policy over 10 seeds (S&L report cumulative reward over the first 5000 steps).
+1. Compute RiverSwim's expected hitting time of the right end under a *fixed* policy (uniform random) by first-step analysis, and find how it grows with the chain length n. Under uniform play an interior state moves right with probability ½·0.35 = 0.175 and left with ½·1 + ½·0.05 = 0.525, so the time grows by about a factor of 0.525/0.175 = 3 per state; chain length is our generalization (the original has 6 states). The lab uses a 10-state river: uniform play then needs 77,296 steps in expectation, about 15 times the 5000-step budget.
+2. Implement optimistic initialization, and MBIE-EB (Strehl & Littman 2008, §3.2, Eq. 8: a bonus β/√N(s,a) inside the backup of the estimated model), using the reference `estimate_model` and VI from M2. Untried pairs keep M2's self-loop default with the bonus of one visit (C24, R20).
+3. Write cumulative regret Reg_T against the DP optimum, and measure it and state visitation over 10 seeds, calling each comparison with its budget (S&L report cumulative reward over the first 5000 steps).
 4. Explain where count bonuses stop working, and what pseudo-counts and RND attempt (Bellemare et al. 2016; Burda et al. 2019).
 
 **Briefing:**
 
 | § | Topic | Min |
 |---|---|---|
+| 1 | RiverSwim | 2 |
+| 2 | First-step hitting time | 10 (predict 3) |
+| 3 | Optimistic initialization | 6 (chk 2) |
+| 4 | The bonus belongs in the backup (MBIE-EB) | 10 (chk 3) |
+| 5 | Visitation and regret | 6 (demo 3) |
+| 6 | Where counts stop | 4 |
+| 7 | Bridge | 2 |
+
+Total: 29 + 11 (Phase 3 split after the pedagogy review, 2026-10-18). **Collapsed:** RND; pseudo-counts; PSRL; the recorded visitation and regret results ("After the lab" folds).
+
+**Lab (core 52):**
+
+| # | Exercise | Writes | Checkpoint | Min |
+|---|---|---|---|---|
+| 1 | Uniform-random policy on RiverSwim | `policy_transition(P, π)` | Exact | 5 |
+| 2 | Hitting time against chain length | `hitting_times` | Linear solve exact; agrees with simulated walks; growth ratio | 9 |
+| 3 | ε-greedy Q-learning (reference from Lab 3) and visitation | `visitation` | 3.1 exact; 3.2 time at the right end below the protocol threshold | 7 |
+| 4 | Optimistic initialization | `optimistic_q0` | 4.1 exact; 4.2 right end reached in at least 7.5 of 10 runs (protocol) | 6 |
+| 5 | MBIE-EB backup | `mbie_eb_backup` | Exact on fixed counts | 9 |
+| 6 | Cumulative regret, 10 seeds (runner provided; the run calls `compare`) | `regret` | Exact on fixed trajectories, including π\*'s own run (regret 0) | 8 |
+| 7 | **Planted bug**: bonus applied only at action selection | fix `mbie_eb_suspect` | Time at the right end above the protocol threshold | 8 |
+
+- **Compare:** the DP optimum. Agents re-plan when the count of the pair just tried reaches a power of 2 (C26, R22).
+- **Stretch:** PSRL (Osband et al. 2013).
+- *RiverSwim transition probabilities are ours and stated on the page. Both published figures were read (Strehl & Littman 2008; Osband et al. 2013); ours match neither exactly (OPEN_QUESTIONS B11).*
+
+---|---|---|
 | 1 | RiverSwim | 2 |
 | 2 | First-step hitting time | 10 (predict 3) |
 | 3 | Optimistic initialization | 5 (chk 2) |

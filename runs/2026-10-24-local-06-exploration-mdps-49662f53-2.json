@@ -1,0 +1,211 @@
+{
+  "badge_ref": "main",
+  "checkpoints": [
+    {
+      "exercise": 1,
+      "label": "1",
+      "pass": true,
+      "seconds": 0.004,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.1",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.2",
+      "pass": true,
+      "seconds": 0.05,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4.1",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4.2",
+      "pass": true,
+      "seconds": 0.447,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5",
+      "pass": true,
+      "seconds": 0.008,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6",
+      "pass": true,
+      "seconds": 0.003,
+      "whose": "reference"
+    },
+    {
+      "exercise": 7,
+      "label": "7",
+      "pass": true,
+      "seconds": 0.341,
+      "whose": "reference"
+    }
+  ],
+  "colab_release": null,
+  "content_sha": "49662f53712c4892",
+  "date": "2026-10-24",
+  "dirty": false,
+  "env": "local",
+  "git_sha": "ad8421b1651ddd4abdb44fe7dc1b99892a9afb39",
+  "hardware": {
+    "accel": "cpu",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "notebook",
+  "metrics": {
+    "eps_visitation": [
+      0.9814,
+      0.0182,
+      0.0004,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "fixed_agent": {
+      "first_visit": 82,
+      "right_end": 0.836
+    },
+    "mbie_end": 0.836,
+    "optimistic_ex4": {
+      "first_visits": [
+        787,
+        273,
+        848,
+        858,
+        893,
+        391,
+        863,
+        1001,
+        1037,
+        645
+      ],
+      "reached": 10
+    },
+    "reach_eps": 0,
+    "reach_mbie": 10,
+    "reach_opt": 10,
+    "regret": {
+      "MBIE-EB": [
+        46.8,
+        108.5,
+        164.6,
+        -58.6,
+        186.4,
+        76.2,
+        194.0,
+        -12.1,
+        227.3,
+        44.0
+      ],
+      "optimistic": [
+        2145.5,
+        2426.5,
+        2396.2,
+        2332.6,
+        2455.1,
+        2499.7,
+        2570.0,
+        2433.2,
+        2616.5,
+        2700.9
+      ],
+      "\u03b5-greedy": [
+        4025.5,
+        4024.8,
+        4024.9,
+        4024.8,
+        4025.5,
+        4025.0,
+        4025.0,
+        4025.1,
+        4024.8,
+        4025.0
+      ]
+    },
+    "regret_eps": 4025.0,
+    "regret_mbie": 104.4,
+    "regret_opt": 2463.5
+  },
+  "notebook": "06-exploration-mdps",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "torch": "2.14.1"
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "quick": false,
+  "quick_reason": "designed for colab-cpu; running full settings",
+  "schema": 1,
+  "scope": "notebook",
+  "seat": 0,
+  "seconds": 9.4,
+  "seeds": [
+    1000,
+    1010,
+    1011,
+    1012,
+    1013,
+    1014,
+    1015,
+    1016,
+    1017,
+    1018,
+    1019,
+    1100,
+    1101,
+    1102,
+    1103,
+    1104,
+    1105,
+    1106,
+    1107,
+    1108,
+    1109
+  ],
+  "settings": {
+    "seeds": 10,
+    "steps": 5000
+  },
+  "shims": [],
+  "solutions_bound": true,
+  "source": "tool",
+  "status": "pass",
+  "test_doubles": [],
+  "torch_threads": null
+}

@@ -252,3 +252,85 @@ With $\alpha = 0.02$ each update moves $V$ only 2% of the way, so after 1000 epi
 
 **Evidence:** Lab 3, checkpoint 3, and the stretch sweep (its curves are reported, not checked); the figure is the recorded experiment `runs/2026-10-17-local-m03-nstep-dial-exp.json`.
 :::
+
+## Module 6 {#m06}
+
+Questions for [Module 6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd), two per objective. Each answer ends with the Lab 6 checkpoint that is its evidence. Objective 4 has no checkpoint; its evidence is the briefing's section 6 and the papers it cites.
+
+### Objective 1: compute RiverSwim's hitting time under uniform random play by first-step analysis, and find how it grows with the length of the chain
+
+[**6.1**]{#q6-1} A chain like RiverSwim's has, under some fixed policy, these per-step probabilities in every interior state: right 0.2, left 0.4, stay 0.4. From the left end it moves right with 0.25 and otherwise stays. For four states, compute the crossing times $u_0$, $u_1$, $u_2$ and the hitting time $h(0)$ of the right end. By what factor does $h(0)$ grow per extra state in a long chain?
+
+::: {.callout-tip collapse="true" title="Answer to 6.1"}
+$u_0 = 1/0.25 = 4$. Each interior crossing satisfies $u_s = (1 + p_\leftarrow u_{s-1})/p_\rightarrow$, so $u_1 = (1 + 0.4 \cdot 4)/0.2 = 13$ and $u_2 = (1 + 0.4 \cdot 13)/0.2 = 31$. Then $h(0) = 4 + 13 + 31 = 48$ steps, which is also what the linear solve $(I - M)\,h = \mathbf{1}$ gives. Each crossing costs $p_\leftarrow / p_\rightarrow = 2$ times the one before, plus $1/p_\rightarrow = 5$, so in a long chain $h(0)$ grows by a factor of about 2 per state.
+
+**Evidence:** Lab 6, checkpoint 2 (exact on fixed chains, and the growth ratio on the river).
+:::
+
+[**6.2**]{#q6-2} Write first-step analysis for the hitting time of state $n - 1$ as a linear system. Why does the target's row drop out? A colleague builds the matrix with `P_pi[others, others]`, where `others` lists the other states: what does NumPy return, and why does the solve still run? Finally, does the exponential growth under uniform play mean that every learner needs exponential time on RiverSwim?
+
+::: {.callout-tip collapse="true" title="Answer to 6.2"}
+For every $s \ne n - 1$, $h(s) = 1 + \sum_{s'} P_\pi(s, s')\, h(s')$, with $h(n - 1) = 0$. The target contributes nothing to the sums, so over the other states the system is $(I - M)\, h = \mathbf{1}$, with $M$ the matrix $P_\pi$ restricted to the other states' rows and columns: `P_pi[np.ix_(others, others)]`. Indexing with two lists, `P_pi[others, others]`, pairs them element by element and returns the $n - 1$ diagonal entries as a vector. `np.eye(n - 1) - vector` then broadcasts to a matrix, so the solve runs and returns wrong numbers.
+
+No. The result is about one fixed policy. A learner whose plan steers it right, state after state, does not pay the cost of undoing random slips again and again. In the recorded runs (seeds 0 to 9) the optimistic learner first reaches the right end of the 10-state river at steps 399 to 1215 and MBIE-EB at steps 82 to 269, far below uniform play's expected 77,296 steps (`runs/2026-10-18-local-m06-regret-seeds-exp-2.json`).
+
+**Evidence:** Lab 6, checkpoint 2 (rejects the paired-indexing version), and the run cells of Exercises 4 and 5.
+:::
+
+### Objective 2: implement optimistic initialization and MBIE-EB's bonus inside the backup of an estimated model, and explain why the bonus belongs there
+
+[**6.3**]{#q6-3} Rewards lie in $[0, 5]$ and $\gamma = 0.8$. Which constant start $Q_0$ is guaranteed to be at least $Q^*(s, a)$ in every MDP with these rewards, and why? Lab 3's Q-learning, with $\alpha = 0.2$, takes action $a$ in state $s$ for the first time, receives $r = 1$ and lands in a state where nothing has been tried. What is the new $Q(s, a)$, and why will the greedy agent try another action in $s$ next time?
+
+::: {.callout-tip collapse="true" title="Answer to 6.3"}
+$Q_0 = 5/(1 - 0.8) = 25$: no discounted sum of rewards in $[0, 5]$ can exceed $5 + 0.8 \cdot 5 + 0.8^2 \cdot 5 + \cdots = 25$, so every $Q^*$ is at most 25. The target is $1 + 0.8 \cdot 25 = 21$, so $Q(s, a) \leftarrow 25 + 0.2\,(21 - 25) = 24.2$. Every action not yet tried in $s$ still holds 25, more than 24.2, so the greedy choice is one of them.
+
+**Evidence:** Lab 6, checkpoints 4.1 (the value, and that it is at least $Q^*$) and 4.2 (the right end reached from your start).
+:::
+
+[**6.4**]{#q6-4} A state has two actions. Action $a$ has been tried 9 times; it always stayed in the state and paid 0.2. Action $b$ has never been tried. Use the lab's convention: an untried pair is a self-loop with reward 0 and gets the bonus of one visit. With $c = 0.6$ and $\gamma = 0.9$, solve the MBIE-EB equations for this state: $\tilde Q(a)$, $\tilde Q(b)$ and $\tilde V$. Then say what goes wrong in RiverSwim, but not here, if the bonus is added only when the action is chosen.
+
+::: {.callout-tip collapse="true" title="Answer to 6.4"}
+$\tilde Q(a) = 0.2 + 0.6/\sqrt 9 + 0.9\, \tilde V = 0.4 + 0.9\, \tilde V$ and $\tilde Q(b) = 0 + 0.6 + 0.9\, \tilde V$. Action $b$ is larger, so $\tilde V = 0.6 + 0.9\, \tilde V$, which gives $\tilde V = 6$, $\tilde Q(b) = 6$ and $\tilde Q(a) = 0.4 + 5.4 = 5.8$. As the briefing's bound says, a state with an untried action is worth at least $c/(1 - \gamma) = 6$.
+
+Here the untried action is in the current state, so a bonus added at selection also sees it. In RiverSwim the untried pairs lie in states the agent has not reached. Inside the backup, their bonus raises the value of every state that leads to them, so the plan sends the agent right. Added only at selection, the bonus compares the actions of the current state; the plain model values every unreached state at 0, and nothing pulls the agent there.
+
+**Evidence:** Lab 6, checkpoint 5 (exact on fixed counts with untried pairs; it rejects the bonus added after solving) and checkpoint 7 (visitation recovers after the fix).
+:::
+
+### Objective 3: write cumulative regret against the DP optimum, and measure it and state visitation over 10 seeds, calling each comparison with its budget
+
+[**6.5**]{#q6-5} On a 4-state chain, an agent acted in the states 0, 0, 1, 0, 1, 2, 2, 2. Compute its visitation. What does `np.bincount(states) / len(states)` return for the same list, and why is that the failure that matters on RiverSwim?
+
+::: {.callout-tip collapse="true" title="Answer to 6.5"}
+The counts are 3, 2, 3 and 0 over 8 steps, so the visitation is $(0.375, 0.25, 0.375, 0)$. Without `minlength=4`, `np.bincount` stops at the largest state that occurs and returns 3 entries, not 4. On RiverSwim the states that go missing are the ones at the right end that the agent never reached, exactly the ones the visitation is meant to show.
+
+**Evidence:** Lab 6, checkpoint 3.1 (exact, on sequences that never reach some states).
+:::
+
+[**6.6**]{#q6-6} Over steps 0 to 3, the optimal policy's expected rewards from the start are 0, 0, 0.1 and 0.3. A learner's mean rewards $r(s_t, a_t)$ at the same steps are 0.005, 0, 0 and 0.95. Compute its cumulative regret after every step, $\mathrm{Reg}_1$ to $\mathrm{Reg}_4$. How can it be negative? Then two learners run 10 seeds each: A's $\mathrm{Reg}_T$ has an IQM of 100 with a 95% bootstrap interval of [40, 160], and B's 2400 with [2300, 2550]. What is the verdict, and what must the sentence that reports it include?
+
+::: {.callout-tip collapse="true" title="Answer to 6.6"}
+The per-step regrets are $0 - 0.005 = -0.005$, $0 - 0 = 0$, $0.1 - 0 = 0.1$ and $0.3 - 0.95 = -0.65$, so $\mathrm{Reg}_1, \dots, \mathrm{Reg}_4$ are $-0.005$, $-0.005$, $0.095$ and $-0.555$. Regret compares with the optimal policy's *expected* reward, not with the most a run could get: a run that reaches the good state early, or holds it longer by luck, can collect more than that expectation for a while.
+
+The intervals do not overlap and A's IQM is lower, so A has the lower regret at this budget. The sentence states the budget: steps per run, seeds per method, the wall-clock time and the hardware. Had the intervals overlapped, the verdict would be a tie.
+
+**Evidence:** Lab 6, checkpoint 6 (`regret`, exact on fixed trajectories, one of which goes below 0), and Exercise 6's run, which compares the three learners with `prl.evaluate.compare` and prints the budget.
+:::
+
+### Objective 4: explain where count bonuses stop working and what pseudo-counts and RND attempt
+
+[**6.7**]{#q6-7} An agent learns a video game from its screen pixels. Why does a bonus $c/\sqrt{N(s, a)}$ on exact screens fail to guide its exploration? What property must a replacement for the count have, and how do pseudo-counts provide it?
+
+::: {.callout-tip collapse="true" title="Answer to 6.7"}
+Screens almost never repeat exactly, so $N$ is 0 or 1 almost everywhere and the bonus is the same almost everywhere: it cannot tell a new part of the game from a familiar one. A replacement must generalize: states that look alike should share their count. A pseudo-count comes from a density model over states, from how much the model's probability of a state rises when it sees that state once more. It equals the true count when the model is the empirical distribution, and it generalizes when the model does (Bellemare et al. 2016, §3.1).
+
+**Evidence:** the briefing, section 6. Lab 6 has no checkpoint for this objective.
+:::
+
+[**6.8**]{#q6-8} Random network distillation uses as its bonus the error of a network trained to predict a fixed random network's output on each state. Why would a bonus equal to the error of predicting the *next* state be drawn to a screen that shows random noise, while RND's is not? What do pseudo-counts and RND give up compared with MBIE-EB's Lemma 7?
+
+::: {.callout-tip collapse="true" title="Answer to 6.8"}
+The next state on a noisy screen is random, so no predictor can learn it, and its prediction error stays high however often the agent looks: the bonus keeps paying for noise. RND's target is a fixed, deterministic function of the state, so the error falls as the agent sees that state and similar ones (Burda et al. 2019, §2.2.1). What both give up is the guarantee: Lemma 7 rests on Hoeffding's inequality for a true count, and a pseudo-count or a prediction error is only as good as the model's sense of which states are alike. Bellemare et al. note that in the tabular case pseudo-counts are counts and keep the known guarantees, and prove none beyond it (§4).
+
+**Evidence:** the briefing, section 6. Lab 6 has no checkpoint for this objective.
+:::

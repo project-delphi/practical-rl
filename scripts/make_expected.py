@@ -761,6 +761,308 @@ def m03_decomposition() -> bytes:
     return _save("m03_decomposition", **out)
 
 
+# ---------------------------------------------------------------- Module 6 (exploration in MDPs)
+# Solver code for the fixtures: the policy chain, the hitting-time solve, simulated walks,
+# value iteration with the MBIE-EB bonus and the counts estimator (Module 2's, above). It
+# lives here, never in prl.
+M06_GAMMA = 0.95
+M06_SEED = 0  # every draw below; the lab's seats use (SEED + 1) * 1000 and up
+M06_SIM_N, M06_SIM_WALKS = 5, 20000  # the run cell's chain (n = 5), ten times its 2000 walks
+
+
+def _riverswim(n: int, gamma: float = M06_GAMMA):
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import RiverSwim
+
+    return RiverSwim(n, gamma=gamma)
+
+
+def _policy_chain(P, pi):
+    return np.einsum("sa,sat->st", pi, P)
+
+
+def _hitting(P_pi, target):
+    n = len(P_pi)
+    others = [s for s in range(n) if s != target]
+    h = np.zeros(n)
+    h[others] = np.linalg.solve(np.eye(n - 1) - P_pi[np.ix_(others, others)], np.ones(n - 1))
+    return h
+
+
+def _simulate_hitting(P_pi, target, walks, rng, start=0):
+    """The lab's provided simulate_hitting, step for step."""
+    cum = np.cumsum(P_pi, axis=1)
+    s = np.full(walks, start)
+    steps = np.zeros(walks, dtype=int)
+    active = s != target
+    while active.any():
+        u = rng.random(int(active.sum()))
+        nxt = (u[:, None] > cum[s[active]]).sum(axis=1)
+        s[active] = np.minimum(nxt, len(P_pi) - 1)
+        steps[active] += 1
+        active = s != target
+    return steps
+
+
+def m06_chain() -> bytes:
+    """Exercises 1 and 2: policy chains, hitting times, the growth ratio and simulated walks."""
+    rng = np.random.default_rng(M06_SEED)
+    out: dict[str, np.ndarray] = {}
+    # ---- Exercise 1: P_pi = sum_a pi(a|s) P(s'|s, a)
+    river6 = _riverswim(6)
+    random_P = rng.dirichlet(np.ones(4), size=(4, 3))  # 4 states, 3 actions
+    pt_cases = [
+        ("RiverSwim(6), uniform random play", river6.P, np.full((6, 2), 0.5)),
+        ("RiverSwim(6), a policy that is not uniform", river6.P, rng.dirichlet([1, 1], size=6)),
+        ("a random MDP with 4 states and 3 actions", random_P, rng.dirichlet(np.ones(3), size=4)),
+    ]
+    for i, (label, P, pi) in enumerate(pt_cases):
+        want = _policy_chain(P, pi)
+        assert np.allclose(want.sum(axis=1), 1.0, atol=1e-12)
+        # The case that rejects 'ignores pi' (P.mean(axis=1)) must differ from it clearly.
+        if i > 0:
+            assert np.abs(P.mean(axis=1) - want).max() > 0.05, label
+        out.update({f"pt_P_{i}": P, f"pt_pi_{i}": pi, f"pt_want_{i}": want})
+        out[f"pt_label_{i}"] = np.array(label)
+    out["pt_n_cases"] = np.array(len(pt_cases), dtype=np.int64)
+    # ---- Exercise 2: h = 1 + P_pi h off the target, h(target) = 0
+    kc = np.zeros((4, 4))  # knowledge check 6.1's chain; the target, 3, absorbs
+    kc[0, [0, 1]] = [0.75, 0.25]
+    for s in (1, 2):
+        kc[s, [s - 1, s, s + 1]] = [0.4, 0.4, 0.2]
+    kc[3, 3] = 1.0
+    hit_cases = [("knowledge check 6.1's 4-state chain", kc, 3)]
+    for n in range(2, 13):
+        P_pi = _policy_chain(_riverswim(n).P, np.full((n, 2), 0.5))
+        hit_cases.append((f"RiverSwim({n}) under uniform random play", P_pi, n - 1))
+    ergodic = rng.dirichlet(np.ones(5), size=5)  # every entry > 0
+    hit_cases.append(("a random 5-state chain, target state 2 (not the last)", ergodic, 2))
+    for i, (label, P_pi, target) in enumerate(hit_cases):
+        h = _hitting(P_pi, target)
+        out.update({f"hit_P_{i}": P_pi, f"hit_target_{i}": np.array(target, dtype=np.int64)})
+        out[f"hit_h_{i}"], out[f"hit_label_{i}"] = h, np.array(label)
+    out["hit_n_cases"] = np.array(len(hit_cases), dtype=np.int64)
+    assert np.allclose(out["hit_h_0"], [48.0, 44.0, 31.0, 0.0], atol=1e-9)
+    h0 = {n: float(out[f"hit_h_{n - 1}"][0]) for n in range(2, 13)}  # case i is RiverSwim(i + 1)
+    assert [round(h0[n], 3) for n in (2, 3, 4, 6, 10, 12)] == [
+        5.0,
+        25.714,
+        93.571,
+        936.429,
+        77296.429,
+        695899.286,
+    ], h0
+    out["ratio_cases"] = np.array([10, 11], dtype=np.int64)  # RiverSwim(11) and RiverSwim(12)
+    out["ratio_12_11"] = np.array(h0[12] / h0[11])
+    assert abs(h0[12] / h0[11] - 3.00026) < 1e-5
+    # ---- simulated walks on RiverSwim(5), as the run cell does (with more walks)
+    i5 = M06_SIM_N - 1
+    walks = _simulate_hitting(out[f"hit_P_{i5}"], M06_SIM_N - 1, M06_SIM_WALKS, rng)
+    mean, se = float(walks.mean()), float(walks.std() / np.sqrt(len(walks)))
+    assert abs(mean - h0[M06_SIM_N]) < 3 * se, (mean, se, h0[M06_SIM_N])  # this draw agrees
+    out.update(sim_case=np.array(i5, dtype=np.int64), sim_walks=np.array(len(walks)))
+    out.update(sim_mean=np.array(mean), sim_se=np.array(se), sim_max=np.array(walks.max()))
+    return _save("m06_chain", **out)
+
+
+def m06_q0() -> bytes:
+    """Exercise 4: Q* of the lab's 10-state river (pi* by value iteration, Q* exactly)."""
+    river = _riverswim(10)
+    _, pi_star, Q_star, _ = _optimal(river.P, river.R, M06_GAMMA, tol=1e-12)
+    assert np.all(pi_star == 1), "pi* swims right in every state"
+    assert round(float(Q_star.max()), 2) == 16.68 and Q_star.argmax() == 19
+    assert Q_star.max() < 1.0 / (1 - M06_GAMMA)
+    return _save("m06_q0", Q_star=Q_star)
+
+
+def _mbie(P_hat, R_hat, counts, gamma, c, *, bonus_untried=True):
+    """MBIE-EB's Q~: value iteration on R_hat + c / sqrt(max(N, 1)), to 1e-12."""
+    bonus = c / np.sqrt(np.maximum(counts, 1))
+    if not bonus_untried:
+        bonus = np.where(counts > 0, bonus, 0.0)
+    return _value_iteration(P_hat, R_hat + bonus, gamma, 1e-12)[1]
+
+
+def m06_mbie() -> bytes:
+    """Exercise 5: the MBIE-EB backup on fixed models with pairs never tried."""
+    one = np.ones((1, 2, 1))  # one state; both actions are self-loops
+    cases = [
+        (
+            "Check yourself 4.1: left tried 4 times, right never",
+            one,
+            [[0.005, 0.0]],
+            [[4, 0]],
+            0.95,
+            1.0,
+        ),
+        ("knowledge check 6.4: a tried 9 times, b never", one, [[0.2, 0.0]], [[9, 0]], 0.9, 0.6),
+    ]
+    river = _riverswim(10)
+    rng = np.random.default_rng(M06_SEED)
+    s, log = river.start, []
+    for _ in range(300):  # uniform random play from the left end
+        a = int(rng.integers(river.n_actions))
+        s2, r, _ = river.sample_step(s, a, rng)
+        log.append((s, a, r, s2))
+        s = s2
+    P_hat, R_hat, counts = _estimate_model(log, river.n_states, river.n_actions)
+    assert (counts == 0).any() and counts[0].min() > 0, "untried pairs, away from the start"
+    for c in (1.0, 0.4):
+        cases.append(
+            (
+                f"300 steps of uniform play on RiverSwim(10), gamma 0.95, c {c:g}",
+                P_hat,
+                R_hat,
+                counts,
+                0.95,
+                c,
+            )
+        )
+    out: dict[str, np.ndarray] = {"n_cases": np.array(len(cases), dtype=np.int64)}
+    for i, (label, P, R, N, gamma, c) in enumerate(cases):
+        P, R, N = (np.asarray(x, dtype=float) for x in (P, R, N))
+        want = _mbie(P, R, N, gamma, c)
+        after = _value_iteration(P, R, gamma, 1e-12)[1] + c / np.sqrt(np.maximum(N, 1))
+        no_bonus = _mbie(P, R, N, gamma, c, bonus_untried=False)
+        # eq-untried: every state with an untried action is worth at least c / (1 - gamma).
+        untried = (N == 0).any(axis=1)
+        assert np.all(want.max(axis=1)[untried] >= c / (1 - gamma) - 1e-9)
+        assert np.abs(after - want).max() > 1.0 and np.abs(no_bonus - want).max() > 0.5, label
+        out.update({f"P_{i}": P, f"R_{i}": R, f"N_{i}": N, f"Q_{i}": want})
+        out.update({f"after_{i}": after, f"no_bonus_{i}": no_bonus})
+        out.update(
+            {f"gamma_{i}": np.array(gamma), f"c_{i}": np.array(c), f"label_{i}": np.array(label)}
+        )
+    assert np.allclose(out["Q_0"], [[19.505, 20.0]], atol=1e-9)
+    assert np.allclose(out["Q_1"], [[5.8, 6.0]], atol=1e-9)
+    return _save("m06_mbie", **out)
+
+
+def _expected_rewards(mdp, pi, steps):
+    """The lab's expected_rewards: pi's exact expected reward at each step from the start."""
+    P_pi, r_pi = _policy_chain(mdp.P, pi), (pi * mdp.R).sum(axis=1)
+    d = np.zeros(mdp.n_states)
+    d[mdp.start] = 1.0
+    out = np.empty(steps)
+    for t in range(steps):
+        out[t] = d @ r_pi
+        d = d @ P_pi
+    return out
+
+
+def _rollout(mdp, act, steps, rng):
+    """States s_0..s_T and actions a_0..a_{T-1} from the start; act(s, rng) picks the action."""
+    s, states, actions = mdp.start, [mdp.start], []
+    for _ in range(steps):
+        a = act(s, rng)
+        s, _, _ = mdp.sample_step(s, a, rng)
+        states.append(s)
+        actions.append(a)
+    return np.array(states, dtype=np.int64), np.array(actions, dtype=np.int64)
+
+
+def m06_regret() -> bytes:
+    """Exercise 6: Reg_t after every step on fixed trajectories, and the usual mistakes' values."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import RiverSwim
+
+    sure = RiverSwim(4, p_right=1.0, p_stay=0.0, p_left=0.0, gamma=M06_GAMMA)  # deterministic
+    river6, river10 = _riverswim(6), _riverswim(10)
+    pi6 = _optimal(river6.P, river6.R, M06_GAMMA, tol=1e-12)[1]
+    pi10 = _optimal(river10.P, river10.R, M06_GAMMA, tol=1e-12)[1]
+    pi_sure = _optimal(sure.P, sure.R, M06_GAMMA, tol=1e-12)[1]
+    assert np.all(pi6 == 1) and np.all(pi10 == 1) and np.all(pi_sure == 1)
+    right = sure.policy_matrix(pi_sure)
+    cases = [
+        (
+            "pi*'s own run of a deterministic 4-state chain",
+            sure,
+            right,
+            np.array([0, 1, 2, 3, 3, 3, 3, 3]),
+            np.ones(7, dtype=np.int64),
+        ),
+        (
+            "the same chain: left, left, then right five times",
+            sure,
+            right,
+            np.array([0, 0, 0, 1, 2, 3, 3, 3]),
+            np.array([0, 0, 1, 1, 1, 1, 1]),
+        ),
+        (
+            "300 steps of uniform random play on RiverSwim(10)",
+            river10,
+            river10.policy_matrix(pi10),
+            *_rollout(river10, lambda s, rng: int(rng.integers(2)), 300, np.random.default_rng(0)),
+        ),
+        (
+            "200 steps of the optimal policy on RiverSwim(6), a lucky run",
+            river6,
+            river6.policy_matrix(pi6),
+            *_rollout(river6, lambda s, rng: int(pi6[s]), 200, np.random.default_rng(1)),
+        ),
+        ("one step: left at the left end", sure, right, np.array([0, 0]), np.array([0])),
+    ]
+    out: dict[str, np.ndarray] = {"n_cases": np.array(len(cases), dtype=np.int64)}
+    for i, (label, mdp, pi_star, states, actions) in enumerate(cases):
+        T = len(actions)
+        opt = _expected_rewards(mdp, pi_star, T)
+        here = mdp.R[states[:-1]]
+        r = here[np.arange(T), actions]
+        assert np.all(mdp.P[states[:-1], actions, states[1:]] > 0), label  # a possible run
+        steps = opt - r
+        out.update(
+            {f"states_{i}": states.astype(np.int64), f"actions_{i}": actions.astype(np.int64)}
+        )
+        out.update({f"R_{i}": mdp.R, f"opt_{i}": opt, f"want_{i}": np.cumsum(steps)})
+        out[f"label_{i}"] = np.array(label)
+        # The usual mistakes, for the check's hints (labs/mutants/m06.py has each as a mutant).
+        out[f"per_step_{i}"] = steps
+        out[f"next_{i}"] = np.cumsum(opt - mdp.R[states[1:], actions])
+        out[f"best_{i}"] = np.cumsum(here.max(axis=1) - r)
+        out[f"average_{i}"] = np.cumsum(steps) / np.arange(1, T + 1)
+        out[f"clipped_{i}"] = np.cumsum(np.maximum(0.0, steps))
+    assert np.all(out["want_0"] == 0.0), "pi*'s own deterministic run has no regret at all"
+    assert np.allclose(out["want_1"], [-0.005, -0.01, -0.01, 0.99, 1.99, 1.99, 1.99], atol=1e-12)
+    w3 = out["want_3"]
+    assert w3.min() < -3 and w3[-1] > 2, "the lucky run goes below 0 and ends above it"
+    assert np.allclose(out["want_4"], [-0.005], atol=1e-12)
+    # Every mistake differs from the answer on case 1 (the left-left-right run).
+    for key in ("per_step", "next", "best", "average", "clipped"):
+        assert np.abs(out[f"{key}_1"] - out["want_1"]).max() > 0.004, key
+    return _save("m06_regret", **out)
+
+
+def m06_psrl() -> bytes:
+    """The stretch: a 3-state, 2-action model with untried pairs, and its posterior moments."""
+    N_next = np.zeros((3, 2, 3))
+    N_next[0, 0] = [5, 0, 0]
+    N_next[0, 1] = [2, 3, 0]
+    N_next[1, 0] = [7, 0, 0]
+    N_next[1, 1] = [0, 1, 6]
+    N_next[2, 1] = [0, 1, 0]  # (2, 0) never tried
+    counts = N_next.sum(axis=2)
+    rewards = np.array([[0.0, 0.0], [0.0, 0.25], [0.0, 0.7]])
+    P_hat = np.zeros_like(N_next)
+    for s in range(3):
+        for a in range(2):
+            if counts[s, a] > 0:
+                P_hat[s, a] = N_next[s, a] / counts[s, a]
+            else:
+                P_hat[s, a, s] = 1.0  # Module 2's default: a self-loop with reward 0
+    R_hat = np.where(counts > 0, rewards, 0.0)
+    S = 3
+    return _save(
+        "m06_psrl",
+        P_hat=P_hat,
+        R_hat=R_hat,
+        counts=counts,
+        P_mean=(1.0 / S + N_next) / (1.0 + counts)[:, :, None],
+        R_mean=(1.0 + counts * R_hat) / (counts + 1.0),
+        R_var=1.0 / (counts + 1.0),
+        n_draws=np.array(4000, dtype=np.int64),
+    )
+
+
 FIXTURES = {
     "m01_returns": m01_returns,
     "m01_eval": m01_eval,
@@ -771,6 +1073,11 @@ FIXTURES = {
     "m03_prediction": m03_prediction,
     "m03_nstep": m03_nstep,
     "m03_decomposition": m03_decomposition,
+    "m06_chain": m06_chain,
+    "m06_q0": m06_q0,
+    "m06_mbie": m06_mbie,
+    "m06_regret": m06_regret,
+    "m06_psrl": m06_psrl,
 }
 
 
