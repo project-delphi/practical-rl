@@ -488,7 +488,7 @@ modules:
         writes: [log_suspect]
         predict_answer: "0.1/0.91 ≈ 0.11 on rows that show the best item, about 91% of rows, and 0.1/0.01 = 10 on the rest, about 9%; so the mean is 1 (0.91 × 0.11 + 0.09 × 10), up to sampling error. The suspect records 0.91 on every row, so every one of its uniform-target weights is 0.11 and so is its mean, on every seat; seat 0's new_policy gives 0.62 against 1.05 on the correct log (m05-seats)."
         explain_ref: 'Gotcha: "The propensity is bookkeeping."'
-    status: {briefing: draft, lab: draft}
+    status: {briefing: reviewed, lab: reviewed}
 
   m06:
     n: 6
