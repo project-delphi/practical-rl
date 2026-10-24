@@ -98,7 +98,7 @@ SCALE = {
         "eps_greedy_x10": "eps_greedy (0.1), rewards x 10",
         "ucb1_x1": "ucb1, rewards x 1",
         "ucb1_x10": "ucb1, rewards x 10, the same bonus",
-        "ucb1_rescaled_x10": "ucb1_scaled with B = 10, rewards x 10",
+        "ucb1_rescaled_x10": "UCB1 with the bonus for rewards in [0, 10], rewards x 10",
     },
 }
 SEATS = list(range(100))
@@ -131,7 +131,7 @@ def lab_functions() -> dict:
     """The worked notebook's definitions, solutions bound, without running its experiments.
 
     Executes the setup stub, the init cell, the provided cells, the solution cells and the
-    function definitions of the run cells (ucb1, ucb1_scaled, play). The colleague's
+    function definitions of the run cells (ucb1, ucb1_range_policy, play). The colleague's
     unfixed agent, the ex6-stub cell, is added as `UCB1SuspectBuggy`.
     """
     import nbformat
@@ -211,7 +211,7 @@ def run_scale(ns: dict) -> dict:
         "eps_greedy_x10": (eps, B),
         "ucb1_x1": (ns["ucb1"], 1.0),
         "ucb1_x10": (ns["ucb1"], B),
-        "ucb1_rescaled_x10": (partial(ns["ucb1_scaled"], B=B), B),
+        "ucb1_rescaled_x10": (partial(ns["ucb1_range_policy"], B=B), B),
     }
     per: dict = {}
     for name, (policy, scale) in configs.items():
@@ -313,7 +313,7 @@ def seat_run(ns: dict, seat: int) -> dict:
         for name, policy, ref in (
             ("eps_greedy", partial(eps_greedy, epsilon=0.1), base["eps-greedy"]),
             ("ucb1", ucb1, base["UCB1"]),
-            ("ucb1_rescaled", partial(ns["ucb1_scaled"], B=B), base["UCB1"]),
+            ("ucb1_rescaled", partial(ns["ucb1_range_policy"], B=B), base["UCB1"]),
         ):
             arms, reg = run(policy, stack(R, T, k, scale=B), B * R, k)
             x10[name].append(reg[-1] / B)
@@ -480,7 +480,7 @@ NOTES = {
     ),
     "m04-scale": (
         "UCB1 and epsilon-greedy (0.1) with rewards x 1 and x 10, and UCB1 with the bonus x 10 "
-        "(the lab's ucb1_scaled, B = 10), 5000 rounds, seeds 0-19. per_seed[config]['regret'][i] is "
+        "(the lab's ucb1_range_policy, B = 10; ucb1_scaled before 2026-10-24, the same index), 5000 rounds, seeds 0-19. per_seed[config]['regret'][i] is "
         "the final pseudo-regret divided by the scale (original units); 'arms_sha' hashes the arms "
         "pulled, so equal hashes mean identical runs. per_seed['summary'] gives the x 10 outcome "
         "per method: mean and IQM with rewards x 1 and x 10, seeds lower and higher, seeds with "
@@ -561,6 +561,16 @@ def _diff(old, new, path: str, out: list[str], floats: list[float]) -> None:
         out.append(f"{path}: {old!r} vs {new!r}")
 
 
+def _shape(budget):
+    """A budget with its descriptive strings blanked: the numbers and keys must match, while a
+    renamed function (ucb1_scaled became ucb1_range_policy, the same index) need not."""
+    if isinstance(budget, dict):
+        return {k: _shape(v) for k, v in budget.items()}
+    if isinstance(budget, list):
+        return [_shape(v) for v in budget]
+    return "" if isinstance(budget, str) else budget
+
+
 def reproduce(only: list[str] | None = None) -> bool:
     """Rerun each experiment in memory and compare with its newest filed record."""
     ns = lab_functions()
@@ -569,7 +579,9 @@ def reproduce(only: list[str] | None = None) -> bool:
         if only and name not in only:
             continue
         path, rec = newest_record(name)
-        if rec["budget"] != json.loads(json.dumps(budget)) or rec["seeds"] != list(seeds):
+        if _shape(rec["budget"]) != _shape(json.loads(json.dumps(budget))) or rec["seeds"] != list(
+            seeds
+        ):
             print(f"{name}: runs/{path.name} has a different budget or seeds; not comparable")
             ok = False
             continue
@@ -1018,6 +1030,12 @@ def exact_numbers(hoeff: dict, beta: dict) -> None:
     # Exercise 2's bound and Exercise 6's bonus (predict_answer).
     assert round(8 * math.log(5000) / 0.2**2 + 1 + math.pi**2 / 3) == 1708
     assert f"{math.sqrt(2 * math.log(5000)):.2f}" == "4.13"
+    assert f"{math.sqrt(2 * math.log(4999)):.2f}" == "4.13"  # the suspect's last round, t = T - 1
+    # Exercise 6's answer, Check yourself 3.1's prompt, Exercise 4's Explain
+    assert f"{math.sqrt(2 * math.log(5000) / 4000):.3f}" == "0.065"
+    assert f"{math.sqrt(2 * math.log(5000) / 250):.3f}" == "0.261"
+    assert f"{2 * math.log(100):.2f}" == "9.21"
+    assert round(0.1 * 5000 / 3) == 167
 
 
 def quoted_numbers(computed: dict[str, dict]) -> None:
@@ -1162,6 +1180,55 @@ def seat_numbers() -> None:
     assert np.sort(sp, axis=1).tolist() == [[1, 1, 4998]] * len(sp)
     lead = np.bincount(sp.argmax(axis=1), minlength=3).tolist()
     assert lead == [11, 5, 4], lead
+    # second pass: the 20 000-round read, the x 10 IQMs, Exercise 6's healthy UCB1
+    iq = s0["iqm"]
+    assert (_r1(iq["UCB1 @ 20000"][0]), _r1(iq["eps-greedy @ 20000"][0])) == (175.1, 206.5)
+    assert room["ucb1_late_lead"] == 31.4 and room["ucb1_x10_lower"] == 13
+    assert vd["UCB1 vs eps-greedy @ 20000"] == "A"
+    assert (_r1(ucb["iqm_x1"]), _r1(ucb["iqm_x10"])) == (103.7, 83.4)
+    assert pulls[0].tolist() == [591, 222, 4187]  # seed 1000
+    assert pulls[:, 2].min() > 3900 and pulls[:, :2].min() >= 100  # about 4000+; hundreds
+    seats_numbers(rec)
+
+
+def seats_numbers(rec: dict) -> None:
+    """The 100-seat frequencies the page's folds, knowledge check 4.8 and the predict_answer
+    entries quote, from m04-seats' per-seat summaries."""
+    summary = rec["per_seed"]["summary"]
+    n, k = len(summary), SEAT["seeds_per_seat"]
+    assert n == 100 and rec["seeds"] == SEATS
+
+    def tally(key: str) -> dict:
+        out: dict = {}
+        for x in summary:
+            out[x["verdicts"][key]] = out.get(x["verdicts"][key], 0) + 1
+        return out
+
+    assert tally("TS vs UCB1 @ 5000") == {"A": 100} and tally("TS vs eps-greedy @ 5000") == {
+        "A": 100
+    }
+    assert tally("UCB1 vs eps-greedy @ 5000") == {"B": 92, "tie": 8}
+    assert tally("UCB1 vs eps-greedy @ 20000") == {"A": 82, "tie": 18}  # epsilon-greedy never lower
+    assert tally("TS vs eps-greedy @ 1000") == {"tie": 99, "A": 1}
+    assert tally("UCB1 vs eps-greedy @ 1000").get("tie") == 22
+    sc = [x["scale"]["ucb1"] for x in summary]
+    assert sum(v["mean_x10"] > v["mean_x1"] for v in sc) == 97
+    assert sum(v["mean_x10"] < v["mean_x1"] for v in sc) == 3
+    assert sum(v["iqm_x10"] < v["iqm_x1"] for v in sc) == 41
+    assert sum(v["verdict_x10_vs_x1"] == "tie" for v in sc) == 96
+    assert sum(v["lower"] for v in sc) == 1174  # of 2000 seeds
+    for name in ("eps_greedy", "ucb1_rescaled"):
+        assert sum(x["x10_same_arms_seeds"][name] for x in summary) == n * k  # all 2000
+    locked = [x["room"]["greedy_locked"] for x in summary]
+    assert sum(locked) == 1121 and (min(locked), max(locked)) == (5, 17)
+    h1 = [x["room"]["ucb1_pulls_h1"] for x in summary]
+    assert (min(h1), max(h1)) == (216.6, 273.0)
+    ts_h1 = [x["ts_pulls_h1"][0] for x in summary]
+    assert (min(ts_h1), max(ts_h1)) == (38.4, 70.35)  # "about 38 to 70"
+    best = [min(x["sweep_iqm"], key=lambda e: x["sweep_iqm"][e]) for x in summary]
+    assert best.count("0.05") == 77, {e: best.count(e) for e in set(best)}
+    assert {w for x in summary for w in x["suspect_winner_pulls"]} == {4998}  # all 2000 seeds
+    assert all(sorted(x["suspect_lead"]) and sum(x["suspect_lead"]) == k for x in summary)
 
 
 def report(computed: dict[str, dict]) -> None:
