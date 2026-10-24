@@ -380,8 +380,8 @@ ax.legend()
 plt.show()
 
 # %% [markdown] role="ex3-explain"
-# Check your Predict against the printed widths: each tenfold increase in n shrinks the
-# width by about √10 (width). Now read the two "rounds shown" rows. Which items did
+# Check your Predict against the printed widths: for large n, each tenfold increase in n
+# shrinks the width by about √10 (width). Now read the two "rounds shown" rows. Which items did
 # predict-then-greedy stop showing after the launch, and what was their prediction after
 # one no-click? Why can greedy never find out it was wrong about them, while LinUCB's width
 # keeps an unshown item's score up? You met this trap in Module 4 with one mean per
@@ -453,8 +453,8 @@ print(f"draws above LinUCB's score: {above} of {len(draws)}; P(Z > c/v) = {p_the
 # A drawn score sits about c/v = 2 standard deviations below LinUCB's optimistic score, and
 # beats it in about 1 draw in 44 (LinTS). So LinTS explores by chance rather than by a
 # bonus: an item it is unsure about wins when its draw happens to be high. Both depend on
-# the same width √(φᵀA⁻¹φ). Which of the two methods can show a different item to the same
-# user twice in a row?
+# the same width √(φᵀA⁻¹φ). Which of the two methods can show different items to two
+# identical users in a row?
 
 # %% role="ex4-chk"
 lab.check(4, m05.check_lints_sample, lints_sample)
@@ -466,8 +466,8 @@ lab.check(4, m05.check_lints_sample, lints_sample)
 # no linear model can represent (misspec = 1). **Drifting:** every θ_a turns half a circle
 # over the run, so tastes at the end are the reverse of those at the start (drift). **Warm
 # launch:** the well-specified regime again, after a launch of three passes (30 rounds, 1% of
-# the run) instead of one. Run it now: it takes about a minute and prints a line as each
-# method finishes, but no results. Read the Predict while it runs. Then you write `verdicts`:
+# the run) instead of one. Run it now: it takes about a minute (an estimate) and prints a
+# line as each method finishes, but no results. Read the Predict while it runs. Then you write `verdicts`:
 # for each condition, LinUCB against greedy and LinTS against greedy, with
 # `prl.evaluate.compare` and the workshop's rule. Lower regret is better. Every verdict
 # states its budget.
@@ -571,10 +571,10 @@ for regime in REGIMES:
         print(f"  {method:7s} {seeds_txt} | IQM {iqm(x5):6.1f} [{lo:6.1f}, {hi:6.1f}]")
     print(f"  LinUCB's mean width at the end, one user: {widths_end[regime]:.3f}")
 calls = verdicts(regrets, BUDGET5)
-print("\nVerdicts against greedy (5 vs 5 seeds; the budget is printed above):")
-print(f"  {'condition':15s} {'LinUCB':>7s} {'LinTS':>7s}")
+print("\nVerdicts: the better method, or tie (5 vs 5 seeds; the budget is printed above)")
+print(f"  {'condition':15s} {'LinUCB vs greedy':>17s} {'LinTS vs greedy':>16s}")
 for regime in REGIMES:
-    print(f"  {regime:15s} {calls[regime, 'LinUCB']:>7s} {calls[regime, 'LinTS']:>7s}")
+    print(f"  {regime:15s} {calls[regime, 'LinUCB']:>17s} {calls[regime, 'LinTS']:>16s}")
 ties = sum(word == "tie" for (_, m), word in calls.items() if m == "LinUCB")
 print(f"  LinUCB calls that are ties: {ties} of {len(REGIMES)}")
 fig, axes = plt.subplots(2, 2, figsize=(10, 6.4), sharey=True)
@@ -810,8 +810,8 @@ lab.check(7, m05.check_log_suspect, log_suspect)
 # `ROOM m05`. It holds your seat, the checkpoints you passed, whether QUICK budgets ran, and
 # the numbers the debrief pools: greedy's IQM regret minus LinUCB's in each condition
 # (`ucb_lead_spec`, `ucb_lead_misspec`, `ucb_lead_drift`, `ucb_lead_warm`) and minus LinTS's
-# in two (`ts_lead_spec`, `ts_lead_warm`); positive means the method beat greedy (Exercise
-# 5). And the mean weight of your correct log for the uniform target (`mean_weight`,
+# in two (`ts_lead_spec`, `ts_lead_warm`); positive means the method's IQM regret was below
+# greedy's (Exercise 5). And the mean weight of your correct log for the uniform target (`mean_weight`,
 # Exercise 6). Paste it where your instructor says. Your run record keeps every number the
 # lab printed, the other LinTS leads and your verdicts.
 
