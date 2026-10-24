@@ -845,5 +845,5 @@ for k in range(1, 100_001):
         print(
             f"sweep {k:6d}: √PBE {sqrt_pbe(w_t):8.4f}  √VE {sqrt_ve(w_t):6.3f}  ‖w‖ {np.linalg.norm(w_t):6.3f}"
         )
-print("v = 0 at every state needs w proportional to (1, 1, 1, 1, 1, 1, 4, -2).")
+print("All seven values are 0 only when w is proportional to (1, 1, 1, 1, 1, 1, 4, -2).")
 print(f"TDC's w after 100,000 sweeps: {np.round(w_t, 3).tolist()}")
