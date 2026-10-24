@@ -28,6 +28,7 @@ from scipy import stats
 from torch import nn
 
 import prl.data
+from prl.checks import m08  # the checkpoints of this lab
 from prl.evaluate import Budget, compare
 from prl.plot import NEUTRAL_LIGHT
 
@@ -211,8 +212,6 @@ print(f"  in the order stored {stream:5.2f}   in the order drawn {mixed:5.2f}")
 # transition about 16 times buy? (Gotcha: "Replay is only for data efficiency.")
 
 # %% role="ex1-chk"
-from prl.checks import m08  # noqa: E402 (built by the technical expert from the handoff)
-
 lab.check(1, m08.check_replay_buffer, ReplayBuffer)
 
 # %% [markdown] role="ex2-head"
@@ -871,11 +870,12 @@ def sb3_call():
 ref = prl.data.band("m08_dqn_return", budget)
 sb3 = prl.data.band("m08_sb3_return", budget)
 yours = float(log_dqn["eval_return"][-1])
+hw = ref["hardware"]  # where the bands were recorded: a laptop is not Colab
 spent = Budget(
     steps=budget.steps,
     seeds=len(ref["seeds"]),
-    wall_clock_s=ref.get("seconds"),
-    hardware=ref.get("hardware", f"the hardware in {ref['record']}"),
+    wall_clock_s=sum(sum(b["seconds"]["per_seed"]) for b in (ref, sb3)),  # all 10 runs
+    hardware=f"{hw['cpu']} ({hw['env']}, {hw['torch_threads']} torch threads)",
 )
 verdict = compare(
     ref["runs"][:, -1], sb3["runs"][:, -1], names=("reference DQN", "SB3 DQN"), budget=spent

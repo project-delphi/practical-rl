@@ -1,5 +1,5 @@
-"""Plausible wrong versions of Module 8's functions (first draft by the academic director;
-the technical expert completes it).
+"""Plausible wrong versions of Module 8's functions (academic director's draft, completed by
+the technical expert).
 
 scripts/check_notebooks.py --mode verify swaps each one into the notebook and requires every
 exact checkpoint of its exercise that calls the function to reject it; stochastic checkpoints
@@ -7,15 +7,18 @@ are skipped there, because scripts/threshold_protocol.py has already required ev
 a stochastic checkpoint's functions to fail its threshold at every seed, with a stated gap.
 Each mutant is a mistake a participant could plausibly make; `why` says which.
 
-Checkpoint 4.2 (train_dqn's greedy return) is the only stochastic one. Its protocol mutants
-are the train_dqn mutants below without exact_only, plus `random`. Checkpoint 4.1 is exact and
-also calls train_dqn, so verify mode needs it to reject every train_dqn mutant: it checks the
-log's keys and that the target equals the online network right after each copy, which
-rejects `target-is-online`, `no-target-copy` and `random` as well. Forgetting `zero_grad`
-is a plausible mistake that no exact check rejects, so it is not listed (see the handoff). Whether each one separates
-from the solution at both budgets is for the protocol to say; the draft notes say what the
-academic director expects. Mutants that only the exact checkpoint 4.1 can see are
-exact_only=True. Exercise 7's mutant depends on what the records say (see its note).
+Checkpoint 4.2 (train_dqn's greedy return on CartPole) is the only stochastic one. Its
+protocol mutants are the train_dqn mutants below without exact_only: `target-is-online`,
+`no-target-copy`, `zero-grad-late` and `random`. Checkpoint 4.1 is exact and also calls
+train_dqn, so verify mode needs it to reject every train_dqn mutant. It does: its chain runs
+check the log's keys, the snapshots' steps, a target copy every target_sync steps, the
+terminal mask and the bootstrap on cut episodes, and, with config.lr = 0, that the gradient
+norm does not grow (which rejects `no-zero-grad`) and is not zero (`zero-grad-late`).
+
+exact_only=True marks the mutants that only 4.1 can see: `done-in-buffer` (CartPole rarely
+reaches the time limit at the check's budget) and `no-zero-grad`, which still learns CartPole
+(greedy returns 73-272 at 20,000 steps on seeds 0-3 in a scratch scan), so no threshold can
+reject it. Exercise 7's mutant depends on what the recorded bands say (see its note).
 """
 
 import numpy as np
@@ -115,6 +118,37 @@ class ReplayBuffer:  # noqa: F811
     def sample(self, batch_size, rng):
         start = int(rng.integers(0, self.size))
         return to_batch(self, (start + np.arange(batch_size)) % self.size)  # noqa: F821
+
+
+@mutant(
+    ex=1,
+    replaces="ReplayBuffer",
+    id="size-minus-one",
+    why="rng.integers(0, self.size - 1): the high end is already exclusive, so one filled slot "
+    "is never drawn",
+)
+class ReplayBuffer:  # noqa: F811
+    def __init__(self, capacity, obs_dim):
+        self.capacity = capacity
+        self.obs = np.zeros((capacity, obs_dim), dtype=np.float32)
+        self.act = np.zeros(capacity, dtype=np.int64)
+        self.rew = np.zeros(capacity, dtype=np.float32)
+        self.next_obs = np.zeros((capacity, obs_dim), dtype=np.float32)
+        self.terminated = np.zeros(capacity, dtype=np.float32)
+        self.truncated = np.zeros(capacity, dtype=np.float32)
+        self.ptr = 0
+        self.size = 0
+
+    def add(self, obs, act, rew, next_obs, terminated, truncated):
+        i = self.ptr
+        self.obs[i], self.act[i], self.rew[i] = obs, act, rew
+        self.next_obs[i] = next_obs
+        self.terminated[i], self.truncated[i] = terminated, truncated
+        self.ptr = (i + 1) % self.capacity
+        self.size = min(self.size + 1, self.capacity)
+
+    def sample(self, batch_size, rng):
+        return to_batch(self, rng.integers(0, self.size - 1, size=batch_size))  # noqa: F821
 
 
 # ------------------------------------------------------------------ 2: the colleague's buffer
@@ -241,6 +275,98 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):
 @mutant(
     ex=4,
     replaces="train_dqn",
+    id="no-zero-grad",
+    why="never calls opt.zero_grad(): every step's gradient adds to all the earlier ones",
+    exact_only=True,
+)
+def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
+    target_fn = target_fn or dqn_target  # noqa: F821
+    torch.manual_seed(seed)
+    rng = np.random.default_rng(seed)
+    env = make_env()
+    obs_dim, n_actions = env.observation_space.shape[0], env.action_space.n
+    q_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
+    target_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
+    target_net.load_state_dict(q_net.state_dict())
+    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
+    buffer = ReplayBuffer(config.buffer_size, obs_dim)  # noqa: F821
+    log = DQNLogger(config, steps, q_net, target_net, make_env, **log_options)  # noqa: F821
+    obs, _ = env.reset(seed=seed)
+    for t in range(1, steps + 1):
+        eps = epsilon_at(t, steps, config)  # noqa: F821
+        a = act(q_net, obs, eps, n_actions, rng)  # noqa: F821
+        next_obs, r, terminated, truncated, _ = env.step(a)
+        buffer.add(obs, a, r, next_obs, terminated, truncated)
+        obs = next_obs
+        if terminated or truncated:
+            obs, _ = env.reset()
+        if t > config.learning_starts and t % config.train_freq == 0:
+            batch = buffer.sample(config.batch_size, rng)
+            q_values = q_net(batch.obs)
+            q_sa = gather_q(q_values, batch.act)  # noqa: F821
+            y = target_fn(batch, q_net, target_net, config.gamma)
+            loss = huber(y - q_sa, config.huber_threshold).mean()  # noqa: F821
+            loss.backward()
+            norm = nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
+            opt.step()
+            log.update(t, batch, q_values, q_sa, y, loss, norm)
+        if config.target_sync and t % config.target_sync == 0:
+            target_net.load_state_dict(q_net.state_dict())
+            log.sync(t)
+        log.step(t, eps, r, terminated, truncated)
+    env.close()
+    return q_net, log.result()
+
+
+@mutant(
+    ex=4,
+    replaces="train_dqn",
+    id="zero-grad-late",
+    why="calls opt.zero_grad() after loss.backward(), so every step applies a zero gradient",
+)
+def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
+    target_fn = target_fn or dqn_target  # noqa: F821
+    torch.manual_seed(seed)
+    rng = np.random.default_rng(seed)
+    env = make_env()
+    obs_dim, n_actions = env.observation_space.shape[0], env.action_space.n
+    q_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
+    target_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
+    target_net.load_state_dict(q_net.state_dict())
+    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
+    buffer = ReplayBuffer(config.buffer_size, obs_dim)  # noqa: F821
+    log = DQNLogger(config, steps, q_net, target_net, make_env, **log_options)  # noqa: F821
+    obs, _ = env.reset(seed=seed)
+    for t in range(1, steps + 1):
+        eps = epsilon_at(t, steps, config)  # noqa: F821
+        a = act(q_net, obs, eps, n_actions, rng)  # noqa: F821
+        next_obs, r, terminated, truncated, _ = env.step(a)
+        buffer.add(obs, a, r, next_obs, terminated, truncated)
+        obs = next_obs
+        if terminated or truncated:
+            obs, _ = env.reset()
+        if t > config.learning_starts and t % config.train_freq == 0:
+            batch = buffer.sample(config.batch_size, rng)
+            q_values = q_net(batch.obs)
+            q_sa = gather_q(q_values, batch.act)  # noqa: F821
+            y = target_fn(batch, q_net, target_net, config.gamma)
+            loss = huber(y - q_sa, config.huber_threshold).mean()  # noqa: F821
+            loss.backward()
+            opt.zero_grad()
+            norm = nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
+            opt.step()
+            log.update(t, batch, q_values, q_sa, y, loss, norm)
+        if config.target_sync and t % config.target_sync == 0:
+            target_net.load_state_dict(q_net.state_dict())
+            log.sync(t)
+        log.step(t, eps, r, terminated, truncated)
+    env.close()
+    return q_net, log.result()
+
+
+@mutant(
+    ex=4,
+    replaces="train_dqn",
     id="target-is-online",
     why="computes targets with the online network: no target network (expected to diverge)",
 )
@@ -324,22 +450,21 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
     return q_net, log.result()
 
 
-class _UniformQ(nn.Module):
-    """Values drawn afresh at every call: its greedy action is uniform random play."""
-
-    def __init__(self, n_actions):
-        super().__init__()
-        self.n_actions = n_actions
-
-    def forward(self, obs):
-        return torch.rand(obs.shape[0], self.n_actions)
-
-
 @mutant(ex=4, replaces="train_dqn", id="random", why="never learns: uniform random play")
 def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
+    class UniformQ(nn.Module):
+        """Values drawn afresh at every call: its greedy action is uniform random play."""
+
+        def __init__(self, n_actions):
+            super().__init__()
+            self.n_actions = n_actions
+
+        def forward(self, obs):
+            return torch.rand(obs.shape[0], self.n_actions)
+
     torch.manual_seed(seed)
     env = make_env()
-    q_net = _UniformQ(env.action_space.n)
+    q_net = UniformQ(env.action_space.n)
     env.close()
     return q_net, {}
 
