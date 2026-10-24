@@ -21,7 +21,7 @@ live:
 
 **In this section:** scale Module 1's shop up to three products, and see what a table would cost in memory and in data.
 
-Module 1's shop had one product, with stock 0 to 20 and orders 0 to 20: 21 states, 21 actions, and arrays `P[s, a, s']` and `Q[s, a]` that fit anywhere. Day 3's framing problem is the same shop at scale. It now sells three products, each with stock 0 to 50, and each period it orders 0 to 50 units of each. The state is the triple of stock levels $(x_1, x_2, x_3)$, and an action is a triple of orders.
+Module 1's shop had one product, with stock 0 to 10 and orders 0 to 10: 11 states, 11 actions, and arrays `P[s, a, s']` and `Q[s, a]` that fit anywhere. Day 3's framing problem is the same shop at scale. It now sells three products, each with stock 0 to 50, and each period it orders 0 to 50 units of each. The state is the triple of stock levels $(x_1, x_2, x_3)$, and an action is a triple of orders.
 
 ::: {#predict-count .predict}
 **Predict (2 min).** How many states does the three-product shop have? How many entries does a table $Q(s, a)$ need, and how much memory is that at 8 bytes per entry? Write two numbers before opening the answer.
@@ -101,7 +101,7 @@ b &= \Phi^\top D\, r_\pi .
 \end{aligned}
 $$ {#eq-td-matrix}
 
-Sutton and Barto derive these with $\mu$ the on-policy distribution [@sutton2018rl, §9.4, Eqs. 9.10–9.11 and the box on the proof of convergence]; the algebra holds for any weighting. If the iteration converges, it converges to the *TD fixed point* $w_{\text{TD}}$, where $A w_{\text{TD}} = b$ [@sutton2018rl, §9.4, Eq. 9.12].
+State by state, the average step is $\mathbb{E}[\delta\, \phi(s)] = \Phi^\top D\, (r_\pi + \gamma P_\pi \Phi w - \Phi w)$, which is $b - Aw$. Sutton and Barto derive these with $\mu$ the on-policy distribution [@sutton2018rl, §9.4, Eqs. 9.10–9.11 and the box on the proof of convergence]; the algebra holds for any weighting. If the iteration converges, it converges to the *TD fixed point* $w_{\text{TD}}$, where $A w_{\text{TD}} = b$ [@sutton2018rl, §9.4, Eq. 9.12].
 
 **No objective has this gradient.** Suppose the expected step were plain gradient descent on some objective $J$: $b - A w = -\nabla J(w)$ for all $w$. Differentiate coordinate $i$ of both sides by $w_j$:
 
@@ -112,29 +112,29 @@ $$ {#eq-no-objective}
 
 The middle equality holds because $\nabla J$ is affine, so $J$ has continuous second derivatives, and their order does not matter. So $A$ would have to be symmetric. In general it is not: $\Phi^\top D (I - \gamma P_\pi) \Phi$ inherits the one-way structure of $P_\pi$, because a state's target looks at its successor and not the other way around. Wherever $A \ne A^\top$, semi-gradient TD(0) is not gradient descent on anything. Sutton and Barto: "Bootstrapping methods are not in fact instances of true gradient descent" [@sutton2018rl, §9.3, p. 202].
 
-**What this does not say.** It does not say the update diverges. Not following a gradient removes the easy guarantee, nothing more. With $\mu$ the on-policy stationary distribution, Sutton and Barto show that $A$ is positive definite, $y^\top A y > 0$ for every $y \ne 0$, although it is not symmetric, and the expected update converges [@sutton2018rl, §9.4, box]. Check yourself 3.1 is a smaller case of the same thing. Nor does it say TD aims at nothing: when it converges, it reaches $w_{\text{TD}}$, which in general is not the minimizer of @eq-ve.
+**What this does not say.** It does not say the update diverges. Not following a gradient removes the easy guarantee, nothing more. With $\mu$ the on-policy stationary distribution, Sutton and Barto show that $A$ is positive definite, $y^\top A y > 0$ for every $y \ne 0$, although it is not symmetric, and the expected update converges [@sutton2018rl, §9.4, box]. Positive definiteness is enough, but not necessary. What decides is the eigenvalues of $A$. One expected step multiplies the distance from a fixed point by $I - \alpha A$, so along an eigenvector with eigenvalue $\lambda$ it multiplies by $1 - \alpha\lambda$. If every eigenvalue has a positive real part, a small enough $\alpha$ shrinks every direction. An eigenvalue with a negative real part grows at every $\alpha > 0$; the fold below has the details. Check yourself 3.1 has an $A$ that is neither symmetric nor positive definite, and it converges. Nor does it say TD aims at nothing: when it converges, it reaches $w_{\text{TD}}$, which in general is not the minimizer of @eq-ve.
 
 ::: {#chk-asym .self-check}
-**Check yourself 3.1.** Two states, one feature each, so $\Phi = I$ (a table). State 1 always moves to state 2, and state 2 stays in state 2; $\gamma = 0.9$ and $\mu = (\tfrac12, \tfrac12)$. Compute $A$. Is it symmetric? Is there an objective whose gradient gives this update? For small $\alpha > 0$, does $w \leftarrow w + \alpha(b - Aw)$ converge?
+**Check yourself 3.1.** Two states, one feature each, so $\Phi = I$ (a table). State 1 always moves to state 2, and state 2 stays in state 2; $\gamma = 0.9$ and $\mu = (\tfrac12, \tfrac12)$. Compute $A$. Is it symmetric? For small $\alpha > 0$, does $w \leftarrow w + \alpha(b - Aw)$ converge?
 
 ::: {.callout-tip collapse="true" title="Answer to 3.1"}
-$P_\pi$ has rows $(0, 1)$ and $(0, 1)$, so $I - \gamma P_\pi$ has rows $(1, -0.9)$ and $(0, 0.1)$, and $A = \tfrac12 (I - \gamma P_\pi)$ has rows $(0.5, -0.45)$ and $(0, 0.05)$. It is not symmetric ($A_{12} = -0.45$, $A_{21} = 0$), so by @eq-no-objective no objective has this gradient. It still converges: $A$ is triangular, so its eigenvalues are its diagonal entries, 0.5 and 0.05, both positive. Along an eigenvector with eigenvalue $\lambda$, the error is multiplied by $1 - \alpha\lambda$ at each step, which lies strictly between $-1$ and 1 for $0 < \alpha < 2/\lambda$; here any $\alpha < 4$ works. Not a gradient is not the same as divergent. (This is Module 1's policy evaluation with a step size: each value moves a fraction $\alpha/2$ of the way to its Bellman target.)
+$P_\pi$ has rows $(0, 1)$ and $(0, 1)$, so $I - \gamma P_\pi$ has rows $(1, -0.9)$ and $(0, 0.1)$, and $A = \tfrac12 (I - \gamma P_\pi)$ has rows $(0.5, -0.45)$ and $(0, 0.05)$. It is not symmetric ($A_{12} = -0.45$, $A_{21} = 0$), so by @eq-no-objective no objective has this gradient. It is not positive definite either: $y = (1, 2)$ gives $y^\top A y = -0.2$. It still converges: $A$ is triangular, so its eigenvalues are its diagonal entries, 0.5 and 0.05, both positive. Along an eigenvector with eigenvalue $\lambda$, the error is multiplied by $1 - \alpha\lambda$ at each step, which lies strictly between $-1$ and 1 for $0 < \alpha < 2/\lambda$; here any $\alpha < 4$ works. Not a gradient is not the same as divergent. (This is Module 1's policy evaluation with a step size: each value moves a fraction $\alpha/2$ of the way to its Bellman target.)
 :::
 :::
 
 ::: {.callout-note collapse="true" title="The asymmetric-Jacobian argument in full"}
-Write $e = w - w_{\text{TD}}$, so the expected update is $e \leftarrow (I - \alpha A)\, e$. Split $A = S + K$ into its symmetric part $S = \tfrac12 (A + A^\top)$ and its antisymmetric part $K = \tfrac12 (A - A^\top)$. Since $e^\top K e = 0$ for every $e$,
+Write $\tilde w = w - w_{\text{TD}}$, so the expected update is $\tilde w \leftarrow (I - \alpha A)\, \tilde w$. Split $A = S + K$ into its symmetric part $S = \tfrac12 (A + A^\top)$ and its antisymmetric part $K = \tfrac12 (A - A^\top)$. Since $\tilde w^\top K \tilde w = 0$ for every $\tilde w$,
 
 $$
 \begin{aligned}
-\lVert e - \alpha A e \rVert^2 &= \lVert e \rVert^2 - 2\alpha\, e^\top S e \\
-&\quad + \alpha^2 \lVert A e \rVert^2 .
+\lVert \tilde w - \alpha A \tilde w \rVert^2 &= \lVert \tilde w \rVert^2 - 2\alpha\, \tilde w^\top S \tilde w \\
+&\quad + \alpha^2 \lVert A \tilde w \rVert^2 .
 \end{aligned}
 $$
 
 So for small $\alpha$ the squared distance to $w_{\text{TD}}$ shrinks at every step when $S$ is positive definite, whether or not $K = 0$. That is the positive definiteness of Sutton and Barto's box, a property of $S$ alone. A gradient field is the case $K = 0$. On Baird's counterexample (section 4) $S$ has a negative eigenvalue, about $-1.02$, so some directions get longer.
 
-The exact criterion for the iteration is the eigenvalues of $A$ itself. Along an eigenvector with eigenvalue $\lambda$ (complex in general), one step multiplies by $1 - \alpha\lambda$, and $\lvert 1 - \alpha\lambda \rvert^2 = 1 - 2\alpha \operatorname{Re}\lambda + \alpha^2 \lvert\lambda\rvert^2$. If every eigenvalue has $\operatorname{Re}\lambda > 0$, every factor is below 1 in size for $0 < \alpha < \min_\lambda 2\operatorname{Re}\lambda / \lvert\lambda\rvert^2$. If some eigenvalue has $\operatorname{Re}\lambda < 0$, its factor exceeds 1 for every $\alpha > 0$, and the component of $w$ along it grows without bound. A zero eigenvalue gives a factor of exactly 1: that component never moves.
+The step-size bound behind the eigenvalue test: for an eigenvalue $\lambda$ (complex in general), $\lvert 1 - \alpha\lambda \rvert^2 = 1 - 2\alpha \operatorname{Re}\lambda + \alpha^2 \lvert\lambda\rvert^2$, which is below 1 exactly when $0 < \alpha < 2\operatorname{Re}\lambda / \lvert\lambda\rvert^2$. A zero eigenvalue gives a factor of exactly 1: that component never moves.
 :::
 
 ::: {.callout-note collapse="true" title="Code: semi_gradient_td0 and td_matrix (open after Lab 7)"}
@@ -165,8 +165,9 @@ w \leftarrow \big(1 + \alpha (2\gamma - 1)\big)\, w .
 $$ {#eq-fragment}
 
 ::: {#demo-fragment .demo}
-**Demo (4 min).** Start from $w = 10$ with $\alpha = 0.1$. First, as a room: for which $\gamma$ does $w$ shrink, and for which does it grow? Does a smaller $\alpha$ change the answer? Then read the table, computed exactly from @eq-fragment.
+**Demo (4 min).** Start from $w = 10$ with $\alpha = 0.1$. First, as a room: for which $\gamma$ does $w$ shrink, and for which does it grow? Does a smaller $\alpha$ change the answer? Answer from @eq-fragment, then open the table.
 
+::: {.callout-tip collapse="true" title="After the room has answered: the exact table"}
 | $\gamma$ | Factor per update | $w$ after 10 updates | $w$ after 100 updates |
 |---|---|---|---|
 | 0.4 | 0.98 | 8.17 | 1.33 |
@@ -174,7 +175,8 @@ $$ {#eq-fragment}
 | 0.6 | 1.02 | 12.19 | 72.45 |
 | 0.99 | 1.098 | 25.47 | 114,877 |
 
-::: {.callout-tip collapse="true" title="After the room has answered"}
+Exact, from @eq-fragment with $w = 10$ and $\alpha = 0.1$. To watch it, type `w = 10.0` and then `for _ in range(100): w *= 1 + 0.1 * (2 * g - 1)` for a few values of `g`.
+
 $w$ grows whenever $\gamma > 0.5$, for every $\alpha > 0$: the factor $1 + \alpha(2\gamma - 1)$ exceeds 1, and $\alpha$ sets only how fast. Each update raises the first state's value toward its target, and since the second state shares the weight, the target rises twice as much. The TD error grows instead of shrinking. In an on-policy run, the second state's own transition would follow and pull $w$ back down: "Eventually the piper must be paid." Off-policy, a transition can be updated again and again while the one after it never is [@sutton2018rl, §11.2, p. 261].
 :::
 :::
@@ -207,7 +209,25 @@ def baird_expected_update(w, phi, mu, P, r, gamma, alpha):
 
 ## 5. The deadly triad
 
-**In this section:** name the three ingredients that together allow divergence, and the one change per ingredient that the lab tries.
+**In this section:** change one ingredient of Baird's setup at a time, predict which change brings back convergence, then name the combination.
+
+Baird's setup has three ingredients, and each is one argument of the expected update:
+
+| Ingredient changed | Change | What it costs |
+|---|---|---|
+| Off-policy weights | weight states by $\mu_\pi$, the target policy's stationary distribution | updates only where the target policy goes; no learning about one policy from another's data |
+| Bootstrapping | target $v_\pi(s)$, the expected Monte Carlo return: $\gamma \to 0$ and $r \to v_\pi$ in the update | waiting for whole returns, and their variance (Module 3) |
+| Function approximation | $\Phi = I$, one feature per state | section 1's table |
+
+In a continuing task the on-policy distribution is the stationary distribution of $P_\pi$ [@sutton2018rl, §9.2].
+
+::: {#predict-leg .predict}
+**Predict (2 min).** Which single change, made alone, brings back convergence on Baird's counterexample: on-policy weights, Monte Carlo targets, or tabular features? One, two or all three? Commit, then open the answer.
+
+::: {.callout-tip collapse="true" title="Answer"}
+All three, each on its own. Sutton and Barto, on the three together: "If any two elements of the deadly triad are present, but not all three, then instability can be avoided" [@sutton2018rl, §11.3]; for Baird they state the on-policy case explicitly [@sutton2018rl, §11.2, p. 262]. *Converge* is not the same as *converge to $v_\pi$ everywhere*, and not the same as *converge fast*. Exercise 5 measures where each variant ends up and how long it takes.
+:::
+:::
 
 Sutton and Barto call the combination the *deadly triad*: the danger of divergence "arises whenever we combine" three elements [@sutton2018rl, §11.3]:
 
@@ -215,28 +235,12 @@ Sutton and Barto call the combination the *deadly triad*: the danger of divergen
 - **bootstrapping**, targets that include current estimates, as in TD and dynamic programming;
 - **off-policy updating**, a distribution of updates other than the one the target policy produces.
 
-The danger is not due to control, nor to learning from samples: it "occurs just as strongly in planning methods, such as dynamic programming, in which the environment is completely known" [@sutton2018rl, §11.3]. Baird with expected updates is such a planning method.
-
-Each leg is one argument of the expected update:
-
-| Leg removed | Change | What it costs |
-|---|---|---|
-| Off-policy | weight states by $\mu_\pi$, the target policy's stationary distribution | updates only where the target policy goes; no learning about one policy from another's data |
-| Bootstrapping | target $v_\pi(s)$, the expected Monte Carlo return: $\gamma \to 0$ and $r \to v_\pi$ in the update | waiting for whole returns, and their variance (Module 3) |
-| Function approximation | $\Phi = I$, one feature per state | section 1's table |
-
-In a continuing task the on-policy distribution is the stationary distribution of $P_\pi$ [@sutton2018rl, §9.2]. Sutton and Barto weigh the costs: function approximation "most clearly cannot be given up", giving up bootstrapping costs computation and data, and off-policy learning is essential when one stream of experience must teach many predictions [@sutton2018rl, §11.3]. Q-learning, which learns the greedy policy while acting $\varepsilon$-greedily, is off-policy too.
-
-::: {#predict-leg .predict}
-**Predict (2 min).** Which single change, made alone, brings back convergence on Baird's counterexample: on-policy weights, Monte Carlo targets, or tabular features? One, two or all three? Commit, then open the answer.
-
-::: {.callout-tip collapse="true" title="Answer"}
-All three, each on its own. Sutton and Barto: "If any two elements of the deadly triad are present, but not all three, then instability can be avoided" [@sutton2018rl, §11.3]; for Baird they state the on-policy case explicitly [@sutton2018rl, §11.2, p. 262]. *Converge* is not the same as *converge to $v_\pi$ everywhere*, and not the same as *converge fast*. Exercise 5 measures where each variant ends up and how long it takes.
-:::
-:::
+The danger is not due to control, nor to learning from samples: it "occurs just as strongly in planning methods, such as dynamic programming, in which the environment is completely known" [@sutton2018rl, §11.3]. Baird with expected updates is such a planning method. Sutton and Barto weigh the costs: function approximation "most clearly cannot be given up", giving up bootstrapping costs computation and data, and off-policy learning is essential when one stream of experience must teach many predictions [@sutton2018rl, §11.3]. Q-learning, which learns the greedy policy while acting $\varepsilon$-greedily, is off-policy too.
 
 ::: {.callout-note collapse="true" title="After the lab: why each variant converges, and to what"}
 Exact computations with $\alpha = 0.01$, from Lab 7's Exercise 5. States are numbered 1 to 7 as on the page.
+
+![**What to notice:** only the original grows, and each variant settles on its own time scale: Monte Carlo targets within about $10^4$ sweeps, on-policy weights near $10^4$ sweeps but at an error of 1.8, and tabular features only near $10^6$. The largest error over Baird's seven states, $\max_s \lvert \hat v(s) - v_\pi(s) \rvert$, against sweeps of the expected update with $\alpha = 0.01$, for the original and for each ingredient changed alone; both axes on a log scale. Exact computations (Exercise 5's run cell).](/images/07-legs.svg){#fig-legs fig-alt="Four curves of the largest value error against sweeps from 1 to one million, both axes logarithmic. All four start near 12. The original rises slowly, then steeply past ten to the fourteenth before ten thousand sweeps. On-policy weights falls to a flat line at 1.8 after about five thousand sweeps. Monte Carlo targets falls off the bottom of the plot before ten thousand sweeps. Tabular features stays near 12 until about ten thousand sweeps, then falls to about ten to the minus six at one million."}
 
 **On-policy weights.** Under the target policy every state moves to state 7, so its stationary distribution puts all weight there: $D = \operatorname{diag}(0, \dots, 0, 1)$. Row 7 of $I - \gamma P_\pi$ is $(1 - \gamma)$ times the seventh unit row, so
 
@@ -289,7 +293,7 @@ $$ {#eq-linear-q}
 
 where term is 1 only when the episode *terminated*; a *truncated* episode still bootstraps (Module 3). This is Sutton and Barto's semi-gradient update for action values, Eq. 10.1, with the Q-learning target [@sutton2018rl, §10.1; §11.2, Exercise 11.3]. It has all three legs of the triad: features, a bootstrapped target, and a greedy target policy learned from $\varepsilon$-greedy behavior. Sutton and Barto report counterexamples in which Q-learning diverges; with $\varepsilon$-greedy behavior it "has never been found to diverge" to their knowledge, "but there has been no theoretical analysis" [@sutton2018rl, §11.2, p. 263].
 
-**Radial basis functions on CartPole.** CartPole's state is four numbers: cart position and velocity, pole angle and angular velocity. The lab divides each by a scale to get a vector $z(s)$: 2.4 for the position and 0.2095 rad for the angle, where an episode terminates, and our choices of 3.0 and 3.5 for the two velocities. On a grid of $5^4 = 625$ points $z_i$ in $[-1, 1]^4$ it places Gaussian bumps [@sutton2018rl, §9.5.5], then scales the vector of bumps to unit length:
+**Radial basis functions on CartPole.** CartPole's state is four numbers: cart position and velocity, pole angle and angular velocity. The lab divides each by a scale to get a vector $z(s)$: 2.4 for the position and 0.2095 rad (12°) for the angle, where an episode terminates, and our choices of 3.0 and 3.5 for the two velocities. On a grid of $5^4 = 625$ points $z_i$ in $[-1, 1]^4$ it places Gaussian bumps [@sutton2018rl, §9.5.5], then scales the vector of bumps to unit length:
 
 $$
 \begin{aligned}
@@ -325,6 +329,12 @@ def linear_q_update(
 **In the lab.** **Exercise 6** is `linear_q_update`, @eq-linear-q, with the provided features of @eq-rbf, $\alpha = 0.3$ and $\gamma = 0.99$. Checkpoint 6.1 is exact on fixed arrays, including a truncated transition that must bootstrap; checkpoint 6.2 trains your update on its own seed and requires a greedy return above a threshold set by the threshold protocol. Your one live seed is drawn over a recorded multi-seed band of the same method at the same budget: where it lands is reported, never graded. **Exercise 7** is the planted bug: a colleague's featurizer, diagnosed from the weight-norm log.
 :::
 
+::: {.callout-note collapse="true" title="After the lab: linear Q on 20 seeds, and the colleague's features"}
+![**What to notice:** with unit-length features ‖W‖ stays in the hundreds on every seed, while the colleague's features put it above $10^{16}$ at the first log entry and it keeps climbing, to between $10^{85}$ and $10^{116}$. ‖W‖ every 1000 steps for seeds 0 to 19 at the live budget (30,000 steps, $\alpha = 0.3$), with `rbf_features` and with the colleague's unscaled bumps, on a log scale; the dotted line is the training checkpoints' bound, $10^4$ (`runs/2026-10-24-local-m07-linear-q-live-exp.json`).](/images/07-weight-norms.svg){#fig-weight-norms fig-alt="Weight norm against environment steps from 0 to 30,000 on a log scale from 1 to ten to the 125th. Twenty solid curves for the unit-length features lie flat in the hundreds, just under a dotted line at ten thousand. Twenty dashed curves for the colleague's features start between ten to the 17th and ten to the 36th, rise steeply over the first 10,000 steps and keep climbing slowly, ending between about ten to the 85th and ten to the 116th."}
+
+With `rbf_features`, the greedy return over 10 evaluation episodes runs from 206.6 to 500 (median 493.5) across the 20 seeds, against 12.2 to 29.0 (median 22.0) for random play on the same start states: at least 8.1 times random on every seed. ‖W‖ peaks between 327 and 420 and ends between 263 and 312. Q at a seed's first start state runs from 74.4 to 110.7: a little above $1/(1 - \gamma) = 100$ on some seeds. That is estimation error; one known source is that a maximum over noisy estimates "can lead to a significant positive bias" [@sutton2018rl, §6.7, p. 134], Module 8's topic. With the colleague's features, ‖W‖ never overflowed within the budget, $\lvert Q \rvert$ at the start state exceeded 1000 on every seed, and the greedy return ran from 9.2 to 459.3 (median 14.4): above 160, the checkpoint's threshold, on seeds 3, 4 and 12. The return alone did not reveal the bug; the weight-norm log did on every seed. These are arm64 records; a seat's run, and a run on another platform, differs in detail.
+:::
+
 **Where Module 8 goes.** A grid of bumps does not scale past a few dimensions. Module 8 replaces $\phi$ and $W$ with a neural network, which keeps all three legs of the triad, and adds a replay buffer and a target network.
 
 ## Summary
@@ -356,7 +366,7 @@ def linear_q_update(
 - **"Semi-gradient TD is gradient descent."** It follows no objective's gradient wherever $A \ne A^\top$ (@eq-no-objective). Each step looks like a gradient step on $\tfrac12 \delta^2$ with the target frozen, but the target moves with $w$. When it converges, it reaches the TD fixed point, which in general does not minimize the value error. Differentiating through the target as well gives a true gradient method, on the mean squared TD error, with problems of its own [@sutton2018rl, §11.5].
 - **"Features are just preprocessing."** Their scale is part of the step size: the error at a state is multiplied by $1 - \alpha \lVert \phi(s) \rVert^2$ (@eq-step-size-rule). That every entry lies in $[0, 1]$ bounds nothing: $d$ such entries can have a squared length up to $d$. Scale features to a fixed length, or choose $\alpha$ from $\mathbb{E}[\phi^\top \phi]$.
 - **"Q-learning converges, so linear Q-learning does too."** Module 3's tabular Q-learning has a convergence guarantee; with features it has all three legs of the triad and none. A run that behaves is one observation at one seed and one step size. Log $\lVert W \rVert$ on every run.
-- **"The returns look fine, so the values are fine."** A greedy policy needs only the order of $Q(s, \cdot)$, which can survive values that mean nothing. CartPole pays 1 per step, so a discounted return is at most $1/(1 - \gamma) = 100$ at $\gamma = 0.99$; a $Q$ far above that estimates no return.
+- **"The returns look fine, so the values are fine."** A greedy policy needs only the order of $Q(s, \cdot)$, which can survive values that mean nothing. CartPole pays 1 per step, so a discounted return is at most $1/(1 - \gamma) = 100$ at $\gamma = 0.99$. A correct run's $Q$ can sit a little above 100 (estimation error); a $Q$ far above it estimates no return.
 - **"`RuntimeWarning: overflow encountered`, or `nan` in the weights."** The weights diverged. Print $\alpha \lVert \phi(s) \rVert^2$ for a few states: above 2 is a step-size problem (@eq-step-size-rule). If it is small and $\lVert w \rVert$ still grows by a constant factor per sweep, look for the triad.
 - **"`ValueError: No recorded band 'm07_linear_q' at your budget`."** The recorded band exists only for the lab's two budgets, live and QUICK. If you changed the settings cell, restore it, or skip the overlay; your run itself is fine.
 - **"`NotImplementedError`."** The function still raises its TODO: you have not written it yet, or you have not run the cell that holds your code. Write the TODO and run its cell. To move on without it, run `lab.use_reference(N)` with the exercise number, and the lab continues with the reference solution; the exercise's solution cell must have run once. Running a solution cell alone does not replace your function.

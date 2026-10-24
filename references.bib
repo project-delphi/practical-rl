@@ -101,7 +101,10 @@
                beta = 0.05, expected TDC: PBE falls to 0, w far from optimal; p. 281: v-hat = 0 needs w proportional to (1,1,1,1,1,1,4,-2)^T, VE
                "remains almost 2" after 1000 iterations, "converging to an optimal solution, but progress is extremely slow". Module 7 cites these.
                prl.envs.Baird checked against s11.2: features, w0, the 6/7-1/7 behavior policy (uniform next state), the target policy, gamma = 0.99
-               and zero rewards all match. NOTE: S&B call Baird's MDP "episodic" but it has no terminal state; Module 7 treats it as continuing.}
+               and zero rewards all match. NOTE: S&B call Baird's MDP "episodic" but it has no terminal state; Module 7 treats it as continuing.
+               Also opened (academic director, Module 7 second pass, 2026-10-24, same PDF): s6.7 (book p. 134): "a maximum over estimated values is
+               used implicitly as an estimate of the maximum value, which can lead to a significant positive bias ... We call this maximization
+               bias" (Example 6.7, Figure 6.5, p. 135). Module 7 cites p. 134 for why a healthy CartPole Q can sit a little above 1/(1 - gamma).}
 }
 
 @book{lattimore2020bandit,
