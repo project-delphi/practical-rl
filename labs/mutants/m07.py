@@ -1,5 +1,5 @@
-"""Plausible wrong versions of Module 7's functions (first draft by the academic director;
-the technical expert completes it).
+"""Plausible wrong versions of Module 7's functions (academic director's first draft,
+completed by the technical expert).
 
 scripts/check_notebooks.py --mode verify swaps each one into the notebook and requires
 every exact checkpoint of its exercise that calls the function to reject it; stochastic
@@ -8,12 +8,21 @@ every mutant of a stochastic checkpoint's functions to fail its threshold at eve
 with a stated gap. Each mutant is a mistake a participant could plausibly make; `why` says
 which. `id="random"` is the never-learns version the protocol needs.
 
-Checkpoints 6.2 and 7.2 are stochastic (training on CartPole). Mutants of `linear_q_update`
-that only change how truncation or the bootstrap is handled may train about as well as the
-solution, so they are `exact_only=True` and checkpoint 6.1 (exact, on fixed arrays, with a
-truncated transition) rejects them. The AD's design scan (laptop, not a record) suggests the
-others fail at training; the protocol decides, and any that it cannot separate become
-`exact_only=True` with a note here.
+Checkpoints 6.2 and 7.2 are stochastic (training on CartPole). A mutant that trains about as
+well as the solution cannot be told from it by a threshold, so it is `exact_only=True` and an
+exact checkpoint rejects it: 6.1 (fixed arrays, with a terminated and a truncated transition)
+for `linear_q_update`, 7.1 (seven fixed observations) for `colleague_features`. These are
+exact_only because a scan of 20 seeds at the QUICK budget (laptop, not a record; the
+technical expert's notes) put their greedy returns inside the solution's range:
+mask-on-truncated, no-mask, swapped-flags, next-features, no-discount and squared-norm. The
+others go to scripts/threshold_protocol.py, whose records show each one rejected at every
+seed. A run whose weight norm diverges (sign, unfixed, max-normalized) is rejected by the
+checks' metric itself.
+
+Checkpoint 7.2 checks both functions, so the protocol scores the mutants of both exercises
+together; mutant ids must therefore differ across Exercises 6 and 7 (the protocol keys its
+per-seed values by id). Exercise 6's `random` is the never-learns version for both checks;
+Exercise 7's never-learns featurizer is `constant-features`.
 """
 
 import numpy as np
@@ -316,6 +325,56 @@ def linear_q_update(W, phi, a, r, phi_next, terminated, truncated, gamma, alpha)
     return W_new
 
 
+@mutant(
+    ex=6,
+    replaces="linear_q_update",
+    id="swapped-flags",
+    why="stops the bootstrap on truncated and bootstraps on terminated: the flags swapped",
+    exact_only=True,
+)
+def linear_q_update(W, phi, a, r, phi_next, terminated, truncated, gamma, alpha):  # noqa: F811
+    bootstrap = 0.0 if truncated else gamma * np.max(W @ phi_next)
+    W_new = W.copy()
+    W_new[a] = W[a] + alpha * (r + bootstrap - W[a] @ phi) * phi
+    return W_new
+
+
+@mutant(
+    ex=6,
+    replaces="linear_q_update",
+    id="next-features",
+    why="steps along phi(s') instead of phi(s); successive CartPole states are close",
+    exact_only=True,
+)
+def linear_q_update(W, phi, a, r, phi_next, terminated, truncated, gamma, alpha):  # noqa: F811
+    bootstrap = 0.0 if terminated else gamma * np.max(W @ phi_next)
+    W_new = W.copy()
+    W_new[a] = W[a] + alpha * (r + bootstrap - W[a] @ phi) * phi_next
+    return W_new
+
+
+@mutant(
+    ex=6,
+    replaces="linear_q_update",
+    id="no-discount",
+    why="drops gamma from the target; CartPole's episodes end, so it still learns",
+    exact_only=True,
+)
+def linear_q_update(W, phi, a, r, phi_next, terminated, truncated, gamma, alpha):  # noqa: F811
+    bootstrap = 0.0 if terminated else np.max(W @ phi_next)
+    W_new = W.copy()
+    W_new[a] = W[a] + alpha * (r + bootstrap - W[a] @ phi) * phi
+    return W_new
+
+
+@mutant(ex=6, replaces="linear_q_update", id="sign", why="subtracts the step: ‖W‖ diverges")
+def linear_q_update(W, phi, a, r, phi_next, terminated, truncated, gamma, alpha):  # noqa: F811
+    bootstrap = 0.0 if terminated else gamma * np.max(W @ phi_next)
+    W_new = W.copy()
+    W_new[a] = W[a] - alpha * (r + bootstrap - W[a] @ phi) * phi
+    return W_new
+
+
 @mutant(ex=6, replaces="linear_q_update", id="random", why="never learns")
 def linear_q_update(W, phi, a, r, phi_next, terminated, truncated, gamma, alpha):  # noqa: F811
     return W.copy()
@@ -358,7 +417,38 @@ def colleague_features(obs):  # noqa: F811
     return f / f.max()
 
 
-@mutant(ex=7, replaces="colleague_features", id="random", why="features that carry no state")
+@mutant(
+    ex=7,
+    replaces="colleague_features",
+    id="squared-norm",
+    why="divides by the squared length: ‖φ(s)‖² near 0.1, stable but slow",
+    exact_only=True,
+)
+def colleague_features(obs):  # noqa: F811
+    z = np.asarray(obs, dtype=float) / OBS_SCALE
+    f = np.exp(-((GRID_POINTS - z) ** 2).sum(axis=1) / (2 * WIDTH**2))
+    return f / (f @ f)
+
+
+@mutant(
+    ex=7,
+    replaces="colleague_features",
+    id="sqrt-d",
+    why="divides by sqrt(625), the largest length 625 bumps in [0, 1] can have: ‖φ(s)‖² near "
+    "0.016, so alpha = 0.3 barely learns",
+)
+def colleague_features(obs):  # noqa: F811
+    z = np.asarray(obs, dtype=float) / OBS_SCALE
+    f = np.exp(-((GRID_POINTS - z) ** 2).sum(axis=1) / (2 * WIDTH**2))
+    return f / np.sqrt(len(f))
+
+
+@mutant(
+    ex=7,
+    replaces="colleague_features",
+    id="constant-features",
+    why="features that carry no state (Exercise 7's never-learns version)",
+)
 def colleague_features(obs):  # noqa: F811
     return np.full(len(GRID_POINTS), 1.0 / np.sqrt(len(GRID_POINTS)))
 
