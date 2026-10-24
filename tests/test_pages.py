@@ -64,3 +64,33 @@ def test_figures_have_alt_text():
             continue
         for img in re.findall(r"!\[[^\]]*\]\([^)]*\)(\{[^}]*\})?", qmd.read_text()):
             assert "fig-alt=" in img, f"{qmd.name}: every figure needs fig-alt"
+
+
+def _open_divs(text):
+    """Line numbers of fenced divs (::: {...}) still open at the end, skipping code blocks."""
+    stack, code = [], None
+    for i, line in enumerate(text.splitlines(), 1):
+        fence = re.match(r"^(`{3,}|~{3,})", line)
+        if fence:
+            if code is None:
+                code = fence.group(1)[0]
+            elif line.startswith(code * 3):
+                code = None
+            continue
+        if code is not None:
+            continue
+        if re.match(r"^:{3,}\s*$", line):
+            if not stack:
+                return [f"{i}: closes a div that is not open"]
+            stack.pop()
+        elif re.match(r"^:{3,}\s*\S", line):
+            stack.append(i)
+    return [f"{i}: never closed" for i in stack]
+
+
+def test_fenced_divs_are_closed():
+    # A dropped closing ::: (for example in a merge of appended sections) folds every later
+    # section into one collapsed callout without any render warning.
+    for page in sorted([*ROOT.glob("*.qmd"), *(ROOT / "modules").glob("*.qmd")]):
+        problems = _open_divs(page.read_text())
+        assert not problems, f"{page.name}: fenced divs {problems}"
