@@ -27,6 +27,7 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 
+from prl.checks import m07  # the checkpoints of this lab
 from prl.envs import Baird, InventoryMDP
 from prl.evaluate import Budget
 
@@ -153,10 +154,6 @@ for shared in (False, True):
 # represent it?
 
 # %% role="ex1-chk"
-# The checkpoints of this lab. (Technical expert: move this import to the first code cell
-# once prl.checks.m07 exists.)
-from prl.checks import m07
-
 lab.check(1, m07.check_scale_spec, scale_spec)
 
 # %% [markdown] role="ex2-head"
