@@ -8,29 +8,17 @@ not part of prl. Deterministic: rerunning it must produce identical files
 
 from __future__ import annotations
 
-import io
 import sys
-import zipfile
 from fractions import Fraction
 from math import comb
 from pathlib import Path
 
 import numpy as np
 
+from package_data import same_content, save_npz
+
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "prl" / "src" / "prl" / "_expected"
-
-
-def save_npz(**arrays: np.ndarray) -> bytes:
-    """An .npz that is byte-identical across runs (fixed zip timestamps, sorted keys)."""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_STORED) as zf:
-        for key in sorted(arrays):
-            info = zipfile.ZipInfo(f"{key}.npy", date_time=(1980, 1, 1, 0, 0, 0))
-            arr_buf = io.BytesIO()
-            np.lib.format.write_array(arr_buf, np.asarray(arrays[key]), allow_pickle=False)
-            zf.writestr(info, arr_buf.getvalue())
-    return buf.getvalue()
 
 
 def _save(name: str, **arrays: np.ndarray) -> bytes:
@@ -2132,31 +2120,6 @@ FIXTURES = {
     "m06_regret": m06_regret,
     "m06_psrl": m06_psrl,
 }
-
-
-def same_content(old: bytes, new: bytes) -> bool:
-    """True if two fixture files hold the same arrays.
-
-    Byte-identical files match. Otherwise keys, dtypes, shapes and every non-float value must
-    match exactly, and floats to 1e-12: LAPACK's linear solve differs in the last bits between
-    platforms (Accelerate on macOS, OpenBLAS on Linux), so a fixture written on one machine is
-    not byte-identical to the same fixture built on another.
-    """
-    if old == new:
-        return True
-    a, b = np.load(io.BytesIO(old)), np.load(io.BytesIO(new))
-    if sorted(a.files) != sorted(b.files):
-        return False
-    for key in a.files:
-        x, y = a[key], b[key]
-        if x.dtype != y.dtype or x.shape != y.shape:
-            return False
-        if np.issubdtype(x.dtype, np.floating):
-            if not np.allclose(x, y, rtol=1e-12, atol=1e-12, equal_nan=True):
-                return False
-        elif not np.array_equal(x, y):
-            return False
-    return True
 
 
 def main(argv: list[str]) -> int:
