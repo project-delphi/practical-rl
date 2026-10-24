@@ -32,9 +32,9 @@ import torch
 from prl.evaluate import Budget, compare
 
 # Budgets (live, then QUICK). Lab code reads them from here and never branches on QUICK.
-# `steps`, `log_every`, `eval_every` and `eval_episodes` are Exercise 8's live run and pick its
-# recorded band; the recorded runs of Exercises 1-5 and 7 used the live values. `probe_steps`
-# is each probe run of Exercise 6.
+# `steps`, `log_every`, `eval_every` and `eval_episodes` are Exercise 6's live run and pick its
+# recorded band; the recorded runs of Exercises 1-3 and 5 used the live values. `probe_steps`
+# is each probe run of Exercise 4.
 budget = lab.use_settings(
     prl.runtime.settings(
         dict(steps=50_000, log_every=500, eval_every=5_000, eval_episodes=10, probe_steps=2_000),
@@ -151,7 +151,7 @@ def train_dqn(
     verbose=True,
 ):
     """Provided: DQN with replay, a target network and the Huber loss, for `steps` env steps.
-    Returns (q_net, log); the log holds NumPy arrays (Exercise 1 lists them)."""
+    Returns (q_net, log); the log is a dict of NumPy arrays."""
     target_fn = target_fn or dqn_target
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
