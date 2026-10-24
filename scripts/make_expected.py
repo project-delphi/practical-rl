@@ -1366,52 +1366,108 @@ def m04_verdict() -> bytes:
     )
 
 
+def _m04_ucb1_for_range(counts, sums, t, B):
+    """The lab's ucb1_for_range: rescale the rewards to [0, 1], take UCB1's index, scale back."""
+    return B * _m04_ucb1_index(counts, sums / B, t)
+
+
+def m04_ucb1_for_range() -> bytes:
+    """Checkpoint 5.1: UCB1's index for rewards in [0, B], and the usual mistakes' values.
+
+    The B = 1 case equals ucb1_index; the others separate `bonus-not-scaled`
+    (ucb1_index(counts, sums, t)) and `mean-scaled-twice` (B * ucb1_index(counts, sums, t)).
+    """
+    cases = [
+        ([0, 0, 0], [0.0, 0, 0], 0, 10.0),
+        ([1, 0, 1], [10.0, 0, 0], 2, 10.0),
+        ([90, 9, 1], [540.0, 40, 0], 100, 10.0),  # ten times Check yourself 3.1
+        ([90, 9, 1], [54.0, 4, 0], 100, 1.0),  # B = 1: ucb1_index itself
+        ([4, 10, 2], [5.0, 10, 0], 16, 2.5),
+    ]
+    counts = np.array([c for c, _, _, _ in cases], dtype=np.int64)
+    sums = np.array([x for _, x, _, _ in cases])
+    t = np.array([c[2] for c in cases], dtype=np.int64)
+    B = np.array([c[3] for c in cases])
+    rows = list(zip(counts, sums, t, B, strict=True))
+    with np.errstate(divide="ignore"):
+        index = np.array([_m04_ucb1_for_range(c, x, int(k), b) for c, x, k, b in rows])
+        not_scaled = np.array([_m04_ucb1_index(c, x, int(k)) for c, x, k, b in rows])
+        twice = np.array([b * _m04_ucb1_index(c, x, int(k)) for c, x, k, b in rows])
+    assert np.all(np.isposinf(index[0]))
+    assert np.allclose(index[1][[0, 2]], [21.7741, 11.7741], atol=5e-5) and np.isinf(index[1][1])
+    assert np.allclose(index[2], [9.19902, 14.56063, 30.34854], atol=5e-6)
+    assert np.allclose(index[3], _m04_ucb1_index(counts[3], sums[3], 100), rtol=0, atol=1e-12)
+    assert np.allclose(index[4], [4.19353, 2.86165, 4.16277], atol=5e-6)
+    for wrong in (not_scaled, twice):  # each case but B = 1 (and t = 0) separates both
+        for i in (1, 2, 4):
+            fin = np.isfinite(index[i])
+            assert np.max(np.abs(wrong[i][fin] - index[i][fin])) > 0.5
+    return _save(
+        "m04_ucb1_for_range",
+        counts=counts,
+        sums=sums,
+        t=t,
+        B=B,
+        index=index,
+        bonus_not_scaled=not_scaled,
+        mean_scaled_twice=twice,
+    )
+
+
 def m04_scale_runs(seeds=M04_SCALE_SEEDS, T=M04_T_SCALE) -> dict[str, np.ndarray]:
-    """Checkpoint 5's reference run: final pseudo-regret in the original units, per seed."""
+    """Checkpoint 5.2's reference run: final pseudo-regret in the original units, and the arms,
+    per seed. UCB1 with the bonus x 10 is the lab's ucb1_for_range at B = 10."""
+
+    def for_range(c, s, t, rng, B=10.0):
+        return _m04_argmax_tie(_m04_ucb1_for_range(c, s, t, B))
+
     configs = {
         "eps_greedy_x1": (lambda c, s, t, rng: _m04_eps_greedy(c, s, t, rng, 0.1), 1.0),
         "eps_greedy_x10": (lambda c, s, t, rng: _m04_eps_greedy(c, s, t, rng, 0.1), 10.0),
         "ucb1_x1": (_m04_ucb1, 1.0),
         "ucb1_x10": (_m04_ucb1, 10.0),
-        "ucb1_rescaled_x10": (lambda c, s, t, rng: _m04_ucb1(c, s, t, rng, B=10.0), 10.0),
+        "ucb1_rescaled_x10": (for_range, 10.0),
     }
     out = {}
     for name, (policy, scale) in configs.items():
-        regrets = []
+        regrets, arms = [], []
         for k in seeds:
             run = _m04_run(policy, _m04_stack(M04_R, T, k, scale), scale * M04_R, k)
             regrets.append(run["regret"][-1] / scale)
+            arms.append(run["arms"])
         out[name] = np.array(regrets)
+        out[f"{name}_arms"] = np.array(arms)
     return out
 
 
 def m04_scale() -> bytes:
-    """Checkpoint 5: the directions of the reference run (seeds 0-19, T = 5000), with its data.
-
-    "same" means equal on every seed (to 1e-9); otherwise the direction of the mean, as the
-    lab's run cell decides it.
-    """
+    """Checkpoint 5.2: "same" or "changes" per method in the reference run (seeds 0-19,
+    T = 5000), from the arms: "same" means identical arms on every seed."""
     runs = m04_scale_runs()
-    directions = {}
+    directions, same_seeds = {}, {}
     for key, base in (
         ("eps_greedy", "eps_greedy_x1"),
         ("ucb1", "ucb1_x1"),
         ("ucb1_rescaled", "ucb1_x1"),
     ):
-        a, b = runs[base], runs[f"{key}_x10"]
-        if np.allclose(a, b, rtol=0, atol=1e-9):
-            directions[key] = "same"
-        else:
-            assert abs(b.mean() - a.mean()) > 10  # far from a coin flip
-            directions[key] = "up" if b.mean() > a.mean() else "down"
-    assert directions == {"eps_greedy": "same", "ucb1": "up", "ucb1_rescaled": "same"}
+        same = [
+            np.array_equal(x, y)
+            for x, y in zip(runs[f"{base}_arms"], runs[f"{key}_x10_arms"], strict=True)
+        ]
+        same_seeds[key] = sum(same)
+        directions[key] = "same" if all(same) else "changes"
+        if all(same):
+            assert np.allclose(runs[base], runs[f"{key}_x10"], rtol=0, atol=1e-9)
+    assert directions == {"eps_greedy": "same", "ucb1": "changes", "ucb1_rescaled": "same"}
+    assert same_seeds["ucb1"] == 0  # UCB1 x 10 changes its arms on every seed
     return _save(
         "m04_scale",
         keys=np.array(list(directions)),
         directions=np.array(list(directions.values())),
+        same_arms_seeds=np.array(list(same_seeds.values()), dtype=np.int64),
         seeds=np.array(M04_SCALE_SEEDS, dtype=np.int64),
         T=np.array(M04_T_SCALE, dtype=np.int64),
-        **runs,
+        **{k: v for k, v in runs.items() if not k.endswith("_arms")},
     )
 
 
@@ -1459,6 +1515,7 @@ FIXTURES = {
     "m04_greedy_replay": m04_greedy_replay,
     "m04_ucb1": m04_ucb1,
     "m04_ucb1_replay": m04_ucb1_replay,
+    "m04_ucb1_for_range": m04_ucb1_for_range,
     "m04_beta": m04_beta,
     "m04_ts_shares": m04_ts_shares,
     "m04_verdict": m04_verdict,
