@@ -93,6 +93,12 @@ def band(name: str, budget: Mapping[str, Any]) -> dict[str, Any]:
         metric      what runs holds, in words
         record      id of the experiment record in runs/ it was copied from
         record_sha  sha256 of that record (see scripts/export_bands.py)
+        hardware    where the record ran: {"platform", "env", "cpu", "n_cpu", "accel",
+                    "gpu", "torch_threads"}; platform "local" is a laptop, not Colab
+        seconds     its wall-clock: {"total": the whole record's seconds (every run in it,
+                    not only this band's), "per_seed": a list like seeds, or None}
+    Together with budget and seeds, these give the budget sentence (steps, seeds,
+    wall-clock, hardware) without runs/. Any value the record lacks is None.
     A per-seed scalar is a band with one x value. The file's sha256 is checked.
     """
     bands = [e for e in manifest().values() if e.get("kind") == "band"]
@@ -123,6 +129,8 @@ def band(name: str, budget: Mapping[str, Any]) -> dict[str, Any]:
         "metric": entry["metric"],
         "record": entry["record"],
         "record_sha": entry["record_sha"],
+        "hardware": dict(entry["hardware"]),
+        "seconds": dict(entry["seconds"]),
     }
 
 

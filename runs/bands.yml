@@ -20,4 +20,9 @@
 #     live: 2026-10-26-local-m08-bands-live-exp
 #     quick: 2026-10-26-local-m08-bands-quick-exp
 #
+# Each band also carries where and how long its record ran, for the budget sentence (steps,
+# seeds, wall-clock, hardware) on Colab: the record's platform, env, hardware (cpu, n_cpu,
+# accel, gpu), torch_threads, its total `seconds` and, if the record holds one number per seed
+# in per_seed.seconds, those too (None when absent). A laptop time stays a laptop time.
+#
 # Then run: uv run python scripts/export_bands.py
