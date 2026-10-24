@@ -205,10 +205,14 @@ JS_FOCUS_INFO = """(el) => {
   const sized = rects.some(q => q.width > 0 && q.height > 0) || (r.width > 0 && r.height > 0);
   let shown = false, cover = null, inView = false;
   if (sized) {
-    const pts = [[0.5, 0.5], [0.15, 0.2], [0.85, 0.2], [0.15, 0.8], [0.85, 0.8]];
+    const pts = [[0.5, 0.5], [0.15, 0.2], [0.85, 0.2], [0.15, 0.8], [0.85, 0.8], null];
+    const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
     for (const q of (rects.length ? rects : [r])) {
-      for (const [fx, fy] of pts) {
-        const x = q.left + q.width * fx, y = q.top + q.height * fy;
+      for (const f of pts) {
+        // The last point is the box's point nearest the viewport's center: on a box taller
+        // than the viewport (a long table) none of the fixed fractions may be on screen.
+        const x = f ? q.left + q.width * f[0] : clamp(innerWidth / 2, q.left, q.right - 1);
+        const y = f ? q.top + q.height * f[1] : clamp(innerHeight / 2, q.top, q.bottom - 1);
         if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) continue;
         inView = true;
         // popups opened by the focus itself (citation and footnote tooltips) do not
@@ -367,7 +371,27 @@ async def check_page(
                         f"reflow: page scrolls sideways by {ov['over']} px at {w} px; "
                         f"widest: {', '.join(ov['culprits']) or '?'}"
                     )
-            if width <= 400:
+            # Again with every fold open: math or a table inside a closed <details> is never
+            # measured otherwise (the Module 6 UI review found a 320 px overflow in a fold).
+            opened = await page.evaluate(
+                "() => [...document.querySelectorAll('details:not([open])')]"
+                ".map(d => (d.dataset.siteCheckOpened = '1', d.open = true, d)).length"
+            )
+            if opened:
+                for w in widths:
+                    await page.set_viewport_size({"width": w, "height": HEIGHT})
+                    await page.evaluate(JS_SETTLE)
+                    ov = await page.evaluate(JS_OVERFLOW)
+                    if ov["over"] > 0:
+                        res.failures.append(
+                            f"reflow (folds open): page scrolls sideways by {ov['over']} px at "
+                            f"{w} px; widest: {', '.join(ov['culprits']) or '?'}"
+                        )
+                await page.evaluate(
+                    "() => document.querySelectorAll('details[data-site-check-opened]')"
+                    ".forEach(d => (d.open = false, delete d.dataset.siteCheckOpened))"
+                )
+            if width <= 400 or opened:
                 await page.set_viewport_size({"width": width, "height": HEIGHT})
                 await page.evaluate(JS_SETTLE)
 
