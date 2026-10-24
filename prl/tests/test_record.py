@@ -135,3 +135,34 @@ def test_source_commit_reads_the_checkout(tmp_path):
     assert (sha, dirty) == (head, False)
     (tmp_path / "_variables.yml").write_text("x: 2\n")
     assert record.source_commit(tmp_path) == (head, True)
+
+
+def good_experiment(**overrides):
+    rec = {
+        "schema": 1,
+        "kind": "experiment",
+        "experiment": "m99-bands-live",
+        "script": "scripts/m99_bands.py",
+        "args": {},
+        "prl_version": "0.1.0",
+        "date": "2026-10-09",
+        "platform": "local",
+        "env": "local",
+        "hardware": {"cpu": "x", "n_cpu": 2, "ram_gb": 8.0, "accel": "cpu", "gpu": None},
+        "python": "3.13.2",
+        "packages": {"numpy": "2.1.3"},
+        "budget": {"steps": 400, "grid": [100, 200, 300, 400]},
+        "seeds": [0, 1, 2],
+        "per_seed": {"return": [[1.0, 2.0, 3.0, 4.0]] * 3},
+        "seconds": 1.5,
+    }
+    rec.update(overrides)
+    return rec
+
+
+def test_experiment_records_hold_per_seed_curves_and_torch_threads():
+    today = dt.date(2026, 10, 9)
+    assert record.validate(good_experiment(), today=today) == []
+    assert record.validate(good_experiment(torch_threads=2), today=today) == []
+    assert record.validate(good_experiment(torch_threads=None), today=today) == []
+    assert record.validate(good_experiment(torch_threads="2"), today=today)
