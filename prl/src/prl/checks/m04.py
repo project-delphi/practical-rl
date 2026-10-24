@@ -488,7 +488,7 @@ check_thompson_regret = StochasticCheck(
         # = 3.0% (rule of three).
         "live": (
             110.0,
-            "threshold protocol, 100 seeds: runs/2026-10-24-local-threshold-m04-check_thompson_regret-live-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-24-local-threshold-m04-check_thompson_regret-live-n100-exp-2.json",
         ),
         # threshold_protocol.py, quick budget {"T": 1000, "runs": 5}, N = 100 seeds (0-99),
         # 2026-10-24, local (Apple M1 Pro, arm64). Solution p99 38.07; strongest wrong version
@@ -497,7 +497,7 @@ check_thompson_regret = StochasticCheck(
         # 3.0% (rule of three).
         "quick": (
             65.0,
-            "threshold protocol, 100 seeds: runs/2026-10-24-local-threshold-m04-check_thompson_regret-quick-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-24-local-threshold-m04-check_thompson_regret-quick-n100-exp-2.json",
         ),
     },
 )
