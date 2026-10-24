@@ -22,37 +22,39 @@ live:
 
 **In this section:** frame the lab's recommender as a contextual bandit, say what the frame leaves out compared with full RL, and define the regret the lab measures.
 
-**Where Module 4 stopped.** A $K$-armed bandit learns one mean reward per arm. In a recommender the best item depends on who is asking, so one mean per item is the wrong object, and one bandit per user learns nothing from one user about the next. We need a model that shares what it learns across users through their features.
+**Where Module 4 stopped.** A bandit with $K$ arms (Module 4's $|\mathcal{A}|$) learns one mean reward per arm. In a recommender the best item depends on who is asking, so one mean per item is the wrong object, and one bandit per user learns nothing from one user about the next. We need a model that shares what it learns across users through their features.
 
-**The protocol.** In round $t$ a user arrives with a *context* $x_t$, a vector that describes the user. The recommender shows one item $a_t \in \{1, \dots, K\}$ and observes the reward $r_t \in \{0, 1\}$, a click, for that item only. The next user's context does not depend on what was shown. Li et al. define the contextual bandit this way and stress that no reward is observed for the items not shown [@li2010linucb, §2.1].
+**The protocol.** In round $t$ a user arrives with a *context* $x_t$, a vector that describes the user. The recommender shows one item $a_t \in \{0, \dots, K - 1\}$ and observes the reward $r_t \in \{0, 1\}$, a click, for that item only. The next user's context does not depend on what was shown. Li et al. define the contextual bandit this way and stress that items not shown reveal nothing [@li2010linucb, §2.1].
 
-**What is lost compared with full RL.** Sutton and Barto place contextual bandits between the $K$-armed bandit and the full problem: the agent learns a policy, a map from situations to actions, but each action affects only the immediate reward; if actions also affect the next situation, the problem is full RL [@sutton2018rl, §2.9]. A real recommender can break this. Showing a user the same item every day can bore them; a clickbait headline can earn a click today and lose the user tomorrow. In the bandit frame none of this exists. To model it you need a state that the action changes, Module 1's MDP, and a return over the horizon instead of the immediate click.
+**What is lost compared with full RL.** Sutton and Barto place contextual bandits between the $K$-armed bandit and the full problem: the agent learns a policy, a map from situations to actions, but each action affects only the immediate reward; if actions also affect the next situation, the problem is full RL [@sutton2018rl, §2.9]. In a real recommender, showing a user the same item every day can bore them; a clickbait headline can earn a click today and lose the user tomorrow. In the bandit frame none of this exists. To model it you need a state that the action changes, Module 1's MDP, and a return over the horizon instead of the immediate click.
 
 ::: {#predict-frame .predict}
-**Predict (2 min).** Name one effect of today's recommendation on tomorrow that a contextual bandit cannot represent. In Module 1's terms, would you put it in the state, the reward or the transition?
+**Predict (2 min).** Name one effect of today's recommendation on tomorrow that a contextual bandit cannot represent. Which of Module 1's pieces must change to hold it: the state, the reward, the transition, or more than one?
 
 ::: {.callout-tip collapse="true" title="Answer: what can a bandit not see?"}
-Any effect of the action on the future. Three examples: fatigue (the same item shown again earns fewer clicks), return visits (an annoyed user comes back less often) and changing interests (an item shown today shapes what the user wants next). Each needs a state that remembers what was shown, such as the items shown so far or the time since the last visit, and a transition in which the action changes that state. The reward can stay the click; the objective becomes the discounted return instead of the next click. The bandit frame is the special case where the action does not change the next state.
+The state and the transition; the reward can stay the click. Any effect of the action on the future needs both. Three examples: fatigue (the same item shown again earns fewer clicks), return visits (an annoyed user comes back less often) and changing interests (an item shown today shapes what the user wants next). Each needs a state that remembers what was shown, such as the items shown so far or the time since the last visit, and a transition in which the action changes that state. The objective becomes the discounted return instead of the next click. The bandit frame is the special case where the action does not change the next state.
 :::
 :::
 
-**The lab's recommender.** `prl.envs.RecSim` has $K = 10$ items and contexts in $\mathbb{R}^5$, drawn independently from a normal distribution, $x \sim \mathcal{N}(0, I/5)$. Each item $a$ has a hidden parameter $\theta_a \in \mathbb{R}^5$, and in the well-specified regime the click probability is
+**The lab's recommender.** `prl.envs.RecSim` has $K = 10$ items and contexts in $\mathbb{R}^5$, drawn independently from $\mathcal{N}(0, I/5)$. Each item $a$ has a hidden parameter $\theta_a \in \mathbb{R}^5$, and in the well-specified regime the click probability is
 
 $$
 r(x, a) = \operatorname{clip}\big(0.5 + 0.15\, \theta_a^\top x,\ 0.02,\ 0.98\big).
 $$ {#eq-click-model}
 
-The factor 0.15 is RecSim's `scale`. The clip binds rarely. Inside it, $r(x, a)$ is linear in the features $\phi(x) = (x, 1) \in \mathbb{R}^6$: ${r(x, a) = \theta_a^{*\top} \phi(x)}$ with $\theta^*_a = (0.15\,\theta_a,\ 0.5)$. The constant feature carries the 0.5; Li et al.'s user features also end in a constant 1 [@li2010linucb, §5.2.2]. We write $d = 6$ for the number of features.
+The factor 0.15 is RecSim's `scale`. The clip binds rarely. Inside it, $r(x, a)$ is linear in the features $\phi(x) = (x, 1) \in \mathbb{R}^6$: ${r(x, a) = w_a^{*\top} \phi(x)}$ with $w^*_a = (0.15\,\theta_a,\ 0.5)$. We write $w$ for a linear model's parameter and keep $\theta$ for the simulator's. The constant feature carries the 0.5. We write $d = 6$ for the number of features.
 
 **Regret.** Because the simulator knows $r(x, a)$, the lab measures the *pseudo-regret*: in each round, the best item's click probability minus the shown item's,
 
 $$
-R_T = \sum_{t=1}^{T} \Big[ \max_a r(x_t, a) - r(x_t, a_t) \Big].
+\mathrm{Reg}_T = \sum_{t=0}^{T-1} \Big[ \max_a r(x_t, a) - r(x_t, a_t) \Big].
 $$ {#eq-regret}
 
-Lower is better. Clicks are noisy and the regret is not: it uses the probabilities, not the clicks. No method sees $r(x, a)$; only the regret does.
+This is Module 4's pseudo-regret, with the best item now chosen per context. Lower is better.
 
 ::: {.reference}
+**Probabilities, not clicks.** Clicks are noisy and the pseudo-regret is not: it uses the probabilities, not the clicks. No method sees $r(x, a)$; only the regret does. The constant feature follows Li et al., whose user features also end in a constant 1 [@li2010linucb, §5.2.2].
+
 **Pseudo-regret and regret.** Li et al. define the regret of $T$ trials as the expected total payoff of the best arm in each round minus the algorithm's expected total payoff [@li2010linucb, §2.1, Eq. 1]. Lattimore and Szepesvári call the version with the means inside the sum the random pseudo-regret [@lattimore2020bandit, §19.2]. @eq-regret is that sum for one run; the lab reports it per seed and compares seeds.
 
 **One model per item.** Li et al.'s Algorithm 1 fits a separate linear model for each arm, the *disjoint* model, whose parameters are not shared among arms; their hybrid model adds shared parameters [@li2010linucb, §3.1–3.2]. RecSim gives every item the same features, the user's $\phi(x)$, so the disjoint model is the natural fit.
@@ -66,19 +68,19 @@ Lower is better. Clicks are noisy and the regret is not: it uses the probabiliti
 
 **In this section:** estimate each item's parameter from the clicks it has seen, in closed form, and keep the estimate current at $O(d^2)$ cost per click.
 
-**The estimate.** Item $a$ has seen $n$ pairs $(\phi_i, r_i)$: the features of the users it was shown to and their clicks. Ridge regression minimizes $\sum_i (r_i - \theta^\top \phi_i)^2 + \lambda_{\text{ridge}} \lVert \theta \rVert_2^2$. Setting the gradient to zero gives
+**The estimate.** Item $a$ has seen $n$ pairs $(\phi_i, r_i)$: the features of the users it was shown to and their clicks. Ridge regression minimizes $\sum_i (r_i - w^\top \phi_i)^2 + \lambda_{\text{ridge}} \lVert w \rVert_2^2$ over the item's parameter $w$. Setting the gradient to zero gives
 
 $$
 \begin{aligned}
 \Lambda_a &= \lambda_{\text{ridge}} I + \textstyle\sum_i \phi_i \phi_i^\top, \\
 b_a &= \textstyle\sum_i r_i\, \phi_i, \\
-\hat\theta_a &= \Lambda_a^{-1} b_a .
+\hat w_a &= \Lambda_a^{-1} b_a .
 \end{aligned}
 $$ {#eq-ridge}
 
 $\Lambda_a$ is the $d \times d$ *Gram matrix* of item $a$ [@lattimore2020bandit, §19.2, Eqs. 19.4–19.6]. Li et al. write it $A_a$, fix ${\lambda_{\text{ridge}} = 1}$, and their Algorithm 1 keeps exactly these two statistics: $A_a \leftarrow I$ and $b_a \leftarrow 0$ for a new arm, then $A_a \leftarrow A_a + x x^\top$ and $b_a \leftarrow b_a + r x$ after each round [@li2010linucb, §3.1, Eq. 3 and Algorithm 1]. The lab's code calls them `A` and `b`.
 
-**Why $\lambda_{\text{ridge}} > 0$.** Until item $a$ has seen users whose features span $\mathbb{R}^d$, the sum $\sum_i \phi_i \phi_i^\top$ is singular and least squares has no unique answer. The penalty makes $\Lambda_a$ invertible from the first round, which Lattimore and Szepesvári give as the reason to choose ${\lambda_{\text{ridge}} > 0}$ [@lattimore2020bandit, §19.2]. The price is a pull of $\hat\theta_a$ toward 0, which fades as data arrive.
+**Why $\lambda_{\text{ridge}} > 0$.** Until item $a$ has seen users whose features span $\mathbb{R}^d$, the sum $\sum_i \phi_i \phi_i^\top$ is singular and least squares has no unique answer. The penalty makes $\Lambda_a$ invertible from the first round, which Lattimore and Szepesvári give as the reason to choose ${\lambda_{\text{ridge}} > 0}$ [@lattimore2020bandit, §19.2]. The price is a pull of $\hat w_a$ toward 0, which fades as data arrive.
 
 **Incremental.** Both statistics are sums, so a click adds $\phi\phi^\top$ to $\Lambda_a$ and $r\phi$ to $b_a$: $O(d^2)$ work. Every prediction needs $\Lambda_a^{-1}$, and inverting from scratch costs $O(d^3)$. Keep the inverse current instead, with the *Sherman–Morrison formula*:
 
@@ -92,13 +94,13 @@ It holds for any invertible symmetric $\Lambda$ with ${1 + \phi^\top \Lambda^{-1
 ::: {.reference}
 **Why @eq-sm holds.** Write $u = \Lambda^{-1}\phi$ and $q = \phi^\top u$. Multiply the right side by $\Lambda + \phi\phi^\top$: $(\Lambda^{-1} - u u^\top/(1 + q))(\Lambda + \phi\phi^\top) = I + u\phi^\top - u\phi^\top/(1 + q) - u\,q\,\phi^\top/(1 + q) = I + u\phi^\top\big(1 - (1 + q)/(1 + q)\big) = I$, using $u^\top \Lambda = \phi^\top$ and $u^\top\phi = q$.
 
-**Ridge as a posterior mean.** Li et al. note that ridge regression can also be read as a Bayesian point estimate, with a Gaussian posterior for $\theta_a$ of mean $\hat\theta_a$ and covariance $\Lambda_a^{-1}$ [@li2010linucb, §3.1]. Section 4 uses this.
+**Ridge as a posterior mean.** Li et al. note that ridge regression can also be read as a Bayesian point estimate, with a Gaussian posterior for $w_a$ of mean $\hat w_a$ and covariance $\Lambda_a^{-1}$ [@li2010linucb, §3.1]. Section 4 uses this.
 :::
 
 ::: {.worked-example}
 **Worked example: two observations by hand.** $d = 2$ and ${\lambda_{\text{ridge}} = 1}$, so $\Lambda^{-1} = I$ and $b = 0$ at the start.
 
-*First observation*, $\phi_1 = (1, 0)$ with a click, $r_1 = 1$. Then $\Lambda^{-1}\phi_1 = (1, 0)$ and $1 + \phi_1^\top \Lambda^{-1} \phi_1 = 2$, so @eq-sm gives $\Lambda^{-1} = \operatorname{diag}(1/2,\ 1)$. Also $b = (1, 0)$ and $\hat\theta = (1/2,\ 0)$.
+*First observation*, $\phi_1 = (1, 0)$ with a click, $r_1 = 1$. Then $\Lambda^{-1}\phi_1 = (1, 0)$ and $1 + \phi_1^\top \Lambda^{-1} \phi_1 = 2$, so @eq-sm gives $\Lambda^{-1} = \operatorname{diag}(1/2,\ 1)$. Also $b = (1, 0)$ and $\hat w = (1/2,\ 0)$.
 
 *Second observation*, $\phi_2 = (1, 1)$ with no click, $r_2 = 0$. Now $\Lambda^{-1}\phi_2 = (1/2,\ 1)$ and $1 + \phi_2^\top \Lambda^{-1}\phi_2 = 1 + 1/2 + 1 = 5/2$. Subtract the outer product divided by $5/2$:
 
@@ -109,7 +111,7 @@ $$
 \end{aligned}
 $$
 
-Check: $\Lambda = I + \phi_1\phi_1^\top + \phi_2\phi_2^\top = \begin{pmatrix} 3 & 1 \\ 1 & 2 \end{pmatrix}$, whose inverse is $\frac15 \begin{pmatrix} 2 & -1 \\ -1 & 3 \end{pmatrix}$, the same. The click total is unchanged, $b = (1, 0)$, so $\hat\theta = \Lambda^{-1} b = (2/5,\ -1/5)$. The prediction for a user like the second one is $\hat\theta^\top \phi_2 = 1/5$: the no-click pulled it down from $1/2$.
+Check: $\Lambda = I + \phi_1\phi_1^\top + \phi_2\phi_2^\top = \begin{pmatrix} 3 & 1 \\ 1 & 2 \end{pmatrix}$, whose inverse is $\frac15 \begin{pmatrix} 2 & -1 \\ -1 & 3 \end{pmatrix}$, the same. The click total is unchanged, $b = (1, 0)$, so $\hat w = \Lambda^{-1} b = (2/5,\ -1/5)$. The prediction for a user like the second one is $\hat w^\top \phi_2 = 1/5$: the no-click pulled it down from $1/2$.
 :::
 
 ::: {.callout-note collapse="true" title="Code: Ridge (open after Lab 5)"}
@@ -118,60 +120,62 @@ class Ridge:
     """Ridge regression for one item, one observation at a time."""
 
     def __init__(self, d, lam=1.0):
-        self.A = lam * np.eye(d)  # Lambda = lam I + sum x x^T
+        self.A = lam * np.eye(d)  # Lambda = lam I + sum phi phi^T
         self.A_inv = np.eye(d) / lam
-        self.b = np.zeros(d)  # sum r x
+        self.b = np.zeros(d)  # sum r phi
         self.n = 0
 
-    def update(self, x, r):
-        """Add (x, r) to A and b; keep A_inv current."""
-        self.A += np.outer(x, x)
-        self.b += r * x
-        Ax = self.A_inv @ x  # (Sherman-Morrison)
-        self.A_inv -= np.outer(Ax, Ax) / (1.0 + x @ Ax)
+    def update(self, phi, r):
+        """Add (phi, r) to A and b; keep A_inv current."""
+        self.A += np.outer(phi, phi)
+        self.b += r * phi
+        Ap = self.A_inv @ phi  # (Sherman-Morrison)
+        self.A_inv -= np.outer(Ap, Ap) / (1.0 + phi @ Ap)
         self.n += 1
 
-    def predict(self, x):
-        """theta_hat^T x with theta_hat = A_inv b (ridge)."""
-        return float(self.A_inv @ self.b @ x)
+    def predict(self, phi):
+        """w_hat^T phi with w_hat = A_inv b (ridge)."""
+        return float(self.A_inv @ self.b @ phi)
 ```
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 2** is the class `Ridge(d, lam)`: you write `update`, @eq-ridge's two sums and @eq-sm, and `predict`, $\hat\theta^\top x$. The checkpoint compares your statistics, your inverse and your predictions with the closed form after a fixed sequence of updates.
+**In the lab.** **Exercise 2** is the class `Ridge(d, lam)`: you write `update(phi, r)`, @eq-ridge's two sums and @eq-sm, and `predict(phi)`, $\hat w^\top \phi$. The checkpoint compares your statistics, your inverse and your predictions with the closed form after a fixed sequence of updates.
 :::
 
 ::: {.callout-note collapse="true" title="After the lab: what the penalty costs"}
-A unit vector $x$ seen $n$ times, with a click every time, gives $\Lambda = I + n\,x x^\top$ and $b = n\,x$. By @eq-sm, $\Lambda^{-1} x = x/(1 + n)$, so the prediction at $x$ is $n/(n + 1)$: 0.9 after nine clicks. With a general penalty it is $n/(n + \lambda_{\text{ridge}})$. The penalty acts like $\lambda_{\text{ridge}}$ extra observations with reward 0 in every direction, and its pull fades as $n$ grows. The same algebra gives the width of section 3 for this $x$: $\sqrt{x^\top \Lambda^{-1} x} = 1/\sqrt{1 + n}$.
+A unit vector $\phi$ seen $n$ times, with a click every time, gives $\Lambda = I + n\,\phi\phi^\top$ and $b = n\,\phi$. By @eq-sm, $\Lambda^{-1} \phi = \phi/(1 + n)$, so the prediction at $\phi$ is $n/(n + 1)$: 0.9 after nine clicks. With a general penalty it is $n/(n + \lambda_{\text{ridge}})$. The penalty acts like $\lambda_{\text{ridge}}$ extra observations with reward 0 in every direction, and its pull fades as $n$ grows. The same algebra gives the width of section 3 for this $\phi$: $\sqrt{\phi^\top \Lambda^{-1} \phi} = 1/\sqrt{1 + n}$.
 :::
 
 ## 3. The confidence ellipsoid and LinUCB's width
 
-**In this section:** derive how uncertain a prediction $\hat\theta_a^\top \phi$ is in each direction, turn that into LinUCB's score, and say what the derivation assumes.
+**In this section:** derive how uncertain a prediction $\hat w_a^\top \phi$ is in each direction, turn that into LinUCB's score, and say what the derivation assumes.
 
-**One direction at a time.** Suppose the clicks follow the linear model with noise, $r_i = \theta^{*\top}\phi_i + \xi_i$, where the noise terms $\xi_i$ are independent with mean 0. Take, for the moment, no penalty ($\Lambda = \sum_i \phi_i \phi_i^\top$, invertible) and features fixed in advance. Then $\hat\theta - \theta^* = \Lambda^{-1}\sum_i \phi_i \xi_i$, and in any direction $\phi$ the error is a weighted sum of the noise, $\phi^\top(\hat\theta - \theta^*) = \sum_i (\phi^\top \Lambda^{-1} \phi_i)\, \xi_i$, whose squared weights sum to $\phi^\top \Lambda^{-1}\phi$. So the error's spread is set by the *width* of $\phi$,
+**One direction at a time.** Suppose the clicks follow the linear model with noise, $r_i = w^{*\top}\phi_i + \xi_i$, where the noise terms $\xi_i$ are independent with mean 0. Take, for the moment, no penalty ($\Lambda = \sum_i \phi_i \phi_i^\top$, invertible) and features fixed in advance. Then $\hat w - w^* = \Lambda^{-1}\sum_i \phi_i \xi_i$, and in any direction $\phi$ the error is a weighted sum of the noise, $\phi^\top(\hat w - w^*) = \sum_i (\phi^\top \Lambda^{-1} \phi_i)\, \xi_i$, whose squared weights sum to $\phi^\top \Lambda^{-1}\phi$. So the error's spread is set by the *width* of $\phi$,
 
 $$
 \lVert \phi \rVert_{\Lambda^{-1}} = \sqrt{\phi^\top \Lambda^{-1} \phi} .
 $$ {#eq-width}
 
-For 1-subgaussian noise, the error exceeds $\sqrt{2 \log(1/p_{\text{fail}})}\, \lVert \phi\rVert_{\Lambda^{-1}}$ with probability at most $p_{\text{fail}}$ [@lattimore2020bandit, Ch. 20, Eq. 20.2]. The width is large in directions with little data and small in directions with much.
+For 1-subgaussian noise, the error exceeds $\sqrt{2 \log(1/p_{\text{fail}})}\, \lVert \phi\rVert_{\Lambda^{-1}}$ with probability at most $p_{\text{fail}}$ [@lattimore2020bandit, Ch. 20, Eq. 20.2].
 
-**The ellipsoid.** Collect every direction at once: the parameters with ${\lVert \theta - \hat\theta \rVert_{\Lambda} \le \kappa}$, where $\lVert v \rVert_\Lambda = \sqrt{v^\top \Lambda v}$, form an ellipsoid centered at $\hat\theta$ [@lattimore2020bandit, §19.2, Eq. 19.7]. Its long axes point where the data are thin. The largest value of $\theta^\top\phi$ over the ellipsoid is $\hat\theta^\top\phi + \kappa\, \lVert \phi \rVert_{\Lambda^{-1}}$ [@lattimore2020bandit, §19.3, Eq. 19.13]: the most optimistic prediction a plausible $\theta$ allows.
+**The ellipsoid.** Collect every direction at once: the parameters with ${\lVert w - \hat w \rVert_{\Lambda} \le \kappa}$, where $\lVert v \rVert_\Lambda = \sqrt{v^\top \Lambda v}$, form an ellipsoid centered at $\hat w$ [@lattimore2020bandit, §19.2, Eq. 19.7]. Its long axes point where the data are thin. The largest value of $w^\top\phi$ over the ellipsoid is $\hat w^\top\phi + \kappa\, \lVert \phi \rVert_{\Lambda^{-1}}$ [@lattimore2020bandit, §19.3, Eq. 19.13]: the most optimistic prediction a plausible $w$ allows.
 
 **LinUCB.** Act on that optimism: in round $t$, show the item with the largest score
 
 $$
-\hat\theta_a^\top \phi_t + c\, \lVert \phi_t \rVert_{\Lambda_a^{-1}} .
+\hat w_a^\top \phi_t + c\, \lVert \phi_t \rVert_{\Lambda_a^{-1}} .
 $$ {#eq-linucb}
 
 This is Li et al.'s Algorithm 1, line 9, and their Eq. 5, with their $\alpha$ written $c$; they break ties arbitrarily [@li2010linucb, §3.1]. An item with few views of users like $\phi_t$ has a large width and gets shown, and each view shrinks its width in that direction.
+
+**The baseline.** *Predict-then-greedy* shows the item with the highest prediction $\hat w_a^\top \phi_t$ and adds no width: Module 4's greedy, with a ridge model per item in place of a mean. Every method in the lab starts with the same *launch*: in rounds 0 to $K - 1$ item $t$ is shown, one *impression* (one showing) per item, as if the whole catalog were new.
 
 ::: {#demo-ellipse .demo}
 **Demo: read the ellipse (3 min).** $d = 2$ and ${\lambda_{\text{ridge}} = 1}$. An item has been shown three times to users with $\phi = (1, 0)$ and once to a user with $\phi = (1, 1)$, so $\Lambda = \begin{pmatrix} 5 & 1 \\ 1 & 2 \end{pmatrix}$ and $\Lambda^{-1} = \frac19\begin{pmatrix} 2 & -1 \\ -1 & 5 \end{pmatrix}$. **Predict first, as a room:** rank three new users by the width of their prediction: $(1, 0)$, $(0, 1)$ and $(1, -1)/\sqrt2$.
 
 ::: {.callout-tip collapse="true" title="Answer: three widths"}
-![The ellipse ${\lVert \theta - \hat\theta \rVert_\Lambda \le 1}$ and three directions' widths.](/images/05-ellipse.svg){#fig-ellipse fig-alt="An ellipse centered at theta-hat = (0.556, 0.222), tilted, with its long axis close to the vertical direction. Three arrows from the center show three users' directions, each labeled with its width: (1, 0) has width 0.471, (0, 1) has width 0.745, and (1, -1) over root 2 has width 0.707."}
+![The ellipse ${\lVert w - \hat w \rVert_\Lambda \le 1}$ and three directions' widths.](/images/05-ellipse.svg){#fig-ellipse fig-alt="An ellipse centered at w-hat = (0.556, 0.222), tilted, with its long axis close to the vertical direction. Three arrows from the center show three users' directions, each labeled with its width: (1, 0) has width 0.471, (0, 1) has width 0.745, and (1, -1) over root 2 has width 0.707."}
 
 From @eq-width with $\Lambda^{-1}$ above: $(1, 0)$ has width $\sqrt{2/9} \approx 0.471$, $(0, 1)$ has $\sqrt{5/9} \approx 0.745$, and $(1, -1)/\sqrt2$ has $\sqrt{1/2} \approx 0.707$. So $(1, 0)$ is narrowest: three of the four users looked like it. $(0, 1)$ is widest, and $(1, -1)/\sqrt2$ is almost as wide: the one user at $(1, 1)$ says much about the direction $(1, 1)$, width $\sqrt{5/18} \approx 0.527$, and little about the direction across it. Each width is the ellipse's half-extent in its direction, and the ellipse is long where the data are thin.
 :::
@@ -180,19 +184,21 @@ From @eq-width with $\Lambda^{-1}$ above: $(1, 0)$ has width $\sqrt{2/9} \approx
 **Assumptions, and what this does not say.**
 
 - *Linear means.* The width measures noise around a correct linear model. If $r(x, a)$ is not linear in $\phi$, the width still shrinks with data while the error does not (section 5).
-- *Fixed features.* A bandit chooses which item sees which user from past clicks, so the features are not fixed in advance. Lattimore and Szepesvári call confidence sets for such data "a surprisingly delicate matter" and say the simple argument works only because the design was fixed; their Theorem 20.5 holds for adaptively chosen data, with a larger radius [@lattimore2020bandit, Ch. 20 and §20.1]. The collapsed note below states it.
+- *Fixed features.* A bandit chooses which item sees which user from past clicks, so the features are not fixed in advance; Lattimore and Szepesvári's Theorem 20.5 covers that case with a larger radius (the collapsed note below).
 - *The value of $c$.* The lab's ${c = 0.5}$ is a choice, not a derived value.
 
 ::: {.reference}
+**Adaptive data.** Lattimore and Szepesvári call confidence sets for data a bandit chose "a surprisingly delicate matter" and say the simple argument works only because the design was fixed [@lattimore2020bandit, Ch. 20 and §20.1].
+
 **Li et al.'s value of $c$.** Their Eq. 4 sets $\alpha = 1 + \sqrt{\ln(2/p_{\text{fail}})/2}$, about 2.36 at ${p_{\text{fail}} = 0.05}$, where $p_{\text{fail}}$ is the probability that the bound fails (their $\delta$), and they warn that this value "may be conservatively large in some applications", so tuning it can pay [@li2010linucb, §3.1].
 :::
 
 ::: {.callout-tip collapse="true" title="Optional: a confidence set for adaptive data (L&S Theorem 20.5)"}
-Assume noise that is conditionally 1-subgaussian given the past and the current action, ${\lambda_{\text{ridge}} > 0}$, and $\lVert \theta^* \rVert_2 \le M$ (their $m_2$). Lattimore and Szepesvári prove that with probability at least $1 - p_{\text{fail}}$, for all rounds at once [@lattimore2020bandit, §20.1, Thm. 20.5],
+Assume noise that is conditionally 1-subgaussian given the past and the current action, ${\lambda_{\text{ridge}} > 0}$, and $\lVert w^* \rVert_2 \le M$ (their $m_2$). Lattimore and Szepesvári prove that with probability at least $1 - p_{\text{fail}}$, for all rounds at once [@lattimore2020bandit, §20.1, Thm. 20.5],
 
 $$
 \begin{aligned}
-\lVert \hat\theta_t - \theta^* \rVert_{\Lambda_t}
+\lVert \hat w_t - w^* \rVert_{\Lambda_t}
 &< M \sqrt{\lambda_{\text{ridge}}} \\
 &\phantom{{}<{}} + \sqrt{2 \log(1/p_{\text{fail}}) + \log\!\big(\det \Lambda_t / \lambda_{\text{ridge}}^d\big)} .
 \end{aligned}
@@ -203,34 +209,34 @@ Two things change from the fixed-design argument. The radius grows slowly with t
 
 ::: {.callout-note collapse="true" title="Code: linucb_scores (open after Lab 5)"}
 ```python
-def linucb_scores(models, x, c):
-    """theta_hat_a^T x + c sqrt(x^T A_a^-1 x) for every item a."""
-    means = np.array([m.predict(x) for m in models])
-    widths = np.array([np.sqrt(x @ m.A_inv @ x) for m in models])
+def linucb_scores(models, phi, c):
+    """w_hat_a^T phi + c sqrt(phi^T A_a^-1 phi) for every item a."""
+    means = np.array([m.predict(phi) for m in models])
+    widths = np.array([np.sqrt(phi @ m.A_inv @ phi) for m in models])
     return means + c * widths  # (LinUCB)
 ```
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 3** is `linucb_scores(models, x, c)`: @eq-linucb for every item, with @eq-width from each model's `A_inv`. The checkpoint compares scores on fixed models and the width of a unit vector seen $n$ times. The run cell shows LinUCB and predict-then-greedy to the same stream of users, after a launch in which every item is shown once.
+**In the lab.** **Exercise 3** is `linucb_scores(models, phi, c)`: @eq-linucb for every item, with @eq-width from each model's `A_inv`. The checkpoint compares scores on fixed models and the width of a unit vector seen $n$ times. The run cell shows LinUCB and predict-then-greedy to the same stream of users. Exercise 5 also tries a longer launch.
 :::
 
 ## 4. Linear Thompson sampling
 
 **In this section:** replace LinUCB's bonus with a draw from a posterior, and see that the same width sets how far the draw strays.
 
-**From a posterior to a draw.** Section 2's note gave ridge a Bayesian reading: the posterior of $\theta_a$ is Gaussian with mean $\hat\theta_a$ and covariance $\Lambda_a^{-1}$, up to a scale. Thompson sampling acts on a plausible parameter instead of the most optimistic one. Each round, draw one parameter per item and show the item whose drawn score is highest:
+**From a posterior to a draw.** Section 2's note gave ridge a Bayesian reading: the posterior of $w_a$ is Gaussian with mean $\hat w_a$ and covariance $\Lambda_a^{-1}$, up to a scale. Thompson sampling acts on a plausible parameter instead of the most optimistic one. Each round, draw one parameter per item and show the item whose drawn score is highest:
 
 $$
 \begin{aligned}
-\tilde\theta_a &\sim \mathcal{N}\big(\hat\theta_a,\ v^2 \Lambda_a^{-1}\big), \\
-a_t &= \arg\max_a\ \tilde\theta_a^\top \phi_t .
+\tilde w_a &\sim \mathcal{N}\big(\hat w_a,\ v^2 \Lambda_a^{-1}\big), \\
+a_t &= \arg\max_a\ \tilde w_a^\top \phi_t .
 \end{aligned}
 $$ {#eq-lints}
 
 This is Agrawal and Goyal's algorithm, written with one model per item [@agrawal2013linearts, §2.2, Algorithm 1].
 
-**The same width.** For a fixed $\phi$, the drawn score $\tilde\theta_a^\top\phi$ is normal with mean $\hat\theta_a^\top \phi$ and standard deviation $v\, \lVert \phi \rVert_{\Lambda_a^{-1}}$: @eq-width scaled by $v$. LinUCB adds $c$ widths to every item in every round. Thompson sampling adds a random number of widths, so an uncertain item wins when its draw happens to be high.
+**The same width.** For a fixed $\phi$, the drawn score $\tilde w_a^\top\phi$ is normal with mean $\hat w_a^\top \phi$ and standard deviation $v\, \lVert \phi \rVert_{\Lambda_a^{-1}}$: @eq-width scaled by $v$. LinUCB adds $c$ widths to every item in every round. Thompson sampling adds a random number of widths, so an uncertain item wins when its draw happens to be high.
 
 **The assumptions.** Agrawal and Goyal stress that the Gaussian prior and likelihood only design the algorithm; their analysis assumes only that the noise is conditionally sub-Gaussian with a scale $\sigma$ (their $R$) [@agrawal2013linearts, §2.1–2.2]. It sets $v = \sigma\sqrt{9 d \ln(T/p_{\text{fail}})}$, with $d$ the dimension of their parameter. Like $c$, the lab's ${v = 0.25}$ is a choice.
 
@@ -241,7 +247,7 @@ This is Agrawal and Goyal's algorithm, written with one model per item [@agrawal
 :::
 
 ::: {#chk-lints .self-check}
-**Check yourself 4.1.** Two items, one user $\phi$. Item 1 has $\hat\theta_1^\top\phi = 0.6$ and width $\lVert \phi \rVert_{\Lambda_1^{-1}} = 0.2$; item 2 has $\hat\theta_2^\top\phi = 0.65$ and width 0.02. With ${c = 0.5}$, which item does LinUCB show? With ${v = 0.25}$, about how often does Thompson sampling show item 1?
+**Check yourself 4.1.** Two items, one user $\phi$. Item 1 has $\hat w_1^\top\phi = 0.6$ and width $\lVert \phi \rVert_{\Lambda_1^{-1}} = 0.2$; item 2 has $\hat w_2^\top\phi = 0.65$ and width 0.02. With ${c = 0.5}$, which item does LinUCB show? With ${v = 0.25}$, about how often does Thompson sampling show item 1?
 
 ::: {.callout-tip collapse="true" title="Answer to 4.1"}
 LinUCB's scores are $0.6 + 0.5 \cdot 0.2 = 0.70$ and $0.65 + 0.5 \cdot 0.02 = 0.66$, so it shows item 1, every time. Thompson sampling's drawn scores are normal with means 0.6 and 0.65 and standard deviations $0.25 \cdot 0.2 = 0.05$ and $0.25 \cdot 0.02 = 0.005$. Their difference has mean $-0.05$ and standard deviation $\sqrt{0.05^2 + 0.005^2} \approx 0.0502$, so item 1 wins with probability $P(Z > 0.995) \approx 0.16$: about one user in six. LinUCB explores this item deterministically; Thompson sampling, now and then.
@@ -251,16 +257,16 @@ LinUCB's scores are $0.6 + 0.5 \cdot 0.2 = 0.70$ and $0.65 + 0.5 \cdot 0.02 = 0.
 ::: {.callout-note collapse="true" title="Code: lints_sample (open after Lab 5)"}
 ```python
 def lints_sample(model, v, rng):
-    """theta ~ N(theta_hat, v^2 A^-1), drawn with a Cholesky factor."""
-    theta_hat = model.A_inv @ model.b
+    """w ~ N(w_hat, v^2 A^-1), drawn with a Cholesky factor."""
+    w_hat = model.A_inv @ model.b
     L = np.linalg.cholesky(model.A_inv)  # L L^T = A^-1
-    z = rng.standard_normal(len(theta_hat))
-    return theta_hat + v * L @ z  # (LinTS)
+    z = rng.standard_normal(len(w_hat))
+    return w_hat + v * L @ z  # (LinTS)
 ```
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 4** is `lints_sample(model, v, rng)`: one draw from @eq-lints, as $\hat\theta + v L z$ with $L L^\top = \Lambda^{-1}$ (a Cholesky factor) and $z$ standard normal. The checkpoint draws many samples from a fixed model and compares their mean and covariance with $\hat\theta$ and $v^2\Lambda^{-1}$.
+**In the lab.** **Exercise 4** is `lints_sample(model, v, rng)`: one draw from @eq-lints, as $\hat w + v L z$ with $L L^\top = \Lambda^{-1}$ (a Cholesky factor) and $z$ standard normal. The checkpoint draws many samples from a fixed model and compares their mean and covariance with $\hat w$ and $v^2\Lambda^{-1}$.
 :::
 
 ## 5. Misspecification and drift
@@ -284,21 +290,23 @@ with a hidden $u_a$ per item and the weight ${\nu = 1}$ in the lab (RecSim's `mi
 **Drifting.** RecSim rotates every item's parameter over time:
 
 $$
-\theta_a(t) = \cos(\omega t)\, \theta_a + \sin(\omega t)\, \theta'_a ,
+\theta_a(t) = \cos(\omega t)\, \theta_a + \sin(\omega t)\, \theta^{\text{alt}}_a ,
 $$ {#eq-drift}
 
-with a second hidden parameter $\theta'_a$. The lab sets $\omega = \pi / T$, so by the end of the run ${\theta_a(T) = -\theta_a}$: tastes have reversed. @eq-ridge weights a user from round 10 the same as one from the last round, so $\hat\theta_a$ estimates an average of past tastes, and the width keeps shrinking as the data grow older. Discounting old observations, or fitting on a recent window, would let the model forget; the lab implements neither.
+with a second hidden parameter $\theta^{\text{alt}}_a$ (RecSim's `theta_alt`). The lab sets $\omega = \pi / T$, so by the end of the run ${\theta_a(T) = -\theta_a}$: tastes have reversed. @eq-ridge weights a user from round 10 the same as one from the last round, so $\hat w_a$ estimates an average of past tastes, and the width keeps shrinking as the data grow older. Discounting old observations, or fitting on a recent window, would let the model forget; the lab implements neither.
 
 **What this does not say.** Neither break settles whether exploring pays. Both change what the width means, and the lab measures what that costs each method against a method that never explores.
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 5** runs predict-then-greedy, LinUCB and Thompson sampling in the three regimes with 5 seeds each; the runner is provided. You write `verdicts(regrets, budget)`, which applies the workshop's comparison rule with `prl.evaluate.compare`: interquartile means with 95% bootstrap intervals, a tie when they overlap, and the budget stated. The checkpoint compares your verdicts with `compare` on fixed tables.
+**In the lab.** **Exercise 5** runs predict-then-greedy, LinUCB and Thompson sampling in the three regimes, and once more in the well-specified regime after a launch of three passes, with 5 seeds each; the runner is provided. You write `verdicts(regrets, budget)`, which applies the workshop's comparison rule with `prl.evaluate.compare`: interquartile means with 95% bootstrap intervals, a tie when they overlap, and the budget stated. The checkpoint compares your verdicts with `compare` on fixed tables.
 :::
 
-::: {.callout-note collapse="true" title="After the lab: the three regimes, seat by seat"}
-These are exact runs of the lab's code (3000 rounds, 5 seeds per seat, seats 0 to 29, on the author's machine), not timings. Predict-then-greedy wins no comparison. LinUCB beats it at 18, 25 and 9 of the 30 seats in the well-specified, misspecified and drifting regimes, and Thompson sampling at 12, 16 and 3; every other call is a tie. At every seat both methods have a lower interquartile mean than greedy in all three regimes, so the ties come from the width of 5 seeds' intervals, not from a method that lost. LinUCB's lead over greedy is smaller under drift than in the well-specified regime at 27 of the 30 seats.
+::: {.callout-note collapse="true" title="After the lab: the three regimes and the launch, seat by seat"}
+The record `runs/2026-10-18-local-m05-seats-exp.json` replays Exercise 5 for seats 0 to 29 (3000 rounds, 5 seeds per seat, one-pass launch). Predict-then-greedy wins no comparison. LinUCB beats it at 18, 25 and 9 of the 30 seats in the well-specified, misspecified and drifting regimes, and Thompson sampling at 12, 16 and 3; every other call is a tie. At every seat both methods have a lower interquartile mean than greedy in all three regimes, so every tie is five seeds that cannot separate two methods, not a method that did worse. LinUCB's lead over greedy is smaller under drift than in the well-specified regime at 27 of the 30 seats.
 
-Greedy's handicap is the launch. An item whose one impression earned no click has $b_a = 0$, so it predicts 0, below the items greedy keeps showing, whose predictions settle near their click rates; greedy never shows it again. At seat 0, four of the ten items were shown once in Exercise 3's run. So the comparison depends on the launch: a longer random launch gives greedy more data before it commits, and the lab does not measure how much of the gap that closes. And at seat 0, LinUCB's mean width for one user at the end of a run is 0.25 when well-specified and 0.27 when misspecified, while its regret is higher in the second: the width promised precision about the wrong model.
+Much of greedy's handicap is the one-pass launch. An item whose one impression earned no click has $b_a = 0$, so it predicts 0, below the items greedy keeps showing, whose predictions settle near their click rates; greedy never shows it again. At seat 0, four of the ten items were shown once in Exercise 3's run. With three passes (30 rounds) instead of one, LinUCB's well-specified call is a tie at 29 of the 30 seats, against 12 with one pass, and its median lead over greedy falls from 121.7 to 38.3; misspecification still separates the two at 12 of the 30 seats. With ten passes, 178 of the 180 calls are ties (`runs/2026-10-18-local-m05-launch-exp.json`). The one-impression start, not the click model, was most of greedy's cost. A launch is exploration chosen in advance; LinUCB and Thompson sampling choose how much to explore from the data.
+
+And at seat 0, LinUCB's mean width for one user at the end of a run is 0.25 when well-specified and 0.27 when misspecified, while its regret is higher in the second: the width promised precision about the wrong model.
 
 ::: {#fig-regimes layout="[[34,33,33]]"}
 ![Well-specified.](/images/05-regimes-spec.svg){#fig-regimes-spec fig-alt="Cumulative pseudo-regret over 3000 rounds in the well-specified regime for predict-then-greedy (dashed), LinUCB (solid) and linear Thompson sampling (dash-dot), each the mean of seeds 0 to 9 with a min-max band. All three curves bend over; greedy's band is the widest."}
@@ -307,7 +315,7 @@ Greedy's handicap is the launch. An item whose one impression earned no click ha
 
 ![Drifting.](/images/05-regimes-drift.svg){#fig-regimes-drift fig-alt="The same plot in the drifting regime: all three curves bend upward, so the regret per round grows as the run goes on."}
 
-**What to notice:** in the well-specified regime every method's regret per round keeps falling. Misspecified, it falls less: over the last 500 rounds LinUCB's regret per round is about 0.08, against 0.03 well-specified. Drifting, it grows: LinUCB's regret per round rises from about 0.08 in rounds 501 to 1000 to about 0.16 in the last 500, while its widths keep shrinking. Seeds 0 to 9, 3000 rounds, the mean with the min–max band; exact runs of the lab's code (the record is planned).
+**What to notice:** in the well-specified regime every method's regret per round keeps falling. Misspecified, it falls less: over the last 500 rounds LinUCB's regret per round is about 0.08, against 0.03 well-specified. Drifting, it grows: LinUCB's regret per round rises from about 0.08 in rounds 501 to 1000 to about 0.16 in the last 500, while its widths keep shrinking. Seeds 0 to 9, 3000 rounds, one-pass launch, the mean with the min–max band (`runs/2026-10-18-local-m05-regimes-exp.json`).
 :::
 :::
 
@@ -363,10 +371,10 @@ The expectation is a sum over items with weights $\pi_b(a \mid x)$, which cancel
 **What exploration costs.** A larger $\varepsilon$ costs clicks now. A smaller one makes the rarely shown items' weights, up to $K/\varepsilon$, large, and estimates built from them noisy. Day 5 measures that trade.
 
 ::: {#chk-weights .self-check}
-**Check yourself 6.1.** $K = 4$ items and ${\varepsilon = 0.2}$; for one user, the logger's best item is item 2. What are the four propensities? A target policy always shows item 3: over many logged rows for this user, which weights appear, how often, and what is their mean? What happens with ${\varepsilon = 0}$?
+**Check yourself 6.1.** $K = 4$ items, numbered 0 to 3, and ${\varepsilon = 0.2}$; for one user, the logger's best item is item 1. What are the four propensities? A target policy always shows item 2: over many logged rows for this user, which weights appear, how often, and what is their mean? What happens with ${\varepsilon = 0}$?
 
 ::: {.callout-tip collapse="true" title="Answer to 6.1"}
-Item 2: $0.8 + 0.05 = 0.85$; items 1, 3 and 4: 0.05 each. The target puts probability 1 on item 3, so a row has weight $1/0.05 = 20$ when the logger showed item 3, which happens with probability 0.05, and weight 0 otherwise. The mean is $0.05 \cdot 20 = 1$, as @eq-ipw requires. With ${\varepsilon = 0}$ item 3 is never shown: every weight is 0, the mean is 0 instead of 1, and the log says nothing about item 3.
+Item 1: $0.8 + 0.05 = 0.85$; items 0, 2 and 3: 0.05 each. The target puts probability 1 on item 2, so a row has weight $1/0.05 = 20$ when the logger showed item 2, which happens with probability 0.05, and weight 0 otherwise. The mean is $0.05 \cdot 20 = 1$, as @eq-ipw requires. With ${\varepsilon = 0}$ item 2 is never shown: every weight is 0, the mean is 0 instead of 1, and the log says nothing about item 2.
 :::
 :::
 
@@ -407,10 +415,10 @@ def log_suspect(env, policy, n, seed):
 
 ## Summary
 
-- A contextual bandit sees a context, takes one action and observes one reward, and its action does not change the next context. That is what it loses compared with full RL: any effect of today's recommendation on tomorrow. The lab's click model is linear inside a clip (@eq-click-model), and the lab measures pseudo-regret from the simulator's known click probabilities (@eq-regret).
-- Ridge regression keeps two sums per item, $\Lambda_a$ and $b_a$, and estimates $\hat\theta_a = \Lambda_a^{-1} b_a$ (@eq-ridge). The Sherman–Morrison formula keeps $\Lambda_a^{-1}$ current at $O(d^2)$ per click, exactly (@eq-sm). The penalty makes $\Lambda_a$ invertible from the first round and pulls $\hat\theta_a$ toward 0.
+- A contextual bandit sees a context, takes one action and observes one reward, and its action does not change the next context. That is what it loses compared with full RL: any effect of today's recommendation on tomorrow. The lab's click model is linear inside a clip (@eq-click-model), and the lab measures Module 4's pseudo-regret, against the best item for each context, from the simulator's known click probabilities (@eq-regret).
+- Ridge regression keeps two sums per item, $\Lambda_a$ and $b_a$, and estimates $\hat w_a = \Lambda_a^{-1} b_a$ (@eq-ridge). The Sherman–Morrison formula keeps $\Lambda_a^{-1}$ current at $O(d^2)$ per click, exactly (@eq-sm). The penalty makes $\Lambda_a$ invertible from the first round and pulls $\hat w_a$ toward 0.
 - The error of a prediction in direction $\phi$ scales with the width $\lVert \phi \rVert_{\Lambda^{-1}}$ (@eq-width), which is small where the data are dense. LinUCB adds $c$ widths to every prediction and shows the best score (@eq-linucb). The simple derivation assumes a linear model and fixed features; Lattimore and Szepesvári's Theorem 20.5 removes the second assumption at the price of a larger radius.
-- Linear Thompson sampling draws $\tilde\theta_a \sim \mathcal{N}(\hat\theta_a, v^2\Lambda_a^{-1})$ and shows the best drawn score (@eq-lints). The draw's standard deviation is $v$ times the same width, so it explores by chance rather than by a bonus.
+- Linear Thompson sampling draws $\tilde w_a \sim \mathcal{N}(\hat w_a, v^2\Lambda_a^{-1})$ and shows the best drawn score (@eq-lints). The draw's standard deviation is $v$ times the same width, so it explores by chance rather than by a bonus.
 - Misspecification (@eq-misspec) and drift (@eq-drift) break the linear model. The width keeps shrinking in both, because it measures the noise and not the model's error.
 - A log is useful later only with propensities: the probability of the item shown, recorded when it was shown. The importance-weight identity (@eq-ipw) needs $\pi_b > 0$ wherever the target puts weight; an ε-greedy logger (@eq-eps-logging) gives that, a greedy one does not. On a correct log the mean weight is 1 for every target.
 
@@ -431,14 +439,15 @@ def log_suspect(env, policy, n, seed):
 
 ## Gotchas and troubleshooting
 
-- **"A better click model is a better recommender."** A click model trained on its own recommendations learns only about the items it shows. With a zero start, an item whose one impression earned no click predicts 0, below the items the model keeps showing, so predict-then-greedy never shows it again and never learns that it was wrong. A model can be accurate on everything it shows and still miss the best item. Exploration feeds the model the data it would not choose to collect.
+- **"A better click model is a better recommender."** A click model trained on its own recommendations learns only about the items it shows. In Lab 5, an item whose one launch impression earned no click predicts 0, below the items the model keeps showing. So predict-then-greedy never shows it again and never learns that it was wrong: Module 4's trap, now with features. A model can be accurate on everything it shows and still miss the best item. How much that costs depends on how thin the model's data are when it starts choosing, and Exercise 5 varies that. A launch is exploration chosen in advance; LinUCB and Thompson sampling choose how much to explore from the data.
 - **"The propensity is bookkeeping."** Without it, Day 5 is impossible. Every estimator built on @eq-ipw divides by the propensity of the item that was shown, at the moment it was shown. A logger that records anything else produces wrong weights, and its errors can sit on exactly the rows where the logger explored, which are the rows that tell you about other policies. Check a log with the mean weight of a target that differs from the logger, such as the uniform policy; a target that mostly agrees with the logger can hide the error. And you cannot recompute a propensity once the model that produced it has changed.
 - **"Narrow widths mean the model is right."** Only if the model is linear. The width of @eq-width shrinks with data whether or not $r(x, a)$ is linear in $\phi(x)$, and whether or not the data are recent. It measures the noise around the model, not the model's error (section 5).
 - **"Every recommender is a contextual bandit."** Only if what you show does not change who comes next or what they want. Fatigue, return visits and changing interests are effects of the action on the future, and they need a state (section 1). The bandit frame is a modeling choice; say what it leaves out.
 - **"The theory gives the right $c$ (or $v$)."** The theory's values guarantee a bound for every problem at once. Li et al. warn that their $\alpha$ may be conservatively large, and the $v$ of Agrawal and Goyal's analysis would be about 300 times the lab's (section 4). The lab's $c$ and $v$ are choices, tried on this simulator only.
-- **"`rng.multivariate_normal` is the easy way to draw $\tilde\theta$."** By default it factors the covariance with an SVD. Before any data the covariance is $v^2 I$, whose SVD is not unique, so two linear-algebra libraries can return different factors and the same seed can give different draws on two machines. The Cholesky factor of a positive definite matrix is unique; the lab uses it.
+- **"`rng.multivariate_normal` is the easy way to draw $\tilde w$."** By default it factors the covariance with an SVD. Before any data the covariance is $v^2 I$, whose SVD is not unique, so two linear-algebra libraries can return different factors and the same seed can give different draws on two machines. The Cholesky factor of a positive definite matrix is unique; the lab uses it.
 - **"Sherman–Morrison drifts, so recompute the inverse every round."** It is exact algebra; only rounding separates it from `np.linalg.inv`. Exercise 2's run cell prints the difference after 10, 100 and 1000 updates; check it there. If $\Lambda^{-1}$ ever stops being positive definite, the Cholesky factor in Exercise 4 fails loudly, and that is the signal to recompute.
 - **"My mean weight is 1.03, so my log is wrong."** The mean weight of a correct log is 1 in expectation, not in every sample. The lab prints a 95% interval, which on a correct log covers 1 about 95% of the time. A wrong propensity moves the mean far from 1 for a target that differs from the logger, such as the uniform policy.
+- **"A tie means the two methods are equally good."** A tie means your seeds cannot separate them. It is not evidence that they are equal, and not a hidden win for the one with the lower IQM. Report the tie with its budget; the room's pooled seeds can decide what one seat cannot.
 - **"`NotImplementedError`."** The function still raises its TODO: you have not written it yet, or you have not run the cell that holds your code. Write the TODO and run its cell. To move on without it, run `lab.use_reference(N)` with the exercise number, and the lab continues with the reference solution; the exercise's solution cell must have run once. Running a solution cell alone does not replace your function.
 
 ## Next steps

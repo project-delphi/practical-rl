@@ -267,10 +267,10 @@ Context: the visitor's features, such as their reading history and device, plus 
 **Evidence:** Lab 5, Exercise 1: the run cell serves one stream of users with two fixed policies and shows that the users are the same whatever is shown; the framing is discussed in the debrief.
 :::
 
-[**5.2**]{#q5-2} RecSim's click model is $r(x, a) = \operatorname{clip}(0.5 + 0.15\, \theta_a^\top x,\ 0.02,\ 0.98)$. Take three items with $\theta_1 = (2, 0)$, $\theta_2 = (0, -4)$, $\theta_3 = (10, 10)$ and the user $x = (0.5, 0.5)$. Compute the three click probabilities and say which item is best. Why does the lab's model use the features $\phi(x) = (x, 1)$ rather than $x$ alone?
+[**5.2**]{#q5-2} RecSim's click model is $r(x, a) = \operatorname{clip}(0.5 + 0.15\, \theta_a^\top x,\ 0.02,\ 0.98)$. Take three items, numbered 0 to 2, with $\theta_0 = (2, 0)$, $\theta_1 = (0, -4)$, $\theta_2 = (10, 10)$ and the user $x = (0.5, 0.5)$. Compute the three click probabilities and say which item is best. Why does the lab's model use the features $\phi(x) = (x, 1)$ rather than $x$ alone?
 
 ::: {.callout-tip collapse="true" title="Answer to 5.2"}
-$\theta^\top x = 1, -2, 10$, so $0.5 + 0.15\,\theta^\top x = 0.65, 0.2, 2.0$, and the clip gives $0.65$, $0.2$ and $0.98$. Item 3 is best. Without the constant, a linear model $\theta^\top x$ predicts 0 at $x = 0$ for every item, but every item's click probability there is 0.5. The constant feature lets $\theta^*_a = (0.15\,\theta_a,\ 0.5)$ represent the click model exactly inside the clip.
+$\theta^\top x = 1, -2, 10$, so $0.5 + 0.15\,\theta^\top x = 0.65, 0.2, 2.0$, and the clip gives $0.65$, $0.2$ and $0.98$. Item 2 is best. Without the constant, a linear model $w^\top x$ predicts 0 at $x = 0$ for every item, but every item's click probability there is 0.5. The constant feature lets $w^*_a = (0.15\,\theta_a,\ 0.5)$ represent the click model exactly inside the clip.
 
 **Evidence:** Lab 5, checkpoint 1 (`reward_fn` on hand-worked cases, two of them clipped).
 :::
@@ -285,10 +285,10 @@ $\Lambda^{-1}\phi = (0, 2)$ and $1 + \phi^\top \Lambda^{-1}\phi = 1 + 4 = 5$. Su
 **Evidence:** Lab 5, checkpoint 2 (`Ridge`'s statistics, inverse and predictions against the closed form).
 :::
 
-[**5.4**]{#q5-4} A unit vector $x$ has been seen $n = 3$ times by an item, with $\lambda_{\text{ridge}} = 1$. What is LinUCB's bonus at $x$ with $c = 0.5$, and what is the standard deviation of linear Thompson sampling's drawn score at $x$ with $v = 0.25$? A colleague's LinUCB adds $c\, x^\top \Lambda^{-1} x$ instead of $c \sqrt{x^\top \Lambda^{-1} x}$: what bonus does it give here, and why is it wrong?
+[**5.4**]{#q5-4} A unit feature vector $\phi$ has been seen $n = 3$ times by an item, with $\lambda_{\text{ridge}} = 1$. What is LinUCB's bonus at $\phi$ with $c = 0.5$, and what is the standard deviation of linear Thompson sampling's drawn score at $\phi$ with $v = 0.25$? A colleague's LinUCB adds $c\, \phi^\top \Lambda^{-1} \phi$ instead of $c \sqrt{\phi^\top \Lambda^{-1} \phi}$: what bonus does it give here, and why is it wrong?
 
 ::: {.callout-tip collapse="true" title="Answer to 5.4"}
-$x^\top \Lambda^{-1} x = 1/(1 + n) = 1/4$, so the width is $1/2$, LinUCB's bonus is $0.5 \cdot 0.5 = 0.25$, and the drawn score's standard deviation is $0.25 \cdot 0.5 = 0.125$. The colleague's bonus is $0.5 \cdot 1/4 = 0.125$. It adds a variance where the confidence interval needs a standard deviation: it has the wrong units, and it shrinks like $1/n$ instead of $1/\sqrt{n}$, so the method stops exploring too soon.
+$\phi^\top \Lambda^{-1} \phi = 1/(1 + n) = 1/4$, so the width is $1/2$, LinUCB's bonus is $0.5 \cdot 0.5 = 0.25$, and the drawn score's standard deviation is $0.25 \cdot 0.5 = 0.125$. The colleague's bonus is $0.5 \cdot 1/4 = 0.125$. It adds a variance where the confidence interval needs a standard deviation: it has the wrong units, and it shrinks like $1/n$ instead of $1/\sqrt{n}$, so the method stops exploring too soon.
 
 **Evidence:** Lab 5, checkpoint 3 (the width of a unit vector seen $n$ times) and checkpoint 4 (the drawn scores' covariance $v^2 \Lambda^{-1}$).
 :::
@@ -303,20 +303,24 @@ The intervals overlap (190 > 180), so it is a tie, even though LinUCB's interqua
 **Evidence:** Lab 5, checkpoint 5 (`verdicts` against `prl.evaluate.compare` on fixed tables, including ties and fewer seeds).
 :::
 
-[**5.6**]{#q5-6} In the misspecified regime a colleague notes that LinUCB's widths at the end of the run are about as narrow as in the well-specified regime, and concludes that the linear model fits well. What is wrong with the conclusion? In the drifting regime, what does LinUCB's ridge estimate converge to?
+[**5.6**]{#q5-6} In the misspecified regime a colleague notes that LinUCB's widths at the end of the run are about as narrow as in the well-specified regime, and concludes that the linear model fits well. What is wrong with the conclusion? In the drifting regime, what does LinUCB's ridge estimate converge to? And a second colleague concludes from Lab 5 that greedy recommenders always lose to LinUCB: what in the lab's design limits that conclusion?
 
 ::: {.callout-tip collapse="true" title="Answer to 5.6"}
-The width $\lVert \phi \rVert_{\Lambda^{-1}}$ depends only on which users an item has seen, not on whether the model is right. It measures the noise around the model, assuming the model is linear. Under misspecification ridge converges to the best linear fit, whose error stays, so the widths shrink while the regret keeps growing; narrow widths then mean a precise estimate of the wrong function. Under drift every observation counts equally in $\Lambda_a$ and $b_a$, so $\hat\theta_a$ estimates an average of the tastes the item has seen over the whole run, not the current ones, and its widths shrink as its data grow older.
+The width $\lVert \phi \rVert_{\Lambda^{-1}}$ depends only on which users an item has seen, not on whether the model is right. It measures the noise around the model, assuming the model is linear. Under misspecification ridge converges to the best linear fit, whose error stays, so the widths shrink while the regret keeps growing; narrow widths then mean a precise estimate of the wrong function. Under drift every observation counts equally in $\Lambda_a$ and $b_a$, so $\hat w_a$ estimates an average of the tastes the item has seen over the whole run, not the current ones, and its widths shrink as its data grow older.
 
-**Evidence:** Lab 5, Exercise 5's run cell, which prints LinUCB's width at the end in each regime beside the regrets; checkpoint 5 checks the verdicts.
+The second conclusion overreaches. The lab compares the methods after one launch design, mostly one impression per item, on one simulator whose users are diverse, with $c$ and $v$ set by hand, 3000 rounds and 5 seeds per seat. Change the launch to three passes and the well-specified call becomes a tie at 29 of 30 seats (`runs/2026-10-18-local-m05-launch-exp.json`). A verdict holds for its budget and its design.
+
+**Evidence:** Lab 5, Exercise 5's run cell, which prints LinUCB's width at the end in each regime beside the regrets, and its warm-launch condition; checkpoint 5 checks the verdicts.
 :::
 
 ### Objective 4: log data with correct propensities from a stochastic behavior policy
 
-[**5.7**]{#q5-7} A logger is $\varepsilon$-greedy over LinUCB with $K = 5$ items and $\varepsilon = 0.25$. What propensities does it record for the best-scoring item and for the others? A target policy always shows item 4, which is never the logger's best item. Which weights appear in the log, how often, and what is their mean? If the users shown item 4 click with probability 0.3, what does the mean of weight × click estimate?
+[**5.7**]{#q5-7} A team logs with $\varepsilon$-greedy over LinUCB, $K = 5$ items (numbered 0 to 4) and $\varepsilon = 0.25$. They store only $(x, a, r)$ and plan to recompute the propensities next month from the model they will have then. What goes wrong? With the propensities recorded correctly instead, a target policy always shows item 4, which is never the logger's best item. If the users shown item 4 click with probability 0.3, what does the mean of weight × click estimate?
 
 ::: {.callout-tip collapse="true" title="Answer to 5.7"}
-The best item: $1 - 0.25 + 0.25/5 = 0.8$; each other item: $0.25/5 = 0.05$. A row has weight $1/0.05 = 20$ when the logger showed item 4, which happens with probability 0.05, and 0 otherwise, so the mean weight is $0.05 \cdot 20 = 1$, as it must be on a correct log. The mean of weight × click is $0.05 \cdot 20 \cdot 0.3 = 0.3$: the click rate of the target policy, estimated from rows the target did not choose. With $\varepsilon = 0$ item 4 never appears and both means are 0.
+A propensity is the probability the deployed policy used when it showed the item. Next month's model scores the items differently, so on many rows it names another best item and recomputes 0.8 where the logger used 0.05, or the reverse; the weights are then wrong exactly where they matter, and nothing in $(x, a, r)$ can repair them. Record the probability at the moment of showing.
+
+With correct propensities, the best item gets $1 - 0.25 + 0.25/5 = 0.8$ and each other item $0.25/5 = 0.05$. A row has weight $1/0.05 = 20$ when the logger showed item 4, which happens with probability 0.05, and 0 otherwise, so the mean weight is $0.05 \cdot 20 = 1$, as it must be on a correct log. The mean of weight × click is $0.05 \cdot 20 \cdot 0.3 = 0.3$: the click rate of the target policy, estimated from rows the target did not choose. With $\varepsilon = 0$ item 4 never appears and both means are 0.
 
 **Evidence:** Lab 5, checkpoint 6 (`log_policy` exact; the mean weight of a log made with it).
 :::
