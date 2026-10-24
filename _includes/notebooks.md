@@ -20,7 +20,7 @@
 ## Day 2 · Exploration and bandits
 
 ::: {.lab-list}
-- **[4 · Bandits from first principles](/modules/04-bandits.qmd)** [Colab CPU]{.chip} [lab draft]{.chip} [readiness [of Lab 4]{.visually-hidden}](/readiness.qmd#m04){.chip}  
+- **[4 · Bandits from first principles](/modules/04-bandits.qmd)** [Colab CPU]{.chip} [lab reviewed]{.chip} [readiness [of Lab 4]{.visually-hidden}](/readiness.qmd#m04){.chip}  
   [Open in Colab[, Lab 4 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb){.btn-quiet target="_blank" rel="noopener"} [Download .ipynb[, Lab 4]{.visually-hidden}](https://github.com/project-delphi/practical-rl/raw/main/notebooks/04-bandits.ipynb){.btn-quiet}
 - **[5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 5]{.visually-hidden}](/readiness.qmd#m05){.chip}  
   Not built yet.

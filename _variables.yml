@@ -448,7 +448,7 @@ modules:
         writes: [UCB1Suspect]
         predict_answer: "√(2 ln 5000 / 4000) ≈ 0.065 and √(2 ln 5000 / 250) ≈ 0.261. Every headline is pulled: the best about 4000 times or more, the worse ones hundreds of times (seat 0, seed 1000: [591, 222, 4187]). The suspect prints a bonus of 4.13 for every arm, and one headline with 4998 pulls and the other two with 1 each, on every seed (all 2000 seeds of the 100-seat record, runs/2026-10-18-local-m04-seats-exp.json)."
         explain_ref: "(UCB1)"
-    status: {briefing: draft, lab: draft}
+    status: {briefing: reviewed, lab: reviewed}
 
   m05:
     n: 5
