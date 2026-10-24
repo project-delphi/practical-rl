@@ -518,7 +518,7 @@ modules:
         writes: [mbie_eb_suspect]
         predict_answer: "none at the right end, and more than half at the left end: the bonus only compares the two actions of the current state, and the plain plan values every unreached state at 0; on seeds 0–9 it never reaches the right end and spends 0.727–0.745 of its steps at state 0 (runs/2026-10-18-local-m06-regret-seeds-exp-2.json)"
         explain_ref: 'Gotcha: "Add the bonus when acting."'
-    status: {briefing: draft, lab: draft}
+    status: {briefing: reviewed, lab: reviewed}
 
   m07:
     n: 7
