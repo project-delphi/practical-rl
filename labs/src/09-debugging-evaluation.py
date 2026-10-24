@@ -18,6 +18,7 @@
 # "Equations and where you implement them" gives each name's equation number.
 
 # %%
+import collections
 import dataclasses
 import textwrap
 import time
@@ -29,13 +30,14 @@ import torch
 
 from prl.evaluate import Budget, compare
 
-# Budgets. Lab code reads them from here and never branches on QUICK. `steps`, `log_every`
-# and `eval_every` are Exercise 8's live run and pick its recorded band; the recorded runs of
-# Exercises 1-5 and 7 used the live values. `probe_steps` is each probe run of Exercise 6.
+# Budgets (live, then QUICK). Lab code reads them from here and never branches on QUICK.
+# `steps`, `log_every`, `eval_every` and `eval_episodes` are Exercise 8's live run and pick its
+# recorded band; the recorded runs of Exercises 1-5 and 7 used the live values. `probe_steps`
+# is each probe run of Exercise 6.
 budget = lab.use_settings(
     prl.runtime.settings(
-        dict(steps=50_000, log_every=500, eval_every=5_000, probe_steps=2_000),  # live
-        dict(steps=10_000, log_every=500, eval_every=2_500, probe_steps=2_000),  # QUICK
+        dict(steps=50_000, log_every=500, eval_every=5_000, eval_episodes=10, probe_steps=2_000),
+        dict(steps=10_000, log_every=500, eval_every=1_000, eval_episodes=10, probe_steps=2_000),
         designed="colab-cpu",
     )
 )
@@ -50,101 +52,126 @@ print(f"Budget: {budget.steps:,} env steps for your live run; {budget.probe_step
 # ### The reference version of your Lab 8 code
 #
 # The cell below is Module 8's DQN: its configuration `CONFIG`, the masked target `td_target`,
-# the function `gather_q` that reads Q(s, a) for the action taken, the training loop
-# `train_dqn`, which returns the network and a log, and `evaluate_greedy`. Every run in this
-# lab, recorded or live, uses this code and this configuration.
+# `gather_q`, which reads Q(s, a; w) for the action taken, and the training loop `train_dqn`,
+# which returns the network and a log. Every run in this lab, recorded or live, uses this code
+# and this configuration.
 
 # %%
 # PROVISIONAL (Module 9, first pass). Replaced by Module 8's reference files, included with
-# "# %% include labs/shared/<name>.py", once they exist. Written against _notes/m09-needs.md;
-# Module 9 relies only on the names and the log schema used below.
+# "# %% include labs/shared/<name>.py", once they exist. Written to the names of Module 8's
+# draft (2026-10-24) and _notes/m09-needs.md; Module 9 relies only on train_dqn's signature,
+# CONFIG's fields lr and target_sync, the global names td_target and gather_q, and the log keys.
+Batch = collections.namedtuple("Batch", "obs act rew next_obs terminated truncated")
+PROBE_SEED = 1_000_000  # probe states: reset(seed=PROBE_SEED + i)
+EVAL_SEED = 1_100_000  # evaluation episodes: reset(seed=EVAL_SEED + i)
 
 
 @dataclasses.dataclass(frozen=True)
 class DQNConfig:
-    """Provided: one DQN configuration, shared by every run of Labs 8 and 9."""
+    """Provided: the DQN configuration every lab uses."""
 
-    hidden: int = 64
+    hidden: tuple = (64, 64)
     lr: float = 1e-3
-    buffer_size: int = 50_000
+    buffer_size: int = 10_000
     batch_size: int = 64
     gamma: float = 0.99
     train_freq: int = 4
-    target_sync: int | None = 500  # env steps between syncs; None: never
-    learning_starts: int = 1000
+    target_sync: int | None = 500  # env steps between copies w -> w-; None: never
+    learning_starts: int = 1_000
     eps_start: float = 1.0
     eps_end: float = 0.05
-    eps_decay_steps: int = 10_000
-    huber_threshold: float = 1.0
+    eps_fraction: float = 0.2  # epsilon falls linearly over this share of the run
     max_grad_norm: float = 10.0
-    total_steps: int = 50_000
+    huber_threshold: float = 1.0
 
 
 CONFIG = DQNConfig()
 
 
-def td_target(rewards, next_q_max, terminated, gamma):
-    """Provided: y = r + gamma (1 - terminated) max_a' Q(s', a'; w-)."""
-    return rewards + gamma * (1.0 - terminated) * next_q_max
+def td_target(batch, q_next, gamma):
+    """Provided: r + gamma (1 - terminated) q_next (masked target)."""
+    return batch.rew + gamma * (1.0 - batch.terminated) * q_next
 
 
 def gather_q(q_values, actions):
-    """Provided: Q(s_i, a_i) for every row i of the batch."""
-    return q_values.gather(1, actions[:, None]).squeeze(1)
+    """Provided: Q(s_i, a_i; w) for every row i of the batch."""
+    return q_values.gather(1, actions.long().unsqueeze(1)).squeeze(1)
 
 
-def make_q_net(obs_dim, n_actions, hidden):
-    """Provided: the Q-network, an MLP with two hidden layers."""
-    return torch.nn.Sequential(
-        torch.nn.Linear(obs_dim, hidden),
-        torch.nn.ReLU(),
-        torch.nn.Linear(hidden, hidden),
-        torch.nn.ReLU(),
-        torch.nn.Linear(hidden, n_actions),
-    )
+def dqn_target(batch, q_net, target_net, gamma):
+    """Provided: td_target with the target network's max_a' Q(s', a'; w-)."""
+    with torch.no_grad():
+        q_next = target_net(batch.next_obs).max(dim=1).values
+        return td_target(batch, q_next, gamma)
+
+
+def make_q_net(obs_dim, n_actions, config):
+    """Provided: the Q-network, ReLU layers of config.hidden widths."""
+    layers, width = [], obs_dim
+    for h in config.hidden:
+        layers += [torch.nn.Linear(width, h), torch.nn.ReLU()]
+        width = h
+    return torch.nn.Sequential(*layers, torch.nn.Linear(width, n_actions))
+
+
+def probe_states(make_env, n=32):
+    """Provided: n fixed start states, the same for every run: reset(seed=PROBE_SEED + i)."""
+    env = make_env()
+    return np.asarray([env.reset(seed=PROBE_SEED + i)[0] for i in range(n)], np.float32)
+
+
+def greedy_return(q_net, make_env, episodes):
+    """Provided: the mean undiscounted return of greedy episodes from fixed start states."""
+    env, total = make_env(), 0.0
+    for i in range(episodes):
+        obs, _ = env.reset(seed=EVAL_SEED + i)
+        done = False
+        while not done:
+            with torch.no_grad():
+                a = int(q_net(torch.as_tensor(obs, dtype=torch.float32)[None]).argmax())
+            obs, r, term, trunc, _ = env.step(a)
+            total += float(r)
+            done = term or trunc
+    return total / episodes
 
 
 def train_dqn(
     make_env,
     config,
     seed,
+    steps,
     *,
-    log_every=500,
+    target_fn=None,
+    log_every=1000,
     eval_every=None,
+    eval_episodes=10,
     probe_obs=None,
     snapshot_steps=(),
     verbose=True,
 ):
-    """Provided: DQN with replay, a target network and the Huber loss. Returns (q_net, log);
-    the log holds NumPy arrays (see Exercise 1's head). Every `eval_every` steps it records the
-    greedy return over 10 fresh episodes (eval_step, eval_return)."""
+    """Provided: DQN with replay, a target network and the Huber loss, for `steps` env steps.
+    Returns (q_net, log); the log holds NumPy arrays (Exercise 1 lists them)."""
+    target_fn = target_fn or dqn_target
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     env = make_env()
     obs_dim, n_act = env.observation_space.shape[0], env.action_space.n
-    if probe_obs is None:  # fixed start states, the same for every run and seed
-        probe_obs = np.stack([make_env().reset(seed=10_000 + i)[0] for i in range(8)])
-    probe = torch.as_tensor(np.asarray(probe_obs, dtype=np.float32))
-    q_net = make_q_net(obs_dim, n_act, config.hidden)
-    q_tgt = make_q_net(obs_dim, n_act, config.hidden)
-    q_tgt.load_state_dict(q_net.state_dict())
+    probe = torch.as_tensor(probe_states(make_env) if probe_obs is None else probe_obs)
+    q_net = make_q_net(obs_dim, n_act, config)
+    target_net = make_q_net(obs_dim, n_act, config)
+    target_net.load_state_dict(q_net.state_dict())
     opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
-    size_max = min(config.buffer_size, config.total_steps)
-    buf_o = np.zeros((size_max, obs_dim), np.float32)
-    buf_o2 = np.zeros((size_max, obs_dim), np.float32)
-    buf_a = np.zeros(size_max, np.int64)
-    buf_r = np.zeros(size_max, np.float32)
-    buf_t = np.zeros(size_max, np.float32)
-    ptr = size = 0
+    cap = min(config.buffer_size, steps)
+    buf = {k: np.zeros((cap, obs_dim), np.float32) for k in ("obs", "next_obs")}
+    buf.update({k: np.zeros(cap, np.float32) for k in ("rew", "terminated", "truncated")})
+    buf["act"] = np.zeros(cap, np.int64)
     log = {k: [] for k in _LOG_KEYS}
     acc = {k: [] for k in ("loss", "td", "td_max", "q_max", "gn", "q_term")}
-    snap_at, last_sync = set(snapshot_steps), 0
+    pending, last_sync, ep = sorted(snapshot_steps), 0, [0.0, 0.0, 0]
     obs, _ = env.reset(seed=seed)
-    ep_r = ep_g = 0.0
-    ep_n = 0
     start = shown = time.perf_counter()
-    for step in range(1, config.total_steps + 1):
-        frac = min(1.0, (step - 1) / config.eps_decay_steps)
+    for t in range(1, steps + 1):
+        frac = min(1.0, (t - 1) / max(1.0, config.eps_fraction * steps))
         eps = config.eps_start + frac * (config.eps_end - config.eps_start)
         if rng.random() < eps:
             a = int(rng.integers(n_act))
@@ -152,67 +179,60 @@ def train_dqn(
             with torch.no_grad():
                 a = int(q_net(torch.as_tensor(obs, dtype=torch.float32)[None]).argmax())
         obs2, r, term, trunc, _ = env.step(a)
-        buf_o[ptr], buf_o2[ptr], buf_a[ptr] = obs, obs2, a
-        buf_r[ptr], buf_t[ptr] = r, float(term)
-        ptr, size = (ptr + 1) % size_max, min(size + 1, size_max)
-        ep_g += config.gamma**ep_n * r
-        ep_r += r
-        ep_n += 1
+        slot = (t - 1) % cap
+        for k, x in zip(_BUF_KEYS, (obs, a, r, obs2, float(term), float(trunc)), strict=True):
+            buf[k][slot] = x
+        ep = [ep[0] + r, ep[1] + config.gamma ** ep[2] * r, ep[2] + 1]
         obs = obs2
         if term or trunc:
-            for k, x in zip(_EP_KEYS, (ep_r, ep_g, ep_n, step, bool(term)), strict=True):
+            for k, x in zip(_EP_KEYS, (ep[0], ep[1], ep[2], t, bool(term)), strict=True):
                 log[k].append(x)
             obs, _ = env.reset()
-            ep_r = ep_g = 0.0
-            ep_n = 0
-        if step >= config.learning_starts and step % config.train_freq == 0:
-            idx = rng.integers(0, size, config.batch_size)
-            o, o2 = torch.as_tensor(buf_o[idx]), torch.as_tensor(buf_o2[idx])
-            act, rew = torch.as_tensor(buf_a[idx]), torch.as_tensor(buf_r[idx])
-            done = torch.as_tensor(buf_t[idx])
-            with torch.no_grad():
-                y = td_target(rew, q_tgt(o2).max(1).values, done, config.gamma)
-            q_all = q_net(o)
-            q_sa = gather_q(q_all, act)
+            ep = [0.0, 0.0, 0]
+        if t > config.learning_starts and t % config.train_freq == 0:
+            idx = rng.integers(0, min(t, cap), config.batch_size)
+            batch = Batch(*(torch.as_tensor(buf[k][idx]) for k in _BUF_KEYS))
+            q_values = q_net(batch.obs)
+            q_sa = gather_q(q_values, batch.act)
+            y = target_fn(batch, q_net, target_net, config.gamma)
             loss = torch.nn.functional.huber_loss(q_sa, y, delta=config.huber_threshold)
             opt.zero_grad()
             loss.backward()
             gn = torch.nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
             opt.step()
             td = (y - q_sa).detach().abs()
-            acc["loss"].append(loss.item())
-            acc["td"].append(td.mean().item())
-            acc["td_max"].append(td.max().item())
-            acc["q_max"].append(q_all.detach().max(1).values.mean().item())
+            done = batch.terminated > 0.5
+            q_max = q_values.max(1).values.mean()
+            for k, x in (("loss", loss.detach()), ("td", td.mean()), ("td_max", td.max())):
+                acc[k].append(float(x))
+            acc["q_max"].append(float(q_max))
             acc["gn"].append(float(gn))
             if done.any():
-                acc["q_term"].append(q_sa.detach()[done.bool()].mean().item())
-            near = [s for s in snap_at if 0 <= step - s < config.train_freq]
-            if near:
-                snap_at.discard(near[0])
-                values = (step, q_all, act, q_sa, y, rew, done.bool())
+                acc["q_term"].append(float(q_sa[done].mean()))
+            while pending and t >= pending[0]:
+                pending.pop(0)
+                values = (t, q_values, batch.act, q_sa, y, batch.rew, done)
                 for k, x in zip(_SNAP_KEYS, values, strict=True):
                     log[k].append(x.detach().numpy().copy() if torch.is_tensor(x) else x)
-        if config.target_sync is not None and step % config.target_sync == 0:
-            q_tgt.load_state_dict(q_net.state_dict())
-            last_sync = step
-        if step % log_every == 0:
+        if config.target_sync and t % config.target_sync == 0:
+            target_net.load_state_dict(q_net.state_dict())
+            last_sync = t
+        if t % log_every == 0:
             with torch.no_grad():
                 log["q_probe"].append(q_net(probe).numpy())
-                log["q_probe_target"].append(q_tgt(probe).numpy())
+                log["q_probe_target"].append(target_net(probe).numpy())
             for k, src, f in _LOG_REDUCE:
                 log[k].append(float(f(acc[src])) if acc[src] else np.nan)
-            log["step"].append(step)
-            log["epsilon"].append(eps)
-            log["steps_since_sync"].append(step - last_sync)
+            for k, x in (("step", t), ("epsilon", eps), ("steps_since_sync", t - last_sync)):
+                log[k].append(x)
             for v in acc.values():
                 v.clear()
-        if eval_every and step % eval_every == 0:
-            log["eval_step"].append(step)
-            log["eval_return"].append(evaluate_greedy(q_net, make_env))
+        if eval_every and t % eval_every == 0:
+            log["eval_step"].append(t)
+            log["eval_return"].append(greedy_return(q_net, make_env, eval_episodes))
         if verbose and time.perf_counter() - shown > 10:
             shown = time.perf_counter()
-            print(f"  step {step:,} of {config.total_steps:,}", flush=True)
+            print(f"  step {t:,} of {steps:,}", flush=True)
     out = {k: np.asarray(v) for k, v in log.items()}
     out["probe_obs"] = probe.numpy()
     out["seconds"] = time.perf_counter() - start
@@ -220,6 +240,7 @@ def train_dqn(
     return q_net, out
 
 
+_BUF_KEYS = ("obs", "act", "rew", "next_obs", "terminated", "truncated")
 _EP_KEYS = ("ep_return", "ep_disc_return", "ep_length", "ep_end_step", "ep_terminated")
 _SNAP_KEYS = (
     "snap_step",
@@ -245,22 +266,6 @@ _LOG_KEYS = (
     + _SNAP_KEYS
     + ("eval_step", "eval_return")
 )
-
-
-def evaluate_greedy(q_net, make_env, episodes=10, seed=50_000):
-    """Provided: the mean undiscounted return of the greedy policy over fresh episodes."""
-    env = make_env()
-    total = 0.0
-    for e in range(episodes):
-        obs, _ = env.reset(seed=seed + e)
-        done = False
-        while not done:
-            with torch.no_grad():
-                a = int(q_net(torch.as_tensor(obs, dtype=torch.float32)[None]).argmax())
-            obs, r, term, trunc, _ = env.step(a)
-            total += r
-            done = term or trunc
-    return total / episodes
 
 
 # %% [markdown]
@@ -822,14 +827,14 @@ class ObsRewardEnv(gym.Env):
 
 
 # %% role="ex6-run"
-def td_target_no_mask(rewards, next_q_max, terminated, gamma):
+def td_target_no_mask(batch, q_next, gamma):
     """Run C's td_target: it ignores terminated."""
-    return rewards + gamma * next_q_max
+    return batch.rew + gamma * q_next
 
 
 def gather_q_dim0(q_values, actions):
     """Run B's gather_q: dimension 0 instead of 1."""
-    return q_values.gather(0, actions[:, None]).squeeze(1)
+    return q_values.gather(0, actions.long().unsqueeze(1)).squeeze(1)
 
 
 # How runs A to D were made, now that you have diagnosed them: a configuration change or a
@@ -842,13 +847,7 @@ AGENTS = {
     "D": (dict(target_sync=None), {}),
 }
 PROBE_CONFIG = dataclasses.replace(
-    CONFIG,
-    total_steps=budget.probe_steps,
-    buffer_size=budget.probe_steps,
-    learning_starts=64,
-    target_sync=100,
-    train_freq=1,
-    eps_decay_steps=1,
+    CONFIG, learning_starts=64, target_sync=100, train_freq=1, eps_fraction=0.0
 )
 
 
@@ -858,7 +857,8 @@ def train_agent(run, make_env, config, seed, **kwargs):
     saved = {name: globals()[name] for name in swaps}
     globals().update(swaps)
     try:
-        return train_dqn(make_env, dataclasses.replace(config, **changes), seed, **kwargs)
+        changed = dataclasses.replace(config, **changes)
+        return train_dqn(make_env, changed, seed, budget.probe_steps, **kwargs)
     finally:
         globals().update(saved)
 
@@ -1058,11 +1058,13 @@ start = time.perf_counter()
 print(f"Training the reference DQN on seed {RUN_SEED} for {budget.steps:,} steps:", flush=True)
 q_live, log_live = train_dqn(
     lambda: gym.make("CartPole-v1"),
-    dataclasses.replace(CONFIG, total_steps=budget.steps),
+    CONFIG,
     RUN_SEED,
+    budget.steps,
     log_every=budget.log_every,
     eval_every=budget.eval_every,
-    snapshot_steps=(CONFIG.learning_starts, budget.steps // 2, budget.steps),
+    eval_episodes=budget.eval_episodes,
+    snapshot_steps=(CONFIG.learning_starts + 1, budget.steps // 2, budget.steps),
 )
 seconds_live = time.perf_counter() - start
 live_return = float(log_live["eval_return"][-1])  # the band's metric at the last grid point
