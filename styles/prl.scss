@@ -503,14 +503,15 @@ a.btn-quiet[target="_blank"]:has(.visually-hidden)::after {
   }
 }
 
-// Room activities (`::: {.predict}`, `::: {.self-check}`; the Agenda's "In the room" links
-// land on them) and worked examples. The bold lead-in ("Predict (3 min).", "Check yourself
+// Room activities (`::: {.predict}`, `::: {.self-check}`, `::: {.demo}`; the Agenda's "In the
+// room" links land on them) and worked examples. The bold lead-in ("Predict (3 min).", "Check yourself
 // 3.1.", "Worked example: ...") names the block; the frame only marks where it starts and
 // ends, so color carries no meaning of its own. A folded answer inside keeps its own
 // disclosure style on the page background.
 .predict,
 .self-check,
-.worked-example {
+.worked-example,
+.demo {
   margin: 1rem 0 1.5rem;
   padding: 0.75rem 1rem;
   border: 1px solid var(--prl-border-subtle);
@@ -544,9 +545,14 @@ a.btn-quiet[target="_blank"]:has(.visually-hidden)::after {
   background-color: var(--prl-surface);
 }
 
+.demo {
+  border-left-color: var(--prl-link);
+}
+
 // After an Agenda link, the block it lands on is tinted, so the eye finds where it starts.
 .predict:target,
-.self-check:target {
+.self-check:target,
+.demo:target {
   background-color: var(--prl-surface);
 }
 
