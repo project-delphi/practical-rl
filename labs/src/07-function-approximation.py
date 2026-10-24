@@ -27,6 +27,7 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 
+import prl.data  # recorded bands: prl.data.band in Exercise 6
 from prl.checks import m07  # the checkpoints of this lab
 from prl.envs import Baird, InventoryMDP
 from prl.evaluate import Budget
