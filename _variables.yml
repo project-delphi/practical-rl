@@ -706,13 +706,13 @@ modules:
         title: Broken run B
         minutes: 6
         writes: [gather_check, diagnose_b]
-        predict_answer: "The loss uses Q(s_i, a_i) = snap_q[s, i, a_i] on every row, so gather_check is 0.0 on the healthy run (exact); on run B nearly every row differs (gather along dimension 0 matches only row 0 when its action is 0: at least 31 of 32 rows wrong, exact). Diagnosis: gather."
+        predict_answer: "The loss uses Q(s_i, a_i) = snap_q[s, i, a_i] on every row, so gather_check is 0.0 on the healthy run (exact); on run B nearly every row differs: gathering along dimension 0 returns Q(s_{a_i}, 0), which matches only row 0 when its action is 0, or a row that repeats row 0's transition (the batch is drawn with replacement), so about 31 of 32 rows are wrong (pending record; scratch 0.97-0.98). Diagnosis: gather."
         explain_ref: "(TD error)"
       - n: 4
         title: Broken run C
         minutes: 6
         writes: [q_drift, diagnose_c]
-        predict_answer: "The sum of 0.99^t for t = 0..499 is 99.34 (exact; with the truncation bootstrap a correct Q may reach about 100). Q far above that can come only from a backup that adds value past the end of an episode: the missing mask. Run C's drift is in the thousands, against within about ±20 for the healthy run and below 200 for runs A and B. Diagnosis: mask. Pending record (scratch scan)."
+        predict_answer: "The sum of 0.99^t for t = 0..499 is 99.34 (exact; with the truncation bootstrap a correct Q may reach about 100). Q far above that means the backup adds value no episode delivers: the missing mask is the first suspect, though a diverging step size can also push Q up (Module 8's scratch scan saw this at lr × 0.1), which is why Exercise 6 confirms on a probe. Run C's drift is in the thousands, against within about ±20 for the healthy run and below 200 for runs A and B. Diagnosis: mask. Pending record (scratch scan)."
         explain_ref: "(Q drift)"
       - n: 5
         title: Broken run D
