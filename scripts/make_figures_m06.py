@@ -88,6 +88,7 @@ BUDGET = {
     "curve_every": EVERY,
 }
 LEARNERS = ("eps-greedy", "optimistic", "MBIE-EB", "suspect")
+RECORD_KEY = {"ε-greedy": "eps-greedy"}  # the notebook's learner name -> the record's key
 DRAWN = LEARNERS[:3]
 
 
@@ -123,7 +124,9 @@ def run_regret(ns: dict) -> dict:
     assert (ns["C_BONUS"], ns["TOL"]) == (b["c"], b["tol"])
     assert np.allclose(ns["Q0"], b["q0_optimistic"], atol=1e-9)  # 1 / (1 - 0.95), rounded
     suspect = buggy_suspect(ns)
-    learners = dict(ns["learners"])  # Exercise 6's three, as the run cell defines them
+    # Exercise 6's three, as the run cell defines them; the notebook says "ε-greedy", the
+    # record keeps the key it has always had.
+    learners = {RECORD_KEY.get(k, k): run for k, run in ns["learners"].items()}
     learners["suspect"] = lambda env, k: suspect(env, b["steps"], b["c"], b["gamma"], k)
     assert tuple(learners) == LEARNERS
     per: dict[str, list] = {}
@@ -483,14 +486,16 @@ def hitting_figure(t: Theme, data: dict) -> Figure:
 
 
 # ------------------------------------------------------------------ figure 3: two reference lines
-PANEL_VISIT_IN = 470 * PX  # the left subfigure (layout 62:38 of the 778 px column)
+# Both panels are drawn near the width they show at, so on a phone, where they stack, both
+# scale by about the same factor (UI review, item 8).
+PANEL_VISIT_IN = 360 * PX  # the left subfigure (layout 62:38 of the 778 px column)
 PANEL_REGRET_IN = 290 * PX
 PANEL_H_IN = 300 * PX
 
 
 def visitation_panel(t: Theme, data: dict) -> Figure:
     fig = Figure(figsize=(PANEL_VISIT_IN, PANEL_H_IN))
-    ax = fig.add_axes((0.15, 0.17, 0.83, 0.8))
+    ax = fig.add_axes((0.2, 0.17, 0.78, 0.8))  # 360 px: room for the y label
     x = np.arange(N_CHAIN)
     uni = np.round(data["occ_uni"], 4)
     star = np.round(data["occ_star"], 4)
@@ -508,7 +513,7 @@ def visitation_panel(t: Theme, data: dict) -> Figure:
     for xi, v, dx in ((0, uni[0], -0.2), (8, star[8], 0.2), (9, star[9], 0.2)):
         ax.text(xi + dx, v + 0.02, f"{v:.2f}", ha="center", va="bottom", color=t.text)
     ax.set_xlim(-0.6, N_CHAIN - 0.4)
-    ax.set_ylim(0, 1.0)
+    ax.set_ylim(0, 1.18)  # headroom for the legend above the 0.85 bar
     ax.xaxis.set_major_locator(FixedLocator(list(x)))
     ax.yaxis.set_major_locator(FixedLocator([0, 0.25, 0.5, 0.75, 1.0]))
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
@@ -516,13 +521,13 @@ def visitation_panel(t: Theme, data: dict) -> Figure:
     _style_axes(ax)
     ax.set_xlabel("State (0 = left end)")
     ax.set_ylabel("Fraction of 5000 steps")
-    ax.legend(loc="upper center", bbox_to_anchor=(0.45, 1.0), frameon=False, fontsize=MIN_FONT)
+    ax.legend(loc="upper left", bbox_to_anchor=(0.0, 1.02), frameon=False, fontsize=MIN_FONT)
     return fig
 
 
 def regret_lines_panel(t: Theme, data: dict) -> Figure:
     fig = Figure(figsize=(PANEL_REGRET_IN, PANEL_H_IN))
-    ax = fig.add_axes((0.27, 0.17, 0.62, 0.8))
+    ax = fig.add_axes((0.27, 0.17, 0.58, 0.8))  # "5,000" fits inside the panel
     steps = np.arange(0, STEPS + 1, 50)  # every 50th step: the expected curve is smooth
     reg = np.round(np.concatenate([[0.0], data["regret_uni"]])[steps], 2)
     ax.plot(steps, reg, color=t.series[0], lw=2.2)
@@ -532,7 +537,7 @@ def regret_lines_panel(t: Theme, data: dict) -> Figure:
     ax.set_xlim(0, STEPS)
     ax.set_ylim(-60, 4500)
     ax.xaxis.set_major_locator(FixedLocator([0, 2500, 5000]))
-    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:.0f}"))
+    ax.xaxis.set_major_formatter(FuncFormatter(_count))
     ax.yaxis.set_major_locator(FixedLocator([0, 1000, 2000, 3000, 4000]))
     ax.yaxis.set_major_formatter(FuncFormatter(_count))
     ax.grid(True, axis="y", lw=0.8)
@@ -546,6 +551,8 @@ def regret_lines_panel(t: Theme, data: dict) -> Figure:
 STYLES = {"eps-greedy": "solid", "optimistic": (0, (5, 2)), "MBIE-EB": (0, (1.2, 1.6))}
 NAMES = {"eps-greedy": "ε-greedy Q-learning", "optimistic": "optimistic Q-learning"}
 NAMES["MBIE-EB"] = "MBIE-EB"
+INSET = (0.56, 0.07, 0.41, 0.27)  # x0, y0, width, height in axes fractions
+INSET_Y = (-60, 420)  # the inset's regret range; its title sits above 300
 
 
 def regret_seeds_figure(t: Theme, data: dict) -> Figure:
@@ -557,7 +564,12 @@ def regret_seeds_figure(t: Theme, data: dict) -> Figure:
         for c in data["curves"][name]:
             ax.plot(x, c, color=t.series[j], lw=1.3, ls=STYLES[name], alpha=0.9)
         handles.append(Line2D([], [], color=t.series[j], lw=2.2, ls=STYLES[name]))
-        labels.append(f"{NAMES[name]} ({len(data['curves'][name])} seeds)")
+        n = len(data["curves"][name])
+        # eps-greedy's ten curves end within 0.6 of each other: say so, or the legend's "10"
+        # looks like one line.
+        labels.append(
+            f"{NAMES[name]} ({n} seeds{', lines coincide' if name == 'eps-greedy' else ''})"
+        )
     ax.set_xlim(0, STEPS)
     ax.set_ylim(0, 4500)
     ax.xaxis.set_major_locator(FixedLocator([0, 1000, 2000, 3000, 4000, 5000]))
@@ -569,6 +581,25 @@ def regret_seeds_figure(t: Theme, data: dict) -> Figure:
     ax.set_xlabel("Step")
     ax.set_ylabel("Cumulative regret")
     ax.legend(handles, labels, loc="upper left", frameon=False, handlelength=3.0)
+    # Inset: MBIE-EB's ten curves at their own scale. INSET is in axes fractions; it covers
+    # regret 315-1530 over steps 2800-4850, where every other curve stays clear of it
+    # (quoted_numbers asserts that on the record).
+    zoom = ax.inset_axes(INSET)
+    j = DRAWN.index("MBIE-EB")
+    for c in data["curves"]["MBIE-EB"]:
+        zoom.plot(x, c, color=t.series[j], lw=1.3, ls=STYLES["MBIE-EB"])
+    zoom.axhline(0, color=t.neutral, lw=1.0, zorder=0)
+    zoom.set_xlim(0, STEPS)
+    zoom.set_ylim(*INSET_Y)
+    zoom.xaxis.set_major_locator(FixedLocator([0, 2500, 5000]))
+    zoom.tick_params(axis="x", labelbottom=False)  # the same steps as the main axes
+    zoom.yaxis.set_major_locator(FixedLocator([0, 200]))
+    zoom.set_facecolor(t.bg)
+    for side in zoom.spines.values():
+        side.set_color(t.muted)
+    zoom.text(
+        0.03, 0.96, "MBIE-EB, same steps, zoomed", transform=zoom.transAxes, ha="left", va="top"
+    )
     return fig
 
 
@@ -725,6 +756,14 @@ def quoted_numbers(computed: dict) -> dict:
     ):
         v = compare(final[a], final[b], higher_is_better=False)
         assert v.winner == "A", (a, b, v.sentence)
+    # Figure 4's inset hides no curve: in its box every other curve is above it and MBIE-EB's
+    # below it, and the inset's own range holds all of MBIE-EB's curves.
+    x0, y0, w, hgt = INSET
+    lo_y, hi_y = 4500 * y0, 4500 * (y0 + hgt)
+    box = (rg["x"] >= STEPS * x0) & (rg["x"] <= STEPS * (x0 + w))
+    assert all(curves[k][:, box].min() > hi_y for k in ("eps-greedy", "optimistic"))
+    assert curves["MBIE-EB"][:, box].max() < lo_y
+    assert INSET_Y[0] < curves["MBIE-EB"].min() and curves["MBIE-EB"].max() < 300  # title above
     # The quoted ranges (the page's section 2 and section 5 folds, the predict_answers of
     # Exercises 3 to 6, knowledge check 6.2) and the room code's reach counts on these seeds.
     assert _round_range(visit["eps-greedy"][:, 0], 3) == (0.972, 0.983)

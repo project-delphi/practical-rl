@@ -367,14 +367,14 @@ states_eps, actions_eps, Q_eps = run_q_learning(
 lab.seeds([RUN_SEED])
 v_eps = visitation(states_eps[:-1], S)
 hit = first_visit(states_eps, END)
-print(f"eps-greedy Q-learning, seed {RUN_SEED}, {budget.steps} steps:")
+print(f"ε-greedy Q-learning, seed {RUN_SEED}, {budget.steps} steps:")
 print("  fraction of steps in each state:", " ".join(f"{v:.3f}" for v in v_eps))
 print(f"  first visit to the right end: {'never' if hit is None else f'step {hit}'}")
 print(f"  Q at the left end: left {Q_eps[0, LEFT]:.4f}, right {Q_eps[0, RIGHT]:.4f}")
 lab.metric("eps_visitation", [round(float(x), 4) for x in v_eps])
 fig, ax = plt.subplots()
 x = np.arange(S)
-ax.bar(x, v_eps, color=prl.plot.SERIES[0], label=f"eps-greedy, seed {RUN_SEED}")
+ax.bar(x, v_eps, color=prl.plot.SERIES[0], label=f"ε-greedy, seed {RUN_SEED}")
 ax.plot(
     x,
     OCC_UNIFORM,
@@ -387,6 +387,7 @@ ax.plot(
     x, OCC_STAR, ls=":", marker="s", color=prl.plot.NEUTRAL_LIGHT, label="optimal policy (expected)"
 )
 ax.set(xlabel="state (0 = left end)", ylabel="fraction of steps", title="Visitation")
+ax.set_xticks(x)
 ax.legend()
 plt.show()
 
@@ -452,7 +453,7 @@ print(f"Reached the right end within {budget.steps} steps on {reached} of {len(s
 print(f"First visit, seed by seed: {shown}")
 lab.metric("optimistic_ex4", {"reached": reached, "first_visits": firsts})
 fig, ax = plt.subplots()
-ax.bar(x - 0.2, v_eps, width=0.4, color=prl.plot.SERIES[0], label="eps-greedy, Q0 = 0")
+ax.bar(x - 0.2, v_eps, width=0.4, color=prl.plot.SERIES[0], label="ε-greedy, Q0 = 0")
 ax.bar(
     x + 0.2,
     v_opt,
@@ -466,6 +467,7 @@ ax.set(
     ylabel="fraction of steps",
     title=f"Visitation, one seed each ({RUN_SEED}, {seeds4[0]}): single seed, not a ranking",
 )
+ax.set_xticks(x)
 ax.legend()
 plt.show()
 
@@ -583,6 +585,7 @@ ax.plot(
     x, OCC_STAR, ls=":", marker="s", color=prl.plot.NEUTRAL_LIGHT, label="optimal policy (expected)"
 )
 ax.set(xlabel="state (0 = left end)", ylabel="fraction of steps", title="Visitation")
+ax.set_xticks(x)
 ax.legend()
 plt.show()
 
@@ -638,7 +641,7 @@ def regret(states, actions, R, opt_rewards):
 
 # %% role="ex6-run"
 learners = {
-    "eps-greedy": lambda env, k: run_q_learning(env, budget.steps, 0.0, k),
+    "ε-greedy": lambda env, k: run_q_learning(env, budget.steps, 0.0, k),
     "optimistic": lambda env, k: run_q_learning(env, budget.steps, Q0, k),
     "MBIE-EB": lambda env, k: run_planner(env, budget.steps, plan_mbie_eb, k),
 }
@@ -667,16 +670,17 @@ for name, r in final.items():
     print(
         f"  {name:10s} {iqm(r):7.1f} [{lo:7.1f}, {hi:7.1f}]  min {r.min():7.1f}  max {r.max():7.1f}"
     )
-pairs = [("MBIE-EB", "optimistic"), ("MBIE-EB", "eps-greedy"), ("optimistic", "eps-greedy")]
+pairs = [("MBIE-EB", "optimistic"), ("MBIE-EB", "ε-greedy"), ("optimistic", "ε-greedy")]
 for a, b in pairs:
     v = compare(final[a], final[b], names=(a, b), budget=cost, higher_is_better=False)
-    print(f"{a} (A) vs {b} (B): {v.winner}")
+    said = {"A": f"{a} lower", "B": f"{b} lower", "tie": "tie (the intervals overlap)"}
+    print(f"  {a} vs {b}: {said.get(v.winner, v.winner)}")
 print(textwrap.fill(cost.sentence(), 96))
 lab.metric("regret", {name: [round(float(x), 1) for x in r] for name, r in final.items()})
-lab.metric("reach_eps", reach["eps-greedy"])  # room code: runs of 10 reaching the right end
+lab.metric("reach_eps", reach["ε-greedy"])  # room code: runs of 10 reaching the right end
 lab.metric("reach_opt", reach["optimistic"])
 lab.metric("reach_mbie", reach["MBIE-EB"])
-lab.metric("regret_eps", round(iqm(final["eps-greedy"]), 1))  # room code: the three IQMs
+lab.metric("regret_eps", round(iqm(final["ε-greedy"]), 1))  # room code: the three IQMs
 lab.metric("regret_opt", round(iqm(final["optimistic"]), 1))
 lab.metric("regret_mbie", round(iqm(final["MBIE-EB"]), 1))
 fig, ax = plt.subplots()
@@ -788,10 +792,23 @@ fig, (ax_v, ax_q) = plt.subplots(1, 2, figsize=(10, 3.6))
 ax_v.bar(x - 0.2, v_s, width=0.4, color=prl.plot.SERIES[3], hatch="//", label="colleague")
 ax_v.bar(x + 0.2, v_mb, width=0.4, color=prl.plot.SERIES[2], label="MBIE-EB (Ex. 5)")
 ax_v.set(xlabel="state", ylabel="fraction of steps", title="Where it went (single seed)")
+ax_v.set_xticks(x)
 ax_v.legend()
-ax_q.plot(x, Q_s.max(axis=1), ls="--", marker="^", color=prl.plot.SERIES[3], label="colleague")
-ax_q.plot(x, Q_mb.max(axis=1), marker="o", color=prl.plot.SERIES[2], label="MBIE-EB (Ex. 5)")
+ax_q.plot(
+    x, Q_mb.max(axis=1), lw=2.5, marker="o", color=prl.plot.SERIES[2], label="MBIE-EB (Ex. 5)"
+)
+ax_q.plot(
+    x,
+    Q_s.max(axis=1),
+    ls="--",
+    lw=1.5,
+    marker="^",
+    zorder=3,
+    color=prl.plot.SERIES[3],
+    label="colleague",
+)
 ax_q.set(xlabel="state", ylabel="max over a of the plan's Q", title="What its plan believes")
+ax_q.set_xticks(x)
 ax_q.legend()
 plt.show()
 
