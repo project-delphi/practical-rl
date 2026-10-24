@@ -250,7 +250,7 @@ class Ridge:
 # %% role="ex2-run"
 env.reset(seed=RUN_SEED)
 item0, Phi, clicks = Ridge(D, LAM), [], []
-print("   n | max |w_hat - closed form| | max |A_inv - inv(A)|")
+print("   n   max abs(w_hat - closed form)   max abs(A_inv - inv(A))")
 for n in range(1, 1001):
     phi = features(env.context())
     click = env.step(0)
@@ -262,7 +262,7 @@ for n in range(1, 1001):
         closed = np.linalg.solve(LAM * np.eye(D) + P_.T @ P_, P_.T @ y_)
         gap = np.abs(item0.A_inv @ item0.b - closed).max()
         drift_inv = np.abs(item0.A_inv - np.linalg.inv(item0.A)).max()
-        print(f"{n:4d} | {gap:24.1e} | {drift_inv:.1e}")
+        print(f"{n:4d}   {gap:28.1e}   {drift_inv:23.1e}")
 truth = np.append(env.scale * env.theta[0], 0.5)  # r(x, 0) = truth . phi(x), inside the clip
 print("item 0, w_hat after 1000 users:     ", np.round(item0.A_inv @ item0.b, 3))
 print("item 0, w*_0 = (0.15 theta_0, 0.5): ", np.round(truth, 3))
@@ -571,6 +571,12 @@ for regime in REGIMES:
         print(f"  {method:7s} {seeds_txt} | IQM {iqm(x5):6.1f} [{lo:6.1f}, {hi:6.1f}]")
     print(f"  LinUCB's mean width at the end, one user: {widths_end[regime]:.3f}")
 calls = verdicts(regrets, BUDGET5)
+print("\nVerdicts against greedy (5 vs 5 seeds; the budget is printed above):")
+print(f"  {'condition':15s} {'LinUCB':>7s} {'LinTS':>7s}")
+for regime in REGIMES:
+    print(f"  {regime:15s} {calls[regime, 'LinUCB']:>7s} {calls[regime, 'LinTS']:>7s}")
+ties = sum(word == "tie" for (_, m), word in calls.items() if m == "LinUCB")
+print(f"  LinUCB calls that are ties: {ties} of {len(REGIMES)}")
 fig, axes = plt.subplots(2, 2, figsize=(10, 6.4), sharey=True)
 styles = {"greedy": "--", "LinUCB": "-", "LinTS": "-."}
 for ax, regime in zip(axes.flat, REGIMES, strict=True):
@@ -652,7 +658,7 @@ def log_policy(scores, epsilon):
     """epsilon-greedy over scores, as probabilities."""
     n = len(scores)
     probs = np.full(n, epsilon / n)  # every item: epsilon / K
-    probs[argmax_first(scores)] += 1.0 - epsilon  # (eps-greedy logging)
+    probs[argmax_first(scores)] += 1.0 - epsilon  # (ε-greedy logging)
     return probs
 
 
