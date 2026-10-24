@@ -1,0 +1,23 @@
+# Recorded bands that ship inside prl (prl/src/prl/datasets/bands/), read in labs with
+# prl.data.band(name, settings). scripts/export_bands.py copies each band from the experiment
+# records named here; its --check (CI's drift gate) fails when a band is out of date with its
+# record or with this file. Edit this file and the records, never the exported files.
+#
+# One entry per band, with one record per budget the lab runs at (live and quick):
+#
+# m08_return:                        # the name labs pass to prl.data.band
+#   metric: >-                       # what each curve holds, with units
+#     Greedy-policy return (mean of 10 evaluation episodes) against environment steps
+#   x: budget.grid                   # dotted path (or list of keys) in the record: the grid,
+#                                    # a strictly increasing list of numbers
+#   runs: per_seed.return            # one curve per seed, indexed like the record's `seeds`,
+#                                    # each as long as x; finite numbers; at least 3 seeds
+#   budget: [steps, log_every]       # keys of the record's `budget` that make runs comparable.
+#                                    # They must use the names and values of the lab's
+#                                    # prl.runtime.settings(...): band() and with_recorded()
+#                                    # match them against the lab's settings.
+#   records:                         # budget label -> record id (file name in runs/, no .json)
+#     live: 2026-10-26-local-m08-bands-live-exp
+#     quick: 2026-10-26-local-m08-bands-quick-exp
+#
+# Then run: uv run python scripts/export_bands.py
