@@ -83,3 +83,44 @@ def test_printed_lines_fit_the_notebook_width(capsys, monkeypatch, tmp_path):
     harness.init("03-model-free", "0123456789abcdef", designed="colab-cpu", api=1, ns={})
     out = capsys.readouterr().out
     assert all(len(line) <= 100 for line in out.splitlines()), max(out.splitlines(), key=len)
+
+
+def test_finish_output_fits_except_the_room_code(capsys, monkeypatch, tmp_path):
+    """lab.finish() stays within 100 columns, except the room code.
+
+    The room code is exempt by decision (2026-10-24): it must stay one pasteable line for the
+    debrief's parse_room_codes, and with seven metrics it runs to about 140 columns.
+    """
+    from prl import lab as harness
+    from prl import record
+
+    monkeypatch.setenv("PRL_WORKED", "1")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "_variables.yml").write_text("x: 1\n")
+    (tmp_path / "prl").mkdir()
+    ns = {}
+    lab = harness.init(
+        "06-exploration-mdps",
+        "0123456789abcdef",
+        designed="colab-cpu",
+        api=1,
+        ns=ns,
+        checkpoints=["1"],
+        seat=0,
+    )
+    for k in ("mbie_end", "reach_eps", "reach_opt", "reach_mbie", "regret_eps", "regret_opt"):
+        lab.metric(k, 4025.04)
+    lab.finish()
+    lines = capsys.readouterr().out.splitlines()
+    record_lines = set()
+    inside = False
+    for i, line in enumerate(lines):  # the JSON between the markers is data, not prose
+        if line == record.BEGIN:
+            inside = True
+        if inside:
+            record_lines.add(i)
+        if line == record.END:
+            inside = False
+    prose = [s for i, s in enumerate(lines) if i not in record_lines and not s.startswith("ROOM ")]
+    assert all(len(s) <= 100 for s in prose), max(prose, key=len)
+    assert any(s.startswith("ROOM ") and len(s) > 100 for s in lines)  # the exemption is real
