@@ -418,11 +418,12 @@ lab.check(3, m08.check_huber, huber, label="3.2")
 
 # %% [markdown] role="ex4-head"
 # **The training loop.** `train_dqn` is DQN (Mnih et al. 2015, Algorithm 1) with the lab's
-# configuration `CONFIG`. Everything around the algorithm is provided: `make_q_net`,
-# `epsilon_at`, `act` (ε-greedy), `gather_q`, `dqn_target` (your `td_target` with the target
-# network's max) and `DQNLogger`. You write the loop that ties them together. Module 9
-# reuses your loop (the reference copy), so call the provided pieces by their names, and
-# report to the logger as the docstring says.
+# configuration `CONFIG`: minibatches from your buffer, the Huber loss on targets from the
+# target network (DQN loss), and a copy of w into w⁻ every 500 steps. Everything around the
+# algorithm is provided: `make_q_net`, `epsilon_at`, `act` (ε-greedy), `gather_q`, `dqn_target`
+# (your `td_target` with the target network's max) and `DQNLogger`. You write the loop that ties
+# them together. Module 9 reuses your loop (the reference copy), so call the provided pieces by
+# their names, and report to the logger as the docstring says.
 
 # %% [markdown] role="ex4-predict"
 # The target network is copied from the online network every 500 steps, and gradient steps
@@ -840,9 +841,9 @@ lab.check(6, m08.check_mc_return, mc_return)
 # `sb3_call`.
 
 # %% [markdown] role="ex7-predict"
-# Before you look: if your implementation is correct, how likely is it that your one seed
-# lands outside the reference DQN's 5-seed min–max range? Will the comparison of the two
-# 5-seed bands be a tie?
+# Both bands run the same configuration on 5 seeds each, one through the lab's code and one
+# through SB3's. Do you expect the rule to call a tie or a winner at this budget? And if it
+# calls a tie, does that prove the two implementations are the same?
 
 
 # %% role="ex7-stub"

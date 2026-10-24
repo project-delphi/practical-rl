@@ -22,7 +22,7 @@
 | []{#m05}[5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-24 | — | — |
 | []{#m06}[6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-24 | — | — |
 | []{#m07}[7 · Function approximation and why it can diverge](/modules/07-function-approximation.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
-| []{#m08}[8 · DQN from scratch](/modules/08-dqn.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
+| []{#m08}[8 · DQN from scratch](/modules/08-dqn.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none} |
 | []{#m09}[9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m10}[10 · Policy gradients](/modules/10-policy-gradients.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m11}[11 · PPO from scratch](/modules/11-ppo.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |

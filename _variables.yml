@@ -699,7 +699,7 @@ modules:
         title: SB3 at the same budget
         minutes: 5
         writes: [sb3_call]
-        predict_answer: "A correct seed falls outside a 5-seed min-max range with probability 2/(5 + 1) = 1/3 (exact, PLAN 3.6). The reference-against-SB3 call: pending record (m08 bands, the reference and SB3 2.9 DQN, 5 seeds each)."
+        predict_answer: "Pending record (m08 bands: the reference and SB3 2.9 DQN, 5 seeds each). With the configuration matched, a tie is the expected call if both are correct, but a tie does not prove the implementations equal: it says only that 5 seeds per side at this budget cannot tell them apart. The two knobs that differ are in the budget sentence."
         explain_ref: 'Gotcha: "My seed landed above SB3''s band, so my DQN is better."'
     status: {briefing: draft, lab: draft}
 
