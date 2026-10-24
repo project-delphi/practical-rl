@@ -1,1 +1,576 @@
-{}
+{
+  "bands/m08_ddqn_mc.live": {
+    "budget": {
+      "eval_every": 5000,
+      "steps": 50000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_ddqn_mc.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of Double DQN (Lab 8's train_dqn with CONFIG and double_dqn_target), against environment steps",
+    "name": "m08_ddqn_mc",
+    "record": "2026-10-24-local-m08-ddqn-live-exp",
+    "record_sha": "40c536a96fae7b05b7dff136d6763f934563df245c01b10cb80a4f190e33491e",
+    "seconds": {
+      "per_seed": [
+        7.84,
+        7.29,
+        7.49,
+        7.46,
+        8.6
+      ],
+      "total": 38.7
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "4aa8eb609d3c7261bcd2f38406f012ac18c69e692f979c3661941ffdf229a29a"
+  },
+  "bands/m08_ddqn_mc.quick": {
+    "budget": {
+      "eval_every": 1000,
+      "steps": 10000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_ddqn_mc.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of Double DQN (Lab 8's train_dqn with CONFIG and double_dqn_target), against environment steps",
+    "name": "m08_ddqn_mc",
+    "record": "2026-10-24-local-m08-ddqn-quick-exp",
+    "record_sha": "328f992d8b8f97901a0701c5b370a98c8abd4ff46c946e8b245d80f37b25fc51",
+    "seconds": {
+      "per_seed": [
+        1.65,
+        1.7,
+        1.72,
+        1.62,
+        1.55
+      ],
+      "total": 8.2
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "90f4b6a5a495687da0ea9868a172f63ee419a1bc03c6fb79021ecf6eeb22bce4"
+  },
+  "bands/m08_ddqn_q0.live": {
+    "budget": {
+      "eval_every": 5000,
+      "steps": 50000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_ddqn_q0.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of Double DQN (Lab 8's train_dqn with CONFIG and double_dqn_target), against environment steps",
+    "name": "m08_ddqn_q0",
+    "record": "2026-10-24-local-m08-ddqn-live-exp",
+    "record_sha": "40c536a96fae7b05b7dff136d6763f934563df245c01b10cb80a4f190e33491e",
+    "seconds": {
+      "per_seed": [
+        7.84,
+        7.29,
+        7.49,
+        7.46,
+        8.6
+      ],
+      "total": 38.7
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "4410e567a72232b09e393611c6381bc8080cc380ff688e12c5777d49602d24b2"
+  },
+  "bands/m08_ddqn_q0.quick": {
+    "budget": {
+      "eval_every": 1000,
+      "steps": 10000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_ddqn_q0.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of Double DQN (Lab 8's train_dqn with CONFIG and double_dqn_target), against environment steps",
+    "name": "m08_ddqn_q0",
+    "record": "2026-10-24-local-m08-ddqn-quick-exp",
+    "record_sha": "328f992d8b8f97901a0701c5b370a98c8abd4ff46c946e8b245d80f37b25fc51",
+    "seconds": {
+      "per_seed": [
+        1.65,
+        1.7,
+        1.72,
+        1.62,
+        1.55
+      ],
+      "total": 8.2
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "6d2ad7cf5887fb33ebaf89a037bd8547ea82f4b75a089cf7237e60c05c4c9f05"
+  },
+  "bands/m08_ddqn_return.live": {
+    "budget": {
+      "eval_every": 5000,
+      "steps": 50000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_ddqn_return.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of Double DQN (Lab 8's train_dqn with CONFIG and double_dqn_target), against environment steps",
+    "name": "m08_ddqn_return",
+    "record": "2026-10-24-local-m08-ddqn-live-exp",
+    "record_sha": "40c536a96fae7b05b7dff136d6763f934563df245c01b10cb80a4f190e33491e",
+    "seconds": {
+      "per_seed": [
+        7.84,
+        7.29,
+        7.49,
+        7.46,
+        8.6
+      ],
+      "total": 38.7
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "643230c1d2a3ec4e136c9d448ed7e34c8eeeb7332a34ba9f270ccee6bae3971b"
+  },
+  "bands/m08_ddqn_return.quick": {
+    "budget": {
+      "eval_every": 1000,
+      "steps": 10000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_ddqn_return.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of Double DQN (Lab 8's train_dqn with CONFIG and double_dqn_target), against environment steps",
+    "name": "m08_ddqn_return",
+    "record": "2026-10-24-local-m08-ddqn-quick-exp",
+    "record_sha": "328f992d8b8f97901a0701c5b370a98c8abd4ff46c946e8b245d80f37b25fc51",
+    "seconds": {
+      "per_seed": [
+        1.65,
+        1.7,
+        1.72,
+        1.62,
+        1.55
+      ],
+      "total": 8.2
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "b3eb52773adfd73be3a05d48cc842465993115fbe391b619f9dabf674c8bc68e"
+  },
+  "bands/m08_dqn_mc.live": {
+    "budget": {
+      "eval_every": 5000,
+      "steps": 50000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_dqn_mc.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of the reference DQN (Lab 8's train_dqn with CONFIG), against environment steps",
+    "name": "m08_dqn_mc",
+    "record": "2026-10-24-local-m08-dqn-live-exp",
+    "record_sha": "f20a8f70ff919cdaf8ba9506a6e207755fa19a00166820b42ff1ffee808fc456",
+    "seconds": {
+      "per_seed": [
+        6.86,
+        6.74,
+        6.92,
+        6.9,
+        7.04
+      ],
+      "total": 34.5
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "1f5479720794c2640f6827ac9d67abeb0cd55c51a113b29092d606eb039cee3e"
+  },
+  "bands/m08_dqn_mc.quick": {
+    "budget": {
+      "eval_every": 1000,
+      "steps": 10000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_dqn_mc.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of the reference DQN (Lab 8's train_dqn with CONFIG), against environment steps",
+    "name": "m08_dqn_mc",
+    "record": "2026-10-24-local-m08-dqn-quick-exp",
+    "record_sha": "2eeab9cf5e09b394734c46673a5acc6aa1536270be7b56b27c1e31e31e2470af",
+    "seconds": {
+      "per_seed": [
+        1.62,
+        1.56,
+        1.88,
+        1.72,
+        1.69
+      ],
+      "total": 8.5
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "654ec0563a3bd14dfb09f400a33ae7013bcaeb56b8d296e6bc564d4d87194ba6"
+  },
+  "bands/m08_dqn_q0.live": {
+    "budget": {
+      "eval_every": 5000,
+      "steps": 50000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_dqn_q0.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of the reference DQN (Lab 8's train_dqn with CONFIG), against environment steps",
+    "name": "m08_dqn_q0",
+    "record": "2026-10-24-local-m08-dqn-live-exp",
+    "record_sha": "f20a8f70ff919cdaf8ba9506a6e207755fa19a00166820b42ff1ffee808fc456",
+    "seconds": {
+      "per_seed": [
+        6.86,
+        6.74,
+        6.92,
+        6.9,
+        7.04
+      ],
+      "total": 34.5
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "6ea7fa596dff23884d99e6a9f9e7af682b1f10618c23552bf50fdfbbb706e89f"
+  },
+  "bands/m08_dqn_q0.quick": {
+    "budget": {
+      "eval_every": 1000,
+      "steps": 10000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_dqn_q0.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of the reference DQN (Lab 8's train_dqn with CONFIG), against environment steps",
+    "name": "m08_dqn_q0",
+    "record": "2026-10-24-local-m08-dqn-quick-exp",
+    "record_sha": "2eeab9cf5e09b394734c46673a5acc6aa1536270be7b56b27c1e31e31e2470af",
+    "seconds": {
+      "per_seed": [
+        1.62,
+        1.56,
+        1.88,
+        1.72,
+        1.69
+      ],
+      "total": 8.5
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "f1d97f3badbebd0c3b0f7c348283106812eac6abdb2bec5a5f70545a09a744e2"
+  },
+  "bands/m08_dqn_return.live": {
+    "budget": {
+      "eval_every": 5000,
+      "steps": 50000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_dqn_return.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of the reference DQN (Lab 8's train_dqn with CONFIG), against environment steps",
+    "name": "m08_dqn_return",
+    "record": "2026-10-24-local-m08-dqn-live-exp",
+    "record_sha": "f20a8f70ff919cdaf8ba9506a6e207755fa19a00166820b42ff1ffee808fc456",
+    "seconds": {
+      "per_seed": [
+        6.86,
+        6.74,
+        6.92,
+        6.9,
+        7.04
+      ],
+      "total": 34.5
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "34ef2b72c61097e6ddf0941f356d3691638f12dd47ff9b46d02d357c5be158f6"
+  },
+  "bands/m08_dqn_return.quick": {
+    "budget": {
+      "eval_every": 1000,
+      "steps": 10000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_dqn_return.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of the reference DQN (Lab 8's train_dqn with CONFIG), against environment steps",
+    "name": "m08_dqn_return",
+    "record": "2026-10-24-local-m08-dqn-quick-exp",
+    "record_sha": "2eeab9cf5e09b394734c46673a5acc6aa1536270be7b56b27c1e31e31e2470af",
+    "seconds": {
+      "per_seed": [
+        1.62,
+        1.56,
+        1.88,
+        1.72,
+        1.69
+      ],
+      "total": 8.5
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "6a2421e0a9d4bcc911f6cfd6a10d5d34529d9dfc8ccdb6ee25604e01b0cbdde7"
+  },
+  "bands/m08_sb3_return.live": {
+    "budget": {
+      "eval_every": 5000,
+      "steps": 50000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_sb3_return.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of Stable-Baselines3 2.9.0's DQN at Lab 8's configuration, against environment steps",
+    "name": "m08_sb3_return",
+    "record": "2026-10-24-local-m08-sb3-live-exp",
+    "record_sha": "44dfcd3af8321ad3ee618673b2d6335275a90cba32694ff98515b46d145bc643",
+    "seconds": {
+      "per_seed": [
+        9.56,
+        9.52,
+        9.54,
+        9.73,
+        9.57
+      ],
+      "total": 47.9
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "2305006d6776f6a259d03d644049101d789af5475a636168665877fdb112adca"
+  },
+  "bands/m08_sb3_return.quick": {
+    "budget": {
+      "eval_every": 1000,
+      "steps": 10000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_sb3_return.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of Stable-Baselines3 2.9.0's DQN at Lab 8's configuration, against environment steps",
+    "name": "m08_sb3_return",
+    "record": "2026-10-24-local-m08-sb3-quick-exp",
+    "record_sha": "094e266468bed00cd878dfdf3cd5a426db0a6ea2aef1ca61d3c41389dd206271",
+    "seconds": {
+      "per_seed": [
+        2.12,
+        2.06,
+        2.16,
+        2.21,
+        2.03
+      ],
+      "total": 10.6
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "91fae90a952cf68709295d4e25884a72e57694cc08d4d2330f93953958150acd"
+  }
+}

@@ -1,0 +1,349 @@
+{
+  "args": {
+    "algo": "sb3",
+    "code": {
+      "labs/shared/dqn.py": "b3c1ddf1713337bb",
+      "labs/shared/dqn_setup.py": "d97df9a0bd46e147"
+    },
+    "notebook": "notebooks/08-dqn.ipynb",
+    "notebook_content_sha": "6e443fcdaba227b9",
+    "repo_dirty": true,
+    "test_doubles": [],
+    "unmatched": [
+      "SB3 acts uniformly at random for the first learning_starts = 1,000 steps; the lab's epsilon-greedy uses the linear schedule from step 1 (epsilon 0.905 at step 1,000 live, 0.525 QUICK), acting greedily on the untrained network the rest of the time",
+      "SB3 copies the target network in _on_step, before that rollout's gradient step; the lab copies after the gradient step of the same step (both copy every 500 steps)",
+      "SB3 updates epsilon after each step from the progress so far; the lab computes it before acting (one step apart)",
+      "random streams differ: SB3 seeds Python, NumPy's global generator and torch, samples the buffer with np.random.randint and explores with np.random.rand and the action space's sample; the lab uses one np.random.default_rng(seed) for both. The initial weights and the first start state are the same for the same seed (torch.manual_seed(seed) before the same layers; per_seed.same_initial_weights), the draws after that are not",
+      "SB3 wraps the environment in a Monitor and a DummyVecEnv (auto-reset, the terminal observation kept as s'); the loss is SB3's smooth_l1_loss (Huber, psi = 1, the batch mean), as in the lab"
+    ]
+  },
+  "budget": {
+    "eval_episodes": 10,
+    "eval_every": 1000,
+    "grid": [
+      1000,
+      2000,
+      3000,
+      4000,
+      5000,
+      6000,
+      7000,
+      8000,
+      9000,
+      10000
+    ],
+    "label": "quick",
+    "log_every": 500,
+    "sb3": {
+      "batch_size": 64,
+      "buffer_size": 10000,
+      "device": "cpu",
+      "exploration_final_eps": 0.05,
+      "exploration_fraction": 0.2,
+      "exploration_initial_eps": 1.0,
+      "gamma": 0.99,
+      "gradient_steps": 1,
+      "learning_rate": 0.001,
+      "learning_starts": 1000,
+      "max_grad_norm": 10.0,
+      "policy_kwargs": {
+        "net_arch": [
+          64,
+          64
+        ]
+      },
+      "target_update_interval": 500,
+      "tau": 1.0,
+      "train_freq": 4
+    },
+    "steps": 10000
+  },
+  "date": "2026-10-24",
+  "env": "local",
+  "experiment": "m08-sb3-quick",
+  "git_sha": "cf145356d248a6fedff138e8b518349a83c4b997",
+  "hardware": {
+    "accel": "mps",
+    "arch": "arm64",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "experiment",
+  "note": "Stable-Baselines3 2.9.0 DQN at the lab's configuration on every knob it has (budget.sb3), greedy-evaluated with the lab's evaluate_greedy, seeds 0-4, at the quick budget (10,000 steps, greedy evaluation of 10 episodes every 1,000). per_seed lists are indexed like `seeds`: return, disc_return (G_0) and q0 (max_a Q(s0, a)) on budget.grid, the run's wall-clock seconds, q_probe_end (mean over the lab's 32 probe states of max_a Q at the end) and buffer (B74: SB3's stored time-limit transitions, done as stored and as sampled). Wall-clock on local (Apple M1 Pro, arm64), 2 torch threads, runs one after another (load average 6.0 at the start: other jobs shared the machine): laptop seconds, not Colab seconds.",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "stable-baselines3": "2.9.0",
+    "torch": "2.14.1"
+  },
+  "per_seed": {
+    "buffer": [
+      {
+        "stored": 10000,
+        "terminal": 269,
+        "timeouts": 0,
+        "timeouts_next_obs_is_reset": null,
+        "timeouts_sampled_done": null,
+        "timeouts_stored_done": 0
+      },
+      {
+        "stored": 10000,
+        "terminal": 260,
+        "timeouts": 0,
+        "timeouts_next_obs_is_reset": null,
+        "timeouts_sampled_done": null,
+        "timeouts_stored_done": 0
+      },
+      {
+        "stored": 10000,
+        "terminal": 203,
+        "timeouts": 0,
+        "timeouts_next_obs_is_reset": null,
+        "timeouts_sampled_done": null,
+        "timeouts_stored_done": 0
+      },
+      {
+        "stored": 10000,
+        "terminal": 208,
+        "timeouts": 0,
+        "timeouts_next_obs_is_reset": null,
+        "timeouts_sampled_done": null,
+        "timeouts_stored_done": 0
+      },
+      {
+        "stored": 10000,
+        "terminal": 291,
+        "timeouts": 0,
+        "timeouts_next_obs_is_reset": null,
+        "timeouts_sampled_done": null,
+        "timeouts_stored_done": 0
+      }
+    ],
+    "disc_return": [
+      [
+        9.104111,
+        8.829143,
+        17.615215,
+        22.25835,
+        92.95736,
+        88.44856,
+        89.42031,
+        73.58999,
+        67.52551,
+        82.02812
+      ],
+      [
+        8.829143,
+        12.23813,
+        23.946224,
+        78.30631,
+        48.694405,
+        64.2575,
+        79.90268,
+        81.88022,
+        80.1839,
+        81.27974
+      ],
+      [
+        8.829143,
+        9.375444,
+        19.780851,
+        50.655552,
+        93.382225,
+        86.98993,
+        78.75509,
+        90.346466,
+        85.19823,
+        93.09248
+      ],
+      [
+        9.830376,
+        9.377253,
+        23.67336,
+        98.22289,
+        76.21206,
+        87.12015,
+        88.96184,
+        86.88915,
+        89.49119,
+        82.05453
+      ],
+      [
+        8.829143,
+        8.829143,
+        25.45027,
+        27.6573,
+        56.995766,
+        93.0782,
+        82.29797,
+        70.008446,
+        69.3404,
+        75.62758
+      ]
+    ],
+    "q0": [
+      [
+        0.13713233,
+        2.18017,
+        4.1972866,
+        6.1103697,
+        8.046229,
+        9.940825,
+        11.905668,
+        13.782233,
+        15.671431,
+        17.370335
+      ],
+      [
+        0.15841387,
+        2.1910288,
+        4.207091,
+        6.1919866,
+        8.239102,
+        10.08303,
+        11.911076,
+        13.700382,
+        15.54852,
+        17.297798
+      ],
+      [
+        0.027538752,
+        2.100065,
+        4.1144276,
+        6.189583,
+        8.172772,
+        10.198198,
+        12.233491,
+        14.032118,
+        15.9177265,
+        17.676735
+      ],
+      [
+        0.05666787,
+        2.0389524,
+        4.004874,
+        5.986845,
+        7.9551077,
+        9.932445,
+        11.828526,
+        13.63811,
+        15.478305,
+        17.290842
+      ],
+      [
+        -0.028537543,
+        2.0706859,
+        4.0600486,
+        6.0581493,
+        7.9634714,
+        9.873193,
+        11.70359,
+        13.718962,
+        15.568314,
+        17.399628
+      ]
+    ],
+    "q_probe_end": [
+      17.349678,
+      17.300388,
+      17.65084,
+      17.280003,
+      17.395254
+    ],
+    "return": [
+      [
+        9.5,
+        9.2,
+        19.3,
+        25.1,
+        318.9,
+        224.9,
+        240.7,
+        135.2,
+        112.7,
+        174.2
+      ],
+      [
+        9.2,
+        13.0,
+        27.3,
+        241.5,
+        66.6,
+        107.0,
+        170.7,
+        183.4,
+        164.4,
+        172.7
+      ],
+      [
+        9.2,
+        9.8,
+        22.0,
+        70.3,
+        278.7,
+        204.4,
+        154.6,
+        236.3,
+        191.1,
+        276.0
+      ],
+      [
+        10.3,
+        9.8,
+        26.9,
+        438.9,
+        143.4,
+        205.7,
+        226.3,
+        205.2,
+        236.7,
+        171.8
+      ],
+      [
+        9.2,
+        9.2,
+        29.3,
+        32.3,
+        84.5,
+        308.4,
+        174.3,
+        121.3,
+        119.7,
+        151.4
+      ]
+    ],
+    "same_initial_weights": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "seconds": [
+      2.12,
+      2.06,
+      2.16,
+      2.21,
+      2.03
+    ]
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "schema": 1,
+  "script": "scripts/make_figures_m08.py",
+  "seconds": 10.6,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "torch_threads": 2
+}

@@ -2279,6 +2279,32 @@ def m08_mc_return() -> bytes:
     )
 
 
+M08_BAND_BUDGETS = {
+    "live": dict(steps=50_000, eval_every=5_000),
+    "quick": dict(steps=10_000, eval_every=1_000),
+}
+
+
+def m08_sb3_call() -> bytes:
+    """Checkpoint 7: the workshop rule's verdict on the recorded final greedy returns, the
+    reference DQN (A) against SB3's DQN (B), at each of the lab's budgets. The bands are the
+    copies in prl (scripts/export_bands.py), so this fixture changes when they do."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    import prl.data
+    from prl.evaluate import compare
+
+    out = {}
+    for label, budget in M08_BAND_BUDGETS.items():
+        ref = prl.data.band("m08_dqn_return", budget)["runs"][:, -1]
+        sb3 = prl.data.band("m08_sb3_return", budget)["runs"][:, -1]
+        v = compare(ref, sb3)
+        (_, lo_a, hi_a), (_, lo_b, hi_b) = v.summary_a, v.summary_b
+        # No rounding can flip the call: intervals overlap, or are apart, by at least 1.
+        assert max(min(hi_a, hi_b) - max(lo_a, lo_b), max(lo_b - hi_a, lo_a - hi_b)) >= 1.0
+        out[label] = np.array({"A": "reference", "B": "sb3"}.get(v.winner, v.winner))
+    return _save("m08_sb3_call", **out)
+
+
 FIXTURES = {
     "m01_returns": m01_returns,
     "m01_eval": m01_eval,
@@ -2319,6 +2345,7 @@ FIXTURES = {
     "m08_chain": m08_chain,
     "m08_double_dqn": m08_double_dqn,
     "m08_mc_return": m08_mc_return,
+    "m08_sb3_call": m08_sb3_call,
 }
 
 

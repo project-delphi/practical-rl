@@ -1,0 +1,296 @@
+{
+  "args": {
+    "algo": "ddqn",
+    "code": {
+      "labs/shared/dqn.py": "b3c1ddf1713337bb",
+      "labs/shared/dqn_setup.py": "d97df9a0bd46e147"
+    },
+    "notebook": "notebooks/08-dqn.ipynb",
+    "notebook_content_sha": "6e443fcdaba227b9",
+    "repo_dirty": true,
+    "test_doubles": []
+  },
+  "budget": {
+    "config": {
+      "batch_size": 64,
+      "buffer_size": 10000,
+      "eps_end": 0.05,
+      "eps_fraction": 0.2,
+      "eps_start": 1.0,
+      "gamma": 0.99,
+      "hidden": [
+        64,
+        64
+      ],
+      "huber_threshold": 1.0,
+      "learning_starts": 1000,
+      "lr": 0.001,
+      "max_grad_norm": 10.0,
+      "target_sync": 500,
+      "train_freq": 4
+    },
+    "eval_episodes": 10,
+    "eval_every": 5000,
+    "grid": [
+      5000,
+      10000,
+      15000,
+      20000,
+      25000,
+      30000,
+      35000,
+      40000,
+      45000,
+      50000
+    ],
+    "label": "live",
+    "log_every": 1000,
+    "steps": 50000
+  },
+  "date": "2026-10-24",
+  "env": "local",
+  "experiment": "m08-ddqn-live",
+  "git_sha": "cf145356d248a6fedff138e8b518349a83c4b997",
+  "hardware": {
+    "accel": "mps",
+    "arch": "arm64",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "experiment",
+  "note": "Lab 8's train_dqn with CONFIG and target_fn=double_dqn_target (labs/shared), seeds 0-4, at the live budget (50,000 steps, greedy evaluation of 10 episodes every 5,000). per_seed lists are indexed like `seeds`: return, disc_return (G_0) and q0 (max_a Q(s0, a)) on budget.grid, the run's wall-clock seconds, q_probe_end (mean over the lab's 32 probe states of max_a Q at the end) and episodes. Wall-clock on local (Apple M1 Pro, arm64), 2 torch threads, runs one after another (load average 5.4 at the start: other jobs shared the machine): laptop seconds, not Colab seconds.",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "stable-baselines3": "2.9.0",
+    "torch": "2.14.1"
+  },
+  "per_seed": {
+    "disc_return": [
+      [
+        95.4496,
+        87.70535,
+        79.03089,
+        84.272514,
+        82.94977,
+        80.99467,
+        81.54774,
+        75.00448,
+        81.34425,
+        79.139404
+      ],
+      [
+        78.215576,
+        88.51532,
+        85.86644,
+        85.917755,
+        83.98673,
+        75.54033,
+        74.05759,
+        72.09358,
+        72.61977,
+        70.603065
+      ],
+      [
+        70.75348,
+        99.22832,
+        97.83833,
+        90.11116,
+        92.16522,
+        84.12363,
+        81.68812,
+        80.54949,
+        75.50334,
+        73.346794
+      ],
+      [
+        90.245705,
+        93.73355,
+        82.60881,
+        90.122345,
+        79.502754,
+        69.53648,
+        67.97404,
+        66.85859,
+        68.9668,
+        70.3496
+      ],
+      [
+        68.73003,
+        88.29313,
+        85.12131,
+        84.52537,
+        85.245415,
+        86.33769,
+        84.39092,
+        70.282555,
+        86.4549,
+        88.88758
+      ]
+    ],
+    "episodes": [
+      454,
+      499,
+      396,
+      496,
+      429
+    ],
+    "q0": [
+      [
+        7.780121,
+        16.940329,
+        25.452232,
+        32.769142,
+        39.35574,
+        45.17373,
+        50.21734,
+        55.18529,
+        59.651466,
+        63.479317
+      ],
+      [
+        7.645847,
+        16.920092,
+        25.632706,
+        32.961563,
+        39.470192,
+        45.577656,
+        50.554127,
+        55.647667,
+        60.484802,
+        64.30747
+      ],
+      [
+        7.570227,
+        16.696112,
+        24.923796,
+        32.32277,
+        38.95462,
+        44.87106,
+        50.344414,
+        55.247112,
+        59.760536,
+        63.564144
+      ],
+      [
+        7.9687443,
+        17.09185,
+        25.486443,
+        32.823578,
+        39.353607,
+        45.389523,
+        50.760212,
+        55.53243,
+        59.60875,
+        63.80041
+      ],
+      [
+        7.980859,
+        17.000565,
+        25.450108,
+        32.693798,
+        39.132534,
+        45.034218,
+        50.378082,
+        55.350704,
+        59.77366,
+        63.72147
+      ]
+    ],
+    "q_probe_end": [
+      63.461243,
+      64.31022,
+      63.562355,
+      63.808968,
+      63.7006
+    ],
+    "return": [
+      [
+        363.7,
+        232.9,
+        156.3,
+        189.8,
+        177.0,
+        166.4,
+        173.9,
+        138.3,
+        181.5,
+        208.4
+      ],
+      [
+        156.7,
+        223.3,
+        196.7,
+        201.2,
+        185.1,
+        140.4,
+        134.5,
+        127.2,
+        129.0,
+        122.0
+      ],
+      [
+        123.6,
+        488.5,
+        412.7,
+        232.4,
+        258.5,
+        183.7,
+        169.3,
+        163.3,
+        140.3,
+        132.0
+      ],
+      [
+        244.8,
+        285.8,
+        175.4,
+        238.7,
+        158.8,
+        118.4,
+        113.4,
+        113.6,
+        116.8,
+        121.6
+      ],
+      [
+        116.1,
+        217.6,
+        196.4,
+        190.3,
+        196.2,
+        206.4,
+        189.8,
+        122.6,
+        208.9,
+        294.2
+      ]
+    ],
+    "seconds": [
+      7.84,
+      7.29,
+      7.49,
+      7.46,
+      8.6
+    ]
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "schema": 1,
+  "script": "scripts/make_figures_m08.py",
+  "seconds": 38.7,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "torch_threads": 2
+}

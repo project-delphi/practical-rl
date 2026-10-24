@@ -505,8 +505,11 @@ check_train_dqn = StochasticCheck(
     ex=4,
     functions=("train_dqn", "make_cartpole", "CONFIG"),
     metric=_train_and_evaluate,
+    # C33: the protocol's gap at 20,000 steps (68.7 on seeds 0-19) is twice the lab budget's
+    # (33.3 at 50,000), and 10,000 steps gave no threshold (gap 12.4 over 100 seeds: an
+    # untrained network sometimes balances for about 80 steps). QUICK keeps 20,000.
     live={"steps": 20_000},
-    quick={"steps": 10_000},
+    quick={"steps": 20_000},
     higher_is_better=True,
     min_gap=25.0,  # about one uniform-random policy's own mean return (22.3 over 1,000 episodes)
     what=(
