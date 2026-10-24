@@ -64,6 +64,32 @@ def test_export_writes_bands_that_prl_loads(repo, monkeypatch):
     assert b["x"].tolist() == [10, 20, 30, 40] and b["x"].dtype == np.int64
     assert b["runs"].tolist() == [[0, 1, 2, 3], [1, 2, 3, 4], [2, 3, 4, 5]]
     assert b["metric"] == "Mean return of the last 10 episodes"
+    assert b["hardware"] == {
+        "platform": "local",
+        "env": "local",
+        "cpu": "x",
+        "n_cpu": 2,
+        "accel": "cpu",
+        "gpu": None,
+        "torch_threads": 2,
+    }
+    assert b["seconds"] == {"total": 1.5, "per_seed": None}  # this record has no per-seed times
+
+
+def test_wall_clock_is_copied_per_seed_and_none_when_absent(experiment_record):
+    band_spec = {"metric": "m", "x": "budget.grid", "runs": "per_seed.return", "budget": ["steps"]}
+    rec = experiment_record(40)
+    rec["per_seed"]["seconds"] = [3.0, 4.0, 5.5]
+    _, entry = eb.build_band("m99_return", "quick", band_spec, rec, "r")
+    assert entry["seconds"] == {"total": 1.5, "per_seed": [3.0, 4.0, 5.5]}
+    del rec["seconds"], rec["torch_threads"], rec["per_seed"]["seconds"]
+    rec["hardware"] = {}
+    _, entry = eb.build_band("m99_return", "quick", band_spec, rec, "r")
+    assert entry["seconds"] == {"total": None, "per_seed": None}
+    assert entry["hardware"]["torch_threads"] is None and entry["hardware"]["cpu"] is None
+    rec["per_seed"]["seconds"] = [3.0, 4.0]
+    with pytest.raises(eb.SpecError, match="one number per seed"):
+        eb.build_band("m99_return", "quick", band_spec, rec, "r")
 
 
 def test_check_fails_when_a_record_or_the_spec_changes(repo, experiment_record):
