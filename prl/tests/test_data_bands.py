@@ -45,6 +45,16 @@ def _band(root, name, label, budget, steps, seeds=(0, 1, 2), offset=0.0):
         "budget": budget,
         "seeds": list(seeds),
         "metric": "return",
+        "hardware": {
+            "platform": "local",
+            "env": "local",
+            "cpu": "x",
+            "n_cpu": 2,
+            "accel": "cpu",
+            "gpu": None,
+            "torch_threads": 1,
+        },
+        "seconds": {"total": 12.5, "per_seed": None},
     }
 
 
@@ -76,7 +86,12 @@ def test_the_same_lab_code_gets_the_band_at_its_budget(shipped, monkeypatch, fla
     monkeypatch.setenv("PRL_QUICK", flag)
     S = runtime.settings(LIVE, QUICK, designed="colab-cpu")
     b = data.band("m99_return", S)
-    assert set(b) == {"x", "runs", "seeds", "budget", "metric", "record", "record_sha"}
+    keys = {"x", "runs", "seeds", "budget", "metric", "record", "record_sha", "hardware"}
+    assert set(b) == keys | {"seconds"}
+    assert b["hardware"]["platform"] == "local" and b["seconds"] == {
+        "total": 12.5,
+        "per_seed": None,
+    }
     assert b["budget"]["steps"] == steps and b["x"][-1] == steps
     assert b["runs"].shape == (3, 4) and b["seeds"] == [0, 1, 2]
     assert b["record"].endswith(("live-exp", "quick-exp"))

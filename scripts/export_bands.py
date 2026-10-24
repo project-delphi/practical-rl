@@ -10,7 +10,13 @@ the format. Each copy is an .npz holding x, runs and seeds, byte-identical acros
 with one entry in prl/src/prl/datasets/manifest.json:
 
   "bands/<name>.<label>": {"kind": "band", "name", "label", "file", "sha256", "bytes",
-                           "record", "record_sha", "budget", "seeds", "metric"}
+                           "record", "record_sha", "budget", "seeds", "metric",
+                           "hardware", "seconds"}
+
+`hardware` copies where the record ran ({"platform", "env", "cpu", "n_cpu", "accel", "gpu",
+"torch_threads"}) and `seconds` its wall-clock ({"total": the record's seconds, "per_seed":
+per_seed.seconds when the record holds one number per seed}); a missing value is None. With
+them a lab can print a band's budget sentence (PLAN.md §3.5) on Colab, where runs/ is absent.
 
 `record` is the record's id (its file name in runs/ without .json) and `record_sha` the sha256
 of its JSON with sorted keys and no whitespace, so --check fails when a record changes (even
@@ -132,6 +138,15 @@ def build_band(
     if missing:
         raise SpecError(f"{what}: the record's budget has no {', '.join(missing)}")
     budget = {k: rec["budget"][k] for k in spec["budget"]}
+    per_seed_seconds = rec.get("per_seed", {}).get("seconds")
+    if per_seed_seconds is not None and not (
+        isinstance(per_seed_seconds, list)
+        and len(per_seed_seconds) == len(seeds)
+        and all(_number(v) for v in per_seed_seconds)
+    ):
+        raise SpecError(f"{what}: per_seed.seconds must be one number per seed")
+    total = rec.get("seconds")
+    hw = rec.get("hardware") or {}
     integer_x = all(isinstance(v, int) for v in x)
     blob = save_npz(
         x=np.array(x, dtype=np.int64 if integer_x else np.float64),
@@ -150,6 +165,16 @@ def build_band(
         "budget": budget,
         "seeds": list(seeds),
         "metric": spec["metric"].strip(),
+        "hardware": {
+            "platform": rec.get("platform"),
+            "env": rec.get("env"),
+            **{k: hw.get(k) for k in ("cpu", "n_cpu", "accel", "gpu")},
+            "torch_threads": rec.get("torch_threads"),
+        },
+        "seconds": {
+            "total": total if _number(total) else None,
+            "per_seed": per_seed_seconds,
+        },
     }
     return blob, entry
 
