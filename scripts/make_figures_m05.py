@@ -1,6 +1,6 @@
 """Module 5 records and figures: light and dark SVGs (PLAN.md §8).
 
-  uv run python scripts/make_figures_m05.py --run [--only NAME] [--jobs N]  # experiments -> runs/inbox/
+  uv run python scripts/make_figures_m05.py --run [--only NAME] [--jobs N]  # to runs/inbox/
   uv run python scripts/add_run_record.py              # file them in runs/
   uv run python scripts/make_figures_m05.py            # draw images/05-*.svg, print the numbers
   uv run python scripts/make_figures_m05.py --check    # fail if a committed SVG is out of date
@@ -9,44 +9,42 @@
 
 The experiments use the lab's own code: the worked notebook (solutions bound, live budget)
 runs in-process up to the stretch's run cell, as scripts/threshold_protocol.py does, for
-seat 0. Exercise 5's sweep then runs the notebook's own ex5-run cell once per seat, with
-RUN_SEED = (seat + 1) * 1000, so a seat's numbers are exactly what that seat's notebook
-prints. Nothing here reimplements a learner. Each run counts every argmax_first decision's
-distance from its tie threshold (the smallest is `min_margin`), so a record says how far
-the discrete choices are from the rounding that differs between platforms.
+seat 0. Exercise 5 then runs once per seat from the notebook's own cells: its sweep cell (the
+unroled code cell that starts `REGIMES = {`) and its ex5-run cell, with RUN_SEED = (seat + 1)
+* 1000, so a seat's numbers are exactly what that seat's notebook prints. Nothing here
+reimplements a learner. Each run counts every argmax_first decision's distance from its tie
+threshold (the smallest is `min_margin`), so a record says how far the discrete choices are
+from the rounding that differs between platforms.
 
-  m05-seats    Exercise 5's sweep for seats 0-29 (seeds (seat + 1) * 1000 + 100..104,
-               T = 3000, the lab's one-pass launch), plus seat 0's Exercise 1-4, 6 and 7
-               cells (Exercise 7 also with the planted-bug stub). Backs the predict_answer
-               entries and the page's After-the-lab fold.
-  m05-launch   The same sweep with every item shown `passes` times, in order, before the
-               methods choose (passes 1, 3, 10): the evidence for a warm-launch condition.
-  m05-regimes  Seeds 0-9, T = 3000, the three regimes x three methods, cumulative
-               pseudo-regret every 25 rounds. Draws 05-regimes-{spec,misspec,drift}.
+  m05-seats    Exercise 5 for seats 0-29 (seeds (seat + 1) * 1000 + 100..104, T = 3000), with
+               the lab's conditions and launches: three regimes after a one-pass launch and
+               the warm launch (well-specified, PASSES = {"warm launch": 3}). Plus seat 0's
+               Exercise 1-4, 6 and 7 cells (Exercise 7 also with the planted-bug stub). Backs
+               the predict_answer entries and the page's After-the-lab fold.
+  m05-launch   The same sweep with the launch forced to `passes` for every condition (passes
+               1, 3, 10; the "warm launch" key then repeats well-specified at that launch).
+  m05-regimes  Seeds 0-9, T = 3000, the three regimes x three methods, one-pass launch,
+               cumulative pseudo-regret every 25 rounds. Draws 05-regimes-{spec,misspec,drift}.
 
   05-ellipse                 The confidence ellipse of the demo (an exact computation).
   05-regimes-{spec,misspec,drift}  Three subfigure panels: the mean of seeds 0-9 with the
                              min-max band; greedy dashed, LinUCB solid, LinTS dash-dot.
 
-The launch is a parameter: if the lab's `run` takes `passes=`, the experiments call it;
-otherwise they wrap the method's choice so that rounds t < passes * K show item t % K,
-which is the lab's launch for passes = 1 and consumes no method randomness.
+The launch is the lab's: run(env, choose, T, seed, passes) shows item t % K at rounds
+t < passes * K, then lets the method choose. m05-launch forces `passes` by wrapping run.
 
 Every build runs quoted_numbers(): each number modules/05-contextual-bandits.qmd, its
 captions and alt text, knowledge-checks.qmd's Module 5 answers and the m05 predict_answer
-entries quote is asserted against an exact computation or a filed record. Exercise 5's
-numbers are held (ASSERT_EXERCISE_5 = False): the lead adds a warm-launch condition, and
-the director rewrites them in a second pass; until then they are checked and reported,
-not asserted. The figures read only the newest filed record of each experiment, so
-`--check` never reruns anything. Drawing is deterministic (svg.hashsalt, no date, text as
-paths, values rounded before plotting).
+entries quote is asserted against an exact computation or a filed record, and every record
+those pages cite must exist in runs/. The figures read only the newest filed record of each
+experiment, so `--check` never reruns anything. Drawing is deterministic (svg.hashsalt, no
+date, text as paths, values rounded before plotting).
 """
 
 from __future__ import annotations
 
 import contextlib
 import functools
-import inspect
 import io
 import json
 import math
@@ -82,13 +80,16 @@ SEATS = list(range(30))
 LAUNCH_PASSES = [1, 3, 10]
 REGIME_SEEDS = list(range(10))
 EVERY = 25  # m05-regimes keeps the cumulative regret after rounds 25, 50, ..., 3000
-REGIMES = ("well-specified", "misspecified", "drifting")
+REGIMES = ("well-specified", "misspecified", "drifting")  # one-pass launch
+WARM = "warm launch"  # well-specified, after the lab's longer launch
+LAB_PASSES = {WARM: 3}  # the lab's PASSES; every other condition has one pass
 METHODS = ("greedy", "LinUCB", "LinTS")
-SEATS_BUDGET = {"T": T, "seats": len(SEATS), "seeds_per_seat": 5, "passes": 1}
+SEATS_BUDGET = {"T": T, "seats": len(SEATS), "seeds_per_seat": 5, "passes": "the lab's PASSES"}
+SEATS_BUDGET["lab_passes"] = LAB_PASSES
 LAUNCH_BUDGET = {"T": T, "seats": len(SEATS), "seeds_per_seat": 5, "passes": LAUNCH_PASSES}
+LAUNCH_BUDGET["forced"] = "every condition"
 REGIMES_BUDGET = {"T": T, "every": EVERY, "passes": 1}
-# The lead holds Exercise 5's quoted numbers until the director's second pass (warm launch).
-ASSERT_EXERCISE_5 = False
+ASSERT_EXERCISE_5 = True  # the director's second pass (warm launch) is in
 
 
 # ------------------------------------------------------------------ the lab's namespace
@@ -107,6 +108,18 @@ def cell_source(cell_id: str) -> str:
 
     nb = nbformat.read(NOTEBOOK, as_version=4)
     (src,) = [c.source for c in nb.cells if c.get("id") == cell_id]
+    return src
+
+
+@functools.cache
+def sweep_source() -> str:
+    """Exercise 5's sweep: the unroled code cell before ex5-predict that starts `REGIMES = {`."""
+    import nbformat
+
+    nb = nbformat.read(NOTEBOOK, as_version=4)
+    (src,) = [
+        c.source for c in nb.cells if c.cell_type == "code" and c.source.startswith("REGIMES = {")
+    ]
     return src
 
 
@@ -178,23 +191,14 @@ def tracked(ns: dict, margins: Margins):
         ns["argmax_first"] = original
 
 
-def launched(ns: dict, passes: int):
-    """The lab's run with every item shown `passes` times, in order, before methods choose."""
+def forced(ns: dict, passes: int):
+    """The lab's run with the launch forced to `passes`, whatever the cell asks for."""
     run = ns["run"]
-    if passes == 1:
-        return run
-    if "passes" in inspect.signature(run).parameters:
-        return functools.partial(run, passes=passes)
-    K = ns["K"]
 
-    def run_passes(env, choose, T, seed):
-        def warm(models, phi, rng):
-            t = sum(m.n for m in models)  # one update per round so far
-            return t % K if t < passes * K else choose(models, phi, rng)
+    def run_forced(env, choose, T, seed, passes_asked=None, **kw):
+        return run(env, choose, T, seed, passes=passes)
 
-        return run(env, warm, T, seed)
-
-    return run_passes
+    return run_forced
 
 
 def _close_figures() -> None:
@@ -204,15 +208,22 @@ def _close_figures() -> None:
 
 
 # ------------------------------------------------------------------ Exercise 5, one seat
-def sweep_seat(ns: dict, seat: int, passes: int) -> dict:
-    """Replay the notebook's ex5-run cell as seat `seat` would run it (launch `passes`)."""
+def sweep_seat(ns: dict, seat: int, passes: int | None) -> dict:
+    """Replay Exercise 5's sweep cell and ex5-run as seat `seat` would run them.
+
+    passes None keeps the lab's launches (PASSES); an int forces that launch everywhere.
+    """
     local = dict(ns)
-    local.update(RUN_SEED=(seat + 1) * 1000, lab=_Recorder(), run=launched(ns, passes))
+    local.update(RUN_SEED=(seat + 1) * 1000, lab=_Recorder())
+    if passes is not None:
+        local["run"] = forced(ns, passes)
     margins = Margins()
     with tracked(ns, margins), contextlib.redirect_stdout(io.StringIO()):
+        exec(compile(sweep_source(), f"<ex5 sweep seat {seat}>", "exec"), local)  # noqa: S102
         exec(compile(cell_source("ex5-run"), f"<ex5-run seat {seat}>", "exec"), local)  # noqa: S102
     _close_figures()
     assert local["lab"].seen == [(seat + 1) * 1000 + 100 + i for i in range(5)]
+    assert local["PASSES"] == LAB_PASSES, "the lab's PASSES changed: update LAB_PASSES"
     return {
         "regrets": {
             w: {m: list(map(float, r)) for m, r in d.items()} for w, d in local["regrets"].items()
@@ -235,16 +246,16 @@ def _worker_init() -> None:
         _NS = lab_namespace()
 
 
-def _sweep_task(args: tuple[int, int]) -> tuple[int, int, dict]:
+def _sweep_task(args: tuple[int, int | None]) -> tuple[int, int | None, dict]:
     seat, passes = args
     assert _NS is not None
     return seat, passes, sweep_seat(_NS, seat, passes)
 
 
-def sweeps(ns: dict, passes_list: list[int], jobs: int) -> dict[int, list[dict]]:
-    """{passes: [one sweep_seat result per seat in SEATS]}."""
+def sweeps(ns: dict, passes_list: list, jobs: int) -> dict:
+    """{passes: [one sweep_seat result per seat in SEATS]}; passes None is the lab's launch."""
     tasks = [(s, p) for p in passes_list for s in SEATS]
-    out: dict[int, dict[int, dict]] = {p: {} for p in passes_list}
+    out: dict = {p: {} for p in passes_list}
     if jobs <= 1:
         for s, p in tasks:
             out[p][s] = sweep_seat(ns, s, p)
@@ -276,7 +287,16 @@ def seat0_values(ns: dict) -> dict:
         "ex1_clicks_item0": int(ns["clicks_0"]),
         "ex1_clicks_item9": int(ns["clicks_9"]),
         "ex1_max_gap_simulator": float(np.abs(ns["ours"] - ns["sim"]).max()),
-        "ex1_max_gap_misspecified": float(np.abs(ns["ours"] - ns["sim_bent"]).max()),
+        "ex1_mean_rates": [float(v) for v in ns["sim"].mean(axis=0)],
+        # The users and their mirror images -x: every item's mean is 0.5 by symmetry.
+        "ex1_mirror_mean_gap": float(
+            np.abs(
+                np.vstack([ns["sim"], [ns["env"].expected_reward(-x) for x in ns["X"]]]).mean(
+                    axis=0
+                )
+                - 0.5
+            ).max()
+        ),
         "ex2_predict_nine": float(ns["nine"].predict(ns["unit"])),
         "ex3_shown_greedy": [int(m.n) for m in ns["models_greedy"]],
         "ex3_shown_linucb": [int(m.n) for m in ns["models_ucb"]],
@@ -285,6 +305,7 @@ def seat0_values(ns: dict) -> dict:
         "ex4_shown_lints": [int(m.n) for m in ns["models_ts"]],
         "ex4_regret_lints": float(ns["reg_ts"][-1]),
         "ex4_draws_above": float(np.mean(ns["draws"] > ns["ucb"])),
+        "ex4_above": int(ns["above"]),
         "ex4_n_draws": int(len(ns["draws"])),
         "ex4_p_theory": float(ns["p_theory"]),
         "ex6_best_rows": float(ns["greedy_rows"].mean()),
@@ -328,7 +349,7 @@ def run_regimes(ns: dict, passes: int = 1) -> dict:
     from prl import envs
 
     assert set(REGIMES) <= set(ns["REGIMES"]), "the lab's regimes"
-    run = launched(ns, passes)
+    run = ns["run"]
     margins = Margins()
     per: dict = {}
     with tracked(ns, margins):
@@ -340,7 +361,7 @@ def run_regimes(ns: dict, passes: int = 1) -> dict:
                 choose = ns["METHODS"][method]
                 curves, finals = [], []
                 for seed in REGIME_SEEDS:
-                    cum, _ = run(env, choose, T, seed)
+                    cum, _ = run(env, choose, T, seed, passes=passes)
                     curves.append([float(v) for v in cum[EVERY - 1 :: EVERY]])
                     finals.append(float(cum[-1]))
                 per[regime][method] = {"curve": curves, "final": finals}
@@ -365,7 +386,8 @@ def experiment_record(
         "args": {
             "notebook": "notebooks/05-contextual-bandits.ipynb",
             "notebook_content_sha": meta.get("content_sha"),
-            "code": "the worked notebook's reference solutions and run cells, in-process (live budget)",
+            "code": "the worked notebook's reference solutions and run cells, in-process "
+            "(live budget)",
             "repo_dirty": dirty,
             "test_doubles": runtime.test_doubles_used(),
         },
@@ -399,17 +421,20 @@ def where() -> str:
 
 NOTES = {
     "m05-seats": (
-        "Exercise 5's run cell replayed for seats 0-29 (RUN_SEED = (seat + 1) * 1000, seeds "
-        "RUN_SEED + 100..104, T = 3000, one-pass launch); `seeds` lists the seats and every "
-        "per_seed list is indexed like it. per_seed['seat0'] holds seat 0's Exercise 1-4, 6 "
-        "and 7 numbers (Exercise 7 also with the planted-bug stub). margins: argmax_first "
+        "Exercise 5's sweep and run cells replayed for seats 0-29 (RUN_SEED = (seat + 1) * "
+        "1000, seeds RUN_SEED + 100..104, T = 3000; the lab's conditions: three regimes after "
+        "a one-pass launch, and the warm launch, well-specified after 3 passes); `seeds` lists "
+        "the seats and every per_seed list is indexed like it. per_seed['seat0'] holds seat "
+        "0's Exercise 1-4, 6 and 7 numbers (Exercise 7 also with the planted-bug stub). "
+        "margins: argmax_first "
         "decisions, the smallest distance from a tie threshold, and how many decisions the "
         "tie rule settled."
     ),
     "m05-launch": (
-        "Exercise 5's run cell replayed for seats 0-29 with a launch of `passes` rounds per "
-        "item (item t % K at rounds t < passes * K), passes 1, 3 and 10; per_seed['passes "
-        "p'] has the m05-seats layout. passes 1 is the lab's launch."
+        "Exercise 5's sweep and run cells replayed for seats 0-29 with the launch forced to "
+        "`passes` rounds per item for every condition (item t % K at rounds t < passes * K), "
+        "passes 1, 3 and 10; per_seed['passes p'] has the m05-seats layout, and its 'warm "
+        "launch' entries repeat well-specified at that launch."
     ),
     "m05-regimes": (
         f"Seeds {REGIME_SEEDS[0]}-{REGIME_SEEDS[-1]}, T = {T}, the lab's three regimes and "
@@ -421,11 +446,11 @@ NOTES = {
 
 def compute(name: str, ns: dict, jobs: int, cache: dict) -> tuple[dict, list[int], dict]:
     if name in ("m05-seats", "m05-launch"):
-        passes = [1] if name == "m05-seats" else LAUNCH_PASSES
+        passes = [None] if name == "m05-seats" else LAUNCH_PASSES
         missing = [p for p in passes if p not in cache]
         cache.update(sweeps(ns, missing, jobs) if missing else {})
         if name == "m05-seats":
-            per = _by_seat(cache[1])
+            per = _by_seat(cache[None])
             per["seat0"] = seat0(ns)
             return SEATS_BUDGET, list(SEATS), per
         return LAUNCH_BUDGET, list(SEATS), {f"passes {p}": _by_seat(cache[p]) for p in passes}
@@ -445,14 +470,14 @@ def run(only: list[str] | None, jobs: int, inbox: Path = tp.INBOX) -> list[Path]
     for name in EXPERIMENTS:
         if only and name not in only:
             continue
-        start = time.perf_counter()
+        start, load = time.perf_counter(), os.getloadavg()[0]
         budget, seeds, per = compute(name, ns, jobs, cache)
         secs = time.perf_counter() - start
         procs = f"{jobs} worker processes" if jobs > 1 and name != "m05-regimes" else "one process"
-        note = f"{NOTES[name]} Wall time on {where()}, {procs}: a laptop time, not a Colab time" + (
-            " (m05-launch reused the passes-1 sweep of m05-seats)."
-            if name == "m05-launch" and only is None
-            else "."
+        note = (
+            f"{NOTES[name]} Wall time on {where()}, {procs}, with other builds running (load "
+            f"average {load:.1f} at the start, {os.getloadavg()[0]:.1f} at the end): a laptop "
+            "time, not a Colab time."
         )
         rec = experiment_record(name, budget, seeds, json.loads(json.dumps(per)), secs, note, git)
         out.append(tp.write_record(rec, inbox))
@@ -839,9 +864,10 @@ def _r(x: float, digits: int) -> float:
 
 
 def quoted_numbers(computed: dict[str, dict]) -> None:
-    """Assert every number the Module 5 page, its figures and the m05 predict_answer entries
-    quote, except Exercise 5's (held by the lead; see exercise_5_claims)."""
+    """Assert every number the Module 5 page, its figures, knowledge-checks.qmd's Module 5
+    answers and the m05 predict_answer entries quote (Exercise 5's in exercise_5_claims)."""
     ex = exact_numbers()
+    cited_records_exist()
     # Section 2's worked example, the demo, Check yourself 4.1 and 6.1, the references.
     assert np.allclose(ex["worked_inv"], [[2 / 5, -1 / 5], [-1 / 5, 3 / 5]])
     assert np.allclose(ex["worked_w"], [2 / 5, -1 / 5]) and abs(ex["worked_pred"] - 1 / 5) < 1e-15
@@ -875,12 +901,15 @@ def quoted_numbers(computed: dict[str, dict]) -> None:
     _, rec = newest_record("m05-seats")
     s0 = rec["per_seed"]["seat0"]
     assert s0["ex1_same_users"] and (s0["ex1_clicks_item0"], s0["ex1_clicks_item9"]) == (486, 464)
+    # "every item's click probability averaged over users is exactly 0.5": with each user's
+    # mirror image -x the mean is 0.5 to rounding (x is symmetric, the clip is about 0.5).
+    assert s0["ex1_mirror_mean_gap"] < 1e-12, s0["ex1_mirror_mean_gap"]
     assert s0["ex2_predict_nine"] == 0.9 or abs(s0["ex2_predict_nine"] - 0.9) < 1e-12
     once = [a for a, n in enumerate(s0["ex3_shown_greedy"]) if n == 1]
     assert once == [2, 4, 7, 9], once  # predict_answer Ex3; the page's "four of the ten items"
-    # "0.0223 of 20000": 447 draws, 0.02235 exactly, which the lab's :.4f prints as 0.0223
-    assert s0["ex4_n_draws"] == 20000 and round(s0["ex4_draws_above"] * 20000) == 447
-    assert f"{s0['ex4_draws_above']:.4f}" == "0.0223"
+    # "447 of 20000 draws"
+    assert s0["ex4_n_draws"] == 20000 and s0["ex4_above"] == 447
+    assert round(s0["ex4_draws_above"] * 20000) == 447
     assert _r(1 - s0["ex6_best_rows"], 3) == 0.093  # "seat 0: 9.3%"
     assert _r(s0["ex7_stub_weight_new_policy"], 2) == 0.62
     assert s0["ex7_stub_propensities"] == [0.91]  # every row records 0.91: weights all 0.11
@@ -888,70 +917,136 @@ def quoted_numbers(computed: dict[str, dict]) -> None:
     # "0.62 against 1.05 on the correct log": Exercise 6's env.log log (the lab prints 1.055)
     assert _r(s0["ex6_weight_new_policy"], 2) == 1.05
     assert _r(s0["ex6_weight_uniform"], 2) == 1.03  # the Gotcha's "My mean weight is 1.03"
-    claims = exercise_5_claims(computed, rec)
+    claims = exercise_5_claims(computed, rec, newest_record("m05-launch")[1])
     failed = [c for c in claims if not c[1]]
     if ASSERT_EXERCISE_5:
         assert not failed, failed
 
 
-def _tally(rec: dict) -> dict:
-    per = rec["per_seed"]
+CITING = ("modules/05-contextual-bandits.qmd", "knowledge-checks.qmd", "_variables.yml")
+
+
+def cited_records_exist() -> None:
+    """Every runs/*.json that the Module 5 pages cite is a filed record."""
+    for name in CITING:
+        for cited in re.findall(r"runs/[\w.-]+\.json", (ROOT / name).read_text()):
+            assert (ROOT / cited).exists(), f"{name} cites {cited}, which is not in runs/"
+
+
+def _tally(per: dict, conditions=REGIMES) -> dict:
+    """{(condition, method): {word: seats}} for LinUCB and LinTS against greedy."""
     out: dict = {}
-    for regime in REGIMES:
+    for cond in conditions:
         for method in ("LinUCB", "LinTS"):
-            words = [v[f"{regime}/{method}"] for v in per["verdicts"]]
-            out[regime, method] = {w: words.count(w) for w in set(words)}
+            words = [v[f"{cond}/{method}"] for v in per["verdicts"]]
+            out[cond, method] = {w: words.count(w) for w in set(words)}
     return out
 
 
-def exercise_5_claims(computed: dict[str, dict], seats: dict) -> list[tuple[str, bool, str]]:
+def leads(per: dict, cond: str, method: str) -> list[float]:
+    """Greedy's IQM regret minus the method's, seat by seat (positive: the method did better)."""
+    from prl.evaluate import iqm
+
+    return [iqm(r[cond]["greedy"]) - iqm(r[cond][method]) for r in per["regrets"]]
+
+
+def exercise_5_claims(
+    computed: dict[str, dict], seats: dict, launch: dict
+) -> list[tuple[str, bool, str]]:
     """Exercise 5's quoted numbers: (claim, holds?, what the records say)."""
     per = seats["per_seed"]
-    tally = _tally(seats)
+    tally = _tally(per, REGIMES + (WARM,))
     claims: list[tuple[str, bool, str]] = []
 
     def claim(text: str, ok: bool, detail) -> None:
         claims.append((text, bool(ok), str(detail)))
 
+    # Seat 0 (m05-seats).
     v0 = per["verdicts"][0]
+    got = tuple(v0[f"{c}/LinUCB"] for c in REGIMES + (WARM,))
     claim(
-        "seat 0: LinUCB beats greedy well-specified and misspecified, ties under drift",
-        (v0["well-specified/LinUCB"], v0["misspecified/LinUCB"], v0["drifting/LinUCB"])
-        == ("LinUCB", "LinUCB", "tie"),
-        {k: v for k, v in v0.items() if k.endswith("LinUCB")},
+        "seat 0: LinUCB beats greedy well-specified and misspecified, ties drifting and warm",
+        got == ("LinUCB", "LinUCB", "tie", "tie"),
+        got,
     )
-    claim(
-        "seat 0: LinTS ties in all three",
-        all(v0[f"{w}/LinTS"] == "tie" for w in REGIMES),
-        {k: v for k, v in v0.items() if k.endswith("LinTS")},
-    )
+    got = tuple(v0[f"{c}/LinTS"] for c in REGIMES + (WARM,))
+    claim("seat 0: LinTS ties in all four", got == ("tie",) * 4, got)
+    m0 = per["metrics"][0]
+    got = (m0["ucb_lead_warm"], m0["ts_lead_warm"])
+    claim("seat 0: ucb_lead_warm 14.32, ts_lead_warm -7.36", got == (14.32, -7.36), got)
+    # One-pass regimes, seats 0-29 (m05-seats).
     for method, want in (("LinUCB", (18, 25, 9)), ("LinTS", (12, 16, 3))):
         got = tuple(tally[w, method].get(method, 0) for w in REGIMES)
-        claim(f"seats 0-29: {method} beats greedy at {want}", got == want, got)
-    greedy_wins = sum(tally[w, m].get("greedy", 0) for w in REGIMES for m in ("LinUCB", "LinTS"))
-    claim("greedy wins no comparison", greedy_wins == 0, greedy_wins)
+        claim(f"one pass: {method} beats greedy at {want} seats", got == want, got)
+    got = tuple(tally[w, "LinUCB"].get("tie", 0) for w in REGIMES)
+    claim("one pass: LinUCB's calls are ties at 12, 5, 21 seats", got == (12, 5, 21), got)
+    greedy = sum(tally[w, m].get("greedy", 0) for w in REGIMES for m in ("LinUCB", "LinTS"))
+    claim("one pass: greedy wins no comparison", greedy == 0, greedy)
     others = {
         w: {m: sorted(set(tally[w, m]) - {m, "tie"}) for m in ("LinUCB", "LinTS")} for w in REGIMES
     }
     claim(
-        "every other call is a tie",
+        "one pass: every other call is a tie",
         all(not v for d in others.values() for v in d.values()),
         others,
     )
-    leads = [
-        mt[f"{p}_lead_{s}"]
-        for mt in per["metrics"]
-        for p in ("ucb", "ts")
-        for s in ("spec", "misspec", "drift")
-    ]
-    claim("every lead positive (both methods, all regimes, all seats)", min(leads) > 0, min(leads))
-    smaller = sum(mt["ucb_lead_drift"] < mt["ucb_lead_spec"] for mt in per["metrics"])
-    claim("LinUCB's drift lead below its well-specified lead at 27 of 30", smaller == 27, smaller)
-    w0 = per["widths_end"][0]
+    lows = {(w, m): min(leads(per, w, m)) for w in REGIMES for m in ("LinUCB", "LinTS")}
     claim(
-        "seat 0 end widths 0.25 (well-specified) and 0.27 (misspecified)",
-        (_r(w0["well-specified"], 2), _r(w0["misspecified"], 2)) == (0.25, 0.27),
-        {k: round(v, 4) for k, v in w0.items()},
+        "one pass: both methods' IQM below greedy's at every seat",
+        min(lows.values()) > 0,
+        min(lows.values()),
+    )
+    drift, spec = leads(per, "drifting", "LinUCB"), leads(per, "well-specified", "LinUCB")
+    smaller = sum(d < s_ for d, s_ in zip(drift, spec, strict=True))
+    claim("LinUCB's drift lead below its well-specified lead at 27 of 30", smaller == 27, smaller)
+    # The warm launch (m05-seats), and m05-launch's three passes.
+    ties_warm = tally[WARM, "LinUCB"].get("tie", 0)
+    claim(
+        "warm launch: LinUCB's call a tie at 29 of 30 (12 of 30 with one pass)",
+        (ties_warm, tally["well-specified", "LinUCB"].get("tie", 0)) == (29, 12),
+        ties_warm,
+    )
+    warm = leads(per, WARM, "LinUCB")
+    got = (_r(np.median(spec), 1), _r(np.median(warm), 1))
+    claim("LinUCB's median lead 121.7 (one pass) to 38.3 (warm)", got == (121.7, 38.3), got)
+    above = sum(v < 0 for v in warm)
+    claim("warm launch: LinUCB's IQM above greedy's at 2 of 30 seats", above == 2, above)
+    p3, p10 = launch["per_seed"]["passes 3"], launch["per_seed"]["passes 10"]
+    same = all(
+        r[WARM] == q["well-specified"] for r, q in zip(per["regrets"], p3["regrets"], strict=True)
+    ) and all(
+        v[f"{WARM}/{m}"] == u[f"well-specified/{m}"]
+        for v, u in zip(per["verdicts"], p3["verdicts"], strict=True)
+        for m in ("LinUCB", "LinTS")
+    )
+    claim(
+        "m05-seats' warm launch equals m05-launch's 3-pass well-specified, seat by seat", same, same
+    )
+    t3 = _tally(p3)
+    got = (
+        t3["well-specified", "LinUCB"].get("tie", 0),
+        t3["misspecified", "LinUCB"].get("LinUCB", 0),
+    )
+    claim(
+        "three passes: well-specified tie at 29 of 30; misspecified LinUCB wins at 12",
+        got == (29, 12),
+        got,
+    )
+    t10 = _tally(p10)
+    ties10 = sum(t10[w, m].get("tie", 0) for w in REGIMES for m in ("LinUCB", "LinTS"))
+    wins10 = (
+        tuple(t10[w, "LinUCB"].get("LinUCB", 0) for w in REGIMES),
+        sum(t10[w, "LinTS"].get("LinTS", 0) for w in REGIMES),
+    )
+    claim(
+        "ten passes: 178 of 180 calls ties; LinUCB wins 0 + 1 + 1, LinTS none",
+        (ties10, wins10) == (178, ((0, 1, 1), 0)),
+        (ties10, wins10),
+    )
+    w0 = per["widths_end"][0]
+    got = (_r(w0["well-specified"], 2), _r(w0["misspecified"], 2))
+    claim(
+        "seat 0 end widths 0.25 (well-specified) and 0.27 (misspecified)", got == (0.25, 0.27), got
     )
     # The regimes figure: its caption and alt texts (m05-regimes).
     g = computed["05-regimes"]["panels"]
@@ -1012,30 +1107,31 @@ def report(computed: dict[str, dict]) -> None:
     )
     path, seats = newest_record("m05-seats")
     print(f"m05-seats from runs/{path.name}")
-    s0 = seats["per_seed"]["seat0"]
-    for k, v in s0.items():
+    per = seats["per_seed"]
+    for k, v in per["seat0"].items():
         print(f"  seat 0 {k}: {v}")
-    for (w, m), counts in _tally(seats).items():
-        print(f"  seats 0-29, {w}, {m} vs greedy: {dict(sorted(counts.items()))}")
-    margins = [m["min_margin"] for m in seats["per_seed"]["margins"]]
-    ties = sum(m["tie_rule"] for m in seats["per_seed"]["margins"])
+    for (w, m), counts in _tally(per, REGIMES + (WARM,)).items():
+        lead = leads(per, w, m)
+        print(
+            f"  seats 0-29, {w}, {m} vs greedy: {dict(sorted(counts.items()))}; lead median "
+            f"{np.median(lead):.1f} [{min(lead):.1f}, {max(lead):.1f}], negative at "
+            f"{sum(v < 0 for v in lead)}"
+        )
+    margins = [m["min_margin"] for m in per["margins"]]
+    ties = sum(m["tie_rule"] for m in per["margins"])
     print(f"  smallest decision margin over seats: {min(margins):.3g}; tie-rule decisions {ties}")
-    print("Exercise 5's quoted numbers (held, not asserted):")
-    for text, ok, detail in exercise_5_claims(computed, seats):
+    lpath, launch = newest_record("m05-launch")
+    print(f"m05-launch from runs/{lpath.name}")
+    for key, lp in launch["per_seed"].items():
+        for (w, m), counts in _tally(lp).items():
+            lead = leads(lp, w, m)
+            print(
+                f"  {key}, {w}, {m} vs greedy: {dict(sorted(counts.items()))}; lead median "
+                f"{np.median(lead):.1f}, negative at {sum(v < 0 for v in lead)}"
+            )
+    print("Exercise 5's quoted numbers:")
+    for text, ok, detail in exercise_5_claims(computed, seats, launch):
         print(f"  {'holds  ' if ok else 'DIFFERS'} {text}: {detail}")
-    with contextlib.suppress(SystemExit):
-        path, launch = newest_record("m05-launch")
-        print(f"m05-launch from runs/{path.name}")
-        for key, per in launch["per_seed"].items():
-            fake = {"per_seed": per}
-            for (w, m), counts in _tally(fake).items():
-                print(f"  {key}, {w}, {m} vs greedy: {dict(sorted(counts.items()))}")
-            for s in ("spec", "misspec", "drift"):
-                lead = [mt[f"ucb_lead_{s}"] for mt in per["metrics"]]
-                print(
-                    f"  {key}, LinUCB lead over greedy ({s}): median {np.median(lead):.1f}, "
-                    f"min {min(lead):.1f}, max {max(lead):.1f}, negative at {sum(v < 0 for v in lead)}"
-                )
 
 
 def main(argv: list[str]) -> int:

@@ -2,8 +2,8 @@
 
 Every check is exact: its expected values come from fixtures written by
 scripts/make_expected.py (m05_*), computed once on fixed inputs. Nothing here fits a model.
-Exercises 3 and 4 get fixed containers (`A`, `A_inv`, `b`, `n` and `predict(x) =
-(A_inv @ b) @ x`), not learners. Exercise 4's sampler is checked on the moments of a
+Exercises 3 and 4 get fixed containers (`A`, `A_inv`, `b`, `n` and `predict(phi) =
+(A_inv @ b) @ phi`), not learners. Exercise 4's sampler is checked on the moments of a
 fixed-seed draw: the outcome is a fixed function of the participant's code, and the
 tolerances (6 standard errors per mean, 0.2 per whitened-covariance entry, about 9 standard
 errors) pass any correct sampler, whatever order it draws in. Exercises 6 and 7 log from
@@ -49,8 +49,8 @@ class _Model:
         self.b = np.array(b, dtype=float)
         self.n = int(n)
 
-    def predict(self, x: np.ndarray) -> float:
-        return float(self.A_inv @ self.b @ x)
+    def predict(self, phi: np.ndarray) -> float:
+        return float(self.A_inv @ self.b @ phi)
 
 
 # ------------------------------------------------------------------ helpers
@@ -139,11 +139,11 @@ def check_ridge(cls: Callable[..., Any]) -> None:
     for j, lam in enumerate(float(v) for v in fx["lams"]):
         name = f"Ridge({d}, lam={lam:g})"
         m = cls(d, lam)
-        p0 = _number(m.predict(probes[0].copy()), f"{name}.predict(x) before any update")
+        p0 = _number(m.predict(probes[0].copy()), f"{name}.predict(phi) before any update")
         if p0 != 0.0:
             raise CheckFailed(
-                f"{name}.predict(x) is {p0:.6g} before any update; with b = 0 the prediction "
-                "is 0. predict returns (A_inv @ b) @ x: the estimate A_inv b times x."
+                f"{name}.predict(phi) is {p0:.6g} before any update; with b = 0 the prediction "
+                "is 0. predict returns (A_inv @ b) @ phi: the estimate A_inv b times phi."
             )
         for x, reward in zip(X, r, strict=True):
             m.update(x.copy(), float(reward))
@@ -155,7 +155,7 @@ def check_ridge(cls: Callable[..., Any]) -> None:
         if not np.allclose(A, fx["A"][j], atol=1e-12, rtol=0.0):
             raise CheckFailed(
                 f"A {what} is off by up to {np.abs(A - fx['A'][j]).max():.3g} from "
-                "lam I + sum x x^T. update adds np.outer(x, x) to A."
+                "lam I + sum phi phi^T. update adds np.outer(phi, phi) to A."
             )
         b = _array(getattr(m, "b", None), (d,), f"b {what}")
         if not np.allclose(b, fx["b"], atol=1e-12, rtol=0.0):
@@ -172,8 +172,8 @@ def check_ridge(cls: Callable[..., Any]) -> None:
                 hint = "A_inv has not changed since __init__: update must keep it current."
             else:
                 hint = (
-                    "With Ax = A_inv @ x, Sherman-Morrison subtracts np.outer(Ax, Ax) / "
-                    "(1 + x @ Ax) from A_inv: a minus, and 1 plus x^T A^-1 x below."
+                    "With Ap = A_inv @ phi, Sherman-Morrison subtracts np.outer(Ap, Ap) / "
+                    "(1 + phi @ Ap) from A_inv: a minus, and 1 plus phi^T A^-1 phi below."
                 )
             raise CheckFailed(
                 f"A_inv {what} is not the inverse of A: max|A_inv @ A - I| = {resid:.3g} "
@@ -181,12 +181,12 @@ def check_ridge(cls: Callable[..., Any]) -> None:
             )
         for k, p in enumerate(probes):
             want = float(fx["pred"][j, k])
-            got = _number(m.predict(p.copy()), f"{name}.predict(x) {what}")
+            got = _number(m.predict(p.copy()), f"{name}.predict(phi) {what}")
             if abs(got - want) > 1e-9:
                 hint = (
-                    "That is (A @ b) @ x: the estimate is A_inv @ b, not A @ b."
+                    "That is (A @ b) @ phi: the estimate is A_inv @ b, not A @ b."
                     if abs(got - float(fx["pred_with_A"][j, k])) < 1e-9
-                    else "predict returns (A_inv @ b) @ x, the estimate A_inv b times x."
+                    else "predict returns (A_inv @ b) @ phi, the estimate A_inv b times phi."
                 )
                 raise CheckFailed(
                     f"{name}.predict({p.tolist()}) {what} is {got:.6g}; the closed form "
@@ -196,17 +196,17 @@ def check_ridge(cls: Callable[..., Any]) -> None:
 
 # ------------------------------------------------------------------ 3 linucb_scores
 _LINUCB_HINTS = {
-    "variance": "Your scores add c x^T A^-1 x: that is a variance, not a width. Take its "
+    "variance": "Your scores add c phi^T A^-1 phi: that is a variance, not a width. Take its "
     "square root.",
-    "A_not_inverse": "Your width uses A, not A^-1: the width is sqrt(x @ m.A_inv @ x).",
-    "width_only": "Your scores are the widths alone: add each model's prediction, m.predict(x).",
-    "c_inside_sqrt": "Your scores take sqrt(c x^T A^-1 x): c multiplies the width, outside the "
+    "A_not_inverse": "Your width uses A, not A^-1: the width is sqrt(phi @ m.A_inv @ phi).",
+    "width_only": "Your scores are the widths alone: add each model's prediction, m.predict(phi).",
+    "c_inside_sqrt": "Your scores take sqrt(c phi^T A^-1 phi): c multiplies the width, outside the "
     "square root.",
 }
 
 
 def check_linucb_scores(fn: Callable[..., Any]) -> None:
-    """Exercise 3: m.predict(x) + c sqrt(x^T A_a^-1 x) on fixed models, and c / sqrt(1 + n)."""
+    """Exercise 3: m.predict(phi) + c sqrt(phi^T A_a^-1 phi) on fixed models; c / sqrt(1 + n)."""
     fx = expected("m05_linucb")
     x = fx["x"]
     for i, c in enumerate(float(v) for v in fx["cs"]):
@@ -214,17 +214,18 @@ def check_linucb_scores(fn: Callable[..., Any]) -> None:
             _Model(A, A_inv, b, n)
             for A, A_inv, b, n in zip(fx["A"], fx["A_inv"], fx["b"], fx["n"], strict=True)
         ]
-        what = f"linucb_scores(models, x, c={c:g}) for three fixed models"
+        what = f"linucb_scores(models, phi, c={c:g}) for three fixed models"
         got = _array(fn(models, x.copy(), c), (3,), what, unit=", one score per model")
         want = fx["scores"][i]
         if np.allclose(got, want, atol=1e-12, rtol=0.0):
             continue
         hint = next(
             (h for key, h in _LINUCB_HINTS.items() if _like(got, fx[f"wrong_{key}"][i])),
-            "The score of item a is m.predict(x) + c * np.sqrt(x @ m.A_inv @ x).",
+            "The score of item a is m.predict(phi) + c * np.sqrt(phi @ m.A_inv @ phi).",
         )
         raise CheckFailed(
-            f"{what} = {_fmt(got)}; m.predict(x) + c sqrt(x^T A_a^-1 x) gives {_fmt(want)}. {hint}"
+            f"{what} = {_fmt(got)}; m.predict(phi) + c sqrt(phi^T A_a^-1 phi) gives "
+            f"{_fmt(want)}. {hint}"
         )
     u, ns = fx["u"], fx["unit_ns"]
     for i, c in enumerate(float(v) for v in fx["cs"]):
@@ -317,7 +318,8 @@ def check_lints_sample(fn: Callable[..., Any]) -> None:
             f"The covariance of {n_draws} draws, whitened by A_inv (L^-1 (S / v^2) L^-T with "
             f"L L^T = A_inv), should be close to the identity; its worst entry is off by "
             f"{dev:.2f} (a correct sampler: below {LINTS_COV_TOL:g}).{hint} Draw "
-            "A_inv @ b + v L z with L = np.linalg.cholesky(model.A_inv) and z = rng.standard_normal(d)."
+            "A_inv @ b + v L z with L = np.linalg.cholesky(model.A_inv) and "
+            "z = rng.standard_normal(d)."
         )
 
 
