@@ -512,16 +512,16 @@
     "metric": "Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of Stable-Baselines3 2.9.0's DQN at Lab 8's configuration, against environment steps",
     "name": "m08_sb3_return",
     "record": "2026-10-24-local-m08-sb3-live-exp",
-    "record_sha": "44dfcd3af8321ad3ee618673b2d6335275a90cba32694ff98515b46d145bc643",
+    "record_sha": "2979d19dc53ddb811f73e83cbbde3c474070a34ec2273e6f6ecc96e1f3b6198d",
     "seconds": {
       "per_seed": [
-        9.56,
-        9.52,
-        9.54,
-        9.73,
-        9.57
+        9.48,
+        9.46,
+        9.47,
+        10.05,
+        9.81
       ],
-      "total": 47.9
+      "total": 48.3
     },
     "seeds": [
       0,
@@ -553,16 +553,16 @@
     "metric": "Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of Stable-Baselines3 2.9.0's DQN at Lab 8's configuration, against environment steps",
     "name": "m08_sb3_return",
     "record": "2026-10-24-local-m08-sb3-quick-exp",
-    "record_sha": "094e266468bed00cd878dfdf3cd5a426db0a6ea2aef1ca61d3c41389dd206271",
+    "record_sha": "7fd8cede72f66476a2d9611a8f3dd35e7df60cb9adf834d309782025fee173b0",
     "seconds": {
       "per_seed": [
-        2.12,
-        2.06,
+        2.24,
+        2.22,
+        2.23,
         2.16,
-        2.21,
-        2.03
+        1.99
       ],
-      "total": 10.6
+      "total": 10.8
     },
     "seeds": [
       0,

@@ -12,12 +12,14 @@ train_dqn on a five-step chain, whose log must show the structure DQN needs (epi
 end the way the chain ends, a target copy every `target_sync` steps, terminal rows masked and
 truncated rows bootstrapped, and, with the step size set to zero, gradients that do not pile
 up from one step to the next). It never compares learned values with numbers, so it does not
-depend on torch's kernels. Checkpoint 4.2 is the one StochasticCheck: the greedy return of the
-participant's train_dqn on CartPole, with thresholds from scripts/threshold_protocol.py.
+depend on torch's kernels. Checkpoint 4.2 is the one StochasticCheck: the best of ten greedy
+evaluations during a run of the participant's train_dqn on CartPole (the lab's provided
+evaluate_greedy, through the participant's logger), with thresholds from
+scripts/threshold_protocol.py.
 
 prl does not depend on torch: every function that needs it imports it inside. Nothing here
 trains, plays or computes a target of its own; the checks call the participant's functions
-and compare, and the greedy evaluation in 4.2 only rolls out the participant's network.
+and compare.
 """
 
 from __future__ import annotations
@@ -30,9 +32,7 @@ import numpy as np
 from .. import runtime
 from . import CheckFailed, StochasticCheck, assert_close, assert_true, expected
 
-#: Lab 8's evaluation start states, reset(seed=EVAL_SEED + i): its evaluate_greedy's.
-EVAL_SEED = 1_100_000
-EVAL_EPISODES = 10
+EVAL_EPISODES = 10  # episodes per greedy evaluation in checkpoint 4.2, as in the lab
 #: Lab 8's two budgets (the keys its bands match on), to pick the verdict of checkpoint 7.
 LAB_BUDGETS = (dict(steps=50_000, eval_every=5_000), dict(steps=10_000, eval_every=1_000))
 CALLS = ("tie", "reference", "sb3")
@@ -397,6 +397,12 @@ def check_train_dqn_masks(train_dqn, config) -> None:
             "a gradient step at every t > config.learning_starts with t % config.train_freq "
             "== 0, read from config, and call log.update after each.",
         )
+        q = np.asarray(log["q_probe"], dtype=float)
+        assert_true(
+            bool(np.abs(q[-1] - q[0]).max() > 1e-6),
+            f"{where}, Q at the probe states did not change in {steps} steps of training: "
+            "call opt.step() after loss.backward() (and clip_grad_norm_), every gradient step.",
+        )
         since = np.asarray(log["steps_since_sync"]).tolist()
         assert_true(
             since == [0] * (steps // int(fx["log_every"])),
@@ -468,53 +474,58 @@ def check_train_dqn_masks(train_dqn, config) -> None:
 
 
 # ------------------------------------------------------------------ 4.2 train_dqn learns (stochastic)
-def _greedy_return(q_net, make_env, episodes: int = EVAL_EPISODES) -> float:
-    """Mean undiscounted return of argmax_a q_net(s) from the lab's fixed start states."""
-    import torch
-
-    env = make_env()
-    total = 0.0
-    try:
-        for i in range(episodes):
-            obs, _ = env.reset(seed=EVAL_SEED + i)
-            done = False
-            while not done:
-                with torch.no_grad():
-                    q = q_net(torch.as_tensor(np.asarray(obs), dtype=torch.float32).unsqueeze(0))
-                if tuple(q.shape) != (1, env.action_space.n):
-                    raise CheckFailed(
-                        f"The returned q_net maps one observation to shape {tuple(q.shape)}, not "
-                        f"(1, {env.action_space.n}): one value per action."
-                    )
-                obs, r, terminated, truncated, _ = env.step(int(q.argmax(dim=1)[0]))
-                total += float(r)
-                done = terminated or truncated
-    finally:
-        env.close()
-    return total / episodes
+EVALUATIONS = 10  # greedy evaluations per run, evenly spaced: every steps // 10 steps
 
 
-def _train_and_evaluate(train_dqn, make_env, config, *, seed: int, steps: int) -> float:
-    out = train_dqn(make_env, config, seed, steps, log_every=steps, verbose=False)
-    if not (isinstance(out, tuple) and len(out) == 2 and callable(out[0])):
-        raise CheckFailed("train_dqn should return (q_net, log): the trained network first.")
-    return _greedy_return(out[0], make_env)
+def _best_greedy_return(train_dqn, make_env, config, *, seed: int, steps: int) -> float:
+    """The best of the run's 10 greedy evaluations (each the mean return of 10 episodes from
+    the lab's start states, by the provided evaluate_greedy through the participant's logger).
+
+    The best, not the last: DQN's greedy return dips late on some seeds, while code that never
+    learns keeps its initial network, which balances for at most about 80 steps.
+    """
+    every = steps // EVALUATIONS
+    out = train_dqn(
+        make_env,
+        config,
+        seed,
+        steps,
+        log_every=steps,
+        eval_every=every,
+        eval_episodes=EVAL_EPISODES,
+        verbose=False,
+    )
+    log = out[1] if isinstance(out, tuple) and len(out) == 2 else None
+    if not isinstance(log, dict) or "eval_return" not in log or "eval_step" not in log:
+        raise CheckFailed(
+            "train_dqn should return (q_net, log.result()), and its log should hold the greedy "
+            "evaluations: pass log_options to DQNLogger and call log.step(t, ...) every step."
+        )
+    grid = list(range(every, steps + 1, every))
+    if np.asarray(log["eval_step"]).tolist() != grid:
+        raise CheckFailed(
+            f"With eval_every = {every:,}, the log's greedy evaluations should be at steps "
+            f"{grid[0]:,}, {grid[1]:,}, ..., {grid[-1]:,}; they are at "
+            f"{np.asarray(log['eval_step']).tolist()}. Call log.step(t, ...) once per step."
+        )
+    return float(np.max(log["eval_return"]))
 
 
 check_train_dqn = StochasticCheck(
     ex=4,
     functions=("train_dqn", "make_cartpole", "CONFIG"),
-    metric=_train_and_evaluate,
-    # C33: the protocol's gap at 20,000 steps (68.7 on seeds 0-19) is twice the lab budget's
-    # (33.3 at 50,000), and 10,000 steps gave no threshold (gap 12.4 over 100 seeds: an
-    # untrained network sometimes balances for about 80 steps). QUICK keeps 20,000.
+    metric=_best_greedy_return,
+    # C33: 20,000 steps, not the lab's 50,000, at both budgets. With the last evaluation as the
+    # metric, the gap at 20,000 (68.7 on seeds 0-19) was twice that at 50,000 (33.3), and
+    # 10,000 gave none (12.4 over 100 seeds); over 100 seeds even 20,000 had a solution seed
+    # below and a wrong one above the midpoint, so the metric is the best evaluation.
     live={"steps": 20_000},
     quick={"steps": 20_000},
     higher_is_better=True,
     min_gap=25.0,  # about one uniform-random policy's own mean return (22.3 over 1,000 episodes)
     what=(
-        "the greedy return of your train_dqn's network on CartPole (mean of 10 episodes from "
-        "the lab's start states), after a run at the checkpoint's seed"
+        "the best greedy return of your train_dqn on CartPole over the run's 10 evaluations "
+        "(each a mean of 10 episodes from the lab's start states), at the checkpoint's seed"
     ),
     thresholds={},
 )

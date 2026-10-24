@@ -7,18 +7,20 @@ are skipped there, because scripts/threshold_protocol.py has already required ev
 a stochastic checkpoint's functions to fail its threshold at every seed, with a stated gap.
 Each mutant is a mistake a participant could plausibly make; `why` says which.
 
-Checkpoint 4.2 (train_dqn's greedy return on CartPole) is the only stochastic one. Its
+Checkpoint 4.2 (train_dqn's best greedy return on CartPole) is the only stochastic one. Its
 protocol mutants are the train_dqn mutants below without exact_only: `target-is-online`,
-`no-target-copy`, `zero-grad-late` and `random`. Checkpoint 4.1 is exact and also calls
+`zero-grad-late`, `no-step` and `random`. Checkpoint 4.1 is exact and also calls
 train_dqn, so verify mode needs it to reject every train_dqn mutant. It does: its chain runs
 check the log's keys, the snapshots' steps, a target copy every target_sync steps, the
-terminal mask and the bootstrap on cut episodes, and, with config.lr = 0, that the gradient
-norm does not grow (which rejects `no-zero-grad`) and is not zero (`zero-grad-late`).
+terminal mask and the bootstrap on cut episodes, that Q at the probe states moves
+(`no-step`), and, with config.lr = 0, that the gradient norm does not grow (which rejects
+`no-zero-grad`) and is not zero (`zero-grad-late`).
 
 exact_only=True marks the mutants that only 4.1 can see: `done-in-buffer` (CartPole rarely
-reaches the time limit at the check's budget) and `no-zero-grad`, which still learns CartPole
-(greedy returns 73-272 at 20,000 steps on seeds 0-3 in a scratch scan), so no threshold can
-reject it. Exercise 7's mutant depends on what the recorded bands say (see its note).
+reaches the time limit at the check's budget); `no-zero-grad`, which still learns CartPole
+(greedy returns 73-272 at 20,000 steps on seeds 0-3 in a scratch scan); and `no-target-copy`,
+whose targets from the initial network sometimes make a fair policy by chance (best greedy
+return up to 185 over seeds 0-99 in a scratch scan), so no return threshold rejects them all. Exercise 7's mutant depends on what the recorded bands say (see its note).
 """
 
 import numpy as np
@@ -367,6 +369,51 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
 @mutant(
     ex=4,
     replaces="train_dqn",
+    id="no-step",
+    why="computes and clips the gradient but never calls opt.step(): the network never learns",
+)
+def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
+    target_fn = target_fn or dqn_target  # noqa: F821
+    torch.manual_seed(seed)
+    rng = np.random.default_rng(seed)
+    env = make_env()
+    obs_dim, n_actions = env.observation_space.shape[0], env.action_space.n
+    q_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
+    target_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
+    target_net.load_state_dict(q_net.state_dict())
+    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
+    buffer = ReplayBuffer(config.buffer_size, obs_dim)  # noqa: F821
+    log = DQNLogger(config, steps, q_net, target_net, make_env, **log_options)  # noqa: F821
+    obs, _ = env.reset(seed=seed)
+    for t in range(1, steps + 1):
+        eps = epsilon_at(t, steps, config)  # noqa: F821
+        a = act(q_net, obs, eps, n_actions, rng)  # noqa: F821
+        next_obs, r, terminated, truncated, _ = env.step(a)
+        buffer.add(obs, a, r, next_obs, terminated, truncated)
+        obs = next_obs
+        if terminated or truncated:
+            obs, _ = env.reset()
+        if t > config.learning_starts and t % config.train_freq == 0:
+            batch = buffer.sample(config.batch_size, rng)
+            q_values = q_net(batch.obs)
+            q_sa = gather_q(q_values, batch.act)  # noqa: F821
+            y = target_fn(batch, q_net, target_net, config.gamma)
+            loss = huber(y - q_sa, config.huber_threshold).mean()  # noqa: F821
+            opt.zero_grad()
+            loss.backward()
+            norm = nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
+            log.update(t, batch, q_values, q_sa, y, loss, norm)
+        if config.target_sync and t % config.target_sync == 0:
+            target_net.load_state_dict(q_net.state_dict())
+            log.sync(t)
+        log.step(t, eps, r, terminated, truncated)
+    env.close()
+    return q_net, log.result()
+
+
+@mutant(
+    ex=4,
+    replaces="train_dqn",
     id="target-is-online",
     why="computes targets with the online network: no target network (expected to diverge)",
 )
@@ -412,6 +459,7 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
     replaces="train_dqn",
     id="no-target-copy",
     why="never copies w into w-: the targets come from the initial network (Module 9's bug)",
+    exact_only=True,
 )
 def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
     target_fn = target_fn or dqn_target  # noqa: F821
@@ -466,7 +514,11 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
     env = make_env()
     q_net = UniformQ(env.action_space.n)
     env.close()
-    return q_net, {}
+    # Its greedy evaluations, reported as the logger would (the provided evaluate_greedy).
+    every, episodes = log_options.get("eval_every"), log_options.get("eval_episodes", 10)
+    grid = list(range(every, steps + 1, every)) if every else []
+    returns = [evaluate_greedy(q_net, make_env, episodes)["returns"].mean() for _ in grid]  # noqa: F821
+    return q_net, {"eval_step": np.array(grid), "eval_return": np.array(returns, np.float32)}
 
 
 # ------------------------------------------------------------------ 5: double_dqn_target
@@ -539,9 +591,9 @@ def mc_return(rewards, gamma):  # noqa: F811
 
 
 # ------------------------------------------------------------------ 7: sb3_call
-# DRAFT: which wrong answer to plant depends on the recorded verdict. If the records call a
-# tie, `higher-iqm` (ignores the intervals) is wrong; if they rank, replace it with
-# "always-tie". The technical expert fixes this once the m08 band records exist.
+# The recorded bands call a tie at both budgets (m08_sb3_call), so both mutants answer with a
+# ranking. If a future record ranks the two, `higher-iqm` may become right at that budget:
+# replace it with an "always tie" mutant then.
 @mutant(ex=7, replaces="sb3_call", id="higher-iqm", why="ranks by IQM and ignores the intervals")
 def sb3_call():
     from prl.evaluate import iqm
@@ -549,3 +601,16 @@ def sb3_call():
     ref = prl.data.band("m08_dqn_return", budget)["runs"][:, -1]  # noqa: F821
     sb3 = prl.data.band("m08_sb3_return", budget)["runs"][:, -1]  # noqa: F821
     return "reference" if iqm(ref) >= iqm(sb3) else "sb3"
+
+
+@mutant(
+    ex=7,
+    replaces="sb3_call",
+    id="your-seed",
+    why="lets the participant's own seed decide (the Gotcha: landing above SB3's IQM)",
+)
+def sb3_call():  # noqa: F811
+    from prl.evaluate import iqm
+
+    sb3 = prl.data.band("m08_sb3_return", budget)["runs"][:, -1]  # noqa: F821
+    return "reference" if log_dqn["eval_return"][-1] > iqm(sb3) else "sb3"  # noqa: F821

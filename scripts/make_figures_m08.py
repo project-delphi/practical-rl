@@ -211,27 +211,29 @@ def run_reference(ns: dict, algo: str, label: str, seeds=SEEDS, **log_options) -
     return per, budget
 
 
-def _sb3_buffer_check(model) -> dict:
-    """B74: how SB3's replay buffer stores the transitions a time limit cut."""
+def _sb3_truncation(model) -> dict | None:
+    """B74: if the transition SB3 stored last was cut by the time limit, what train() sees.
+
+    Called from a callback's _on_step, which SB3 runs before it stores the current step, so
+    slot pos - 1 holds the previous step and model._last_obs is still the observation after
+    it (the reset one, if the episode ended). SB3's _get_samples draws from NumPy's global
+    generator; its state is saved and restored, so the run is unchanged.
+    """
     buf = model.replay_buffer
-    n = buf.buffer_size if buf.full else buf.pos
-    timeouts = np.flatnonzero(buf.timeouts[:n, 0] > 0.5)
-    dones = buf.dones[:n, 0] > 0.5
-    out = {
-        "stored": int(n),
-        "timeouts": len(timeouts),
-        "timeouts_stored_done": int(dones[timeouts].sum()),
-        "terminal": int((dones & (buf.timeouts[:n, 0] < 0.5)).sum()),
-        "timeouts_sampled_done": None,
-        "timeouts_next_obs_is_reset": None,
+    if buf.pos == 0 and not buf.full:
+        return None
+    i = (buf.pos - 1) % buf.buffer_size
+    if buf.timeouts[i, 0] < 0.5:
+        return None
+    state = np.random.get_state()
+    sample = buf._get_samples(np.array([i]))
+    np.random.set_state(state)
+    return {
+        "step": int(model.num_timesteps) - 1,
+        "stored_done": float(buf.dones[i, 0]),
+        "sampled_done": float(sample.dones.numpy()[0, 0]),
+        "next_obs_is_reset_obs": bool(np.allclose(buf.next_observations[i, 0], model._last_obs[0])),
     }
-    if len(timeouts):
-        sample = buf._get_samples(timeouts)  # what train() sees for exactly those rows
-        out["timeouts_sampled_done"] = int((sample.dones.numpy()[:, 0] > 0.5).sum())
-        nxt = (timeouts + 1) % buf.buffer_size  # the reset observation that followed
-        same = np.all(np.isclose(buf.next_observations[timeouts, 0], buf.observations[nxt, 0]), 1)
-        out["timeouts_next_obs_is_reset"] = int(same.sum())
-    return out
 
 
 def run_sb3(ns: dict, label: str, seeds=SEEDS) -> tuple[dict, dict]:
@@ -263,7 +265,7 @@ def run_sb3(ns: dict, label: str, seeds=SEEDS) -> tuple[dict, dict]:
     assert cfg.huber_threshold == 1.0  # SB3's smooth_l1_loss has beta = 1
 
     per: dict[str, list] = {k: [] for k in ("return", "disc_return", "q0", "seconds")}
-    per["q_probe_end"], per["buffer"], per["same_initial_weights"] = [], [], []
+    per["q_probe_end"], per["truncations"], per["same_initial_weights"] = [], [], []
 
     def evaluate(model, out):
         ev = ns["evaluate_greedy"](model.q_net, ns["make_cartpole"], b["eval_episodes"], GAMMA)
@@ -285,10 +287,13 @@ def run_sb3(ns: dict, label: str, seeds=SEEDS) -> tuple[dict, dict]:
                 evaluate(self.model, self.out)
 
         def _on_step(self) -> bool:
+            cut = _sb3_truncation(self.model)
+            if cut and cut["step"] not in [c["step"] for c in self.out["cut"]]:
+                self.out["cut"].append(cut)
             return True
 
     for seed in seeds:
-        out = {k: [] for k in ("step", "return", "disc_return", "q0")}
+        out = {k: [] for k in ("step", "return", "disc_return", "q0", "cut")}
         torch.manual_seed(seed)  # as train_dqn does before building its networks
         ours = ns["make_q_net"](4, 2, cfg)
         start = time.perf_counter()
@@ -306,7 +311,7 @@ def run_sb3(ns: dict, label: str, seeds=SEEDS) -> tuple[dict, dict]:
         for key in ("return", "disc_return", "q0"):
             per[key].append(_f32_list(out[key]))
         per["q_probe_end"].append(_probe_max(ns, model.q_net))
-        per["buffer"].append(_sb3_buffer_check(model))
+        per["truncations"].append(out["cut"])
     budget = {
         "label": label,
         **b,
@@ -346,7 +351,9 @@ def experiment_record(name: str, per: dict, budget: dict, seconds: float, git, l
         "run's wall-clock seconds, q_probe_end (mean over the lab's 32 probe states of max_a Q "
         "at the end) "
         + (
-            "and buffer (B74: SB3's stored time-limit transitions, done as stored and as sampled). "
+            "and truncations (B74: every transition the 500-step limit cut that SB3 stored "
+            "during training, with its done flag as stored and as train() samples it, and "
+            "whether its s' is the reset observation). "
             if algo == "sb3"
             else "and episodes. "
         )
@@ -718,7 +725,7 @@ def q_panel(t: Theme, data: dict, algo: str) -> Figure:
         drawstyle="steps-post",
     )
     ax.set_xlim(0, BUDGETS["live"]["steps"])
-    ax.set_ylim(0, 105)
+    ax.set_ylim(0, 110)
     ax.xaxis.set_major_locator(FixedLocator([0, 25_000, 50_000]))
     ax.xaxis.set_major_formatter(FuncFormatter(_thousands))
     ax.yaxis.set_major_locator(FixedLocator([0, 25, 50, 75, 100]))
@@ -727,20 +734,11 @@ def q_panel(t: Theme, data: dict, algo: str) -> Figure:
     ax.set_xlabel("Environment steps")
     ax.set_ylabel("Value at the start states")
     ax.set_title("DQN" if algo == "dqn" else "Double DQN", fontsize=13, color=t.text)
-    if algo == "dqn":
-        handles = [
-            Line2D([], [], color=color, lw=1.6, ls=STYLE["q0"], marker="o", ms=3),
-            Line2D([], [], color=color, lw=1.6, ls=STYLE["disc_return"], marker="s", ms=3),
-            Line2D([], [], color=t.neutral, lw=1.6, ls=(0, (5, 2))),
-        ]
-        ax.legend(
-            handles,
-            ["Q(s₀), 5 seeds", "G₀, 5 seeds", "(sync lag)"],
-            loc="lower right",
-            frameon=False,
-            fontsize=MIN_FONT,
-            handlelength=2.6,
-        )
+    # Direct labels (both panels): Q(s0) above its five lines, (sync lag) below them, G_0
+    # above its cluster (record_facts asserts that the records leave that room).
+    ax.text(2_000, 40, "Q(s₀), solid", color=color)
+    ax.text(21_000, 10, "(sync lag), dashed", color=t.text)
+    ax.text(27_000, 101, "G₀, dotted", color=color)
     return fig
 
 
@@ -784,15 +782,37 @@ def final_figure(t: Theme, data: dict) -> Figure:
     ax.set_ylabel("Greedy return at 50,000 steps")
     words = {
         "tie": "Tie: the intervals overlap",
-        "A": "Reference DQN better",
-        "B": "SB3 DQN better",
+        "A": "Reference DQN better at this budget",
+        "B": "SB3 DQN better at this budget",
     }[v.winner]
-    ax.set_title(
-        f"5 seeds each (open markers); IQM and 95% interval (filled). {words}.",
-        fontsize=MIN_FONT,
-        color=t.text,
-    )
+    ax.set_title(words, fontsize=13, color=t.text)
+    handles = [
+        Line2D([], [], marker="o", color=t.text, mfc="none", ls="none", ms=8, mew=1.6),
+        Line2D([], [], marker="D", color=t.text, ls="-", ms=6, lw=1.8),
+    ]
+    labels = ["one seed (5 per side)", "IQM and 95% bootstrap interval"]
+    ax.legend(handles, labels, loc="upper right", frameon=False, fontsize=MIN_FONT)
     return fig
+
+
+def record_facts(data: dict) -> None:
+    """What the records say that the figures draw or the reviews will quote (B70, C34)."""
+    for algo in ("dqn", "ddqn"):
+        c = data[algo]
+        x, q0, g0 = c["x"], c["q0"], c["disc_return"]
+        lag = np.array([sync_lag(int(t)) for t in x])
+        # C34: Q(s0) is below the greedy policy's G_0 on every seed at the end (and at every
+        # point), and Q(s0) follows (sync lag) within 3 from 10,000 steps on.
+        assert np.all(q0 < g0) and np.all(q0[:, -1] < g0[:, -1])
+        assert np.all(np.abs(q0[:, x >= 10_000] - lag[x >= 10_000]) < 3.0)
+        # Room for the direct labels: Q(s0) < 39 and G_0 > 52 up to 20,000 steps; Q(s0) > 25
+        # from 21,000; G_0 < 100 everywhere.
+        early = x <= 20_000
+        assert q0[:, early].max() < 39 and g0[:, early].min() > 52
+        assert q0[:, x >= 21_000].min() > 25 and g0.max() < 100
+    want = str(np.load(ROOT / "prl/src/prl/_expected/m08_sb3_call.npz")["live"])
+    v = data["final"]["verdict"]
+    assert {"A": "reference", "B": "sb3"}.get(v.winner, v.winner) == want
 
 
 def figure_data() -> dict:
@@ -818,6 +838,7 @@ def panel_svg_bytes(fig: Figure) -> bytes:
 def build() -> tuple[dict[Path, bytes], dict]:
     quoted = quoted_numbers()
     data = figure_data()
+    record_facts(data)
     out: dict[Path, bytes] = {}
     for name, (draw, panel) in FIGURES.items():
         for t in themes():
@@ -856,7 +877,7 @@ def report() -> None:
                 f"       seconds per run {d['seconds'].tolist()} (mean {d['seconds'].mean():.1f})"
             )
             if algo == "sb3":
-                print(f"       buffer (B74) {d['rec']['per_seed']['buffer']}")
+                print(f"       truncations (B74) {d['rec']['per_seed']['truncations']}")
         ref, ddqn, sb3 = (c[a]["return"][:, -1] for a in ALGOS)
         for a, bb, names in (
             (ref, sb3, ("reference DQN", "SB3 DQN")),

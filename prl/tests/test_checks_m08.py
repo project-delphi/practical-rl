@@ -200,23 +200,22 @@ def test_sb3_call_rejects_a_word_outside_the_rule(monkeypatch):
         m08.check_sb3_call(lambda: next(c for c in m08.CALLS if c != want))
 
 
-def test_greedy_return_rejects_a_network_of_the_wrong_shape(lab):
-    import torch
-
-    with pytest.raises(CheckFailed, match="one value per action"):
-        m08._greedy_return(lambda obs: torch.zeros(1, 3), lab["make_cartpole"], episodes=1)
-    with pytest.raises(CheckFailed, match="trained network first"):
-        m08._train_and_evaluate(
-            lambda *a, **k: {}, lab["make_cartpole"], lab["CONFIG"], seed=0, steps=10
+def test_best_greedy_return_needs_the_logged_evaluations(lab):
+    with pytest.raises(CheckFailed, match="greedy evaluations"):
+        m08._best_greedy_return(
+            lambda *a, **k: (None, {}), lab["make_cartpole"], lab["CONFIG"], seed=0, steps=10
         )
 
+    def wrong_grid(make_env, config, seed, steps, **kw):
+        return None, {"eval_step": np.array([5, 10]), "eval_return": np.array([9.0, 9.0])}
 
-def test_greedy_return_of_a_constant_policy_is_exact_and_repeatable(lab):
-    import torch
+    with pytest.raises(CheckFailed, match="should be at steps"):
+        m08._best_greedy_return(wrong_grid, lab["make_cartpole"], lab["CONFIG"], seed=0, steps=10)
 
-    def always_left(obs):
-        return torch.tensor([[1.0, 0.0]]).expand(len(obs), 2)
 
-    a = m08._greedy_return(always_left, lab["make_cartpole"])
-    assert a == m08._greedy_return(always_left, lab["make_cartpole"])
-    assert 5 <= a <= 15  # pushing left the whole time drops the pole within about 10 steps
+def test_best_greedy_return_is_the_best_of_ten_evaluations(lab):
+    def fake(make_env, config, seed, steps, *, eval_every, **kw):
+        grid = np.arange(eval_every, steps + 1, eval_every)
+        return None, {"eval_step": grid, "eval_return": np.arange(len(grid), dtype=float)}
+
+    assert m08._best_greedy_return(fake, None, None, seed=0, steps=20_000) == 9.0
