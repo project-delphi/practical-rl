@@ -73,9 +73,11 @@
 - `2026-10-17-local-03-model-free-fa84b727.json`: 2026-10-17 · local · 4 s · QUICK · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
 :::
 
-::: {.callout-note collapse="true" title="5 · Contextual bandits for recommendation: 4 record(s)"}
-- `2026-10-24-local-05-contextual-bandits-86f0bf70-2.json`: 2026-10-24 · local · 34 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
-- `2026-10-24-local-05-contextual-bandits-86f0bf70.json`: 2026-10-24 · local · 23 s · QUICK · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
+::: {.callout-note collapse="true" title="5 · Contextual bandits for recommendation: 6 record(s)"}
+- `2026-10-24-local-05-contextual-bandits-44a7412f-2.json`: 2026-10-24 · local · 33 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
+- `2026-10-24-local-05-contextual-bandits-44a7412f.json`: 2026-10-24 · local · 23 s · QUICK · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
+- `2026-10-24-local-05-contextual-bandits-86f0bf70-2.json`: 2026-10-24 · local · 34 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
+- `2026-10-24-local-05-contextual-bandits-86f0bf70.json`: 2026-10-24 · local · 23 s · QUICK · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-24-local-05-contextual-bandits-9dd6dd63-2.json`: 2026-10-24 · local · 30 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-24-local-05-contextual-bandits-9dd6dd63.json`: 2026-10-24 · local · 20 s · QUICK · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::
