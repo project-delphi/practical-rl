@@ -45,7 +45,7 @@ RUN_SEED = (SEED + 1) * 1000
 SEEDS = [RUN_SEED + i for i in range(budget.seeds)]
 _rt = prl.runtime.detect()
 HARDWARE = f"{_rt.platform}, {_rt.cpu}, {_rt.n_cpu} CPU"
-print(f"Click rates {R_MEAN.tolist()}; gaps {GAPS.tolist()}")
+print(f"Click rates {R_MEAN.tolist()}; gaps {np.round(GAPS, 3).tolist()}")
 print(f"Budget: {T} rounds per run, {budget.seeds} seeds per method: {SEEDS[0]}-{SEEDS[-1]}")
 
 
@@ -82,14 +82,31 @@ def reward_stack(r_mean, T, seed, scale=1.0):
     return scale * (rng.random((T, len(r_mean))) < r_mean)
 
 
-def plot_regret(ax, curves, label, style="-"):
-    """Provided: every seed as a thin line and the IQM over seeds as a thick one."""
+# One color and one line style per method in every plot, as in the briefing's Figure 3.
+METHOD_STYLE = {
+    "greedy": dict(color=prl.plot.SERIES[0], ls=(0, (1, 1.6))),
+    "eps-greedy": dict(color=prl.plot.SERIES[1], ls=(0, (4.5, 1.8))),
+    "UCB1": dict(color=prl.plot.SERIES[2], ls=(0, (6, 1.8, 1.4, 1.8))),
+    "TS": dict(color=prl.plot.SERIES[3], ls="-"),
+}
+METHOD_NAME = {
+    "greedy": "greedy",
+    "eps-greedy": "ε-greedy",
+    "UCB1": "UCB1",
+    "TS": "Thompson sampling",
+}
+
+
+def plot_regret(ax, curves, label, method):
+    """Provided: every seed as a thin line and the IQM over seeds as a thick one, in the
+    method's color and line style."""
     curves = np.asarray(curves, dtype=float)
     rounds = np.arange(1, curves.shape[1] + 1)
     center = np.array([iqm(curves[:, j]) for j in range(curves.shape[1])])
-    line = ax.plot(rounds, center, ls=style, lw=2.5, label=f"{label} (IQM)")[0]
+    style = METHOD_STYLE[method]
+    ax.plot(rounds, center, lw=2.5, label=f"{label} (IQM; thin: each seed)", **style)
     for c in curves:
-        ax.plot(rounds, c, ls=style, lw=0.6, alpha=0.35, color=line.get_color())
+        ax.plot(rounds, c, lw=0.6, alpha=0.35, **style)
     ax.set(xlabel="round t", ylabel="pseudo-regret")
 
 
@@ -192,13 +209,13 @@ for name, policy in [("greedy", greedy), ("eps-greedy", eps_01)]:
 locked = int(np.sum(np.array(best_share) < 0.5))
 lab.metric("greedy_locked", locked)  # room code
 for name in ("greedy", "eps-greedy"):
-    print(f"{name}, pseudo-regret after {T} rounds, seed by seed:")
+    print(f"{METHOD_NAME[name]}, pseudo-regret after {T} rounds, seed by seed:")
     for row in range(0, len(SEEDS), 10):  # ten seeds per line
         print("  " + " ".join(f"{x:7.1f}" for x in final[name][row : row + 10]))
 print(f"Greedy left headline 2 behind (under half of the last {T // 2} pulls) on {locked} seeds.")
 fig, ax = plt.subplots()
-plot_regret(ax, curves["greedy"], "greedy")
-plot_regret(ax, curves["eps-greedy"], "ε-greedy, ε = 0.1", style="--")
+plot_regret(ax, curves["greedy"], "greedy", "greedy")
+plot_regret(ax, curves["eps-greedy"], "ε-greedy, ε = 0.1", "eps-greedy")
 ax.set_title(f"{len(SEEDS)} seeds, {T} rounds")
 ax.legend()
 plt.show()
@@ -289,8 +306,8 @@ for a in range(N_ARMS):
 print(f"Theorem 1's bound on the expected pulls of headline 1: {bound:.0f}")
 lab.metric("ucb1_pulls_h1", round(float(pulls[:, 1].mean()), 1))  # room code
 fig, ax = plt.subplots()
-plot_regret(ax, curves["UCB1"], "UCB1")
-plot_regret(ax, curves["greedy"], "greedy (Exercise 1)", style="--")
+plot_regret(ax, curves["UCB1"], "UCB1", "UCB1")
+plot_regret(ax, curves["greedy"], "greedy (Exercise 1)", "greedy")
 ax.set_title(f"{len(SEEDS)} seeds, {T} rounds")
 ax.legend()
 plt.show()
@@ -391,13 +408,14 @@ for a in range(N_ARMS):
         f"  headline {a}: mean {pulls_ts[:, a].mean():7.1f}, from {pulls_ts[:, a].min()} "
         f"to {pulls_ts[:, a].max()} (UCB1: mean {pulls[:, a].mean():.1f})"
     )
+none = int(np.sum(halves[:, 1] == 0))
 print(
     f"  headline 1, first {T // 2} rounds: mean {halves[:, 0].mean():.1f} pulls; "
-    f"last {T // 2}: mean {halves[:, 1].mean():.1f} (none on {np.sum(halves[:, 1] == 0)} seeds)"
+    f"last {T // 2}: mean {halves[:, 1].mean():.1f} (none on {none} seed{'' if none == 1 else 's'})"
 )
 fig, ax = plt.subplots()
-plot_regret(ax, curves["TS"], "Thompson sampling")
-plot_regret(ax, curves["greedy"], "greedy (Exercise 1)", style="--")
+plot_regret(ax, curves["TS"], "Thompson sampling", "TS")
+plot_regret(ax, curves["greedy"], "greedy (Exercise 1)", "greedy")
 ax.set_title(f"{len(SEEDS)} seeds, {T} rounds")
 ax.legend()
 plt.show()
@@ -487,12 +505,13 @@ def report(at, horizon, pairs, wall_clock_s=None, note=""):
     print(f"After {horizon} rounds{note}:")
     for m, x in at.items():
         lo, hi = bootstrap_ci(x, iqm)
-        print(f"  {m:10s} IQM {iqm(x):7.1f}  [{lo:7.1f}, {hi:7.1f}]")
+        print(f"  {METHOD_NAME[m]:17s} IQM {iqm(x):7.1f}  [{lo:7.1f}, {hi:7.1f}]")
     for a_name, b_name in pairs:
         v = verdict(at[a_name], at[b_name])
-        word = {"A": f"{a_name} lower", "B": f"{b_name} lower"}.get(v, v)
+        a_word, b_word = METHOD_NAME[a_name], METHOD_NAME[b_name]
+        word = {"A": f"{a_word} lower", "B": f"{b_word} lower"}.get(v, v)
         verdicts[f"{a_name} vs {b_name} @ {horizon}"] = v
-        print(f"  {a_name} vs {b_name}: {word}")
+        print(f"  {a_word} vs {b_word}: {word}")
     used = Budget(steps=horizon, seeds=len(SEEDS), wall_clock_s=wall_clock_s, hardware=HARDWARE)
     print(textwrap.fill(used.sentence(), 98, initial_indent="  ", subsequent_indent="    "))
 
@@ -510,7 +529,7 @@ for m, policy in [("eps-greedy", eps_01), ("UCB1", ucb1)]:
     late[m] = np.array(
         [run_bandit(policy, reward_stack(R_MEAN, budget.late, k), R_MEAN, k)[1][-1] for k in SEEDS]
     )
-    print(f"  {m}: done after {time.perf_counter() - start:.0f} s", flush=True)
+    print(f"  {METHOD_NAME[m]}: done after {time.perf_counter() - start:.0f} s", flush=True)
 report(late, budget.late, [("UCB1", "eps-greedy")], time.perf_counter() - start)
 lab.metric("verdicts", verdicts)
 lab.metric("eps_iqm", round(iqm(final["eps-greedy"]), 1))  # room code
@@ -518,9 +537,9 @@ lab.metric("ucb1_iqm", round(iqm(final["UCB1"]), 1))  # room code
 lab.metric("ts_iqm", round(iqm(final["TS"]), 1))  # room code
 lab.metric("ucb1_late_lead", round(iqm(late["eps-greedy"]) - iqm(late["UCB1"]), 1))  # room code
 fig, ax = plt.subplots()
-for m, style in [("eps-greedy", "--"), ("UCB1", ":"), ("TS", "-")]:
-    plot_regret(ax, curves[m], m, style=style)
-ax.axvline(budget.early, color=prl.plot.NEUTRAL_LIGHT, ls="-.", lw=1.5, label="early horizon")
+for m in ("eps-greedy", "UCB1", "TS"):
+    plot_regret(ax, curves[m], METHOD_NAME[m], m)
+ax.axvline(budget.early, color=prl.plot.NEUTRAL_LIGHT, lw=1.5, label="early horizon")
 ax.set_xscale("log")
 ax.set_title(f"{len(SEEDS)} seeds; log-scale rounds")
 ax.legend()
@@ -655,22 +674,28 @@ for e in epsilons:
 print("Which ε is lowest, and why is the regret high at both ends?")
 lab.metric("eps_sweep_iqm", {str(e): round(iqm(x), 1) for e, x in sweep.items()})
 fig, (ax_s, ax_e) = plt.subplots(1, 2, figsize=(10, 3.8))
-for i, (name, label) in enumerate([("ucb1", "UCB1, same bonus"), ("eps_greedy", "ε-greedy")]):
-    ax_s.plot(np.full(len(SEEDS), 2 * i), x1[name], "o", mfc="none", label=f"{label}, x 1")
-    ax_s.plot(np.full(len(SEEDS), 2 * i + 1), scaled[name], "^", label=f"{label}, x 10")
+spread = np.linspace(-0.25, 0.25, len(SEEDS))  # one x per seed, so equal values stay apart
+for i, (name, method, label) in enumerate(
+    [("ucb1", "UCB1", "UCB1, same bonus"), ("eps_greedy", "eps-greedy", "ε-greedy")]
+):
+    color = METHOD_STYLE[method]["color"]
+    ax_s.plot(2 * i + spread, x1[name], "o", mfc="none", color=color, label=f"{label}, x 1")
+    ax_s.plot(2 * i + 1 + spread, scaled[name], "^", color=color, label=f"{label}, x 10")
 ax_s.set(xticks=[0, 1, 2, 3], xticklabels=["UCB1\nx1", "UCB1\nx10", "ε-gr.\nx1", "ε-gr.\nx10"])
 ax_s.set(ylabel="pseudo-regret at T (original units)", title="Every seed, rewards x 1 and x 10")
 centers = [iqm(sweep[e]) for e in epsilons]
 cis = np.array([bootstrap_ci(sweep[e], iqm) for e in epsilons])
 xs = np.arange(len(epsilons))
 every = np.concatenate([sweep[e] for e in epsilons])
-ax_e.plot(np.repeat(xs, len(SEEDS)), every, ".", alpha=0.4, label="every seed")
+eps_color = METHOD_STYLE["eps-greedy"]["color"]
+ax_e.plot(np.repeat(xs, len(SEEDS)), every, ".", alpha=0.4, color=eps_color, label="every seed")
 ax_e.errorbar(
     xs,
     centers,
     yerr=[np.subtract(centers, cis[:, 0]), cis[:, 1] - centers],
     marker="o",
     capsize=3,
+    color=eps_color,
     label="ε-greedy, IQM [95% CI]",
 )
 ax_e.axhline(iqm(final["UCB1"]), ls="--", color=prl.plot.NEUTRAL_LIGHT, label="UCB1, IQM")
@@ -784,21 +809,25 @@ print(f"The agent after seed {SEEDS[-1]}:")
 print(
     f"  its bonus in the last round: {np.round(np.sqrt(2 * np.log(T - 1) / np.maximum(agent.counts, 1)), 3)}"
 )
-print(f"Pulls per headline by round {T}, first 5 seeds (your UCB1 in brackets):")
+print(f"Pulls per headline by round {T}, first 5 seeds, the agent's and your UCB1's:")
 for i in range(5):
-    print(f"  seed {SEEDS[i]}: {hist[i].tolist()}   [{pulls[i].tolist()}]")
+    print(f"  seed {SEEDS[i]}: {hist[i].tolist()}   (yours: {pulls[i].tolist()})")
 lab.metric("suspect_pulls", hist.mean(axis=0).round(1).tolist())  # per headline, not pooled
 fig, ax = plt.subplots()
-for shift, (h, label, marker) in zip(
-    (-0.15, 0.15), [(pulls, "your UCB1 (Exercise 2)", "o"), (hist, "UCB1Suspect", "^")], strict=True
-):
+looks = [
+    (pulls, "your UCB1 (Exercise 2)", "o", METHOD_STYLE["UCB1"]["color"]),
+    (hist, "UCB1Suspect", "^", prl.plot.NEUTRAL_LIGHT),
+]
+spread = np.linspace(-0.08, 0.08, len(SEEDS))  # one x per seed, so equal counts stay apart
+for shift, (h, label, marker, color) in zip((-0.15, 0.15), looks, strict=True):
     for a in range(N_ARMS):
         ax.plot(
-            np.full(len(SEEDS), a + shift),
+            a + shift + spread,
             h[:, a],
             marker,
             ls="none",
             mfc="none",
+            color=color,
             label=label if a == 0 else None,
         )
 ax.set(
@@ -808,6 +837,9 @@ ax.set(
     ylabel=f"pulls by round {T} (log scale)",
     title=f"Pulls per headline, every seed ({len(SEEDS)})",
 )
+ax.yaxis.set_major_locator(plt.LogLocator(subs=(1, 2, 5)))  # 100, 200, 500, 1000, ...
+ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:g}"))  # 1000, not 10^3
+ax.yaxis.set_minor_formatter(plt.NullFormatter())
 ax.legend()
 plt.show()
 

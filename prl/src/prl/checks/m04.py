@@ -740,10 +740,8 @@ def check_ucb1_suspect(UCB1Suspect: Callable[..., Any]) -> None:
         raise CheckFailed(
             f"{where}; it should be {want.tolist()}, the number of pulls of each arm so far."
         )
-    print(
-        f"The agent replayed UCB1's recorded run for {T} rounds, the same arm in every round; "
-        f"final counts {_ints(agent.counts)}."
-    )
+    print(f"The agent replayed UCB1's recorded run for {T} rounds, the same arm in every round;")
+    print(f"  final counts {_ints(agent.counts)}.")
 
 
 # ------------------------------------------------------------------ stretch: Gaussian posterior
