@@ -634,32 +634,74 @@ modules:
     slot: B
     level: 300
     title: DQN from scratch
-    summary: Replay, a target network and the Huber loss make neural Q-learning stable; Double DQN reduces the max bias.
+    summary: Replay, a target network and the Huber loss make neural Q-learning stable; Double DQN removes part of the bias, and Monte Carlo returns show what remains.
     question: Which changes make neural Q-learning stable, and what bias remains?
     where_we_are: Linear Q is limited and naive neural Q is unstable.
     objectives:
-      - Implement a replay buffer and explain the two problems it fixes.
+      - Implement a replay buffer with uniform sampling and explain the two problems it fixes, correlated samples and data reuse.
       - Implement DQN with a target network and the Huber loss, masking only on terminated.
-      - Derive the max-of-noisy-estimates bias, implement Double DQN and measure Q against Monte Carlo returns.
-      - Place your live seed against recorded bands of the reference DQN and SB3's DQN at the same budget.
+      - Derive why the max over noisy estimates is biased upward, state van Hasselt et al.'s Theorem 1 with its conditions, implement Double DQN, and measure Q(s0) against the discounted Monte Carlo return of the greedy policy.
+      - Place your live seed against recorded 5-seed bands of the reference DQN and SB3's DQN at the same budget, and call the comparison a tie or a ranking.
     runtime: colab-cpu
     cost: Free (Google account)
     without_gpu: The whole lab runs.
     scaffold: S2
     testbeds: [CartPole-v1]
-    compared_with: {kind: library, what: "Stable-Baselines3 2.9 DQN (recorded bands)"}
-    planted_bug: {what: "a recent-only replay buffer", diagnostic: "sampling histogram"}
+    compared_with: {kind: library, what: "Stable-Baselines3 2.9 DQN with the lab's configuration (recorded bands)"}
+    planted_bug: {what: "a buffer that samples with its write pointer, so after the pointer wraps it draws only the newest transitions", diagnostic: "the histogram of the ages of drawn transitions"}
     stretch: LunarLander-v3 (installs box2d only)
     exercises:
-      - {n: 0, title: Reconnect and rerun setup, minutes: 3, writes: []}
-      - {n: 1, title: A replay buffer, minutes: 8, writes: [ReplayBuffer]}
-      - {n: 2, title: "Planted bug: a recent-only buffer", minutes: 5, writes: []}
-      - {n: 3, title: The masked target and the Huber loss, minutes: 9, writes: [td_target, huber]}
-      - {n: 4, title: The training loop, minutes: 12, writes: [train_dqn]}
-      - {n: 5, title: The Double DQN target, minutes: 5, writes: [double_dqn_target]}
-      - {n: 6, title: Measuring overestimation, minutes: 7, writes: [mc_return]}
-      - {n: 7, title: SB3 at the same budget, minutes: 5, writes: []}
-    status: {briefing: placeholder, lab: planned}
+      # predict_answer: the answer to the Predict prompt (for the pace sheet). "Pending record" means
+      # the number comes from the technical expert's records (see _notes/m08-handoff.md); every
+      # other number here is an exact computation.
+      # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
+      - n: 0
+        title: Reconnect and rerun setup
+        minutes: 3
+        writes: []
+      - n: 1
+        title: A replay buffer
+        minutes: 8
+        writes: [ReplayBuffer]
+        predict_answer: "10,000 steps: the buffer keeps the newest 10,000 transitions. In that time there are 10,000 / 4 = 2,500 gradient steps, each drawing 64 of the 10,000 slots, so a transition is drawn 2,500 x 64 / 10,000 = 16 times on average (exact). That is the data reuse; the run cell shows the other gain, decorrelation."
+        explain_ref: 'Gotcha: "Replay is only for data efficiency."'
+      - n: 2
+        title: "Planted bug: a colleague's buffer"
+        minutes: 5
+        writes: [buffer_diagnosis, ColleagueBuffer]
+        predict_answer: "Flat over ages 0 to 999 (the 1,000 stored transitions are written at steps 1,500 to 2,499), with 499 of 1,000 ages above 500, so about 49.9% of draws. The colleague's buffer has ptr = 500 and draws only slots 0 to 499, which hold steps 2,000 to 2,499: no draw is older than 499 steps (exact by construction). Diagnosis b."
+        explain_ref: "(replay sampling)"
+      - n: 3
+        title: The masked target and the Huber loss
+        minutes: 9
+        writes: [td_target, huber]
+        predict_answer: "Terminated: y = 1. Truncated: y = 1 + 0.99 x 50 = 50.5. Neither: 50.5. Huber with psi = 1: at 0.5, 0.125 with derivative 0.5; at 3, 3 - 0.5 = 2.5 with derivative 1 (exact)."
+        explain_ref: 'Gotcha: "done = terminated or truncated."'
+      - n: 4
+        title: The training loop
+        minutes: 12
+        writes: [train_dqn]
+        predict_answer: "Live: copies at steps 1,500, 2,000, ..., 50,000 follow a gradient step, 98 of them, and (sync lag) gives 100 (1 - 0.99^98) = 62.65 (exact). QUICK: 18 copies, 16.55. The run's max Q at the probe states: pending record (m08 bands); it is bounded by 1/(1 - 0.99) = 100 only for a correct run."
+        explain_ref: 'Gotcha: "My returns went up, so it works."'
+      - n: 5
+        title: The Double DQN target
+        minutes: 5
+        writes: [double_dqn_target]
+        predict_answer: "DQN: 1 + 0.9 x max(4, 3) = 4.6. Double DQN: the online network picks action 1 (5 > 2), the target network values it at 3, so 1 + 0.9 x 3 = 3.7 (exact)."
+        explain_ref: "(Double DQN target)"
+      - n: 6
+        title: Measuring overestimation
+        minutes: 7
+        writes: [mc_return]
+        predict_answer: "Pending record (m08 bands, DQN and Double DQN, seeds 0-4). The page's tools: (sync lag) gives 62.65 after 98 copies, while a greedy policy that lasts 150 steps has G_0 = 100 (1 - 0.99^150) = 77.9 and one that reaches 500 steps has 99.34, so at this budget the lag can outweigh the max bias. A 500-step episode is truncated: an exact Q of a policy that never fails is 100, above its G_0 by 0.99^500 / (1 - 0.99) = 0.657 (exact)."
+        explain_ref: "(sync lag)"
+      - n: 7
+        title: SB3 at the same budget
+        minutes: 5
+        writes: [sb3_call]
+        predict_answer: "A correct seed falls outside a 5-seed min-max range with probability 2/(5 + 1) = 1/3 (exact, PLAN 3.6). The reference-against-SB3 call: pending record (m08 bands, the reference and SB3 2.9 DQN, 5 seeds each)."
+        explain_ref: 'Gotcha: "My seed landed above SB3''s band, so my DQN is better."'
+    status: {briefing: draft, lab: draft}
 
   m09:
     n: 9

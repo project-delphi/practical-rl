@@ -15,7 +15,7 @@ Semi-gradient TD, the deadly triad on Baird's counterexample, and linear Q-learn
 
 [Briefing 11:30 · lunch · Lab 13:10 · Debrief 14:20]{.module-clock}
 
-Replay, a target network and the Huber loss make neural Q-learning stable; Double DQN reduces the max bias.
+Replay, a target network and the Huber loss make neural Q-learning stable; Double DQN removes part of the bias, and Monte Carlo returns show what remains.
 
 [Colab CPU]{.chip} [core 54 min]{.chip} [notebook not built yet]{.chip .chip-none}
 :::

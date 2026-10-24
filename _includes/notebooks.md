@@ -33,7 +33,7 @@
 ::: {.lab-list}
 - **[7 · Function approximation and why it can diverge](/modules/07-function-approximation.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 7]{.visually-hidden}](/readiness.qmd#m07){.chip}  
   Not built yet.
-- **[8 · DQN from scratch](/modules/08-dqn.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 8]{.visually-hidden}](/readiness.qmd#m08){.chip}  
+- **[8 · DQN from scratch](/modules/08-dqn.qmd)** [Colab CPU]{.chip} [lab draft]{.chip} [readiness [of Lab 8]{.visually-hidden}](/readiness.qmd#m08){.chip}  
   Not built yet.
 - **[9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 9]{.visually-hidden}](/readiness.qmd#m09){.chip}  
   Not built yet.

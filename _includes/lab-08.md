@@ -8,7 +8,7 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 |---|---|---|
 | 0 | Reconnect and rerun setup | 3 |
 | 1 | A replay buffer | 8 |
-| 2 | Planted bug: a recent-only buffer [Planted bug]{.chip .chip-stale} | 5 |
+| 2 | Planted bug: a colleague's buffer [Planted bug]{.chip .chip-stale} | 5 |
 | 3 | The masked target and the Huber loss | 9 |
 | 4 | The training loop | 12 |
 | 5 | The Double DQN target | 5 |
