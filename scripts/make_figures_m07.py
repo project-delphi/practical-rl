@@ -439,6 +439,9 @@ def exact_numbers(L: dict) -> dict:
     eig = np.sort(np.linalg.eigvals(A).real)
     assert np.allclose(eig, [-0.23925, -0.02218, 0, *[0.57143] * 5], atol=5e-6)
     assert [_r(x, 3) for x in eig[:2]] == [-0.239, -0.022]  # Section 5's fold
+    lam_all = np.linalg.eigvals(A)
+    assert abs(lam_all[np.argmin(lam_all.real)].imag) < 1e-12  # "the eigenvalue -0.23925"
+    assert np.linalg.matrix_rank(b.phi) == 7  # 8 weights, 7 independent feature vectors
     # ---- Exercise 4 and knowledge check 7.3
     norms, path = L["norms"], L["path"]
     assert [_r(norms[k], 3) for k in (0, 10, 100, 1000)] == [10.344, 10.609, 16.826, 436.856]
@@ -464,7 +467,11 @@ def exact_numbers(L: dict) -> dict:
     G = b.phi.T @ np.diag(b.mu_behavior) @ b.phi
     lam = np.linalg.eigvalsh(G).max()
     assert _r(lam, 3) == 1.857 and _r(2 / lam, 3) == 1.077
+    A_on = L["td_matrix"](b.phi, np.eye(7)[6], b.P_target, b.gamma)
+    assert np.allclose(A_on, (1 - b.gamma) * np.outer(b.phi[6], b.phi[6]), atol=1e-15)
+    assert np.linalg.matrix_rank(A_on) == 1
     mc = (22 / 13) * np.array([1, 1, 1, 1, 1, 1, 4, -2])
+    assert [_r(x, 3) for x in mc[[0, 6, 7]]] == [1.692, 6.769, -3.385]
     assert np.allclose(results["monte-carlo"][0][-1], mc, atol=1e-9)
     assert np.allclose(b.phi @ np.array([1, 1, 1, 1, 1, 1, 4, -2]), 0)
     assert _sig(0.01 * (1 - b.gamma) / 7, 3) == "1.43e-05"
@@ -591,7 +598,13 @@ def legs_figure(t: Theme, data: dict) -> Figure:
         ax.spines[side].set_visible(False)
     ax.set_xlabel("sweeps (log scale)")
     ax.set_ylabel("largest |v̂(s) − v_π(s)| (log scale)")
-    ax.legend(loc="lower left", frameon=False, handlelength=2.8, title="Baird, α = 0.01")
+    ax.legend(
+        loc="upper left",
+        frameon=False,
+        handlelength=2.8,
+        title="Baird, α = 0.01",
+        alignment="left",
+    )
     return fig
 
 
@@ -607,7 +620,7 @@ NORM_YLIM = (1, 1e125)
 
 def norms_figure(t: Theme, data: dict) -> Figure:
     fig = Figure(figsize=(WIDTH_IN, 4.2))
-    ax = fig.add_axes((0.12, 0.14, 0.85, 0.82))
+    ax = fig.add_axes((0.12, 0.14, 0.82, 0.82))
     grid = np.array(data["grid"])
     for row in data["solution"]:
         ax.plot(grid, _log_round(np.array(row), 1, 1e130), color=t.series[0], lw=1.2, alpha=0.8)
@@ -654,7 +667,8 @@ def norms_figure(t: Theme, data: dict) -> Figure:
     ax.legend(
         handles,
         ["colleague's features (not scaled)", "rbf_features (unit length)"],
-        loc="upper left",
+        loc="lower right",
+        bbox_to_anchor=(1.0, 0.13),
         frameon=False,
         handlelength=2.8,
         title=f"{n} seeds each, α = 0.3",
