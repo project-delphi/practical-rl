@@ -28,8 +28,8 @@ The warm-up questions for this day are written in Phase 4.
 
 | Lab | Rows | Metric | Room's result |
 |---|---|---|---|
-| 4 Bandits | greedy, ε-greedy, UCB1, Thompson sampling; rewards ×10 | regret at T over 20 seeds; verdict or tie | |
-| 5 Recommender | LinUCB, linear TS, predict-then-greedy × 3 regimes | regret over 5 seeds; mean logged importance weight | |
+| 4 Bandits | greedy, ε-greedy, UCB1, Thompson sampling; rewards ×10 | regret at 5000 and 20,000 rounds over 20 seeds; verdict or tie; seeds improved under ×10 | |
+| 5 Recommender | LinUCB, linear TS, predict-then-greedy × 3 regimes + a warm launch | regret over 5 seeds; verdict or tie; mean logged importance weight | |
 | 6 RiverSwim | ε-greedy, optimistic, MBIE-EB | hitting time; share of seeds reaching the right end; regret over 10 seeds | |
 
 2. **What is still broken?** List what failed today and why, so tomorrow can start from it.

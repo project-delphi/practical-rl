@@ -29,6 +29,10 @@ All notable changes to this workshop. Dates are UTC.
   - Briefing on pseudo-regret, greedy's trap, Hoeffding's inequality and the UCB1 bonus, Beta–Bernoulli Thompson sampling, and how ε and the reward scale break each method's assumptions.
   - Lab: six exercises (core 52) and a Gaussian Thompson sampling stretch, on a per-arm reward stack. Exercise 4 continues ε-greedy and UCB1 to 20,000 rounds, so the budget lesson is shown. The planted bug, a UCB1 whose counts never grow, shows in a per-seed pull histogram.
   - `prl.checks.m04`: exact replays plus one stochastic checkpoint (Thompson sampling's regret, thresholds from 100-seed protocol runs, arm64), figures from three recorded experiments including 100 seats, knowledge checks and laptop run records. Pedagogy, UI and academic reviews applied.
+- Phase 3, Day 2 (2026-10-24): Module 5, "Contextual bandits for recommendation".
+  - Briefing on framing a recommender as a contextual bandit, incremental ridge regression, the confidence ellipsoid and LinUCB's bonus, linear Thompson sampling, misspecification, drift and the launch, and why logging must be stochastic.
+  - Lab: eight exercises (core 3 + 50) on `RecSim`, with a warm-launch condition chosen from a record, a MABWiser parity stretch (pinned for Colab) and a planted logger that records the greedy action's propensity.
+  - `prl.checks.m05`: seven exact checkpoints with fixtures, figures from three recorded experiments, knowledge checks and laptop run records. Pedagogy, UI and academic reviews applied.
 - `health.yml` (weekly): the locked-environment run on Linux and macOS arm64 with live budgets; `colab_constraints.py bump`, which refreshes the Colab freeze, runs colab-compat and colab-sim on it and opens a PR with their results; and a `uv lock --upgrade` report. The colab-sim steps moved to a composite action, with the same checks (2026-10-10).
 - `scripts/threshold_protocol.py` and `prl.checks.StochasticCheck`: thresholds for stochastic checkpoints, set from at least 100 (QUICK) or 20 (live) seeds of the solution and its mutants, and recorded as experiment records (2026-10-10).
 

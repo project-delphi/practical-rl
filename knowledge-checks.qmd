@@ -327,4 +327,82 @@ $\varepsilon$-greedy decides with a coin flip of probability $\varepsilon$, whic
 The floor is $\frac{\varepsilon}{|\mathcal{A}|} \sum_a \Delta_a = \varepsilon \cdot 0.3 / 3$: 0.005 per round and 25 over 5000 rounds at $\varepsilon = 0.05$; 0.02 per round and 100 at $\varepsilon = 0.2$. At $\varepsilon = 0$ the method is greedy: no floor, but in at least half of all runs it leaves headline 2 behind and pays 0.1 or 0.2 in every later round, so its regret is linear on those seeds. A small $\varepsilon$ is cheap per round and slow to escape that trap; a large one escapes quickly and pays its floor forever. With rewards × 10 and the same bonus, UCB1's choices change: the bonus is small next to the gaps, so it behaves more greedily. On the reference run (seeds 0 to 19, 5000 rounds), its mean rose from 112.2 to 195.1 while its IQM fell from 113.8 to 90.1, and the tie rule called a tie (`runs/2026-10-18-local-m04-scale-exp.json`). Thirteen seeds improved, because the small bonus stopped forcing pulls of the worse headlines, and 7 fell into greedy's trap and got far worse: two humps, which pull the mean and the IQM in different directions. Over 100 seats of 20 seeds, the mean rose on 97 seats and fell on 3, and 1174 of 2000 seeds improved (`runs/2026-10-18-local-m04-seats-exp.json`).
 
 **Evidence:** Lab 4, checkpoint 5.2 ("changes" for UCB1 with the same bonus), and Exercise 5's sweep and scale run (reported, not checked).
+## Module 5 {#m05}
+
+Questions for [Module 5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd), two per objective. Each answer ends with the Lab 5 checkpoint or cell that is its evidence.
+
+### Objective 1: frame a recommender as a contextual bandit and say what is lost compared with full RL
+
+[**5.1**]{#q5-1} A news site shows each visitor one headline and records whether they click. Give the context, the action and the reward of a contextual-bandit framing. A product manager then adds a fact: a user who clicks a clickbait headline is less likely to come back tomorrow. Is the problem still a contextual bandit? If not, what must the framing add?
+
+::: {.callout-tip collapse="true" title="Answer to 5.1"}
+Context: the visitor's features, such as their reading history and device, plus a constant 1 for the model. Action: the headline shown. Reward: the click, 1 or 0, observed for the shown headline only. In a contextual bandit the action changes nothing about the next context, and that is what the manager's fact breaks: today's headline changes whether this user returns, so it changes the future. The framing needs a state that carries that effect, for example the user's recent exposure to clickbait, a transition in which the action changes it, and an objective over the horizon, a discounted return, instead of the next click. That is Module 1's MDP.
+
+**Evidence:** Lab 5, Exercise 1: the run cell serves one stream of users with two fixed policies and shows that the users are the same whatever is shown; the framing is discussed in the debrief.
+:::
+
+[**5.2**]{#q5-2} RecSim's click model is $r(x, a) = \operatorname{clip}(0.5 + 0.15\, \theta_a^\top x,\ 0.02,\ 0.98)$. Take three items, numbered 0 to 2, with $\theta_0 = (2, 0)$, $\theta_1 = (0, -4)$, $\theta_2 = (10, 10)$ and the user $x = (0.5, 0.5)$. Compute the three click probabilities and say which item is best. Why does the lab's model use the features $\phi(x) = (x, 1)$ rather than $x$ alone?
+
+::: {.callout-tip collapse="true" title="Answer to 5.2"}
+$\theta^\top x = 1, -2, 10$, so $0.5 + 0.15\,\theta^\top x = 0.65, 0.2, 2.0$, and the clip gives $0.65$, $0.2$ and $0.98$. Item 2 is best. Without the constant, a linear model $w^\top x$ predicts 0 at $x = 0$ for every item, but every item's click probability there is 0.5. The constant feature lets $w^*_a = (0.15\,\theta_a,\ 0.5)$ represent the click model exactly inside the clip.
+
+**Evidence:** Lab 5, checkpoint 1 (`reward_fn` on hand-worked cases, two of them clipped).
+:::
+
+### Objective 2: implement incremental ridge regression, LinUCB and linear Thompson sampling
+
+[**5.3**]{#q5-3} With $\lambda_{\text{ridge}} = 1$, an item has seen one user with $\phi = (1, 0)$, so $\Lambda^{-1} = \operatorname{diag}(1/2,\ 1)$. Use the Sherman–Morrison formula to add the observation $\phi = (0, 2)$ and check your answer against a direct inverse. What goes wrong if the update drops the 1 in the denominator?
+
+::: {.callout-tip collapse="true" title="Answer to 5.3"}
+$\Lambda^{-1}\phi = (0, 2)$ and $1 + \phi^\top \Lambda^{-1}\phi = 1 + 4 = 5$. Subtract $(0, 2)(0, 2)^\top / 5$: the new inverse is $\operatorname{diag}(1/2,\ 1 - 4/5) = \operatorname{diag}(0.5,\ 0.2)$. Directly, $\Lambda = I + (1, 0)(1, 0)^\top + (0, 2)(0, 2)^\top = \operatorname{diag}(2, 5)$, whose inverse is $\operatorname{diag}(0.5, 0.2)$: the same. Without the 1 the denominator is 4, and the update gives $\operatorname{diag}(0.5,\ 0)$: a singular "inverse" that claims the direction $(0, 1)$ is known exactly after one observation. Its width there would be 0, so LinUCB would stop exploring that direction, and the Cholesky factor of Thompson sampling would fail.
+
+**Evidence:** Lab 5, checkpoint 2 (`Ridge`'s statistics, inverse and predictions against the closed form).
+:::
+
+[**5.4**]{#q5-4} A unit feature vector $\phi$ has been seen $n = 3$ times by an item, with $\lambda_{\text{ridge}} = 1$. What is LinUCB's bonus at $\phi$ with $c = 0.5$, and what is the standard deviation of linear Thompson sampling's drawn score at $\phi$ with $v = 0.25$? A colleague's LinUCB adds $c\, \phi^\top \Lambda^{-1} \phi$ instead of $c \sqrt{\phi^\top \Lambda^{-1} \phi}$: what bonus does it give here, and why is it wrong?
+
+::: {.callout-tip collapse="true" title="Answer to 5.4"}
+$\phi^\top \Lambda^{-1} \phi = 1/(1 + n) = 1/4$, so the width is $1/2$, LinUCB's bonus is $0.5 \cdot 0.5 = 0.25$, and the drawn score's standard deviation is $0.25 \cdot 0.5 = 0.125$. The colleague's bonus is $0.5 \cdot 1/4 = 0.125$. It adds a variance where the confidence interval needs a standard deviation: it has the wrong units, and it shrinks like $1/n$ instead of $1/\sqrt{n}$, so the method stops exploring too soon.
+
+**Evidence:** Lab 5, checkpoint 3 (the width of a unit vector seen $n$ times) and checkpoint 4 (the drawn scores' covariance $v^2 \Lambda^{-1}$).
+:::
+
+### Objective 3: compare them with predict-then-greedy under misspecification and drift over 5 seeds
+
+[**5.5**]{#q5-5} Suppose that over 5 seeds per side LinUCB's final regret has an interquartile mean of 170 with a 95% bootstrap interval [150, 190], and greedy's has 260 with [180, 320]. What is the verdict under the workshop's rule, and what must the sentence state besides it? What changes if each side has only 3 seeds? And if one?
+
+::: {.callout-tip collapse="true" title="Answer to 5.5"}
+The intervals overlap (190 > 180), so it is a tie, even though LinUCB's interquartile mean is lower: five seeds per side do not separate them. The sentence states the budget: the rounds per run, the seeds per method, the wall-clock time and the hardware. With 3 seeds per side there is no interval: show every seed, compare the means with the min–max ranges, and call a tie if the ranges overlap. With one seed per side the result is "single seed, not a ranking". In every case lower regret is better, so the comparison runs with `higher_is_better=False`.
+
+**Evidence:** Lab 5, checkpoint 5 (`verdicts` against `prl.evaluate.compare` on fixed tables, including ties and fewer seeds).
+:::
+
+[**5.6**]{#q5-6} In the misspecified regime a colleague notes that LinUCB's widths at the end of the run are about as narrow as in the well-specified regime, and concludes that the linear model fits well. What is wrong with the conclusion? In the drifting regime, what does LinUCB's ridge estimate converge to? And a second colleague concludes from Lab 5 that greedy recommenders always lose to LinUCB: what in the lab's design limits that conclusion?
+
+::: {.callout-tip collapse="true" title="Answer to 5.6"}
+The width $\lVert \phi \rVert_{\Lambda^{-1}}$ depends only on which users an item has seen, not on whether the model is right. It measures the noise around the model, assuming the model is linear. Under misspecification ridge converges to the best linear fit for the users the item was shown to, whose error stays, so the widths shrink while the regret keeps growing; narrow widths then mean a precise estimate of the wrong function. Under drift every observation counts equally in $\Lambda_a$ and $b_a$, so $\hat w_a$ estimates an average of the tastes the item has seen over the whole run, not the current ones, and its widths shrink as its data grow older.
+
+The second conclusion overreaches. The lab compares the methods after one launch design, mostly one impression per item, on one simulator whose users are diverse, with $c$ and $v$ set by hand, 3000 rounds and 5 seeds per seat. Change the launch to three passes and the well-specified call becomes a tie at 29 of 30 seats (`runs/2026-10-18-local-m05-launch-exp.json`). A verdict holds for its budget and its design.
+
+**Evidence:** Lab 5, Exercise 5's run cell, which prints LinUCB's width at the end in each regime beside the regrets, and its warm-launch condition; checkpoint 5 checks the verdicts.
+:::
+
+### Objective 4: log data with correct propensities from a stochastic behavior policy
+
+[**5.7**]{#q5-7} A team logs with $\varepsilon$-greedy over LinUCB, $K = 5$ items (numbered 0 to 4) and $\varepsilon = 0.25$. They store only $(x, a, r)$ and plan to recompute the propensities next month from the model they will have then. What goes wrong? With the propensities recorded correctly instead, a target policy always shows item 4, which is never the logger's best item. If the users shown item 4 click with probability 0.3, what does the mean of weight × click estimate?
+
+::: {.callout-tip collapse="true" title="Answer to 5.7"}
+A propensity is the probability the deployed policy used when it showed the item. Next month's model scores the items differently, so on many rows it names another best item and recomputes 0.8 where the logger used 0.05, or the reverse; the weights are then wrong exactly where they matter, and nothing in $(x, a, r)$ can repair them. Record the probability at the moment of showing.
+
+With correct propensities, the best item gets $1 - 0.25 + 0.25/5 = 0.8$ and each other item $0.25/5 = 0.05$. A row has weight $1/0.05 = 20$ when the logger showed item 4, which happens with probability 0.05, and 0 otherwise, so the mean weight is $0.05 \cdot 20 = 1$, as it must be on a correct log. The mean of weight × click is $0.05 \cdot 20 \cdot 0.3 = 0.3$: the click rate of the target policy, estimated from rows the target did not choose. With $\varepsilon = 0$ item 4 never appears and both means are 0.
+
+**Evidence:** Lab 5, checkpoint 6 (`log_policy` exact; the mean weight of a log made with it).
+:::
+
+[**5.8**]{#q5-8} A colleague's logger records `probs.max()`, the best item's probability, as the propensity of every row. The logger is $\varepsilon$-greedy with $K = 10$ and $\varepsilon = 0.1$. What is the mean weight of the uniform target on this log? Why does a target that usually agrees with the logger's best item give a mean weight close to 1, and why is that no comfort?
+
+::: {.callout-tip collapse="true" title="Answer to 5.8"}
+Every row records $0.91$, so every uniform-target weight is $0.1/0.91 \approx 0.11$, and so is the mean, instead of 1. The recorded propensity is right on rows where the logger showed its best item and wrong, by a factor of 91, on rows where it explored. A target that agrees with the logger puts its weight on the right rows, so the error barely shows. But the policies Day 5 wants to evaluate are the ones that differ from the logger, and their estimates rest on the explored rows, exactly where the propensities are wrong.
+
+**Evidence:** Lab 5, checkpoint 7 (every recorded propensity equals the shown item's probability) and Exercise 7's run cell, which prints the mean weight of two targets on the suspect's log.
 :::
