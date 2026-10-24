@@ -414,30 +414,56 @@ def verdict(regret_a, regret_b):  # noqa: F811
     return "A" if sa[0] < sb[0] else "B"
 
 
-# ------------------------------------------------------------------ 5: scale_directions
-@mutant(ex=5, replaces="scale_directions", id="ucb1-down", why="expects a smaller bonus to help")
-def scale_directions():
-    return {"eps_greedy": "same", "ucb1": "down", "ucb1_rescaled": "same"}
+# ------------------------------------------------------------------ 5: ucb1_for_range
+@mutant(
+    ex=5,
+    replaces="ucb1_for_range",
+    id="bonus-not-scaled",
+    why="returns UCB1's index on the raw rewards: the bonus stays sized for rewards in [0, 1]",
+)
+def ucb1_for_range(counts, sums, t, B):
+    return ucb1_index(counts, sums, t)  # noqa: F821
 
 
 @mutant(
     ex=5,
-    replaces="scale_directions",
-    id="eps-up",
-    why="expects every method's regret to grow with the rewards, even in the original units",
+    replaces="ucb1_for_range",
+    id="mean-scaled-twice",
+    why="multiplies the index by B without dividing the sums first, so the mean is B times too big",
 )
-def scale_directions():  # noqa: F811
-    return {"eps_greedy": "up", "ucb1": "up", "ucb1_rescaled": "up"}
+def ucb1_for_range(counts, sums, t, B):  # noqa: F811
+    return B * ucb1_index(counts, sums, t)  # noqa: F821
 
 
+# ------------------------------------------------------------------ 5: scale_directions
 @mutant(
     ex=5,
     replaces="scale_directions",
     id="ucb1-same",
-    why="believes UCB1 is free of parameters, so nothing changes",
+    why="believes UCB1 is free of parameters, so rewards x 10 change nothing",
+)
+def scale_directions():
+    return {"eps_greedy": "same", "ucb1": "same", "ucb1_rescaled": "same"}
+
+
+@mutant(
+    ex=5,
+    replaces="scale_directions",
+    id="eps-changes",
+    why="expects every method's choices to change with the rewards, epsilon-greedy's too",
 )
 def scale_directions():  # noqa: F811
-    return {"eps_greedy": "same", "ucb1": "same", "ucb1_rescaled": "same"}
+    return {"eps_greedy": "changes", "ucb1": "changes", "ucb1_rescaled": "same"}
+
+
+@mutant(
+    ex=5,
+    replaces="scale_directions",
+    id="rescaled-changes",
+    why="expects UCB1 to change even with the bonus scaled to the range",
+)
+def scale_directions():  # noqa: F811
+    return {"eps_greedy": "same", "ucb1": "changes", "ucb1_rescaled": "changes"}
 
 
 # ------------------------------------------------------------------ 6: UCB1Suspect

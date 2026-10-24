@@ -95,10 +95,22 @@ def test_exact_shares_and_reference_shares_agree():
 def test_the_scale_reference_run_gives_the_directions():
     fx = expected("m04_scale")
     want = dict(zip(fx["keys"].tolist(), fx["directions"].tolist(), strict=True))
-    assert want == {"eps_greedy": "same", "ucb1": "up", "ucb1_rescaled": "same"}
+    assert want == {"eps_greedy": "same", "ucb1": "changes", "ucb1_rescaled": "same"}
+    assert fx["same_arms_seeds"].tolist() == [20, 0, 20]
     assert np.allclose(fx["eps_greedy_x1"], fx["eps_greedy_x10"], rtol=0, atol=1e-9)
     assert np.allclose(fx["ucb1_x1"], fx["ucb1_rescaled_x10"], rtol=0, atol=1e-9)
-    assert fx["ucb1_x10"].mean() - fx["ucb1_x1"].mean() > 50
+
+
+def test_ucb1_for_range_fixture_is_ucb1_scaled_to_the_range():
+    fx = expected("m04_ucb1_for_range")
+    b1 = int(np.flatnonzero(fx["B"] == 1.0)[0])  # B = 1 is UCB1's own index
+    assert np.allclose(fx["index"][b1], expected("m04_ucb1")["index"][3], rtol=0, atol=1e-12)
+    for i, (c, s, t, B) in enumerate(zip(fx["counts"], fx["sums"], fx["t"], fx["B"], strict=True)):
+        seen = c > 0
+        assert np.all(np.isposinf(fx["index"][i][~seen]))
+        if seen.any():
+            bonus = B * np.sqrt(2 * np.log(t) / c[seen])
+            assert np.allclose(fx["index"][i][seen], s[seen] / c[seen] + bonus, rtol=1e-12)
 
 
 def _loop(arms_out=None, regret_out=None, t_shift=0, new_rng=False):
@@ -160,11 +172,17 @@ def test_check_run_bandit_accepts_a_correct_loop():
         (m04.check_scale_directions, lambda: {"eps_greedy": "same"}),
         (
             m04.check_scale_directions,
-            lambda: {"eps_greedy": "flat", "ucb1": "up", "ucb1_rescaled": "same"},
+            lambda: {"eps_greedy": "same", "ucb1": "up", "ucb1_rescaled": "same"},
         ),
         (
             m04.check_scale_directions,
-            lambda: {"eps_greedy": "same", "ucb1": "down", "ucb1_rescaled": "same"},
+            lambda: {"eps_greedy": "same", "ucb1": "same", "ucb1_rescaled": "same"},
+        ),
+        (m04.check_ucb1_for_range, lambda *a: None),
+        (m04.check_ucb1_for_range, lambda c, s, t, B: np.full(3, np.nan)),
+        (
+            m04.check_ucb1_for_range,
+            lambda c, s, t, B: np.where(c > 0, s / np.maximum(c, 1), np.inf),
         ),
         (m04.check_gaussian_posterior, lambda *a: None),
     ],
@@ -172,6 +190,42 @@ def test_check_run_bandit_accepts_a_correct_loop():
 def test_exact_checks_reject_wrong_answers(check, bad):
     with pytest.raises(CheckFailed):
         check(bad)
+
+
+def test_check_scale_directions_does_not_grade_up_or_down():
+    with pytest.raises(CheckFailed, match="grades only whether the choices change"):
+        m04.check_scale_directions(
+            lambda: {"eps_greedy": "same", "ucb1": "up", "ucb1_rescaled": "same"}
+        )
+    with pytest.raises(CheckFailed, match="pulled the same arms on 0 of 20 seeds") as err:
+        m04.check_scale_directions(
+            lambda: {"eps_greedy": "same", "ucb1": "same", "ucb1_rescaled": "same"}
+        )
+    assert " up" not in str(err.value) and "down" not in str(err.value)
+
+
+def test_check_verdict_checks_the_late_pair_when_given():
+    def rule(a, b):  # compare()'s winner: the rule itself, for this test only
+        from prl.evaluate import compare
+
+        return compare(a, b, higher_is_better=False).winner
+
+    rng = np.random.default_rng(3)
+    final = {m: rng.normal(mu, 5, 20) for m, mu in (("TS", 20), ("UCB1", 110), ("eps-greedy", 60))}
+    late = {"UCB1": rng.normal(180, 10, 20), "eps-greedy": rng.normal(210, 10, 20)}
+    m04.check_verdict(rule, final, late)
+    flips = {"n": 0}
+
+    def wrong_late(a, b):  # right on the fixed cases and on final, wrong on the late pair
+        if np.mean(a) > 150 or np.mean(b) > 150:
+            flips["n"] += 1
+            return "tie"
+        return rule(a, b)
+
+    m04.check_verdict(wrong_late, final)  # without late it cannot see the mistake
+    with pytest.raises(CheckFailed, match="late"):
+        m04.check_verdict(wrong_late, final, late)
+    assert flips["n"] >= 1
 
 
 def test_check_verdict_rejects_a_word_outside_the_rule():

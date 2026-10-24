@@ -29,7 +29,7 @@ R_MEAN = np.array([0.4, 0.3, 0.5])
 GAPS = R_MEAN.max() - R_MEAN  # 0.1, 0.2 and 0
 N_ARMS = len(R_MEAN)
 VERDICTS = ("A", "B", "tie", "single seed")
-DIRECTIONS = ("up", "down", "same")
+DIRECTIONS = ("same", "changes")
 
 
 # ------------------------------------------------------------------ the lab's provided plumbing
@@ -548,7 +548,30 @@ def _summary_words(sa: Any, sb: Any, n: int) -> str:
     )
 
 
-def check_verdict(verdict: Callable[..., Any], final: Any) -> None:
+def _check_pair(verdict: Callable[..., Any], runs: Mapping, a_name: str, b_name: str, src: str):
+    """verdict on the lab's own per-seed regrets, both orders, against compare()."""
+    if a_name not in runs or b_name not in runs:
+        raise CheckFailed(f"{src} has no {a_name!r} or {b_name!r}: rerun the run cells above.")
+    xa = np.asarray(runs[a_name], dtype=float).ravel()
+    xb = np.asarray(runs[b_name], dtype=float).ravel()
+    rule = compare(xa, xb, higher_is_better=False)
+    swap = {"A": "B", "B": "A", "tie": "tie", "single seed": "single seed"}
+    for (p, q), (pn, qn), want, (sa, sb) in (
+        ((xa, xb), (a_name, b_name), rule.winner, (rule.summary_a, rule.summary_b)),
+        ((xb, xa), (b_name, a_name), swap[rule.winner], (rule.summary_b, rule.summary_a)),
+    ):
+        call = f"verdict({src}[{pn!r}], {src}[{qn!r}])"
+        got = _word(verdict(p.copy(), q.copy()), call)
+        if got != want:
+            raise CheckFailed(
+                f"on your own runs, {call} is {got!r}; the rule (prl.evaluate.compare) gives "
+                f"{want!r} ({_summary_words(sa, sb, min(p.size, q.size))})."
+            )
+
+
+def check_verdict(verdict: Callable[..., Any], final: Any, late: Any = None) -> None:
+    """The fixed cases, then the lab's own runs: `final` (5000 rounds) and, if given, `late`
+    (epsilon-greedy and UCB1 after the late horizon)."""
     fx = expected("m04_verdict")
     for i, name in enumerate(fx["names"]):
         name = str(name)
@@ -564,52 +587,80 @@ def check_verdict(verdict: Callable[..., Any], final: Any) -> None:
             )
     if not isinstance(final, Mapping):
         raise CheckFailed("final should be the lab's dict of per-seed regrets per method.")
-    swap = {"A": "B", "B": "A", "tie": "tie", "single seed": "single seed"}
     for a_name, b_name in (("TS", "UCB1"), ("TS", "eps-greedy"), ("UCB1", "eps-greedy")):
-        if a_name not in final or b_name not in final:
-            raise CheckFailed(f"final has no {a_name!r} or {b_name!r}: rerun Exercises 1 to 3.")
-        xa = np.asarray(final[a_name], dtype=float).ravel()
-        xb = np.asarray(final[b_name], dtype=float).ravel()
-        rule = compare(xa, xb, higher_is_better=False)
-        for (p, q), (pn, qn), want in (
-            ((xa, xb), (a_name, b_name), rule.winner),
-            ((xb, xa), (b_name, a_name), swap[rule.winner]),
-        ):
-            got = _word(verdict(p.copy(), q.copy()), f"verdict(final[{pn!r}], final[{qn!r}])")
-            if got != want:
-                sa, sb = (
-                    (rule.summary_a, rule.summary_b)
-                    if pn == a_name
-                    else (
-                        rule.summary_b,
-                        rule.summary_a,
-                    )
-                )
-                raise CheckFailed(
-                    f"on your own runs, verdict(final[{pn!r}], final[{qn!r}]) is {got!r}; the "
-                    f"rule (prl.evaluate.compare) gives {want!r} "
-                    f"({_summary_words(sa, sb, min(p.size, q.size))})."
-                )
+        _check_pair(verdict, final, a_name, b_name, "final")
+    if late is not None:
+        if not isinstance(late, Mapping):
+            raise CheckFailed(
+                "late should be the lab's dict of per-seed regrets at the late horizon."
+            )
+        _check_pair(verdict, late, "UCB1", "eps-greedy", "late")
 
 
 # ------------------------------------------------------------------ 5 reward scale (exact)
+_RANGE_HINTS = {
+    "bonus_not_scaled": (
+        "your index is ucb1_index on the raw sums: the bonus must grow with the range. Divide the "
+        "sums by B, take ucb1_index, and multiply the result by B."
+    ),
+    "mean_scaled_twice": (
+        "the mean came out B times too large: divide the sums by B before ucb1_index, so that "
+        "multiplying the index by B brings the mean back to reward units."
+    ),
+}
+
+
+def check_ucb1_for_range(ucb1_for_range: Callable[..., Any]) -> None:
+    """Exact: UCB1's index for rewards in [0, B] on fixed counts, sums, t and B."""
+    fx = expected("m04_ucb1_for_range")
+    rows = zip(fx["counts"], fx["sums"], fx["t"], fx["B"], strict=True)
+    for i, (counts, sums, t, B) in enumerate(rows):
+        t, B = int(t), float(B)
+        what = f"ucb1_for_range(counts={_ints(counts)}, sums={_ints(sums)}, t={t}, B={B:g})"
+        with np.errstate(divide="ignore", invalid="ignore"):
+            out = ucb1_for_range(counts.copy(), sums.copy(), t, B)
+        got = _vector(out, len(counts), what, allow_inf=True)
+        if np.any(np.isnan(got)) or np.any(np.isneginf(got)):
+            raise CheckFailed(
+                f"{what} returned {got.tolist()}. An arm never pulled keeps the index +inf, and "
+                "at t = 0 no log may be taken: build on your ucb1_index."
+            )
+        want = fx["index"][i]
+        inf = np.isposinf(want)
+        if np.array_equal(np.isposinf(got), inf) and np.allclose(
+            got[~inf], want[~inf], rtol=1e-12, atol=1e-10
+        ):
+            continue
+        hint = "B * ucb1_index(counts, sums / B, t): rescale, take the index, scale back."
+        for key, text in _RANGE_HINTS.items():
+            alt = fx[key][i]
+            ainf = np.isposinf(alt)
+            if np.array_equal(np.isposinf(got), ainf) and np.allclose(got[~ainf], alt[~ainf]):
+                hint = text
+        raise CheckFailed(
+            f"{what} returned {np.round(got, 5).tolist()}; expected {np.round(want, 5).tolist()}, "
+            f"sums / counts + B sqrt(2 ln t / counts). Hint: {hint}"
+        )
+
+
 _SCALE_WHY = {
     "eps_greedy": (
         "multiplying every mean by 10 changes no comparison between means, and the coin flips "
-        "are the same, so epsilon-greedy pulls the same arms on every seed"
+        "are the same"
     ),
-    "ucb1": (
-        "the bonus is in reward units for rewards in [0, 1]; next to gaps 10 times larger it "
-        "acts like a small bonus, and UCB1 behaves nearly greedily"
+    "ucb1_rescaled": (
+        "ucb1_for_range at B = 10 multiplies the mean and the bonus by 10, so every comparison "
+        "is the same"
     ),
-    "ucb1_rescaled": "the mean and the bonus are both multiplied by 10, so every comparison is the same",
 }
-_SCALE_X1 = {"eps_greedy": "eps_greedy_x1", "ucb1": "ucb1_x1", "ucb1_rescaled": "ucb1_x1"}
 
 
 def check_scale_directions(scale_directions: Callable[[], Any]) -> None:
+    """Exact: does each method pull the same arms on every seed when rewards are x 10? The
+    direction of the regret is the Explain's question, not the checkpoint's."""
     fx = expected("m04_scale")
     want = dict(zip(fx["keys"].tolist(), fx["directions"].tolist(), strict=True))
+    same_seeds = dict(zip(fx["keys"].tolist(), fx["same_arms_seeds"].tolist(), strict=True))
     out = scale_directions()
     if not isinstance(out, Mapping):
         raise CheckFailed(
@@ -623,22 +674,27 @@ def check_scale_directions(scale_directions: Callable[[], Any]) -> None:
     for key in want:
         if out[key] not in DIRECTIONS:
             raise CheckFailed(
-                f"scale_directions()[{key!r}] is {out[key]!r}; write one of {list(DIRECTIONS)}."
+                f'scale_directions()[{key!r}] is {out[key]!r}; write "same" (identical pulls on '
+                'every seed) or "changes". Put "up" or "down" in a comment: the checkpoint '
+                "grades only whether the choices change."
             )
+    seeds, T = fx["seeds"], int(fx["T"])
+    ref = f"the reference run (seeds {int(seeds[0])}-{int(seeds[-1])}, {T} rounds, rewards x 10)"
     for key, direction in want.items():
         if out[key] == direction:
             continue
-        x1, x10 = fx[_SCALE_X1[key]], fx[f"{key}_x10"]
-        seeds, T = fx["seeds"], int(fx["T"])
-        if direction == "same":
-            seen = f"the regret is the same on all {len(seeds)} seeds (mean {x1.mean():.1f})"
-        else:
-            seen = f"the mean regret goes from {x1.mean():.1f} to {x10.mean():.1f}"
+        if direction == "changes":
+            raise CheckFailed(
+                f"scale_directions()[{key!r}] is 'same'; UCB1's choices change: in {ref} it "
+                f"pulled the same arms on {same_seeds[key]} of {len(seeds)} seeds. Its bonus "
+                "sqrt(2 ln t / N) was solved for rewards in [0, 1], so it stays the same while the "
+                "means and gaps are 10 times larger. Read the lines your run cell printed, and the "
+                "Explain, for what that does to the regret."
+            )
         raise CheckFailed(
-            f"scale_directions()[{key!r}] is {out[key]!r}; the reference run (seeds "
-            f"{int(seeds[0])}-{int(seeds[-1])}, {T} rounds) gives {direction!r}: {seen}, "
-            f"because {_SCALE_WHY[key]}. See the briefing's section 5 and the lines your run "
-            "cell printed."
+            f"scale_directions()[{key!r}] is 'changes'; in {ref} it pulled identical arms on all "
+            f"{same_seeds[key]} seeds, because {_SCALE_WHY[key]}. See the briefing's section 5 and "
+            "the lines your run cell printed."
         )
 
 
@@ -738,6 +794,7 @@ __all__ = [
     "check_scale_directions",
     "check_thompson_choices",
     "check_thompson_regret",
+    "check_ucb1_for_range",
     "check_ucb1_counts",
     "check_ucb1_index",
     "check_ucb1_suspect",
