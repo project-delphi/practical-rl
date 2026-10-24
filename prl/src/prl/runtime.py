@@ -273,6 +273,24 @@ def package_versions(names: list[str] | tuple[str, ...]) -> dict[str, str | None
 DEFAULT_PACKAGES = ("prl", "numpy", "scipy", "matplotlib", "gymnasium", "torch")
 
 
+def wrap_items(label: str, items: list[str], width: int = 100, sep: str = " · ") -> str:
+    """`label` + items joined by `sep`, broken between items so no line exceeds `width`.
+
+    Continuation lines are indented under the first item. Notebook output stays readable
+    at Colab's width with the table of contents open.
+    """
+    lines, line, indent = [], label, " " * len(label)
+    for i, item in enumerate(items):
+        piece = item if i == 0 else sep + item
+        if i > 0 and len(line) + len(piece) > width:
+            lines.append(line.rstrip())
+            line = indent + item
+        else:
+            line += piece
+    lines.append(line)
+    return "\n".join(lines)
+
+
 def print_versions(extra: list[str] | tuple[str, ...] = ()) -> dict[str, str | None]:
     """Print the runtime and package versions; return the versions."""
     rt = detect()
@@ -280,11 +298,10 @@ def print_versions(extra: list[str] | tuple[str, ...] = ()) -> dict[str, str | N
     versions = package_versions(names)
     print(f"Runtime: {rt.summary()}")
     print(f"CPU: {rt.cpu}")
-    shown = " · ".join(f"{k} {v}" for k, v in versions.items() if v is not None)
-    print(f"Packages: {shown}")
+    print(wrap_items("Packages: ", [f"{k} {v}" for k, v in versions.items() if v is not None]))
     absent = [k for k, v in versions.items() if v is None]
     if absent:
-        print(f"Not installed: {', '.join(absent)}")
+        print(wrap_items("Not installed: ", absent, sep=", "))
     return versions
 
 
