@@ -482,22 +482,22 @@ check_thompson_regret = StochasticCheck(
     what="mean pseudo-regret of Thompson sampling over the checkpoint's runs (from the arms)",
     thresholds={
         # threshold_protocol.py, live budget {"T": 2000, "runs": 10}, N = 100 seeds (0-99),
-        # 2026-10-18, local (Apple M1 Pro, arm64). Solution p99 38.4; strongest wrong version
+        # 2026-10-24, local (Apple M1 Pro, arm64). Solution p99 38.4; strongest wrong version
         # mutant 'sample-reward' p1 189.7; gap 151.3 (minimum 20); threshold: the midpoint
         # 114.068, rounded to 110.0. 0 of 100 solution seeds fail: flake rate at most about 3/N
         # = 3.0% (rule of three).
         "live": (
             110.0,
-            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m04-check_thompson_regret-live-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-24-local-threshold-m04-check_thompson_regret-live-n100-exp.json",
         ),
         # threshold_protocol.py, quick budget {"T": 1000, "runs": 5}, N = 100 seeds (0-99),
-        # 2026-10-18, local (Apple M1 Pro, arm64). Solution p99 38.07; strongest wrong version
+        # 2026-10-24, local (Apple M1 Pro, arm64). Solution p99 38.07; strongest wrong version
         # mutant 'sample-reward' p1 92.31; gap 54.24 (minimum 20); threshold: the midpoint
         # 65.1901, rounded to 65.0. 0 of 100 solution seeds fail: flake rate at most about 3/N =
         # 3.0% (rule of three).
         "quick": (
             65.0,
-            "threshold protocol, 100 seeds: runs/2026-10-18-local-threshold-m04-check_thompson_regret-quick-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-24-local-threshold-m04-check_thompson_regret-quick-n100-exp.json",
         ),
     },
 )
