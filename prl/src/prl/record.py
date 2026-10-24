@@ -280,7 +280,8 @@ def emit(rec: dict[str, Any], *, inbox: Path | None = None) -> Path | None:
         target.mkdir(parents=True, exist_ok=True)
         path = target / record_filename(rec)
         path.write_text(text + "\n")
-        print(f"Saved to {path.name} in {target.name}/ (file it with scripts/add_run_record.py).")
+        print(f"Saved to {path.name} in {target.name}/")
+        print("(file it with scripts/add_run_record.py).")
     return path
 
 
