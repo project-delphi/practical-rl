@@ -55,7 +55,7 @@ import matplotlib as mpl
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
+from matplotlib.ticker import FixedLocator, FuncFormatter, LogFormatterMathtext, NullLocator
 from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -706,29 +706,35 @@ def _sci(v: float, _p=None) -> str:
     return f"10$^{{{int(round(math.log10(v)))}}}$".replace("-", "\N{MINUS SIGN}")
 
 
+HOEFF_LABELS = {10: (0.355, 0.12), 100: (0.172, 0.02)}  # (eta, probability) of each direct label
+
+
 def hoeffding_figure(t: Theme, data: dict) -> Figure:
-    fig = Figure(figsize=(WIDTH_IN, 4.2))  # 680 x 403 px
-    ax = fig.add_axes((0.115, 0.135, 0.52, 0.82))
-    handles, labels = [], []
+    """N = 10 and N = 100 are told apart by color and by a direct label on each pair of curves;
+    the bound and the exact tail by line style (solid and dashed), as the legend says."""
+    fig = Figure(figsize=(WIDTH_IN, 4.4))  # 680 x 422 px
+    ax = fig.add_axes((0.13, 0.28, 0.84, 0.69))
     for i, n in enumerate(HOEFF_N):
         line = data["lines"][n]
         color = t.series[i]
-        h1 = ax.plot(data["eta"], line["bound"], color=color, lw=2.2, ls="-")[0]
-        h2 = ax.plot(
+        ax.plot(data["eta"], line["bound"], color=color, lw=2.2, ls="-")
+        ax.plot(
             data["eta"],
             line["exact"],
             color=color,
             lw=2.0,
             ls=(0, (3.5, 1.8)),
             drawstyle="steps-post",
-        )[0]
-        handles += [h1, h2]
-        labels += [f"N = {n}: bound", f"N = {n}: exact"]
+        )
+        x, y = HOEFF_LABELS[n]
+        ax.text(
+            x, y, f"N = {n}", color=color, fontsize=13, fontweight="bold", ha="left", va="bottom"
+        )
     ax.set_yscale("log")
     ax.set_ylim(1e-5, 1.5)
     ax.set_xlim(0, 0.5)
     ax.yaxis.set_major_locator(FixedLocator([1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]))
-    ax.yaxis.set_major_formatter(FuncFormatter(_sci))
+    ax.yaxis.set_major_formatter(LogFormatterMathtext())
     ax.yaxis.set_minor_locator(NullLocator())
     ax.xaxis.set_major_locator(FixedLocator([0, 0.1, 0.2, 0.3, 0.4, 0.5]))
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:g}"))
@@ -738,14 +744,21 @@ def hoeffding_figure(t: Theme, data: dict) -> Figure:
         ax.spines[side].set_visible(False)
     ax.set_xlabel("\N{GREEK SMALL LETTER ETA}: how far above 0.5")
     ax.set_ylabel("P(sample mean \N{GREATER-THAN OR EQUAL TO} 0.5 + \N{GREEK SMALL LETTER ETA})")
+    handles = [
+        Line2D([], [], color=t.text, lw=2.2, ls="-"),
+        Line2D([], [], color=t.text, lw=2.0, ls=(0, (3.5, 1.8))),
+    ]
+    labels = [
+        "bound e$^{\N{MINUS SIGN}2N\N{GREEK SMALL LETTER ETA}^2}$ (solid)",
+        "exact binomial tail (dashed)",
+    ]
     fig.legend(
         handles,
         labels,
-        loc="upper left",
-        bbox_to_anchor=(0.66, 0.96),
+        loc="lower center",
+        bbox_to_anchor=(0.55, 0.0),
+        ncol=2,
         frameon=False,
-        title="A fair coin, N tosses\nbound: e$^{\N{MINUS SIGN}2N\N{GREEK SMALL LETTER ETA}^2}$\nexact: binomial tail",
-        alignment="left",
         handlelength=2.6,
     )
     return fig
@@ -846,41 +859,63 @@ def curves_figure(t: Theme, data: dict) -> Figure:
 
 
 # ------------------------------------------------------------------ figure 4: rewards x 10
-SCALE_COLS = [
-    ("ucb1_x1", "UCB1\n× 1", "o", False),
-    ("ucb1_x10", "UCB1\n× 10", "^", True),
-    ("eps_greedy_x1", "ε-greedy\n× 1", "s", False),
-    ("eps_greedy_x10", "ε-greedy\n× 10", "D", True),
+SCALE_COLS = [  # (key, label, marker filled?): hollow circles x 1, filled triangles x 10
+    ("ucb1_x1", "UCB1\n× 1", False),
+    ("ucb1_x10", "UCB1\n× 10", True),
+    ("eps_greedy_x1", "ε-greedy\n× 1", False),
+    ("eps_greedy_x10", "ε-greedy\n× 10", True),
 ]
+SCALE_AX = (0.15, 0.30, 0.83, 0.67)  # axes box (figure fractions)
+SCALE_XLIM, SCALE_YLIM = (-0.55, len(SCALE_COLS) - 0.45), (-25, 1050)
+MARKER_PX = 8.0  # marker spacing in pixels: points closer than this are moved apart
+
+
+def swarm(values: np.ndarray, width_px: float, height_px: float) -> np.ndarray:
+    """x offsets (data units) that keep every marker of a column apart, deterministically:
+    points are placed in order of value, each at the offset nearest the center (0, +d, -d,
+    +2d, ...) that is at least MARKER_PX from every point placed before it."""
+    sx = width_px / (SCALE_XLIM[1] - SCALE_XLIM[0])  # pixels per x unit
+    sy = height_px / (SCALE_YLIM[1] - SCALE_YLIM[0])  # pixels per y unit
+    d = MARKER_PX / sx
+    offsets = np.zeros(len(values))
+    placed: list[tuple[float, float]] = []
+    for i in np.argsort(values, kind="stable"):
+        for k in range(len(values)):
+            dx = d * ((k + 1) // 2) * (1 if k % 2 else -1) if k else 0.0
+            if all(
+                ((dx - x) * sx) ** 2 + ((values[i] - y) * sy) ** 2 >= MARKER_PX**2
+                for x, y in placed
+            ):
+                break
+        offsets[i] = dx
+        placed.append((dx, values[i]))
+    return offsets
 
 
 def scale_figure(t: Theme, data: dict) -> Figure:
-    fig = Figure(figsize=(WIDTH_IN, 4.0))  # 680 x 384 px
-    ax = fig.add_axes((0.165, 0.17, 0.52, 0.80))
-    jitter = (np.arange(len(SEEDS)) % 5 - 2) * 0.07
-    for j, (key, _label, marker, filled) in enumerate(SCALE_COLS):
+    fig = Figure(figsize=(WIDTH_IN, 4.4))  # 680 x 422 px
+    ax = fig.add_axes(SCALE_AX)
+    w_px, h_px = SCALE_AX[2] * WIDTH_IN * 96, SCALE_AX[3] * 4.4 * 96
+    for j, (key, _label, filled) in enumerate(SCALE_COLS):
         color = t.series[2] if key.startswith("ucb1") else t.series[1]
         v = np.round(data["values"][key], 2)
         ax.plot(
-            j + jitter,
+            j + np.round(swarm(v, w_px, h_px), 4),
             v,
             ls="none",
-            marker=marker,
-            ms=6.5,
-            mew=1.4,
+            marker="^" if filled else "o",
+            ms=5.5,
+            mew=1.3,
             mec=color,
             mfc=color if filled else t.bg,
         )
+        w = 0.38
         ax.plot(
-            [j - 0.3, j + 0.3],
-            [round(float(v.mean()), 2)] * 2,
-            color=t.text,
-            lw=1.6,
-            ls=(0, (3, 1.6)),
+            [j - w, j + w], [round(float(v.mean()), 2)] * 2, color=t.text, lw=1.6, ls=(0, (3, 1.6))
         )
-        ax.plot([j - 0.3, j + 0.3], [round(iqm(v), 2)] * 2, color=t.text, lw=2.2, ls="-")
-    ax.set_xlim(-0.6, len(SCALE_COLS) - 0.4)
-    ax.set_ylim(0, 1050)
+        ax.plot([j - w, j + w], [round(iqm(v), 2)] * 2, color=t.text, lw=2.2, ls="-")
+    ax.set_xlim(*SCALE_XLIM)
+    ax.set_ylim(*SCALE_YLIM)
     ax.xaxis.set_major_locator(FixedLocator(list(range(len(SCALE_COLS)))))
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: SCALE_COLS[int(round(v))][1]))
     ax.yaxis.set_major_locator(FixedLocator([0, 250, 500, 750, 1000]))
@@ -888,24 +923,23 @@ def scale_figure(t: Theme, data: dict) -> Figure:
     ax.set_axisbelow(True)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    ax.set_ylabel("pseudo-regret at 5000 rounds\n(original units)")
+    ax.set_ylabel("pseudo-regret at 5000\nrounds (original units)")
     handles = [
+        Line2D([], [], ls="none", marker="o", ms=5.5, mew=1.3, mec=t.muted, mfc=t.bg),
+        Line2D([], [], ls="none", marker="^", ms=5.5, mew=1.3, mec=t.muted, mfc=t.muted),
         Line2D([], [], color=t.text, lw=2.2, ls="-"),
         Line2D([], [], color=t.text, lw=1.6, ls=(0, (3, 1.6))),
-        Line2D([], [], ls="none", marker="o", ms=6.5, mew=1.4, mec=t.muted, mfc=t.bg),
-        Line2D([], [], ls="none", marker="^", ms=6.5, mew=1.4, mec=t.muted, mfc=t.muted),
     ]
-    labels = ["IQM", "mean", "rewards × 1", "rewards × 10"]
-    n = len(data["rec"]["seeds"])
+    labels = ["a seed, × 1", "a seed, × 10", "IQM", "mean"]
     fig.legend(
         handles,
         labels,
-        loc="upper left",
-        bbox_to_anchor=(0.71, 0.97),
+        loc="lower center",
+        bbox_to_anchor=(0.56, 0.0),
+        ncol=4,
         frameon=False,
-        title=f"Every seed ({n}).\nAcross a column:",
-        alignment="left",
-        handlelength=2.4,
+        handlelength=1.8,
+        columnspacing=1.4,
     )
     return fig
 
