@@ -10,7 +10,7 @@ A five-day, practical, first-principles reinforcement learning workshop by Genia
 | Language | Python only |
 | Spelling | American English |
 
-**Status: Phase 3, Day 1 in review (2026-10-17): Modules 2 and 3 built and reviewed on their branches; stop for review at the Day 1 gate.** Phase 2 (golden Module 1) merged 2026-10-10. Phase 1's exit
+**Status: Phase 3, Day 2 merged (2026-10-24): Modules 4, 5 and 6 are on main, after Day 1's Modules 2 and 3 (merged 2026-10-17). Day 3 is next.** Phase 2 (golden Module 1) merged 2026-10-10. Phase 1's exit
 still lacks its two human Colab smoke runs (§13); their records are not filed.
 
 - The draft was reviewed by four persona agents (§11): academic director, pedagogy expert, technical expert and UI expert. Their findings are folded in.
