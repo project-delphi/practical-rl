@@ -8,7 +8,7 @@ Semi-gradient TD, the deadly triad on Baird's counterexample, and linear Q-learn
 :::
 
 ::: {.module-actions}
-[Lab notebook not built yet]{.btn-disabled} [Other ways to run](/setup.qmd#local){.btn-quiet}
+[Open in Colab[, Lab 7: Function approximation and why it can diverge (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/07-function-approximation.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
 :::
 :::
 
@@ -37,8 +37,8 @@ Without GPU
 
 In this module you will:
 
-- Derive semi-gradient TD(0) for linear values and show it is not the gradient of any objective.
-- Reproduce Baird's divergence with expected updates and show which leg of the deadly triad restores convergence when removed.
+- Derive semi-gradient TD(0) for linear values and show that its expected update is not the gradient of any objective.
+- Reproduce Baird's divergence with expected updates, and show what removing each leg of the deadly triad does to convergence and to the limit.
 - Frame inventory at scale and justify a feature representation.
 - Train linear semi-gradient Q-learning on CartPole and report the weight norm and returns.
 
