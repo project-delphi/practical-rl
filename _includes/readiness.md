@@ -18,7 +18,7 @@
 | []{#m01}[1 · MDPs, returns and the Bellman equation](/modules/01-mdps-bellman.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-10 | — | — |
 | []{#m02}[2 · Planning: value iteration, policy iteration and model error](/modules/02-planning.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-17 | — | — |
 | []{#m03}[3 · Model-free prediction and control](/modules/03-model-free.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-17 | — | — |
-| []{#m04}[4 · Bandits from first principles](/modules/04-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-18 | — | — |
+| []{#m04}[4 · Bandits from first principles](/modules/04-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale} newest 2026-10-18 |
 | []{#m05}[5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m06}[6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m07}[7 · Function approximation and why it can diverge](/modules/07-function-approximation.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
@@ -74,6 +74,6 @@
 :::
 
 ::: {.callout-note collapse="true" title="4 · Bandits from first principles: 2 record(s)"}
-- `2026-10-18-local-04-bandits-27090ede-2.json`: 2026-10-18 · local · 30 s · QUICK · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
-- `2026-10-18-local-04-bandits-27090ede.json`: 2026-10-18 · local · 43 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
+- `2026-10-18-local-04-bandits-27090ede-2.json`: 2026-10-18 · local · 30 s · QUICK · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
+- `2026-10-18-local-04-bandits-27090ede.json`: 2026-10-18 · local · 43 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::

@@ -15,6 +15,8 @@
 # table "Equations and where you implement them" gives each name's equation number.
 
 # %%
+import textwrap
+import time
 from functools import partial
 
 import matplotlib.pyplot as plt
@@ -27,12 +29,12 @@ R_MEAN = np.array([0.4, 0.3, 0.5])  # click rates r(a) of headlines 0, 1, 2; 2 i
 GAPS = R_MEAN.max() - R_MEAN  # Delta_a = r* - r(a): 0.1, 0.2 and 0
 N_ARMS = len(R_MEAN)
 
-# Budgets. Lab code reads them from here and never branches on QUICK. `early` is the second
-# horizon at which Exercise 4 reads the same runs.
+# Budgets. Lab code reads them from here and never branches on QUICK. Exercise 4 reads the same
+# runs after `early` rounds, and runs epsilon-greedy and UCB1 on to `late` rounds.
 budget = lab.use_settings(
     prl.runtime.settings(
-        dict(T=5000, seeds=20, early=1000),  # live
-        dict(T=1000, seeds=10, early=200),  # QUICK
+        dict(T=5000, seeds=20, early=1000, late=20000),  # live
+        dict(T=1000, seeds=10, early=200, late=2000),  # QUICK
         designed="colab-cpu",
     )
 )
@@ -134,11 +136,10 @@ def eps_greedy(counts, sums, t, rng, epsilon=0.1):
 
 
 # %% [markdown] role="ex1-hint"
-# `T, n_arms = stack.shape`. Inside the loop, read the reward *before* you increment
-# `counts[a]`: the first pull of arm `a` takes row 0. After the loop, `gaps[arms]` is the gap of
-# every round in order, and `np.cumsum` turns it into the running total. In `eps_greedy`,
-# `np.argmin(counts)` is the first arm with the smallest count, which is a never-pulled arm if
-# there is one.
+# Read the reward *before* you increment `counts[a]`: the first pull of arm `a` takes row 0.
+# After the loop, NumPy can index an array of gaps with the whole array of arms at once, and one
+# NumPy function turns the gaps of every round into a running total. In `eps_greedy`, which NumPy
+# function returns the first index of the smallest value?
 
 
 # %% role="ex1-sol"
@@ -176,14 +177,17 @@ eps_01 = partial(eps_greedy, epsilon=0.1)
 lab.seeds(SEEDS)
 final = {}  # final pseudo-regret per method, one entry per seed; Exercise 4 compares them
 curves = {}  # regret after every round, for the plots and for Exercise 4's early horizon
+seconds = {}  # wall-clock time of each method's runs, for Exercise 4's budget sentences
 best_share = []  # greedy's share of headline 2 in the second half of each run
 for name, policy in [("greedy", greedy), ("eps-greedy", eps_01)]:
     curves[name] = []
+    start = time.perf_counter()
     for k in SEEDS:
         arms, regret = run_bandit(policy, reward_stack(R_MEAN, T, k), R_MEAN, k)
         curves[name].append(regret)
         if name == "greedy":
             best_share.append(np.mean(arms[T // 2 :] == 2))
+    seconds[name] = time.perf_counter() - start
     final[name] = np.array([c[-1] for c in curves[name]])
 locked = int(np.sum(np.array(best_share) < 0.5))
 lab.metric("greedy_locked", locked)  # room code
@@ -202,8 +206,11 @@ plt.show()
 # %% [markdown] role="ex1-explain"
 # On the seeds where greedy left headline 2 behind, its curve is a straight line: every round
 # adds the same gap (pseudo-regret). Why does greedy never try headline 2 again once its first
-# showing got no click? ε-greedy never stays stuck for good: what does it pay in every round
-# instead (exploration floor), and does its curve flatten? (Gotcha: "ε = 0.1 is a safe default.")
+# showing got no click? The briefing said that more than half of all runs leave headline 2
+# behind: on how many of your 20 seeds did it happen, and is a count below 10 evidence against
+# the briefing? (The debrief pools the room's seeds.) ε-greedy never stays stuck for good: what
+# does it pay in every round instead (exploration floor), and does its curve flatten? (Gotcha:
+# "ε = 0.1 is a safe default.")
 
 # %% role="ex1-chk1"
 lab.check(1, m04.check_run_bandit, run_bandit, label="1.1")
@@ -265,10 +272,12 @@ stack = reward_stack(R_MEAN, T, SEEDS[0])
 print(f"Seed {SEEDS[0]}: first rewards of the three headlines {stack[0].tolist()}")
 print(f"  index at t = 3 after one pull each: {np.round(ucb1_index(np.ones(3), stack[0], 3), 3)}")
 curves["UCB1"], pulls = [], []
+start = time.perf_counter()
 for k in SEEDS:
     arms, regret = run_bandit(ucb1, reward_stack(R_MEAN, T, k), R_MEAN, k)
     curves["UCB1"].append(regret)
     pulls.append(np.bincount(arms, minlength=N_ARMS))
+seconds["UCB1"] = time.perf_counter() - start
 final["UCB1"] = np.array([c[-1] for c in curves["UCB1"]])
 pulls = np.array(pulls)
 bound = 8 * np.log(T) / GAPS[1] ** 2 + 1 + np.pi**2 / 3
@@ -281,7 +290,7 @@ print(f"Theorem 1's bound on the expected pulls of headline 1: {bound:.0f}")
 lab.metric("ucb1_pulls_h1", round(float(pulls[:, 1].mean()), 1))  # room code
 fig, ax = plt.subplots()
 plot_regret(ax, curves["UCB1"], "UCB1")
-plot_regret(ax, curves["eps-greedy"], "ε-greedy, ε = 0.1", style="--")
+plot_regret(ax, curves["greedy"], "greedy (Exercise 1)", style="--")
 ax.set_title(f"{len(SEEDS)} seeds, {T} rounds")
 ax.legend()
 plt.show()
@@ -308,7 +317,9 @@ lab.check(2, m04.check_ucb1_counts, ucb1_index, label="2.2")
 
 # %% [markdown] role="ex3-predict"
 # UCB1 pulled headline 1 a few hundred times by round 5000 (Exercise 2 printed the mean).
-# Will Thompson sampling pull it more often or less often? Will it ever stop pulling it?
+# Will Thompson sampling pull it more often or less often? Will it pull it more, about as often,
+# or less in the last 2500 rounds than in the first 2500? On how many of your 20 seeds will it
+# not pull it at all in the last 2500?
 
 
 # %% role="ex3-stub"
@@ -365,11 +376,13 @@ print(f"  posteriors Beta{list(zip(s_post.tolist(), f_post.tolist(), strict=True
 print(f"  means so far {np.round(sums_ex / counts_ex, 3).tolist()}; greedy would pull headline 2")
 print(f"  share of 4000 Thompson draws won by each headline: {np.round(picks / 4000, 3).tolist()}")
 curves["TS"], pulls_ts, halves = [], [], []
+start = time.perf_counter()
 for k in SEEDS:
     arms, regret = run_bandit(thompson_step, reward_stack(R_MEAN, T, k), R_MEAN, k)
     curves["TS"].append(regret)
     pulls_ts.append(np.bincount(arms, minlength=N_ARMS))
     halves.append((np.sum(arms[: T // 2] == 1), np.sum(arms[T // 2 :] == 1)))
+seconds["TS"] = time.perf_counter() - start
 final["TS"] = np.array([c[-1] for c in curves["TS"]])
 pulls_ts, halves = np.array(pulls_ts), np.array(halves)
 print(f"Thompson sampling, pulls of each headline by round {T}, over {len(SEEDS)} seeds:")
@@ -384,7 +397,7 @@ print(
 )
 fig, ax = plt.subplots()
 plot_regret(ax, curves["TS"], "Thompson sampling")
-plot_regret(ax, curves["UCB1"], "UCB1", style="--")
+plot_regret(ax, curves["greedy"], "greedy (Exercise 1)", style="--")
 ax.set_title(f"{len(SEEDS)} seeds, {T} rounds")
 ax.legend()
 plt.show()
@@ -393,7 +406,8 @@ plt.show()
 # Thompson sampling has no bonus. It pulls an arm about as often as the posterior gives that
 # arm a chance of being the best (Thompson sampling): with counts (50, 10, 4), compare the
 # share of draws headline 2 won with what greedy would do. As headline 1's posterior narrows
-# below headline 2's, why do its pulls thin out without ever stopping?
+# below headline 2's, why do its pulls thin out? Why can a seed show none in the last 2500
+# rounds although the posterior never rules headline 1 out?
 
 # %% role="ex3-chk1"
 lab.check(3, m04.check_beta_posterior, beta_posterior, label="3.1")
@@ -411,12 +425,16 @@ lab.check(3, m04.check_thompson_regret, thompson_step, run_bandit, label="3.3")
 # 2 to 4 seeds it shows every seed and compares the [min, max] ranges; with one seed it says
 # "single seed, not a ranking". Write that rule, `verdict`, for pseudo-regret, where lower is
 # better. Use `iqm(x)` and `bootstrap_ci(x, iqm)` (imported above) with their defaults, not
-# `prl.evaluate.compare`: the checkpoint compares your function with it.
+# `prl.evaluate.compare`: the checkpoint compares your function with it. The run cell reads the
+# verdicts after 1000 and 5000 rounds of the runs of Exercises 1 to 3, then runs ε-greedy and
+# UCB1 on to 20 000 rounds. Labs 5 and 6 call `prl.evaluate.compare`, which applies exactly the
+# rule you write here.
 
 # %% [markdown] role="ex4-predict"
-# Rank ε-greedy (ε = 0.1), UCB1 and Thompson sampling by pseudo-regret after 5000 rounds
-# over your 20 seeds. Then read the same runs after 1000 rounds: will any pair be a tie there
-# that is decided at 5000?
+# Rank ε-greedy (ε = 0.1), UCB1 and Thompson sampling by pseudo-regret after 5000 rounds over
+# your 20 seeds, and say which pairs the tie rule will decide. Then the same runs after 1000
+# rounds: which pair do you expect to be a tie? Last, ε-greedy and UCB1 run on to 20 000 rounds:
+# which will have the lower IQM, and why, from (UCB1) and (exploration floor)?
 
 
 # %% role="ex4-stub"
@@ -435,8 +453,8 @@ def verdict(regret_a, regret_b):
 
 
 # %% [markdown] role="ex4-hint"
-# Two intervals [lo_a, hi_a] and [lo_b, hi_b] overlap when `lo_a <= hi_b and lo_b <= hi_a`.
-# Decide the seed count from the smaller side, `min(len(a), len(b))`.
+# Two intervals overlap unless one lies entirely below the other: write that condition, then
+# negate it. Decide the seed count from the smaller side.
 
 
 # %% role="ex4-sol"
@@ -462,9 +480,11 @@ def verdict(regret_a, regret_b):
 # %% role="ex4-run"
 pairs = [("TS", "UCB1"), ("TS", "eps-greedy"), ("UCB1", "eps-greedy")]
 verdicts = {}
-for horizon in (budget.early, T):
-    at = {m: np.array([c[horizon - 1] for c in curves[m]]) for m in ("eps-greedy", "UCB1", "TS")}
-    print(f"After {horizon} rounds:")
+
+
+def report(at, horizon, pairs, wall_clock_s=None, note=""):
+    """Provided: IQM [95% CI] of each method, your verdict for each pair, and the budget."""
+    print(f"After {horizon} rounds{note}:")
     for m, x in at.items():
         lo, hi = bootstrap_ci(x, iqm)
         print(f"  {m:10s} IQM {iqm(x):7.1f}  [{lo:7.1f}, {hi:7.1f}]")
@@ -473,11 +493,30 @@ for horizon in (budget.early, T):
         word = {"A": f"{a_name} lower", "B": f"{b_name} lower"}.get(v, v)
         verdicts[f"{a_name} vs {b_name} @ {horizon}"] = v
         print(f"  {a_name} vs {b_name}: {word}")
-    print("  " + Budget(steps=horizon, seeds=len(SEEDS), hardware=HARDWARE).sentence())
+    used = Budget(steps=horizon, seeds=len(SEEDS), wall_clock_s=wall_clock_s, hardware=HARDWARE)
+    print(textwrap.fill(used.sentence(), 98, initial_indent="  ", subsequent_indent="    "))
+
+
+methods = ("eps-greedy", "UCB1", "TS")
+early = {m: np.array([c[budget.early - 1] for c in curves[m]]) for m in methods}
+report(early, budget.early, pairs, note=f" (the first {budget.early} rounds of the same runs)")
+report({m: final[m] for m in methods}, T, pairs, sum(seconds[m] for m in methods))
+# epsilon-greedy and UCB1 on to budget.late rounds. A longer reward stack begins with the shorter
+# one and the policy's generator is the same, so these are the same runs, continued: their first
+# T rounds repeat Exercises 1 and 2 exactly.
+late, start = {}, time.perf_counter()
+print(f"ε-greedy and UCB1 on to {budget.late} rounds, {len(SEEDS)} seeds each:", flush=True)
+for m, policy in [("eps-greedy", eps_01), ("UCB1", ucb1)]:
+    late[m] = np.array(
+        [run_bandit(policy, reward_stack(R_MEAN, budget.late, k), R_MEAN, k)[1][-1] for k in SEEDS]
+    )
+    print(f"  {m}: done after {time.perf_counter() - start:.0f} s", flush=True)
+report(late, budget.late, [("UCB1", "eps-greedy")], time.perf_counter() - start)
 lab.metric("verdicts", verdicts)
 lab.metric("eps_iqm", round(iqm(final["eps-greedy"]), 1))  # room code
 lab.metric("ucb1_iqm", round(iqm(final["UCB1"]), 1))  # room code
 lab.metric("ts_iqm", round(iqm(final["TS"]), 1))  # room code
+lab.metric("ucb1_late_lead", round(iqm(late["eps-greedy"]) - iqm(late["UCB1"]), 1))  # room code
 fig, ax = plt.subplots()
 for m, style in [("eps-greedy", "--"), ("UCB1", ":"), ("TS", "-")]:
     plot_regret(ax, curves[m], m, style=style)
@@ -488,100 +527,122 @@ ax.legend()
 plt.show()
 
 # %% [markdown] role="ex4-explain"
-# Read the verdicts at both horizons. Which pair changed between 1000 and 5000 rounds, and
-# why can a verdict depend on the budget at all? UCB1's regret grows like ln t and ε-greedy's
-# like t: which curve would you bet on at 50 000 rounds, and what would you need to run before
-# saying so? (Gotcha: "One seed is enough to compare.")
+# Read your verdicts for UCB1 vs ε-greedy at 1000, 5000 and 20 000 rounds. Exercise 2 printed
+# how often UCB1 pulled headline 0 (gap 0.1); ε = 0.1 pulls each headline about
+# 0.1 · 5000 / 3 ≈ 167 times at random. Where does UCB1's extra regret at 5000 rounds come from,
+# and why does it stop growing as fast (UCB1)? Which verdict would you report, and with which
+# budget? (Gotcha: "UCB1 has a logarithmic regret bound, so it beats ε-greedy.")
 
 # %% role="ex4-chk"
 lab.check(4, m04.check_verdict, verdict, final)
 
 # %% [markdown] role="ex5-head"
-# **Reward scale and ε.** Multiply every reward by 10: a click now pays 10. The provided cell
-# reruns ε-greedy (ε = 0.1), UCB1 with its bonus unchanged, and UCB1 with its bonus multiplied
-# by 10 as well, the width Hoeffding gives for rewards in [0, B] with B = 10 (scaled bonus).
-# Every regret is divided by 10 again, so all are in the original units. Then it sweeps ε.
-# Before you run it, write your predictions in `scale_directions`.
+# **Reward scale and ε.** Multiply every reward by 10: a click now pays 10. UCB1's bonus was
+# solved for rewards in [0, 1] (Hoeffding); for rewards in [0, B] the width is B times larger
+# (scaled bonus). Write `ucb1_for_range`, UCB1's index for rewards in [0, B], on top of your
+# `ucb1_index`. Then write your predictions in `scale_directions`. The provided cell reruns
+# ε-greedy (ε = 0.1), UCB1 with its bonus unchanged, and UCB1 with your `ucb1_for_range` at
+# B = 10, all on rewards × 10, and divides every regret by 10 again, so all are in the original
+# units. Then it sweeps ε.
 
 # %% [markdown] role="ex5-predict"
-# For each method, will the mean pseudo-regret over your seeds, in the original units, go up,
-# go down, or stay exactly the same on every seed when every reward is multiplied by 10?
-# ε-greedy; UCB1 with the same bonus; UCB1 with the bonus × 10. Write the three answers in
-# `scale_directions` below, with one sentence of reason each in a comment.
+# When every reward is multiplied by 10, will each method pull exactly the same arms on every
+# seed, or will its choices change? ε-greedy; UCB1 with the same bonus; UCB1 with
+# `ucb1_for_range` at B = 10. Where they change, will the mean pseudo-regret in the original
+# units go up or down, and will every seed move the same way? Write "same" or "changes" in
+# `scale_directions`, and the rest in a comment.
 
 
 # %% role="ex5-stub"
+def ucb1_for_range(counts, sums, t, B):
+    """UCB1's index for rewards in [0, B] (scaled bonus): sums / counts + B sqrt(2 ln t / counts),
+    and np.inf for an arm never pulled. One line, with your ucb1_index."""
+    # TODO 5 (part 1): rescale the sums to rewards in [0, 1], take ucb1_index, scale it back.
+    raise NotImplementedError(
+        "TODO 5: write ucb1_for_range, or run lab.use_reference(5) to continue with the solution"
+    )
+
+
 def scale_directions():
     """Your predictions, written before the run: a dict with the keys "eps_greedy", "ucb1" and
-    "ucb1_rescaled", each "up", "down" or "same" ("same" means identical on every seed)."""
-    # TODO 5: return {"eps_greedy": ..., "ucb1": ..., "ucb1_rescaled": ...}, a reason for each
-    # in a comment.
+    "ucb1_rescaled", each "same" (identical pulls on every seed) or "changes". Under each, as a
+    comment, say whether you expect the mean to go up or down, and whether every seed moves the
+    same way."""
+    # TODO 5 (part 2): return {"eps_greedy": ..., "ucb1": ..., "ucb1_rescaled": ...}.
     raise NotImplementedError(
         "TODO 5: write scale_directions, or run lab.use_reference(5) to continue with the solution"
     )
 
 
 # %% [markdown] role="ex5-hint"
-# ε-greedy compares means with means: does multiplying all of them by 10 change which is
-# largest? UCB1 adds a bonus to a mean: which of the two is in reward units, and which is not?
+# Divide the sums by B and the rewards are in [0, 1] again, where `ucb1_index`'s bonus is right.
+# What do you then multiply the whole index by to return to reward units, and what happens to an
+# infinite index? For the predictions: ε-greedy compares means with means; does multiplying all
+# of them by 10 change which is largest? UCB1 adds a bonus to a mean: which of the two is in
+# reward units?
 
 
 # %% role="ex5-sol"
 @lab.solution(5)
+def ucb1_for_range(counts, sums, t, B):
+    """UCB1 on rewards in [0, B]: rescale, index, scale back."""
+    return B * ucb1_index(counts, sums / B, t)  # (scaled bonus)
+
+
+@lab.solution(5)
 def scale_directions():
-    """The directions the theory predicts and the run shows."""
+    """What the theory predicts and the run shows."""
     return {
-        "eps_greedy": "same",  # it only compares means: same order
-        "ucb1": "up",  # the bonus is now small next to the gaps
+        "eps_greedy": "same",  # compares means only: same order
+        # mean up, IQM often down: most seeds improve, some trapped
+        "ucb1": "changes",  # the bonus is small next to the gaps
         "ucb1_rescaled": "same",  # mean and bonus both x 10
     }
 
 
 # %% role="ex5-run"
-def ucb1_scaled(counts, sums, t, rng, B=1.0):
-    """Provided: UCB1 for rewards in [0, B]: the bonus times B (scaled bonus)."""
-    index = np.full(len(counts), np.inf)
-    seen = counts > 0
-    if seen.any():
-        bonus = B * np.sqrt(2 * np.log(t) / counts[seen])
-        index[seen] = sums[seen] / counts[seen] + bonus
-    return argmax_tie(index)
+def ucb1_range_policy(counts, sums, t, rng, B=1.0):
+    """Provided: UCB1 for rewards in [0, B] as a policy, with your ucb1_for_range."""
+    return argmax_tie(ucb1_for_range(counts, sums, t, B))
 
 
 predicted = scale_directions()
-x10 = {"eps_greedy": eps_01, "ucb1": ucb1, "ucb1_rescaled": partial(ucb1_scaled, B=10.0)}
+x10 = {"eps_greedy": eps_01, "ucb1": ucb1, "ucb1_rescaled": partial(ucb1_range_policy, B=10.0)}
 x1 = {"eps_greedy": final["eps-greedy"], "ucb1": final["UCB1"], "ucb1_rescaled": final["UCB1"]}
-scaled = {}
+scaled, start = {}, time.perf_counter()
 for name, policy in x10.items():
     regrets = []
     for k in SEEDS:
         _, regret = run_bandit(policy, reward_stack(R_MEAN, T, k, scale=10.0), 10 * R_MEAN, k)
         regrets.append(regret[-1] / 10)  # back to the original units
     scaled[name] = np.array(regrets)
+scale_seconds = time.perf_counter() - start
 directions = {}
-print(f"Rewards x 10, regret / 10, mean over {len(SEEDS)} seeds:")
+print(f"Rewards x 10, regret / 10, over {len(SEEDS)} seeds:")
 for name in x10:
     a, b = x1[name], scaled[name]
-    if np.allclose(a, b, rtol=0, atol=1e-9):
-        directions[name] = "same"
-    else:
-        directions[name] = "up" if b.mean() > a.mean() else "down"
+    directions[name] = "same" if np.allclose(a, b, rtol=0, atol=1e-9) else "changes"
+    print(f"  {name:14s} {directions[name]:7s} (you predicted {predicted.get(name)})")
     print(
-        f"  {name:14s} x1 {a.mean():7.1f}   x10 {b.mean():7.1f}   {directions[name]:4s} "
-        f"(you predicted {predicted.get(name)})"
+        f"  {'':14s} x1 mean {a.mean():6.1f}, IQM {iqm(a):6.1f};"
+        f"  x10 mean {b.mean():6.1f}, IQM {iqm(b):6.1f}"
     )
     print(
-        f"  {'':14s} x10 higher on {int(np.sum(b > a + 1e-9))} seeds, "
-        f"lower on {int(np.sum(b < a - 1e-9))}; tie rule, x10 vs x1: {verdict(b, a)}"
+        f"  {'':14s} x10 lower on {int(np.sum(b < a - 1e-9))} seeds, "
+        f"higher on {int(np.sum(b > a + 1e-9))}; tie rule, x10 vs x1: {verdict(b, a)}"
     )
+used = Budget(steps=T, seeds=len(SEEDS), wall_clock_s=scale_seconds, hardware=HARDWARE)
+print(textwrap.fill(used.sentence(), 98, initial_indent="  ", subsequent_indent="    "))
 lab.metric("scale_directions", directions)
-lab.metric("ucb1_x10_gap", round(float(scaled["ucb1"].mean() - final["UCB1"].mean()), 1))
+x10_lower = int(np.sum(scaled["ucb1"] < final["UCB1"] - 1e-9))
+lab.metric("ucb1_x10_lower", x10_lower)  # room code: seeds where UCB1 x 10 had less regret
 try:
     stack_x10 = reward_stack(R_MEAN, 50, SEEDS[0], scale=10.0)
     run_bandit(thompson_step, stack_x10, 10 * R_MEAN, SEEDS[0])
 except ValueError as exc:
     print(f"Thompson sampling with rewards x 10 stops: ValueError: {exc}")
 epsilons = [0.0, 0.01, 0.05, 0.1, 0.2, 0.5]
+print(f"ε sweep: {len(epsilons)} values x {len(SEEDS)} seeds, {T} rounds each:", flush=True)
 sweep = {}
 for e in epsilons:
     sweep[e] = np.array(
@@ -590,6 +651,8 @@ for e in epsilons:
             for k in SEEDS
         ]
     )
+    print(f"  ε = {e:<4}  IQM {iqm(sweep[e]):6.1f}", flush=True)
+print("Which ε is lowest, and why is the regret high at both ends?")
 lab.metric("eps_sweep_iqm", {str(e): round(iqm(x), 1) for e, x in sweep.items()})
 fig, (ax_s, ax_e) = plt.subplots(1, 2, figsize=(10, 3.8))
 for i, (name, label) in enumerate([("ucb1", "UCB1, same bonus"), ("eps_greedy", "ε-greedy")]):
@@ -600,6 +663,8 @@ ax_s.set(ylabel="pseudo-regret at T (original units)", title="Every seed, reward
 centers = [iqm(sweep[e]) for e in epsilons]
 cis = np.array([bootstrap_ci(sweep[e], iqm) for e in epsilons])
 xs = np.arange(len(epsilons))
+every = np.concatenate([sweep[e] for e in epsilons])
+ax_e.plot(np.repeat(xs, len(SEEDS)), every, ".", alpha=0.4, label="every seed")
 ax_e.errorbar(
     xs,
     centers,
@@ -620,35 +685,36 @@ ax_e.legend()
 plt.show()
 
 # %% [markdown] role="ex5-explain"
-# Which of the three answers did the run confirm, and why does ε-greedy pull exactly the same
-# arms? UCB1's bonus is the width of (Hoeffding) for rewards in [0, 1]; next to gaps 10 times
-# larger it acts like a small bonus. Look at UCB1 × 10 seed by seed: why is the mean up while
-# the tie rule may call it a tie, and some seeds even improve? In the sweep, why is regret high
-# at both ends of ε? (Gotcha: "UCB has no parameters.")
+# Look at UCB1 × 10 seed by seed: how many seeds improved, and by how much? How many got much
+# worse, and where did those runs get stuck? Why do the mean and the IQM disagree, and what does
+# the tie rule say? (Hoeffding) was solved for rewards in [0, 1]: what would you change before
+# running UCB1 on these rewards? (Gotcha: "UCB has no parameters.")
 
-# %% role="ex5-chk"
-lab.check(5, m04.check_scale_directions, scale_directions)
+# %% role="ex5-chk1"
+lab.check(5, m04.check_ucb1_for_range, ucb1_for_range, label="5.1")
+
+# %% role="ex5-chk2"
+lab.check(5, m04.check_scale_directions, scale_directions, label="5.2")
 
 # %% [markdown] role="ex6-head"
 # **Planted bug.** A colleague wrote a UCB1 agent in another style: an object that keeps its
 # own counts and reward sums, with `act(t)` to choose and `update(arm, reward)` to learn.
 # `play` (provided) runs it on a reward stack. It runs without a warning and its regret curve
-# looks plausible on some seeds. It is wrong. Read the histogram of pulls per headline
-# against your UCB1's from Exercise 2, find the line, fix it.
+# looks plausible on some seeds. It is wrong. Read the pulls per headline, seed by seed, against
+# your UCB1's from Exercise 2, find the problem and fix it.
 
 # %% [markdown] role="ex6-predict"
-# In your UCB1, the worse headlines kept being pulled now and then, a few hundred times by
-# round 5000 for headline 1. If an agent's counts never grew past their starting value, what
-# would its bonus be for every arm in round t, and what would decide which arm it pulls? What
-# would the histogram of pulls look like on one seed?
+# In a correct UCB1 at t = 5000, what is the bonus of an arm pulled 4000 times, and of one
+# pulled 250 times? On one seed, what does the histogram of pulls per headline look like
+# (Exercise 2 printed yours)?
 
 
 # %% role="ex6-stub"
 class UCB1Suspect:
     """A colleague's UCB1 agent. It keeps its own counts and reward sums. Is it right?"""
 
-    # TODO 6: once the histogram below shows the problem, find the missing line and add it.
-    # Then rerun this cell and the run cell.
+    # TODO 6: once the histogram below shows the problem, find it and fix it. Then rerun this
+    # cell and the run cell.
     def __init__(self, n_arms):
         self.counts = np.zeros(n_arms)
         self.sums = np.zeros(n_arms)
@@ -665,8 +731,9 @@ class UCB1Suspect:
 
 
 # %% [markdown] role="ex6-hint"
-# Print `agent.counts` after a run. Which attribute is read in `act` but never written in
-# `update`? The guard `np.maximum(self.counts, 1)` is why nothing ever warned you.
+# The run printed the suspect's bonus in the last round. In your UCB1, an arm pulled 4998 times
+# and an arm pulled once have very different bonuses. Which number inside `act` would have to
+# change for that to happen, and which method is supposed to change it?
 
 
 # %% role="ex6-sol"
@@ -713,7 +780,7 @@ for k in SEEDS:
     hist.append(np.bincount(arms, minlength=N_ARMS))
     final_suspect.append(regret[-1])
 hist = np.array(hist)
-print(f"The agent after seed {SEEDS[-1]}: counts {agent.counts}, sums {agent.sums}")
+print(f"The agent after seed {SEEDS[-1]}:")
 print(
     f"  its bonus in the last round: {np.round(np.sqrt(2 * np.log(T - 1) / np.maximum(agent.counts, 1)), 3)}"
 )
@@ -722,33 +789,33 @@ for i in range(5):
     print(f"  seed {SEEDS[i]}: {hist[i].tolist()}   [{pulls[i].tolist()}]")
 lab.metric("suspect_pulls", hist.mean(axis=0).round(1).tolist())  # per headline, not pooled
 fig, ax = plt.subplots()
-xs = np.arange(N_ARMS)
-for shift, (h, label, hatch) in zip(
-    (-0.2, 0.2), [(pulls, "your UCB1 (Exercise 2)", ""), (hist, "UCB1Suspect", "//")], strict=True
+for shift, (h, label, marker) in zip(
+    (-0.15, 0.15), [(pulls, "your UCB1 (Exercise 2)", "o"), (hist, "UCB1Suspect", "^")], strict=True
 ):
-    ax.bar(xs + shift, h.mean(axis=0), width=0.4, hatch=hatch, label=f"{label}, mean")
-    ax.errorbar(
-        xs + shift,
-        h.mean(axis=0),
-        yerr=[h.mean(0) - h.min(0), h.max(0) - h.mean(0)],
-        fmt="none",
-        color=prl.plot.NEUTRAL_LIGHT,
-        capsize=4,
-    )
+    for a in range(N_ARMS):
+        ax.plot(
+            np.full(len(SEEDS), a + shift),
+            h[:, a],
+            marker,
+            ls="none",
+            mfc="none",
+            label=label if a == 0 else None,
+        )
 ax.set(
-    xticks=xs,
-    xticklabels=[f"headline {a}" for a in xs],
-    ylabel=f"pulls by round {T}",
-    title=f"Pulls per headline, {len(SEEDS)} seeds (bars: min to max)",
+    yscale="log",
+    xticks=range(N_ARMS),
+    xticklabels=[f"headline {a}" for a in range(N_ARMS)],
+    ylabel=f"pulls by round {T} (log scale)",
+    title=f"Pulls per headline, every seed ({len(SEEDS)})",
 )
 ax.legend()
 plt.show()
 
 # %% [markdown] role="ex6-explain"
-# Before the fix, the counts stayed at 0, so the guard divided by 1: the "mean" was the total
-# reward, and the bonus was the same √(2 ln t) for every arm. Which arm won, and why did it
-# keep winning? Why is a histogram with one arm near T and the others near 1 a sign that the
-# bonus is not shrinking, and not a sign that UCB1 found the best arm? (UCB1)
+# Before the fix, what did `np.maximum(self.counts, 1)` divide by, so what were each arm's
+# "mean" and bonus? Which arm won, and why did it keep winning? Why is a histogram with one arm
+# near T and the others at 1 a sign that the bonus is not shrinking, and not that UCB1 found the
+# best arm? (UCB1)
 #
 # **Diagnostics for this lab.** Plot the pull counts per arm, not only the regret. A healthy
 # optimistic method keeps pulling every worse arm, a number of times that grows slowly with t
@@ -767,9 +834,11 @@ lab.check(6, m04.check_ucb1_suspect, UCB1Suspect)
 # It holds your seat, the checkpoints you passed, whether QUICK budgets ran, and the numbers the
 # debrief pools: on how many seeds greedy left headline 2 behind (`greedy_locked`, Exercise 1);
 # UCB1's mean pulls of headline 1 (`ucb1_pulls_h1`, Exercise 2); the IQM of each method's
-# pseudo-regret at T (`eps_iqm`, `ucb1_iqm`, `ts_iqm`, Exercise 4); and how much UCB1's mean
-# regret changed with rewards × 10 (`ucb1_x10_gap`, Exercise 5). Paste it where your instructor
-# says. Your run record keeps every number the lab printed.
+# pseudo-regret at T (`eps_iqm`, `ucb1_iqm`, `ts_iqm`, Exercise 4); UCB1's lead over ε-greedy in
+# IQM after 20 000 rounds (`ucb1_late_lead`, Exercise 4; negative if ε-greedy is lower); and on
+# how many of your seeds UCB1 with the same bonus had less regret with rewards × 10
+# (`ucb1_x10_lower`, Exercise 5). Paste it where your instructor says. Your run record keeps
+# every number the lab printed, and every verdict.
 
 # %% [markdown] role="stretch"
 # **Gaussian Thompson sampling.** Thompson sampling needs a likelihood. The Beta posterior

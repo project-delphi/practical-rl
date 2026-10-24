@@ -7,7 +7,7 @@
 
 Regret, UCB derived from Hoeffding's inequality, and Thompson sampling from Bayes' rule.
 
-[Colab CPU]{.chip} [core 51 min]{.chip} [Open in Colab[, Lab 4 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb){.btn-quiet target="_blank" rel="noopener"}
+[Colab CPU]{.chip} [core 52 min]{.chip} [Open in Colab[, Lab 4 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb){.btn-quiet target="_blank" rel="noopener"}
 :::
 
 ::: {.module-card}
