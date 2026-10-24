@@ -6,11 +6,11 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 ::: {.lab-steps}
 | # | Exercise | Min |
 |---|---|---|
-| 1 | [Bandit loop, epsilon-greedy and regret [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} | 11 |
+| 1 | [Bandit loop, ε-greedy and regret [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} | 11 |
 | 2 | [UCB1 [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 9 |
 | 3 | [Thompson sampling [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 8 |
 | 4 | [Three methods over 20 seeds [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb#scrollTo=ex4-head){target="_blank" rel="noopener"} | 9 |
-| 5 | [Reward scale and epsilon [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 8 |
+| 5 | [Reward scale and ε [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 8 |
 | 6 | [Planted bug: a colleague's UCB1 [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb#scrollTo=ex6-head){target="_blank" rel="noopener"} [Planted bug]{.chip .chip-stale} | 7 |
 | | **Core** | **52 of 70** |
 :::

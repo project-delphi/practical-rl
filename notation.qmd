@@ -47,7 +47,7 @@ and note the paper's original symbol here.
 | $N_t(a)$, $\hat r_t(a)$ | the number of pulls of arm $a$ in rounds $0, \dots, t-1$, and the mean of their rewards (Module 4; `counts[a]` and `sums[a] / counts[a]` in code) | Auer et al.'s $n_j$, $T_j(n)$, $\bar x_j$; Lattimore and Szepesvári's $T_i(t)$, $\hat\mu_i(t)$ |
 | $\mathrm{Reg}_T$ | pseudo-regret after $T$ rounds, $\sum_{t=0}^{T-1} \big(r^* - r(a_t)\big) = \sum_a \Delta_a N_T(a)$; its expectation is the regret | Lattimore and Szepesvári's $\bar R_n$ (pseudo-regret) and $R_n$ (regret) |
 | $p_{\text{fail}}$ | the failure probability of a confidence bound (Hoeffding's inequality) | Lattimore and Szepesvári's $\delta$ |
-| $U_t(a)$ | UCB1's index: $\hat r_t(a) + \sqrt{2 \ln t / N_t(a)}$, infinite for an arm never pulled | Lattimore and Szepesvári's $\mathrm{UCB}_i(t-1, \delta)$ |
+| $U_t(a)$ | UCB1's index: $\hat r_t(a) + \sqrt{2 \ln t / N_t(a)}$, infinite for an arm never pulled | Lattimore and Szepesvári's $\mathrm{UCB}_i$ |
 | $B$ | the width of the reward range: rewards in $[0, B]$ (Module 4; UCB1 assumes $B = 1$) | |
 | $S_t(a)$, $F_t(a)$ | the rewards of 1 and of 0 among arm $a$'s pulls (Bernoulli rewards), so the posterior from a uniform prior is $\mathrm{Beta}(1 + S_t(a), 1 + F_t(a))$ (Module 4) | Russo et al.'s $\alpha_k - 1$, $\beta_k - 1$ ($\alpha$ and $\beta$ are our step size and KL coefficient) |
 | $\tilde r_t(a)$ | a mean for arm $a$ drawn from its posterior in Thompson sampling (Module 4) | Russo et al.'s $\hat\theta_k$ ($\theta$ is our policy parameters) |

@@ -413,7 +413,7 @@ modules:
       # 20 seeds each, the lab's own code at the live budget, arm64).
       # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
       - n: 1
-        title: "Bandit loop, epsilon-greedy and regret"
+        title: "Bandit loop, ε-greedy and regret"
         minutes: 11
         writes: [run_bandit, eps_greedy]
         predict_answer: "500.0 = 0.1 + 0.2 + 0 + 0.1 × 4997 (headline 0 from round 3 on); 999.7 = 0.3 + 0.2 × 4997 (headline 1); 0.3, the first three rounds only (headline 2). Seat 0's greedy ends at about 500 (499.5 to 500.4) or at 999.7 on the 9 of 20 seeds where it left headline 2 behind, and at 0.3 to 4.3 on the others. Over 100 seats it left headline 2 behind on 1121 of 2000 seeds, 5 to 17 per seat (runs/2026-10-18-local-m04-seats-exp.json)."
@@ -437,7 +437,7 @@ modules:
         predict_answer: "At 5000 rounds Thompson sampling < ε-greedy < UCB1: seat 0's IQMs 22.8, 53.2 and 103.7, every pair decided; over 100 seats Thompson sampling is lower than both on 100, and ε-greedy lower than UCB1 on 92 (a tie on 8). At 1000 rounds Thompson sampling vs ε-greedy is a tie (seat 0: 15.3 and 14.5; a tie on 99 of 100 seats), and UCB1 vs ε-greedy is a tie on 22 of 100. At 20 000 rounds UCB1 has the lower IQM: seat 0 175.1 against 206.5, a lead of 31.4; UCB1 lower on 82 of 100 seats, a tie on 18, ε-greedy never lower (runs/2026-10-18-local-m04-seats-exp.json). ε-greedy's floor adds 0.01 per round forever, while UCB1's pulls of a worse arm grow like ln t."
         explain_ref: 'Gotcha: "UCB1 has a logarithmic regret bound, so it beats ε-greedy."'
       - n: 5
-        title: Reward scale and epsilon
+        title: Reward scale and ε
         minutes: 8
         writes: [ucb1_for_range, scale_directions]
         predict_answer: "ε-greedy: same; UCB1 with ucb1_for_range at B = 10: same; UCB1 with the same bonus: changes. Its choices are greedier: on most seeds it pulls the worse headlines less and improves, and on some it falls into greedy's trap and gets far worse. Seat 0: mean 103.8 → 191.8, IQM 103.7 → 83.4, 13 of 20 seeds lower, and the tie rule calls a tie. Over 100 seats the mean rises on 97 and falls on 3, the IQM falls on 41, the tie rule calls a tie on 96, and 1174 of 2000 seeds improve. The sweep's lowest IQM is at ε = 0.05: seat 0 35.4 (200.9 at ε = 0, 252.4 at 0.5), and 77 of 100 seats (runs/2026-10-18-local-m04-seats-exp.json)."
