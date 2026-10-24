@@ -310,7 +310,7 @@ The counts are 3, 2, 3 and 0 over 8 steps, so the visitation is $(0.375, 0.25, 0
 [**6.6**]{#q6-6} Over steps 0 to 3, the optimal policy's expected rewards from the start are 0, 0, 0.1 and 0.3. A learner's mean rewards $r(s_t, a_t)$ at the same steps are 0.005, 0, 0 and 0.95. Compute its cumulative regret after every step, $\mathrm{Reg}_1$ to $\mathrm{Reg}_4$. How can it be negative? Then two learners run 10 seeds each: A's $\mathrm{Reg}_T$ has an IQM of 100 with a 95% bootstrap interval of [40, 160], and B's 2400 with [2300, 2550]. What is the verdict, and what must the sentence that reports it include?
 
 ::: {.callout-tip collapse="true" title="Answer to 6.6"}
-The per-step regrets are $0 - 0.005 = -0.005$, $0 - 0 = 0$, $0.1 - 0 = 0.1$ and $0.3 - 0.95 = -0.65$, so $\mathrm{Reg}_1, \dots, \mathrm{Reg}_4 = -0.005, -0.005, 0.095, -0.555$. Regret compares with the optimal policy's *expected* reward, not with the most a run could get: a run that reaches the good state early, or holds it longer by luck, can collect more than that expectation for a while.
+The per-step regrets are $0 - 0.005 = -0.005$, $0 - 0 = 0$, $0.1 - 0 = 0.1$ and $0.3 - 0.95 = -0.65$, so $\mathrm{Reg}_1, \dots, \mathrm{Reg}_4$ are $-0.005$, $-0.005$, $0.095$ and $-0.555$. Regret compares with the optimal policy's *expected* reward, not with the most a run could get: a run that reaches the good state early, or holds it longer by luck, can collect more than that expectation for a while.
 
 The intervals do not overlap and A's IQM is lower, so A has the lower regret at this budget. The sentence states the budget: steps per run, seeds per method, the wall-clock time and the hardware. Had the intervals overlapped, the verdict would be a tie.
 
