@@ -26,9 +26,11 @@ from the rounding that differs between platforms.
   m05-regimes  Seeds 0-9, T = 3000, the three regimes x three methods, one-pass launch,
                cumulative pseudo-regret every 25 rounds. Draws 05-regimes-{spec,misspec,drift}.
 
-  05-ellipse                 The confidence ellipse of the demo (an exact computation).
+  05-ellipse                 The confidence ellipse of the demo (an exact computation),
+                             460 x 400 px for its fold; its key is in the page's caption.
   05-regimes-{spec,misspec,drift}  Three subfigure panels: the mean of seeds 0-9 with the
-                             min-max band; greedy dashed, LinUCB solid, LinTS dash-dot.
+                             min-max band (edges dashed like the line); greedy dashed,
+                             LinUCB solid, LinTS dash-dot; a legend in every panel.
 
 The launch is the lab's: run(env, choose, T, seed, passes) shows item t % K at rounds
 t < passes * K, then lets the method choose. m05-launch forces `passes` by wrapping run.
@@ -65,7 +67,7 @@ from matplotlib.ticker import FixedLocator, FuncFormatter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import threshold_protocol as tp  # noqa: E402
-from make_figures_m01 import MIN_FONT, WIDTH_IN, Theme, rc, svg_bytes, themes  # noqa: E402
+from make_figures_m01 import MIN_FONT, Theme, rc, svg_bytes, themes  # noqa: E402
 from prl import record, runtime  # noqa: E402
 from prl.lab import _default_env  # noqa: E402
 
@@ -638,39 +640,29 @@ def ellipse_data() -> dict:
     }
 
 
+ELLIPSE_PT = 14  # labels and ticks: the figure sits in the Demo's answer fold (252 px at 360)
+
+
 def ellipse_figure(t: Theme, data: dict) -> Figure:
-    fig = Figure(figsize=(WIDTH_IN, 420 / 96))  # 680 x 420 px
-    ax = fig.add_axes((0.11, 0.13, 0.875, 0.84))
+    """460 x 400 px, two-line 14 pt labels; the key is in the page's caption (UI review, item 1).
+
+    At 252 px (the fold on a 360 px phone) the text renders at about 10 px. The canvas is
+    narrower than the column, so the SVG declares itself a "subfigure panel", the only
+    description tests/test_site_figures.py accepts for a narrow figure.
+    """
+    fig = Figure(figsize=(460 / 96, 400 / 96))
+    ax = fig.add_axes((0.17, 0.13, 0.81, 0.85))
     c = np.round(data["center"], 4)
     semi, axis = data["semi"], data["long_axis"]
     angle = math.degrees(math.atan2(axis[1], axis[0]))  # the long axis, from the w1 axis
-    ax.add_patch(
-        Ellipse(
-            tuple(c),
-            2 * semi[0],
-            2 * semi[1],
-            angle=angle,
-            facecolor=t.series[0],
-            alpha=0.12,
-            edgecolor="none",
-        )
-    )
-    ax.add_patch(
-        Ellipse(
-            tuple(c),
-            2 * semi[0],
-            2 * semi[1],
-            angle=angle,
-            fill=False,
-            edgecolor=t.series[0],
-            lw=2.2,
-        )
-    )
+    shape = {"xy": tuple(c), "width": 2 * semi[0], "height": 2 * semi[1], "angle": angle}
+    ax.add_patch(Ellipse(**shape, facecolor=t.series[0], alpha=0.12, edgecolor="none"))
+    ax.add_patch(Ellipse(**shape, fill=False, edgecolor=t.series[0], lw=2.2))
     inv = data["inv"]
     offsets = {  # label position relative to the arrow tip, in data units
-        "(1, 0)": (0.07, 0.0),
-        "(0, 1)": (0.07, 0.085),  # above its tangent line
-        "(1, \N{MINUS SIGN}1)/\N{SQUARE ROOT}2": (0.08, -0.06),
+        "(1, 0)": (0.06, 0.0),
+        "(0, 1)": (0.47, 0.0),  # right of its tangent line
+        "(1, \N{MINUS SIGN}1)/\N{SQUARE ROOT}2": (0.07, -0.08),
     }
     colors = (t.series[1], t.series[2], t.series[3])
     for (name, u), color in zip(DIRECTIONS.items(), colors, strict=True):
@@ -699,52 +691,41 @@ def ellipse_figure(t: Theme, data: dict) -> Figure:
         ax.text(
             tip[0] + dx,
             tip[1] + dy,
-            f"{name}: width {w:.3f}",
+            f"{name}\nwidth {w:.3f}",
             ha="left",
             va="center",
             color=t.text,
-            fontsize=13,
+            fontsize=ELLIPSE_PT,
+            linespacing=1.2,
         )
     ax.plot(*c, marker="o", ms=7, color=t.text, zorder=6)
     ax.annotate(
-        f"{CENTER} = ({c[0]:.3f}, {c[1]:.3f})",
+        f"{CENTER}\n({c[0]:.3f}, {c[1]:.3f})",
         xy=tuple(c),
-        xytext=(-10, -14),
+        xytext=(-10, -6),
         textcoords="offset points",
         ha="right",
         va="top",
         color=t.text,
-        fontsize=13,
+        fontsize=ELLIPSE_PT,
+        linespacing=1.2,
         bbox={"boxstyle": "square,pad=0.15", "facecolor": t.bg, "edgecolor": "none", "alpha": 0.85},
     )
-    ax.text(
-        1.62,
-        1.08,
-        "Shaded: $\\Vert w - \\hat{w} \\Vert_\\Lambda \\leq 1$.\n"
-        "Arrow: a user's direction,\n"
-        "as long as its width $\\Vert\\phi\\Vert_{\\Lambda^{-1}}$.\n"
-        "Dashed: the tangent line\n"
-        "at that distance.",
-        ha="left",
-        va="top",
-        color=t.text,
-        fontsize=MIN_FONT,
-        linespacing=1.35,
-    )
     ax.set_aspect("equal")
-    ax.set_xlim(-0.45, 2.85)
-    ax.set_ylim(-0.75, 1.1)
+    ax.set_xlim(-0.45, 1.85)
+    ax.set_ylim(-0.75, 1.15)
     ax.xaxis.set_major_locator(FixedLocator([0.0, 0.5, 1.0, 1.5]))
     ax.yaxis.set_major_locator(FixedLocator([-0.5, 0.0, 0.5, 1.0]))
     fmt = FuncFormatter(lambda v, _p: f"{v:g}".replace("-", "\N{MINUS SIGN}"))
     ax.xaxis.set_major_formatter(fmt)
     ax.yaxis.set_major_formatter(fmt)
+    ax.tick_params(labelsize=ELLIPSE_PT)
     ax.grid(True, lw=0.6)
     ax.set_axisbelow(True)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    ax.set_xlabel("$w_1$")
-    ax.set_ylabel("$w_2$")
+    ax.set_xlabel("$w_1$", fontsize=ELLIPSE_PT)
+    ax.set_ylabel("$w_2$", fontsize=ELLIPSE_PT)
     return fig
 
 
@@ -753,23 +734,25 @@ PX = 1 / 96
 PANEL_W, PANEL_H = 264 * PX, 300 * PX  # 34:33:33 of the 778 px column; they stack on phones
 STYLES = {"greedy": (0, (5, 2.5)), "LinUCB": "solid", "LinTS": (0, (7, 2.2, 1.6, 2.2))}
 LABELS = {"greedy": "Greedy", "LinUCB": "LinUCB", "LinTS": "LinTS"}
-TITLES = {
-    "well-specified": "Well-specified",
-    "misspecified": "Misspecified",
-    "drifting": "Drifting",
-}
 Y_MAX = 600
 
 
 def regime_panel(regime: str):
+    """One regime's panel. Every panel has its own legend (they stack on phones, and the
+    lightbox opens each alone); band edges repeat each method's dash style; the subcaption
+    names the regime, so the panel has no title (UI review, items 2 and 9)."""
+
     def draw(t: Theme, data: dict) -> Figure:
         fig = Figure(figsize=(PANEL_W, PANEL_H))
-        ax = fig.add_axes((0.27, 0.165, 0.68, 0.745))
+        ax = fig.add_axes((0.27, 0.165, 0.68, 0.8))
         x = data["rounds"]
         colors = dict(zip(METHODS, t.series, strict=False))
+        band = 0.22 if t.suffix else 0.14  # t.suffix is ".dark" in the dark theme
         for method in METHODS:
             p = data["panels"][regime][method]
-            ax.fill_between(x, p["lo"], p["hi"], color=colors[method], alpha=0.14, lw=0)
+            ax.fill_between(x, p["lo"], p["hi"], color=colors[method], alpha=band, lw=0)
+            for edge in (p["lo"], p["hi"]):
+                ax.plot(x, edge, color=colors[method], lw=0.7, ls=STYLES[method], alpha=0.8)
         for method in METHODS:
             p = data["panels"][regime][method]
             ax.plot(x, p["mean"], color=colors[method], lw=2.0, ls=STYLES[method])
@@ -782,20 +765,18 @@ def regime_panel(regime: str):
         ax.set_axisbelow(True)
         for side in ("top", "right"):
             ax.spines[side].set_visible(False)
-        ax.set_title(TITLES[regime], fontsize=13, color=t.text, loc="left")
         ax.set_xlabel("Round")
         ax.set_ylabel("Cumulative pseudo-regret")
-        if regime == REGIMES[0]:
-            handles = [Line2D([], [], color=colors[m], lw=2.0, ls=STYLES[m]) for m in METHODS]
-            ax.legend(
-                handles,
-                [LABELS[m] for m in METHODS],
-                loc="upper left",
-                frameon=False,
-                handlelength=2.6,
-                fontsize=MIN_FONT,
-                borderaxespad=0.2,
-            )
+        handles = [Line2D([], [], color=colors[m], lw=2.0, ls=STYLES[m]) for m in METHODS]
+        ax.legend(
+            handles,
+            [LABELS[m] for m in METHODS],
+            loc="upper left",
+            frameon=False,
+            handlelength=2.6,
+            fontsize=MIN_FONT,
+            borderaxespad=0.2,
+        )
         return fig
 
     return draw
@@ -804,7 +785,7 @@ def regime_panel(regime: str):
 # ------------------------------------------------------------------ build, report, check
 DATA = {"05-ellipse": ellipse_data, "05-regimes": regimes_data}
 FIGURES = {
-    "05-ellipse": ("05-ellipse", ellipse_figure, False),
+    "05-ellipse": ("05-ellipse", ellipse_figure, True),  # narrow, for its fold (see its docstring)
     "05-regimes-spec": ("05-regimes", regime_panel("well-specified"), True),
     "05-regimes-misspec": ("05-regimes", regime_panel("misspecified"), True),
     "05-regimes-drift": ("05-regimes", regime_panel("drifting"), True),
