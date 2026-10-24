@@ -72,6 +72,7 @@ EXPERIMENT_FIELDS: dict[str, tuple[Any, bool]] = {
     "platform": (str, True),
     "env": (str, True),
     "hardware": (dict, True),
+    "torch_threads": ((int, type(None)), False),
     "python": (str, True),
     "packages": (dict, True),
     "budget": (dict, True),

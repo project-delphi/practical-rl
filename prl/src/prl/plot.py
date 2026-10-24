@@ -15,6 +15,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
+from ._budget import differences
 from ._palette import DARK, LIGHT, NEUTRAL_LIGHT
 
 SERIES = list(LIGHT)
@@ -104,13 +105,15 @@ def with_recorded(
 ) -> plt.Axes:
     """Overlay your single run on a recorded multi-seed band.
 
-    `band` is a recorded band from prl.data (keys: "x", "runs", "budget", "record").
-    Refuses to overlay runs made with a different budget (for example QUICK vs live).
+    `band` is a recorded band from prl.data.band (keys used: "x", "runs", "budget", "record").
+    Refuses to overlay runs made with a different budget (for example QUICK vs live): every
+    key of the band's budget must be in `your_budget` with the same value. Other keys are
+    ignored, so pass the lab's settings.
     """
-    if dict(band["budget"]) != dict(your_budget):
+    problems = differences(band["budget"], your_budget)
+    if problems:
         raise ValueError(
-            f"Budgets differ (recorded {dict(band['budget'])} vs yours {dict(your_budget)}); "
-            "the overlay would not be comparable."
+            f"Budgets differ ({'; '.join(problems)}); the overlay would not be comparable."
         )
     ax = ax or plt.gca()
     rec_x = np.asarray(band["x"], dtype=float)
