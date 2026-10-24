@@ -630,10 +630,18 @@ SHOWINGS = [(50, 20), (10, 3), (4, 3)]
 X = np.round(np.linspace(0.0, 1.0, 401), 6)
 
 
+def beta_pdf(u: int, v: int, n: int = 400) -> np.ndarray:
+    """The Beta(u, v) density at x = i / n, computed in rationals and rounded to 5 decimals,
+    so the drawing is the same on every platform (scipy's pdf can differ in the last bits)."""
+    norm = (u + v - 1) * math.comb(u + v - 2, u - 1)  # 1 / B(u, v)
+    out = [norm * Fraction(i, n) ** (u - 1) * (1 - Fraction(i, n)) ** (v - 1) for i in range(n + 1)]
+    return np.array([round(float(round(x, 5)), 5) for x in out])
+
+
 def beta_data() -> dict:
     return {
         "x": X,
-        "pdf": [np.round(stats.beta.pdf(X, u, v), 5) for u, v in POSTERIORS],
+        "pdf": [beta_pdf(u, v) for u, v in POSTERIORS],
         "p_best": m04_prob_best(POSTERIORS),
     }
 
