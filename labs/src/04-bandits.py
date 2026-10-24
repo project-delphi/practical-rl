@@ -55,9 +55,10 @@ print(f"Budget: {T} rounds per run, {budget.seeds} seeds per method: {SEEDS[0]}-
 # **Rewards are drawn up front.** For each seed, `reward_stack` draws a column of rewards for
 # every arm: `stack[n, a]` is what the (n + 1)-th pull of arm `a` pays. A method that pulls arm
 # `a` takes the reward on top of its column. Two methods run on the same seed therefore see the
-# same rewards whenever they pull the same arm, which makes their comparison fairer, and it
-# changes nothing about what each method sees on its own (Lattimore and Szepesvári call this
-# the reward-stack model). The policy's own coin flips come from a separate generator.
+# same reward whenever each pulls the same arm for the n-th time, so a difference between them
+# comes from their choices rather than from different luck; it changes nothing about what each
+# method sees on its own (Lattimore and Szepesvári call this the reward-stack model). The
+# policy's own coin flips come from a separate generator.
 #
 # **Ties go to the lowest arm.** `argmax_tie` returns the first arm within rounding of the
 # largest value, so a tie never depends on how the last bit of a float was rounded.
@@ -313,11 +314,11 @@ ax.legend()
 plt.show()
 
 # %% [markdown] role="ex2-explain"
-# Each pull of an arm shrinks its bonus by a factor √(N/(N + 1)), while the bonus of an arm
-# you leave alone grows like √(ln t): no arm is written off for good, which is what greedy got
-# wrong (UCB1). Read the counts: is headline 1's count near Theorem 1's bound, or far below
-# it? A bound can be true and still far from what happens; what does Theorem 1 promise, and
-# what does it not?
+# Each pull of an arm shrinks its bonus by a factor of about √(N/(N + 1)), while the bonus of
+# an arm you leave alone grows like √(ln t): no arm is written off for good, which is what
+# greedy got wrong (UCB1). Read the counts: is headline 1's count near Theorem 1's bound, or far
+# below it? A bound can be true and still far from what happens; what does Theorem 1 promise,
+# and what does it not?
 
 # %% role="ex2-chk1"
 lab.check(2, m04.check_ucb1_index, ucb1_index, label="2.1")
