@@ -2,11 +2,11 @@
 title: "{{< var modules.m09.title >}}"
 live:
   - {section: 1, minutes: 3}
-  - {section: 2, minutes: 10, activities: [{block: demo-dashboard, minutes: 3, label: "Demo: read a healthy run"}]}
+  - {section: 2, minutes: 10, activities: [{block: demo-dashboard, minutes: 3, label: "Demo: vote, then read a healthy run"}]}
   - {section: 3, minutes: 8, activities: [{block: chk-probes, minutes: 2, label: "Check yourself 3.1"}]}
   - {section: 4, minutes: 6, activities: [{block: predict-band, minutes: 3, label: "Predict: outside a 5-seed band?"}]}
-  - {section: 5, minutes: 8, activities: [{block: chk-iqm, minutes: 2, label: "Check yourself 5.1"}]}
-  - {section: 6, minutes: 5}
+  - {section: 5, minutes: 9, activities: [{block: chk-iqm, minutes: 3, label: "Check yourself 5.1"}]}
+  - {section: 6, minutes: 4}
 ---
 
 {{< include /_includes/module-09.md >}}
@@ -34,7 +34,7 @@ The lab gives you the logs of five recorded runs of the reference DQN at the sam
 
 ## 2. What to log
 
-**In this section:** list what a DQN run should log, define three signals from those logs, and say what each looks like in a healthy run.
+**In this section:** list what a DQN run should log, define four signals from those logs, and say what each looks like in a healthy run.
 
 **The two equations every signal reads.** Module 8's target for a transition $(s, a, r, s')$ is
 
@@ -53,12 +53,18 @@ with $Q(s, a; w)$ the entry of the network's output for the action $a$ that was 
 **What `train_dqn` logs.** Module 8's logger writes three kinds of record, as NumPy arrays:
 
 - **Per episode:** the return, the discounted return $G_0 = \sum_t \gamma^t r_t$ from the episode's first state, the length, and the step at which it ended.
-- **Every 500 environment steps:** the mean loss; the mean and the largest $|\delta|$ over the batches since the last record; the mean over the batch of $\max_a Q(s, a; w)$; and $Q$ at a fixed set of start states, from both the online and the target network. The start states are the same for every run and seed, so their values can be compared across runs.
+- **Every 500 environment steps:** the mean loss; the mean and the largest $|\delta|$ over the batches since the last record; the mean over the batch of $\max_a Q(s, a; w)$; and $Q$ at a fixed set of start states, from both the online and the target network. The start states are the same in every run.
 - **At three steps:** one whole batch, with $Q(s, \cdot\,; w)$ for every row, the actions, the values the loss used and the targets.
 
 Jones's own list is longer [@jones2021debugging, "Log excessively"]. A quantity you did not log cannot help you later.
 
-**Three signals.** Each turns a log into a curve you can compare with a healthy run.
+::: {#demo-dashboard .demo}
+**Demo (3 min).** Vote first, then look. In a healthy run of Module 8's DQN, does the mean loss (a) fall steadily toward 0, (b) drop early and then stay level or rise slowly, or (c) rise without bound? Does $Q$ at the start states (a) stay near 1, (b) climb over the whole run, or (c) reach its final value within the first 5,000 steps? Then open the healthy run's four panels, every seed: the return, the mean loss, the mean $|\delta|$ and $Q$ at the start states. Read them as a room: which votes held? Write one sentence about the loss.
+
+*Figure pending the healthy record* (`images/09-healthy-dashboard.svg`, from `m09_broken_runs`; technical expert). Until it exists, the instructor projects Exercise 1's plot from a worked run of the notebook.
+:::
+
+**Four signals.** Each turns a log into a number or a curve you can compare with a healthy run. Two are scale signals: they say that something is out of range. Two are exact checks: when one fails, it names its cause.
 
 - **Q against the return earned.** Two numbers estimate the value of the start states: the network's, and the discounted return the agent actually collects from them. At log step $t$, let $\bar Q_t$ be the mean over the fixed start states of $\max_a Q(s, a; w_t)$, and $\bar G_t$ the mean $G_0$ of the episodes that ended in the 5,000 steps before $t$. Their difference is the *Q drift*:
 
@@ -66,21 +72,15 @@ Jones's own list is longer [@jones2021debugging, "Log excessively"]. A quantity 
   \bar Q_t - \bar G_t .
   $$ {#eq-q-drift}
 
-  $\bar G_t$ comes from the exploring policy and $\bar Q_t$ estimates the greedy one, so they need not agree exactly; in a healthy run they stay close. Module 8 made the same comparison for the greedy policy.
+  $\bar G_t$ comes from the exploring policy and $\bar Q_t$ estimates the greedy one, so they need not agree exactly; in a healthy run they stay close.
 - **The TD error against the scale of Q.** As $Q$ grows from 0 toward the return, $|\delta|$ grows with it, so a raw $|\delta|$ is hard to read. Divide it by the size of $Q$:
 
   $$
   \frac{\text{mean } |\delta| \text{ over the batches}}{\text{mean of } \max_a Q(s, a; w)} .
   $$ {#eq-relative-td}
 
-  We call this the *relative TD error*. Scaling every reward by a constant scales $\delta$ and $Q$ alike and leaves it unchanged.
-- **Two consistency checks.** In the logged batch, the value the loss used for row $i$ must be $Q(s_i, a_i; w)$; and the target network's values at the start states must change at every sync. Both have exact healthy answers.
-
-::: {#demo-dashboard .demo}
-**Demo (3 min).** Open the healthy run's four panels: the return, the mean loss, the mean $|\delta|$ and $Q$ at the start states, every seed. Read them as a room. Which curves rise, which settle, and which would you expect to look the same in a broken run? Write one sentence about the loss.
-
-*Figure pending the healthy record* (`images/09-healthy-dashboard.svg`, from `m09_broken_runs`; technical expert). Until it exists, the instructor projects Exercise 1's plot from a worked run of the notebook.
-:::
+  We call this the *relative TD error*. Scaling every reward by a constant scales $\delta$ and $Q$ alike and leaves it unchanged. It is a weak signal. Updates that overshoot their targets raise it, as a step size that is too large does, but other faults raise it too, and its healthy value varies from seed to seed. Compare it with the healthy seeds' range, not with one number.
+- **Two exact checks.** In the logged batch, the value the loss used for row $i$ must be $Q(s_i, a_i; w)$; and the target network's values at the start states must change at every sync. Both have exact healthy answers.
 
 ::: {.callout-note collapse="true" title="Code: the four signals (open after Lab 9)"}
 ```python
@@ -124,14 +124,14 @@ def target_lag(log):
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 1** records your predictions for three healthy curves. **Exercises 2 to 5** each show one broken run beside the healthy run. You write one signal, `td_error_scale` (@eq-relative-td), `gather_check`, `q_drift` (@eq-q-drift) or `target_lag`; the run cell prints it for all five runs and seeds; then you choose the run's cause from a list of six. Checkpoints 2.1 to 5.1 are exact; 2.2 to 5.2 check the diagnosis.
+**In the lab.** **Exercise 1** writes the two exact checks, `gather_check` and `target_lag`, and **Exercise 2** the two scale signals, `q_drift` (@eq-q-drift) and `td_error_scale` (@eq-relative-td), each tried on the healthy run. In **Exercise 3** the four signals are computed on every run and seed, and you name each broken run's cause from a list of six. Checkpoints 1.1 to 2.2 are exact; checkpoints 3.1 to 3.4 check the four diagnoses.
 :::
 
 ## 3. The checklist and probe environments
 
 **In this section:** test a diagnosis on environments whose answers you can compute by hand, and say what a passing test rules out.
 
-A signal makes a hypothesis. CartPole is a poor place to test it: a run takes a minute, its outcome varies with the seed, and a failure can have many causes. Jones's remedy is the *probe environment*: an environment so small that a correct agent's values can be computed by hand, built to exercise one piece of the agent [@jones2021debugging, "Use probe environments"]. He lists five, from the simplest up. The first three need one action:
+A signal makes a hypothesis. CartPole is a poor place to test it: a run is slow next to a probe, its outcome varies with the seed, and a failure can have many causes. Jones's remedy is the *probe environment*: an environment so small that a correct agent's values can be computed by hand, built to exercise one piece of the agent [@jones2021debugging, "Use probe environments"]. He lists five, from the simplest up. The first three need one action:
 
 1. **Probe 1:** "One action, zero observation, one timestep long, +1 reward every timestep". It "isolates the value network": if the agent cannot learn this value, the value loss or the optimizer is broken.
 2. **Probe 2:** "One action, random +1/-1 observation, one timestep long, obs-dependent +1/-1 reward every time". An agent that learns probe 1 but not probe 2 cannot make its value depend on its input: in Jones's words, "backpropagation through my network is broken".
@@ -196,7 +196,7 @@ class ObsRewardEnv(gym.Env):
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 6** has two parts: `ConstantRewardEnv` (probe 1) and `ObsRewardEnv` (probe 2), as Gymnasium environments whose step returns the same observation as the reset. The run cell trains the healthy agent and the agents of runs A to D on both probes, each for 2,000 steps, and prints their values beside the exact ones. Checkpoints 6.1 and 6.2 are exact: they check the spaces, the step's flags, the seeding, and the values a correct agent must learn on your environment, computed by hand from its rewards. The stretch is probe 3.
+**In the lab.** **Exercise 4** has two parts: `ConstantRewardEnv` (probe 1) and `ObsRewardEnv` (probe 2), as Gymnasium environments whose step returns the same observation as the reset. The run cell trains the healthy agent and the agents of runs A to D on both probes, each for 2,000 steps, and prints their values beside the exact ones. Checkpoints 4.1 and 4.2 are exact: they check the spaces, the step's flags, the seeding, and the values a correct agent must learn on your environment, computed by hand from its rewards. The stretch is probe 3.
 :::
 
 ## 4. Seeds
@@ -278,7 +278,7 @@ def bootstrap_ci(x, statistic=np.mean, *, level=0.95, n_boot=5000, seed=0):
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 7** has two parts: `iqm` (@eq-iqm) and `bootstrap_ci` (@eq-bootstrap), written to match `prl.evaluate` exactly; checkpoints 7.1 and 7.2 compare them on fixed inputs. The run cell reports a recorded sweep of 5 learning rates × 10 seeds with your functions. **Exercise 8** trains one seed of the reference configuration live and reports where it lands against the recorded band (@eq-band), with the IQM of the recorded seeds with and without yours. Its checkpoint compares your return with a threshold from the threshold protocol, not with the band.
+**In the lab.** **Exercise 5** has two parts: `iqm` (@eq-iqm) and `bootstrap_ci` (@eq-bootstrap), written to match `prl.evaluate` exactly; checkpoints 5.1 and 5.2 compare them on fixed inputs. The run cell reports a recorded sweep of 5 learning rates × 10 seeds with your functions, the mean beside each IQM. **Exercise 6** trains one seed of the reference configuration live. You write `band_position`, which says whether a value lands above, inside or below a band (@eq-band); checkpoint 6.1 is exact. Checkpoint 6.2 compares your return with a threshold from the threshold protocol, not with the band.
 :::
 
 ## 6. Budget sentences, ties and sweeps
@@ -295,12 +295,16 @@ def bootstrap_ci(x, statistic=np.mean, *, level=0.95, n_boot=5000, seed=0):
 - **The ties.** Neighbors whose intervals overlap the best one's are not worse at this budget. Report them as ties.
 - **The selection.** The highest IQM among several configurations is the largest of several noisy estimates. Module 8's inequality, $\mathbb{E}[\max_i \hat Z_i] \ge \max_i \mathbb{E}[\hat Z_i]$ by Jensen's inequality, applies here as it did to $\max_a \hat Q$: the winner's score is, on average, an overestimate of the winner's true score. To report the chosen configuration's performance, rerun it on fresh seeds.
 
-**Where the lab's learning rates come from.** The sweep varies only the learning rate, at 0.1, 0.3, 1, 3 and 10 times the reference, and keeps every other part of Module 8's configuration. Run A's learning rate is 100 times the reference: far past the sweep's right end.
+**Where the lab's learning rates come from.** The sweep varies only the learning rate, at 0.1, 0.3, 1, 3 and 10 times the reference, and keeps every other part of Module 8's configuration.
+
+::: {.callout-note collapse="true" title="After the lab: run A and the sweep"}
+Run A's learning rate is 100 times the reference, ten times past the sweep's right end. No exact check and no probe can see it: it was found by ruling out the other causes, as hyperparameter faults usually are.
+:::
 
 ## Summary
 
 - Log what you can predict: per episode, the return and the discounted return; every few hundred steps, the loss, the mean and largest $|\delta|$, the mean $\max_a Q$, and $Q$ at fixed start states from both networks; now and then, one whole batch.
-- Turn logs into signals and compare each with a healthy run: Q at the start states against the discounted return earned (@eq-q-drift), the relative TD error (@eq-relative-td), the gathered values against $Q(s_i, a_i)$, and how long ago the target network's values changed. Some signals single out one cause; others flag several.
+- Turn logs into signals and compare each with a healthy run: two exact checks (the gathered values against $Q(s_i, a_i)$, and how long ago the target network's values changed) and two scale signals (Q at the start states against the discounted return earned, @eq-q-drift, and the relative TD error, @eq-relative-td, a weak one). An exact check that fails names its cause; a scale signal only says that something is wrong.
 - A diagnosis is a hypothesis. Test it on probe environments, whose answers you compute by hand [@jones2021debugging]. A passing probe rules out only what it exercises; no probe tests a hyperparameter.
 - A correct new seed lands outside an $n$-seed band with probability $2/(n+1)$ when returns cannot tie (@eq-band). Bands are never pass or fail.
 - Summarize seeds with the IQM (@eq-iqm) and a percentile bootstrap interval (@eq-bootstrap) [@agarwal2021precipice, §4.1, §4.3]; with 10 seeds on one task, read the interval as rough. State the budget, and call overlapping intervals a tie.
@@ -310,18 +314,19 @@ def bootstrap_ci(x, statistic=np.mean, *, level=0.95, n_boot=5000, seed=0):
 
 | Equation | Lab 9 | Name in the notebook |
 |---|---|---|
-| The masked target (@eq-masked-target) | Read in Exercises 4 to 6 | (masked target) |
-| The TD error (@eq-td-error) | Read in Exercises 1 and 3: `gather_check` | (TD error) |
+| The TD error (@eq-td-error) | Exercise 1: `gather_check` | (TD error) |
+| Q drift (@eq-q-drift) | Exercise 2: `q_drift` | (Q drift) |
 | The relative TD error (@eq-relative-td) | Exercise 2: `td_error_scale` | (relative TD error) |
-| Q drift (@eq-q-drift) | Exercise 4: `q_drift` | (Q drift) |
-| A new seed against a band (@eq-band) | Exercise 8 | (band) |
-| The interquartile mean (@eq-iqm) | Exercise 7: `iqm` | (IQM) |
-| The percentile bootstrap (@eq-bootstrap) | Exercise 7: `bootstrap_ci` | (bootstrap CI) |
+| The masked target (@eq-masked-target) | Read in Exercises 3 and 4 | (masked target) |
+| The interquartile mean (@eq-iqm) | Exercise 5: `iqm` | (IQM) |
+| The percentile bootstrap (@eq-bootstrap) | Exercise 5: `bootstrap_ci` | (bootstrap CI) |
+| A new seed against a band (@eq-band) | Exercise 6: `band_position` | (band) |
 
 ## Gotchas and troubleshooting
 
 - **"The loss should go down."** In DQN the loss measures the fit to targets that move with $Q$ (@eq-masked-target), so its level and its trend say little about whether the agent is learning. Jones: "The shape of your loss curve says very little about where in your code you've messed up" [@jones2021debugging, "Loss curves are a red herring"]. Read the loss next to $Q$ at the start states and the return.
 - **"The probes pass, so the agent is correct."** A probe clears the code it exercises. One-step probes never bootstrap through the target network, and no probe tests a hyperparameter. Use probes to rule hypotheses out, and keep testing what is left.
+- **"An out-of-range signal names the cause."** Only an exact check names its cause: a gathered value that is not $Q(s_i, a_i)$, or target values that never change. The Q drift and the relative TD error say that something is wrong, and one bug often moves both, because a wrong update spreads to every value that bootstraps from it. Read every signal on every run, start from the exact checks, and test what is left on a probe.
 - **"One seed is enough."** A correct new seed lands outside a 5-seed band a third of the time (@eq-band). One seed per method is "single seed, not a ranking".
 - **"The mean is fine."** One run that collapses, or one that reaches the cap, can move a 10-seed mean a long way. The IQM ignores the extreme quarter at each end (@eq-iqm). Show every seed as well.
 - **"The best configuration's score is its expected score."** It is the largest of several noisy estimates, so it is optimistic on average, for the same reason as Module 8's overestimation. Rerun the chosen configuration on new seeds before you report it.
