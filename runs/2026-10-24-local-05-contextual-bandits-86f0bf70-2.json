@@ -1,0 +1,147 @@
+{
+  "badge_ref": "main",
+  "checkpoints": [
+    {
+      "exercise": 1,
+      "label": "1",
+      "pass": true,
+      "seconds": 0.002,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4",
+      "pass": true,
+      "seconds": 0.04,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5",
+      "pass": true,
+      "seconds": 3.626,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6",
+      "pass": true,
+      "seconds": 0.13,
+      "whose": "reference"
+    },
+    {
+      "exercise": 7,
+      "label": "7",
+      "pass": true,
+      "seconds": 0.077,
+      "whose": "reference"
+    }
+  ],
+  "colab_release": null,
+  "content_sha": "86f0bf703b14e558",
+  "date": "2026-10-24",
+  "dirty": false,
+  "env": "local",
+  "git_sha": "75198424749336427373efc85cc8274a3157ba1d",
+  "hardware": {
+    "accel": "cpu",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "notebook",
+  "metrics": {
+    "mean_weight": 1.0297,
+    "regret_iqm": {
+      "drifting": {
+        "LinTS": 400.69,
+        "LinUCB": 394.15,
+        "greedy": 442.68
+      },
+      "misspecified": {
+        "LinTS": 369.73,
+        "LinUCB": 319.98,
+        "greedy": 450.21
+      },
+      "warm launch": {
+        "LinTS": 174.58,
+        "LinUCB": 152.9,
+        "greedy": 167.22
+      },
+      "well-specified": {
+        "LinTS": 194.51,
+        "LinUCB": 169.26,
+        "greedy": 287.49
+      }
+    },
+    "ts_lead_spec": 92.98,
+    "ts_lead_warm": -7.36,
+    "ucb_lead_drift": 48.52,
+    "ucb_lead_misspec": 130.23,
+    "ucb_lead_spec": 118.23,
+    "ucb_lead_warm": 14.32,
+    "verdicts": {
+      "drifting/LinTS": "tie",
+      "drifting/LinUCB": "tie",
+      "misspecified/LinTS": "tie",
+      "misspecified/LinUCB": "LinUCB",
+      "warm launch/LinTS": "tie",
+      "warm launch/LinUCB": "tie",
+      "well-specified/LinTS": "tie",
+      "well-specified/LinUCB": "LinUCB"
+    }
+  },
+  "note": "Local run in a 'uv run --with mabwiser==2.7.4' overlay, so the MABWiser stretch ran. Other builds were running on the laptop (load average about 5-7 on 10 cores), so seconds may be inflated; a laptop time, not a Colab time.",
+  "notebook": "05-contextual-bandits",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "mabwiser": "2.7.4",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "torch": "2.14.1"
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "quick": false,
+  "quick_reason": "designed for colab-cpu; running full settings",
+  "schema": 1,
+  "scope": "notebook",
+  "seat": 0,
+  "seconds": 34.2,
+  "seeds": [
+    1000,
+    1100,
+    1101,
+    1102,
+    1103,
+    1104
+  ],
+  "settings": {
+    "T": 3000,
+    "n_log": 5000
+  },
+  "shims": [],
+  "solutions_bound": true,
+  "source": "tool",
+  "status": "pass",
+  "test_doubles": [],
+  "torch_threads": null
+}

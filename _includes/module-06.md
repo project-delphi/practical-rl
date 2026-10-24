@@ -4,11 +4,11 @@
 [Briefing 14:45 · Lab 15:25 · Debrief 16:35]{.module-clock}
 
 ::: {.module-summary}
-Why epsilon-greedy fails on RiverSwim, and how optimism and count bonuses fix it.
+How to explore when the reward is many steps away: hitting times, optimism and count bonuses on RiverSwim.
 :::
 
 ::: {.module-actions}
-[Lab notebook not built yet]{.btn-disabled} [Other ways to run](/setup.qmd#local){.btn-quiet}
+[Open in Colab[, Lab 6: Exploration in MDPs (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/06-exploration-mdps.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
 :::
 :::
 
@@ -20,7 +20,7 @@ Level
 :   [300 · Advanced](/index.qmd#levels)
 
 Lab runtime
-:   Google Colab, CPU runtime · core 51 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
+:   Google Colab, CPU runtime · core 52 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
 
 Cost
 :   Free (Google account)
@@ -37,9 +37,9 @@ Without GPU
 
 In this module you will:
 
-- Compute RiverSwim hitting times under uniform random play by first-step analysis and show exponential growth in chain length.
-- Implement optimistic initialization and MBIE-EB's bonus inside the backup of an estimated model.
-- Measure state visitation and cumulative regret against the DP optimum over 10 seeds.
+- Compute RiverSwim's hitting time under uniform random play by first-step analysis, and find how it grows with the length of the chain.
+- Implement optimistic initialization and MBIE-EB's bonus inside the backup of an estimated model, and explain why the bonus belongs there.
+- Write cumulative regret against the DP optimum, and measure it and state visitation over 10 seeds, calling each comparison with its budget.
 - Explain where count bonuses stop working and what pseudo-counts and RND attempt.
 
 ## Before you start {#before}

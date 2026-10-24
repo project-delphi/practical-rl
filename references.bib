@@ -57,7 +57,17 @@
                becomes greedy in the limit (e.g. epsilon = 1/t); s6.5, Q-learning converges w.p. 1 to q* if all pairs keep being updated,
                under a variant of the usual step-size conditions;
                the s6.1 text places TD(lambda) in Chapter 12; the Chapter 6 bibliographical notes (book p. 139): Sarsa introduced by
-               Rummery and Niranjan (1994) as Modified Connectionist Q-learning, the name Sarsa introduced by Sutton (1996).}
+               Rummery and Niranjan (1994) as Modified Connectionist Q-learning, the name Sarsa introduced by Sutton (1996).
+               Also opened (academic director, Module 4, 2026-10-18, RLbook2020.pdf, text extracted): s2.7 (book pp. 35-36): the UCB rule
+               A_t = argmax_a [Q_t(a) + c sqrt(ln t / N_t(a))], Eq. 2.10, with c > 0 controlling exploration and an action with N_t(a) = 0
+               treated as maximizing; Figure 2.4 compares it with epsilon-greedy on the 10-armed testbed. Module 4 cites s2.7, Eq. 2.10.
+               Also opened (academic director, Module 5, 2026-10-17, RLbook2020.pdf): s2.9 Associative Search (Contextual Bandits) (book p. 41): such tasks
+               'are often now called contextual bandits'; they are intermediate between the k-armed bandit and the full problem; 'each action affects only
+               the immediate reward. If actions are allowed to affect the next situation as well as the reward, then we have the full reinforcement
+               learning problem.' Module 5 cites s2.9.
+               Also opened (academic director, Module 6, 2026-10-18, same PDF, pp. 34-35): s2.6 Optimistic Initial Values: optimistic initial estimates
+               make even greedy methods explore; "a simple trick that can be quite effective on stationary problems, but it is far from being a generally
+               useful approach to encouraging exploration"; not well suited to nonstationary problems because its drive for exploration is temporary.}
 }
 
 @book{lattimore2020bandit,
@@ -71,7 +81,35 @@
   annote    = {Verified 2026-10-09. Opened the free PDF and the DOI record. Cite by chapter or theorem, because PDF page numbers differ from print.
                Concentration Ch. 5 (s5.3; Thm 5.3 subgaussian tail; Cor 5.5 sample mean; Hoeffding's lemma is Exercise 5.11);
                ETC Ch. 6; UCB Ch. 7 (s7.1); contextual Ch. 18; stochastic linear bandits Ch. 19 (LinUCB s19.2, Eqs. 19.7, 19.13; Thm 19.2);
-               least-squares confidence Ch. 20 (Thms 20.4, 20.5); Thompson sampling Ch. 36 (s36.1, s36.3).}
+               least-squares confidence Ch. 20 (Thms 20.4, 20.5); Thompson sampling Ch. 36 (s36.1, s36.3).
+               Also opened (academic director, Module 4, 2026-10-18; book.pdf from the url above, text extracted with pypdf; book page = PDF page - 9):
+               s4.4 Eq. 4.1 (regret, p. 60); s4.5 Lemma 4.5 (regret decomposition, Eq. 4.5, p. 62); s4.6 (p. 65): the random-table and
+               reward-stack models (X_t = X_{T_{A_t}(t), A_t}: a stack of rewards per arm drawn in advance), and the regret depends only on the
+               law of A_1, X_1, ..., A_n, X_n (Exercise 4.4); s4.8 Note 4 (p. 68): random regret and pseudo-regret n mu* - sum_t mu_{A_t};
+               s4.9 (p. 68): Thompson [1933] is the earliest reference; s5.3 Definition 5.2, Theorem 5.3 (p. 77), Lemma 5.4, Corollary 5.5 and
+               Eqs. 5.6-5.7 (p. 78), Example 5.6(c): X in [a, b] with mean zero is (b - a)/2-subgaussian; s5.4 Note 4 (p. 80): Hoeffding's lemma
+               and Hoeffding's inequality, Eq. 5.8, P((1/n) sum (X_t - E X_t) >= eps) <= exp(-2 n^2 eps^2 / sum (b_t - a_t)^2), for independent
+               X_t in [a_t, b_t]; Exercise 5.11; Chapter 6 introduction (p. 91): the subgaussian constant is fixed to 1, results hold for other
+               constants by scaling the rewards, and 'All the algorithms that follow rely on the knowledge of sigma'; s7.1 Eqs. 7.1-7.3,
+               Algorithm 3 UCB(delta) (p. 103; index infinite for an arm never played), Theorem 7.1 (delta = 1/n^2, 1-subgaussian, p. 105);
+               s7.3 (p. 111): Auer et al.'s UCB1 uses t rather than n in the confidence level and assumes pay-offs in [0, 1], which are
+               1/2-subgaussian; s34.3 Example 34.6 (p. 430): Beta(alpha, beta) prior with Bernoulli rewards gives the posterior
+               Beta(alpha + S_t, beta + t - S_t); Example 34.7 (p. 430): prior N(mu, sigma^2) with rewards N(theta, 1) gives the posterior
+               N(mu_t, sigma_t^2), mu_t = (mu/sigma^2 + S_t)/(1/sigma^2 + t), sigma_t^2 = (1/sigma^2 + t)^(-1); Chapter 36 introduction (p. 460):
+               Thompson only gave evidence calculated by hand, for two Bernoulli arms; s36.1 Algorithm 23 and Theorem 36.1 (Bayesian regret,
+               p. 461); s36.5 Note 1 (p. 471): three equivalent views of TS; Note 2: asymptotically optimal for single-parameter exponential
+               families with a suitable prior (Kaufmann et al. 2012, Korda et al. 2013, not opened), and not a silver bullet; Note 5 (p. 472):
+               the prior matters, and a prior that underestimates an arm may mean it is never played. Module 4 cites these.
+               Also opened (academic director, Module 5, 2026-10-17, book.pdf from the URL above, 597 PDF pages, text extracted with pypdf; book page numbers):
+               s19.2 (pp. 240-242): the stochastic linear bandit and its random pseudo-regret; regularized least squares, Eq. 19.4, its solution, Eq. 19.5,
+               V_0 = lambda I and V_t, Eq. 19.6; 'Choosing lambda > 0 helps because it ensures that the loss function has a unique minimiser even when
+               A_1, ..., A_t do not span R^d'; the ellipsoid ||theta - theta_hat_{t-1}||^2_{V_{t-1}} <= beta_t, Eq. 19.7. s19.3 (pp. 243-245): Assumption 19.1,
+               Theorem 19.2, Eq. 19.8, Corollary 19.3 (R_n <= C d sqrt(n) log(nL)), and Eq. 19.13, the action argmax <theta_hat, a> + sqrt(beta_t) ||a||_{V^-1}.
+               Ch. 20 opening (pp. 254-256): confidence sets for bandit data are 'a surprisingly delicate matter'; with lambda = 0, independent 1-subgaussian
+               noise and a fixed design, Eq. 20.2, P(<theta_hat - theta*, x> >= sqrt(2 ||x||^2_{V^-1} log(1/delta))) <= delta; 'this analysis only works because
+               V_t was assumed to be deterministic'. s20.1 (pp. 256-260): conditionally 1-subgaussian noise, Eq. 20.4, lambda > 0; Theorem 20.4; Theorem 20.5
+               (p. 260), ||theta_hat_t - theta*||_{V_t(lambda)} < sqrt(lambda) ||theta*||_2 + sqrt(2 log(1/delta) + log(det V_t(lambda) / lambda^d)) for all t
+               with probability at least 1 - delta, and the set C_t with m_2. Module 5 cites s19.2, s19.3, Ch. 20 and s20.1.}
 }
 
 @misc{agarwal2022rltheory,
@@ -147,7 +185,9 @@
   pages   = {13--30},
   year    = {1963},
   doi     = {10.1080/01621459.1963.10500830},
-  annote  = {Verified 2026-10-09 via the DOI record. Stated, not proved, in Module 4.}
+  annote  = {Verified 2026-10-09 via the DOI record. Module 4 (academic director, 2026-10-18): the paper itself was NOT opened (JSTOR only,
+             paywalled). Module 4 states Hoeffding's inequality from Lattimore and Szepesvari 2020, s5.4 Note 4, Eq. 5.8, and from Auer et al.
+             2002, Fact 1, and names this paper as its origin without a theorem number (OPEN_QUESTIONS B31).}
 }
 
 @article{auer2002ucb,
@@ -159,7 +199,17 @@
   pages   = {235--256},
   year    = {2002},
   doi     = {10.1023/A:1013689704352},
-  annote  = {Verified 2026-10-09 via the DOI record and the author PDF. Cite: UCB1 is defined in s2, Figure 1; regret bound in Thm 1 (rewards in [0,1]).}
+  annote  = {Verified 2026-10-09 via the DOI record and the author PDF. Cite: UCB1 is defined in s2, Figure 1; regret bound in Thm 1 (rewards in [0,1]).
+               Opened again (academic director, Module 4, 2026-10-18): the author PDF (homes.di.unimi.it/~cesabian/Pubblicazioni/ml-02.pdf, journal
+             pagination 235-256); the page with Figure 1 was rendered as an image and read. p. 236: regret mu* n - sum_j mu_j E[T_j(n)];
+             p. 237 (s2): Theorem 1, support in [0, 1], regret <= 8 sum_{i: mu_i < mu*} (ln n / Delta_i) + (1 + pi^2/3) sum_j Delta_j;
+             Figure 1 (p. 237): UCB1 plays each machine once, then the machine j that maximizes xbar_j + sqrt(2 ln n / n_j), where n_j is the
+             number of plays of j so far and n the overall number of plays done so far; p. 238, Eq. 2: E[T_j(n)] <= (8/Delta_j^2) ln n plus a
+             constant; p. 239: 'the constant exploration probability epsilon causes a linear (rather than logarithmic) growth in the regret';
+             epsilon_n-greedy, Figure 3 and Theorem 3; p. 241: Theorems 1-3 need only E[X_{i,t} | X_{i,1}, ..., X_{i,t-1}] = mu_i; s3,
+             Eq. 5 (p. 241): regret = sum_j Delta_j E[T_j(n)]; Fact 1, Chernoff-Hoeffding bound (p. 242): common range [0, 1],
+             P{S_n >= n mu + a} <= exp(-2 a^2 / n) and the same for the lower tail; proof of Theorem 1 (pp. 242-243): c_{t,s} = sqrt(2 ln t / s)
+             and P{Xbar_s <= mu - c_{t,s}} <= exp(-4 ln t) = t^(-4). Module 4 cites Figure 1, Theorem 1, Fact 1, the proof's t^(-4) and p. 239.}
 }
 
 @article{thompson1933,
@@ -171,8 +221,10 @@
   pages   = {285--294},
   year    = {1933},
   doi     = {10.1093/biomet/25.3-4.285},
-  annote  = {Verified 2026-10-09 via the DOI record. Module 3 cites it (2026-10-17) only as the convergence proof of tabular
-             Q-learning, as credited by Sutton and Barto 2018, s6.5 and the Chapter 6 bibliographical notes; the paper was not opened.}
+  annote  = {Verified 2026-10-09 via the DOI record; the paper was not opened. Module 4 (academic director, 2026-10-18) names it only as the
+             origin of Thompson sampling, as credited by Lattimore and Szepesvari 2020 (s4.9, p. 68; Chapter 36 introduction, p. 460: two
+             Bernoulli arms, evidence calculated by hand) and Russo et al. 2018 (s2, p. 12). Corrected 2026-10-18: the annote here had been a
+             copy of watkins1992q's.}
 }
 
 @article{russo2018tutorial,
@@ -184,7 +236,14 @@
   pages   = {1--96},
   year    = {2018},
   doi     = {10.1561/2200000070},
-  annote  = {Verified 2026-10-09 via the DOI record and arXiv 1707.02038 (author order confirmed).}
+  annote  = {Verified 2026-10-09 via the DOI record and arXiv 1707.02038 (author order confirmed).
+               Opened (academic director, Module 4, 2026-10-18): arXiv 1707.02038v3 (14 Jul 2020), text extracted with pypdf; page numbers are the
+             PDF's printed ones. s2 Greedy Decisions (pp. 9-12): greedy does not actively explore; epsilon-greedy 'dithering' spends trials on
+             actions that are almost surely not optimal (p. 11); s3 (pp. 13-17): Example 3.1, the beta-Bernoulli bandit; the conjugate update
+             (alpha_k, beta_k) <- (alpha_k, beta_k) + (r_t, 1 - r_t) for the played action only (p. 14); TS samples a plausible success
+             probability, not a plausible 0/1 observation (p. 14); Algorithm 3.1 BernGreedy and Algorithm 3.2 BernTS (p. 15); greedy stays on
+             a worse action that paid twice early, with theta = (0.9, 0.8, 0.7) (p. 16); per-period regret max_k theta_k - theta_{x_t} (p. 16).
+             Module 4 cites s2, s3, Example 3.1, Algorithms 3.1-3.2 and pp. 14-16.}
 }
 
 @inproceedings{li2010linucb,
@@ -196,7 +255,18 @@
   year      = {2010},
   doi       = {10.1145/1772690.1772758},
   annote    = {Verified 2026-10-09 via the DOI record and arXiv 1003.0146. Cite: Algorithm 1 = LinUCB with disjoint linear models (s3);
-               Algorithm 2 = hybrid (s3.2); offline replay evaluation s4, Algorithm 3, Thm 1 (unbiased under a uniformly random logging policy).}
+               Algorithm 2 = hybrid (s3.2); offline replay evaluation s4, Algorithm 3, Thm 1 (unbiased under a uniformly random logging policy).
+               Also opened (academic director, Module 5, 2026-10-17): arXiv 1003.0146v2 (1 Mar 2012), text extracted with pypdf. s2.1: the contextual-bandit
+               protocol; 'no feedback ... is observed for unchosen arms'; Eq. 1, the T-trial regret. s3.1: the disjoint model, Eq. 2 ('the parameters are not
+               shared among different arms'); ridge, Eq. 3, (D_a^T D_a + I_d)^-1 D_a^T c_a, so lambda = 1; Eq. 4, the confidence bound with alpha = 1 +
+               sqrt(ln(2/delta)/2), stated with 'it can be shown [27]' (not opened) when the responses are independent given the design rows; Eq. 5, the
+               selection rule with A_a = D_a^T D_a + I_d; the Bayesian reading (Gaussian posterior with mean theta_hat_a and covariance A_a^-1); 'the value
+               of alpha given in Eq. (4) may be conservatively large in some applications'. Algorithm 1 (arXiv p. 4): A_a <- I_d and b_a <- 0 for a new arm,
+               theta_hat_a = A_a^-1 b_a, p = theta_hat_a^T x + alpha sqrt(x^T A_a^-1 x), argmax with ties broken arbitrarily, A_a += x x^T, b_a += r x.
+               s3.2: the hybrid model, Algorithm 2. s4: the offline evaluator assumes i.i.d. events and a logging policy that chose each arm uniformly at
+               random; 'this latter assumption can be weakened considerably so that any randomized logging policy is allowed'; Algorithm 3; Theorem 1.
+               s5.2.2 Feature Construction: feature vectors augmented with a constant feature of value 1; the final six-entry user feature ends in a
+               constant 1. Module 5 cites s2.1, s3.1, s3.2, s4 and s5.2.2.}
 }
 
 @inproceedings{agrawal2013linearts,
@@ -209,7 +279,14 @@
   pages     = {127--135},
   year      = {2013},
   url       = {https://proceedings.mlr.press/v28/agrawal13.html},
-  annote    = {Verified 2026-10-09 via the PMLR page and arXiv 1209.3352.}
+  annote    = {Verified 2026-10-09 via the PMLR page and arXiv 1209.3352.
+               Also opened (academic director, Module 5, 2026-10-17): arXiv 1209.3352v4 (3 Feb 2014), text extracted with pypdf. s2.1: N arms, a context
+               b_i(t) per arm, one shared parameter mu, E[r_i(t) | b_i(t), history] = b_i(t)^T mu; the noise is conditionally R-sub-Gaussian, 'satisfied
+               whenever r_i(t) is in [b_i(t)^T mu - R, b_i(t)^T mu + R]'; also ||b_i(t)|| <= 1, ||mu|| <= 1. s2.2: Gaussian likelihood N(b_i(t)^T mu, v^2)
+               with v = R sqrt(9 d ln(T/delta)); B(t) = I_d + sum b b^T; mu_hat(t) = B(t)^-1 sum b r; posterior N(mu_hat(t), v^2 B(t)^-1); the Gaussian prior
+               and likelihood 'are only used above to design' the algorithm, and the analysis assumes only the R-sub-Gaussian noise. Algorithm 1 (arXiv p. 6):
+               draw mu_tilde(t) from N(mu_hat(t), v^2 B(t)^-1) and play argmax_i b_i(t)^T mu_tilde(t); v_t = R sqrt(9 d ln(t/delta)) when T is unknown, the
+               version analyzed. s2.3, Theorem 1: the regret bound. Module 5 cites s2.1, s2.2 and Algorithm 1.}
 }
 
 @article{strehl2008mbie,
@@ -225,8 +302,23 @@
              Q(s,a) = R^(s,a) + gamma sum_s' T^(s'|s,a) max_a' Q(s',a') + beta/sqrt(n(s,a)) (fraction bar and radical confirmed from the PDF drawing operators,
              academic-director review). Theory value of beta in Lemma 7, p. 1320. RiverSwim: s6 "Experiments", Fig. 1, p. 1327 (6 states; left reward 5).
              The paper says its two MDPs are "taken from [19]" = Strehl & Littman, ICTAI 2004, pp. 128-135, which is not opened, so we don't cite it.
-             CAVEAT: Fig. 1's transition probabilities are in an image and were not read. The right-end reward is "ten thousand" in extracted text; confirm visually.
-             Our RiverSwim states its own probabilities on the page.}
+             Our RiverSwim states its own probabilities on the page.
+             Re-opened (academic director, Module 6, 2026-10-18): the publisher PDF (23 pages, JCSS 74, 1309-1331) from the ics.uci.edu course copy,
+             text extracted with pypdf and the figures extracted as images and read. s3 (p. 1313): rewards r_t in [0, 1]; Q~ initialized optimistically,
+             Q~_0(s,a) = 1/(1-gamma); actions greedy w.r.t. Q~, ties broken arbitrarily; model-size limit m (footnote 3: in experiments a very large or
+             infinite m improves performance when computation is ignored). s3.1.3 (p. 1314): for n(s,a) = 0, MBIE defines Q~(s,a) = 1/(1-gamma),
+             "optimistic initialization". s3.2 (p. 1316): Eq. 8 as above; "beta is a constant provided as input to the algorithm"; Eq. 8 "can be solved
+             efficiently using any technique for solving an MDP". s3.2 does not say what Eq. 8 means when n(s,a) = 0. Lemma 7 (p. 1320): with
+             beta = (1/(1-gamma)) sqrt(ln(2|S||A|m/delta)/2), Q~(s,a) >= Q*(s,a) always holds with probability at least 1 - delta/2; proof in
+             Appendix B (pp. 1330-1331): Hoeffding on X_i = r_i + gamma V*(s_i) in [0, 1/(1-gamma)], value iteration started at 1/(1-gamma).
+             Theorem 2 (p. 1321): PAC-MDP bound on the number of steps that are not epsilon-optimal. s6 (pp. 1326-1327): cumulative reward over the
+             first 5000 steps; gamma = 0.95; value iteration stopped when no state-action value changes by more than 0.01; best parameter from a
+             broad search; m = infinity for both MBIE variants; MBIE-EB's parameter is C = beta/R_max (Eq. 8). Fig. 1 caption (p. 1327): RiverSwim's
+             agent starts in state 1 or 2 with equal probability. Fig. 1 image (RiverSwim, six states 0-5), read 2026-10-18: action 0 (left) moves
+             left with probability 1 (stays at 0 with reward 5); action 1 (right): at state 0 stay 0.7, right 0.3; at states 1-4 stay 0.6, right 0.3,
+             left 0.1; at state 5 stay 0.3 with reward 10000, left 0.7. Fig. 2 caption (p. 1328): best on RiverSwim C = 0.4 for MBIE-EB.
+             s6 text: Strehl and Littman [19] (ICTAI 2004, not opened) show that a model-based algorithm with epsilon-greedy exploration fails to learn
+             quickly on both MDPs. Module 6 cites s3, s3.1.3, s3.2 Eq. 8, Lemma 7, s6, Fig. 1 and Fig. 2.}
 }
 
 @inproceedings{osband2013psrl,
@@ -236,7 +328,14 @@
   pages     = {3003--3011},
   year      = {2013},
   url       = {https://proceedings.neurips.cc/paper/2013/hash/6a5889bb0190d0211a991f47bb19a777-Abstract.html},
-  annote    = {Verified 2026-10-09 via the proceedings page and arXiv 1306.0940. Uses RiverSwim (s6, Fig. 1, Table 1); cites Strehl and Littman 2008 for it. Module 6 stretch (PSRL).}
+  annote    = {Verified 2026-10-09 via the proceedings page and arXiv 1306.0940. Uses RiverSwim (s6, Fig. 1, Table 1); cites Strehl and Littman 2008 for it. Module 6 stretch (PSRL).
+               Opened (academic director, Module 6, 2026-10-18): arXiv 1306.0940v5 (26 Dec 2013), text extracted with pypdf, Fig. 1 read as an image.
+               s3: the PSRL algorithm box (sample M_k from the posterior at the start of each episode, follow its optimal policy for the episode);
+               s6: RiverSwim with six states, the agent begins at the far-left state; footnote 4: Dirichlet prior on transitions with alpha = 1/S and a
+               normal-gamma prior on rewards; 20 simulations, total regret over 10,000 steps (Table 1). s6.1: UCRL2 and REGAL "begin a new episode when
+               the total visits to any state-action pair is doubled", and the same rule is applied to PSRL without episodic resets.
+               Fig. 1 (read 2026-10-18): right action at s1 stay 0.4, right 0.6; at s2-s5 stay 0.6, right 0.35, left 0.05; at s6 stay 0.6 with r = 1,
+               left 0.4; left action moves left with probability 1 (at s1 it stays, r = 5/1000). Module 6 cites s3, s6, s6.1 and Fig. 1.}
 }
 
 @article{kearns2002e3,
@@ -259,7 +358,16 @@
   pages     = {1471--1479},
   year      = {2016},
   url       = {https://proceedings.neurips.cc/paper/2016/hash/afda332245e2af431fb7b672a68b659d-Abstract.html},
-  annote    = {Verified 2026-10-09 via the proceedings page and arXiv 1606.01868. Module 6 pointer (beyond tabular counts).}
+  annote    = {Verified 2026-10-09 via the proceedings page and arXiv 1606.01868. Module 6 pointer (beyond tabular counts).
+               Opened (academic director, Module 6, 2026-10-18): arXiv 1606.01868v2 (7 Nov 2016), text extracted with pypdf. s1: MBIE-EB's augmented
+               Bellman equation with bonus beta N(x,a)^(-1/2); visit counts "are not directly useful in large domains, where states are rarely visited
+               more than once". s3.1: recoding probability rho'_n(x); Eq. 1 and Eq. 2, the pseudo-count N^_n(x) = rho_n(x)(1 - rho'_n(x))/(rho'_n(x) - rho_n(x));
+               if rho_n is the empirical distribution, N^_n = N_n; "if the model generalizes across states then so do pseudo-counts". s6.1 Eq. 4: bonus
+               beta (N^_n(x) + 0.01)^(-1/2) with beta = 0.05 from a coarse sweep, used with Double DQN on five hard Atari games. Module 6 cites s1, s3.1
+               (Eqs. 1-2) and s6.1 (Eq. 4). Also s4 (same reading): pseudo-counts correspond to empirical counts in the tabular setting,
+               so "this approach also preserves known theoretical guarantees"; the authors are "confident" similar results can be proved
+               in non-tabular settings (not proved there). s4 also reports Kolter and Ng (2009), not opened: no algorithm with a bonus
+               upper bounded by beta N(x)^(-1) can guarantee PAC-MDP optimality. Module 6 cites s4 for the tabular statement only.}
 }
 
 @inproceedings{burda2019rnd,
@@ -268,7 +376,13 @@
   booktitle = {International Conference on Learning Representations (ICLR)},
   year      = {2019},
   url       = {https://openreview.net/forum?id=H1lJJnR5Ym},
-  annote    = {Verified 2026-10-09 via the ICLR 2019 listing on iclr.cc and arXiv 1810.12894. CAVEAT: the OpenReview page itself could not be opened (bot check).}
+  annote    = {Verified 2026-10-09 via the ICLR 2019 listing on iclr.cc and arXiv 1810.12894. CAVEAT: the OpenReview page itself could not be opened (bot check).
+               Opened (academic director, Module 6, 2026-10-18): arXiv 1810.12894v1 (30 Oct 2018), text extracted with pypdf; section numbers are from v1,
+               not the ICLR camera-ready. s2.1: the reward is e_t + i_t with an exploration bonus i_t; in non-tabular settings most states are visited at
+               most once, so counts are hard to produce. s2.2: a fixed, randomly initialized target network f and a predictor f^ trained to minimize
+               ||f^(x) - f(x)||^2; the prediction error is the bonus, expected to be higher for novel states. s2.2.1: four sources of prediction error;
+               stochasticity gives the "noisy-TV" problem for forward-dynamics prediction; RND avoids it because the target is deterministic.
+               Module 6 cites s2.1, s2.2 and s2.2.1.}
 }
 
 @inproceedings{pathak2017curiosity,

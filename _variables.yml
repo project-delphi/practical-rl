@@ -395,26 +395,60 @@ modules:
     question: Each pull earns reward and also reveals information. How should we choose?
     where_we_are: Module 3's epsilon-greedy explores blindly.
     objectives:
-      - Define pseudo-regret and measure it with seed bands.
-      - Derive the UCB1 bonus from Hoeffding's inequality and implement it.
-      - Implement Beta-Bernoulli Thompson sampling from Bayes' rule.
-      - Show how epsilon-greedy and UCB1 depend on epsilon and the reward scale, and explain why.
+      - Define pseudo-regret from the known arm means and measure it with seed bands.
+      - Derive the UCB1 bonus from Hoeffding's inequality, which assumes rewards in [0, 1], and implement it.
+      - Implement Beta-Bernoulli Thompson sampling, which assumes rewards in {0, 1}, from Bayes' rule.
+      - Show how epsilon-greedy and UCB1 depend on epsilon and on the reward scale, and explain why from their assumptions.
     runtime: colab-cpu
     cost: Free (Google account)
     without_gpu: The whole lab runs.
     scaffold: S3
     testbeds: [Bernoulli bandits]
     compared_with: {kind: truth, what: "pseudo-regret from the known arm means"}
-    planted_bug: {what: "UCB counts never incremented", diagnostic: "arm-pull histogram"}
+    planted_bug: {what: "a UCB1 agent whose counts never grow", diagnostic: "the histogram of pulls per arm: one arm takes every pull after the first round of each, and the bonus is the same for every arm"}
     stretch: Gaussian Thompson sampling
     exercises:
-      - {n: 1, title: "Bandit loop, epsilon-greedy and regret", minutes: 11, writes: [run_bandit, eps_greedy]}
-      - {n: 2, title: UCB1, minutes: 10, writes: [ucb1_index]}
-      - {n: 3, title: Thompson sampling, minutes: 10, writes: [thompson_step]}
-      - {n: 4, title: Three methods over 20 seeds, minutes: 7, writes: []}
-      - {n: 5, title: Reward scale and epsilon, minutes: 6, writes: []}
-      - {n: 6, title: "Planted bug: counts that never grow", minutes: 7, writes: []}
-    status: {briefing: placeholder, lab: planned}
+      # predict_answer: the answer to the Predict prompt (for the pace sheet). Seat 0 is seeds
+      # 1000-1019; "over 100 seats" is the record runs/2026-10-18-local-m04-seats-exp.json (seats 0-99,
+      # 20 seeds each, the lab's own code at the live budget, arm64).
+      # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
+      - n: 1
+        title: "Bandit loop, ε-greedy and regret"
+        minutes: 11
+        writes: [run_bandit, eps_greedy]
+        predict_answer: "500.0 = 0.1 + 0.2 + 0 + 0.1 × 4997 (headline 0 from round 3 on); 999.7 = 0.3 + 0.2 × 4997 (headline 1); 0.3, the first three rounds only (headline 2). Seat 0's greedy ends at about 500 (499.5 to 500.4) or at 999.7 on the 9 of 20 seeds where it left headline 2 behind, and at 0.3 to 4.3 on the others. Over 100 seats it left headline 2 behind on 1121 of 2000 seeds, 5 to 17 per seat (runs/2026-10-18-local-m04-seats-exp.json)."
+        explain_ref: "(pseudo-regret)"
+      - n: 2
+        title: UCB1
+        minutes: 9
+        writes: [ucb1_index]
+        predict_answer: "About 200. The bound is 8 ln 5000 / 0.2² + 1 + π²/3 ≈ 1708; seat 0's UCB1 pulls headline 1 227 times on average (123 to 359 over 20 seeds), and the seat averages run from 216.6 to 273.0 over 100 seats (runs/2026-10-18-local-m04-seats-exp.json): the bound holds and is about 7 times too large."
+        explain_ref: "(UCB1)"
+      - n: 3
+        title: Thompson sampling
+        minutes: 8
+        writes: [beta_posterior, thompson_step]
+        predict_answer: "Less often: seat 0's Thompson sampling pulls headline 1 48 times on average (15 to 105), UCB1 227; the seat averages run from about 38 to 70 over 100 seats (runs/2026-10-18-local-m04-seats-exp.json). Less in the last 2500 rounds than in the first (seat 0: 41 and 6.5 on average), and seat 0 has 1 seed of 20 with no pull of headline 1 in the last 2500. The posterior never rules headline 1 out; its pulls only thin out."
+        explain_ref: "(Thompson sampling)"
+      - n: 4
+        title: Three methods over 20 seeds
+        minutes: 9
+        writes: [verdict]
+        predict_answer: "At 5000 rounds Thompson sampling < ε-greedy < UCB1: seat 0's IQMs 22.8, 53.2 and 103.7, every pair decided; over 100 seats Thompson sampling is lower than both on 100, and ε-greedy lower than UCB1 on 92 (a tie on 8). At 1000 rounds Thompson sampling vs ε-greedy is a tie (seat 0: 15.3 and 14.5; a tie on 99 of 100 seats), and UCB1 vs ε-greedy is a tie on 22 of 100. At 20 000 rounds UCB1 has the lower IQM: seat 0 175.1 against 206.5, a lead of 31.4; UCB1 lower on 82 of 100 seats, a tie on 18, ε-greedy never lower (runs/2026-10-18-local-m04-seats-exp.json). ε-greedy's floor adds 0.01 per round forever, while UCB1's pulls of a worse arm grow like ln t."
+        explain_ref: 'Gotcha: "UCB1 has a logarithmic regret bound, so it beats ε-greedy."'
+      - n: 5
+        title: Reward scale and ε
+        minutes: 8
+        writes: [ucb1_for_range, scale_directions]
+        predict_answer: "ε-greedy: same; UCB1 with ucb1_for_range at B = 10: same; UCB1 with the same bonus: changes. Its choices are greedier: on most seeds it pulls the worse headlines less and improves, and on some it falls into greedy's trap and gets far worse. Seat 0: mean 103.8 → 191.8, IQM 103.7 → 83.4, 13 of 20 seeds lower, and the tie rule calls a tie. Over 100 seats the mean rises on 97 and falls on 3, the IQM falls on 41, the tie rule calls a tie on 96, and 1174 of 2000 seeds improve. The sweep's lowest IQM is at ε = 0.05: seat 0 35.4 (200.9 at ε = 0, 252.4 at 0.5), and 77 of 100 seats (runs/2026-10-18-local-m04-seats-exp.json)."
+        explain_ref: 'Gotcha: "UCB has no parameters."'
+      - n: 6
+        title: "Planted bug: a colleague's UCB1"
+        minutes: 7
+        writes: [UCB1Suspect]
+        predict_answer: "√(2 ln 5000 / 4000) ≈ 0.065 and √(2 ln 5000 / 250) ≈ 0.261. Every headline is pulled: the best about 4000 times or more, the worse ones hundreds of times (seat 0, seed 1000: [591, 222, 4187]). The suspect prints a bonus of 4.13 for every arm, and one headline with 4998 pulls and the other two with 1 each, on every seed (all 2000 seeds of the 100-seat record, runs/2026-10-18-local-m04-seats-exp.json)."
+        explain_ref: "(UCB1)"
+    status: {briefing: reviewed, lab: reviewed}
 
   m05:
     n: 5
@@ -438,17 +472,57 @@ modules:
     testbeds: [RecSim]
     compared_with: {kind: truth, what: "pseudo-regret from the simulator's known means; MABWiser parity in the stretch"}
     planted_bug: {what: "the logger records the greedy action's propensity", diagnostic: "mean importance weight differs from 1"}
-    stretch: "MABWiser parity; delayed feedback"
+    stretch: MABWiser parity
     exercises:
-      - {n: 0, title: Reconnect and rerun setup, minutes: 3, writes: []}
-      - {n: 1, title: Frame the recommender, minutes: 5, writes: [reward_fn]}
-      - {n: 2, title: Incremental ridge regression, minutes: 8, writes: [Ridge]}
-      - {n: 3, title: LinUCB, minutes: 10, writes: [linucb_scores]}
-      - {n: 4, title: Linear Thompson sampling, minutes: 7, writes: [lints_sample]}
-      - {n: 5, title: Three regimes, minutes: 8, writes: []}
-      - {n: 6, title: A logging policy with propensities, minutes: 6, writes: [log_policy]}
-      - {n: 7, title: "Planted bug: the wrong propensity", minutes: 5, writes: []}
-    status: {briefing: placeholder, lab: planned}
+      # predict_answer: the answer to the Predict prompt (for the pace sheet).
+      # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
+      - n: 0
+        title: Reconnect and rerun setup
+        minutes: 3
+        writes: []
+      - n: 1
+        title: Frame the recommender
+        minutes: 5
+        writes: [reward_fn]
+        predict_answer: "About 500 each (seat 0: 486 and 464; runs/2026-10-18-local-m05-seats-exp.json). x is drawn from N(0, I/5), which is symmetric about 0, and the clip is symmetric about 0.5, so in the well-specified regime every item's click probability averaged over users is exactly 0.5. Module 4's bandit would see ten equal means, and no item it could pick earns more than showing items at random. Which item is best depends only on the user (the run cell counts how often each item is best)."
+        explain_ref: 'Gotcha: "Every recommender is a contextual bandit."'
+      - n: 2
+        title: Incremental ridge regression
+        minutes: 8
+        writes: [Ridge]
+        predict_answer: "0.9 = n/(n + λ_ridge) with n = 9 and λ_ridge = 1: the penalty λ_ridge I acts like λ_ridge extra observations with reward 0 in every direction, and its pull fades as n grows."
+        explain_ref: "(Sherman–Morrison)"
+      - n: 3
+        title: LinUCB
+        minutes: 10
+        writes: [linucb_scores]
+        predict_answer: "Width 1/√101 ≈ 0.0995; bonus c/√101 ≈ 0.050 at c = 0.5: for a unit φ, φᵀ(I + n φφᵀ)⁻¹φ = 1/(1 + n) by Sherman–Morrison. Pace sheet for the Explain: at seat 0, greedy showed four items only at the launch (items 2, 4, 7 and 9, once each; m05-seats)."
+        explain_ref: "(width)"
+      - n: 4
+        title: Linear Thompson sampling
+        minutes: 6
+        writes: [lints_sample]
+        predict_answer: "About 1 draw in 44: P(Z > c/v) = P(Z > 2) ≈ 0.0228, whatever the item and the user (seat 0: 447 of 20000 draws; m05-seats)."
+        explain_ref: "(LinTS)"
+      - n: 5
+        title: Three regimes and a warm launch
+        minutes: 10
+        writes: [verdicts]
+        predict_answer: "(1) No: at every seat, both methods' IQM regret is below greedy's in all three regimes (seats 0–29, m05-seats). (2) Smaller under drift, at 27 of 30 seats. (3) It shrinks, and at five seeds the call usually vanishes: the well-specified LinUCB call is a tie at 29 of 30 seats with three passes, against 12 of 30 with one, and the median lead falls from 121.7 to 38.3; at 2 of the 30 seats LinUCB's IQM is even above greedy's, within a tie (runs/2026-10-18-local-m05-launch-exp.json). The tie count varies by seat: with one pass, LinUCB's calls are ties at 12, 5 and 21 of 30 seats (well-specified, misspecified, drifting). Seat 0: LinUCB beats greedy well-specified and misspecified and ties under drift and after the warm launch; LinTS ties in all four."
+        explain_ref: 'Gotcha: "Narrow widths mean the model is right."'
+      - n: 6
+        title: A logging policy with propensities
+        minutes: 6
+        writes: [log_policy]
+        predict_answer: "About 9%, not 10%: the explore draw can land on the best item too, so ε(K − 1)/K = 0.09 of rows show another item (seat 0: 9.3%; m05-seats). Those rows record ε/K = 0.01; rows that show the best item record 1 − ε + ε/K = 0.91."
+        explain_ref: "(importance weight)"
+      - n: 7
+        title: "Planted bug: the wrong propensity"
+        minutes: 5
+        writes: [log_suspect]
+        predict_answer: "0.1/0.91 ≈ 0.11 on rows that show the best item, about 91% of rows, and 0.1/0.01 = 10 on the rest, about 9%; so the mean is 1 (0.91 × 0.11 + 0.09 × 10), up to sampling error. The suspect records 0.91 on every row, so every one of its uniform-target weights is 0.11 and so is its mean, on every seat; seat 0's new_policy gives 0.62 against 1.05 on the correct log (m05-seats)."
+        explain_ref: 'Gotcha: "The propensity is bookkeeping."'
+    status: {briefing: reviewed, lab: reviewed}
 
   m06:
     n: 6
@@ -457,31 +531,68 @@ modules:
     slot: C
     level: 300
     title: Exploration in MDPs
-    summary: Why epsilon-greedy fails on RiverSwim, and how optimism and count bonuses fix it.
+    summary: "How to explore when the reward is many steps away: hitting times, optimism and count bonuses on RiverSwim."
     question: How do we explore when the reward is many steps away?
     where_we_are: Bandit bonuses look one step ahead.
     objectives:
-      - Compute RiverSwim hitting times under uniform random play by first-step analysis and show exponential growth in chain length.
-      - Implement optimistic initialization and MBIE-EB's bonus inside the backup of an estimated model.
-      - Measure state visitation and cumulative regret against the DP optimum over 10 seeds.
+      - Compute RiverSwim's hitting time under uniform random play by first-step analysis, and find how it grows with the length of the chain.
+      - Implement optimistic initialization and MBIE-EB's bonus inside the backup of an estimated model, and explain why the bonus belongs there.
+      - Write cumulative regret against the DP optimum, and measure it and state visitation over 10 seeds, calling each comparison with its budget.
       - Explain where count bonuses stop working and what pseudo-counts and RND attempt.
     runtime: colab-cpu
     cost: Free (Google account)
     without_gpu: The whole lab runs.
     scaffold: S3
     testbeds: [RiverSwim]
-    compared_with: {kind: truth, what: "the DP-optimal policy"}
-    planted_bug: {what: "the bonus applied only at action selection", diagnostic: "state visitation"}
+    compared_with: {kind: truth, what: "the DP-optimal policy's expected rewards"}
+    planted_bug: {what: "the bonus applied only at action selection", diagnostic: "state visitation piles up at the left end and never reaches the right end, and the plan values every unreached state at 0"}
     stretch: Posterior sampling for RL (PSRL)
     exercises:
-      - {n: 1, title: Uniform random play on RiverSwim, minutes: 5, writes: [policy_transition]}
-      - {n: 2, title: Hitting time against chain length, minutes: 10, writes: [hitting_times]}
-      - {n: 3, title: "Epsilon-greedy and visitation", minutes: 7, writes: [visitation]}
-      - {n: 4, title: Optimistic initialization, minutes: 6, writes: [optimistic_q0]}
-      - {n: 5, title: The MBIE-EB backup, minutes: 10, writes: [mbie_eb_backup]}
-      - {n: 6, title: Cumulative regret over 10 seeds, minutes: 6, writes: []}
-      - {n: 7, title: "Planted bug: a bonus in the wrong place", minutes: 7, writes: []}
-    status: {briefing: placeholder, lab: planned}
+      # predict_answer: the answer to the Predict prompt (for the pace sheet).
+      # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
+      - n: 1
+        title: Uniform random play on RiverSwim
+        minutes: 5
+        writes: [policy_transition]
+        predict_answer: "stay 0.475 = ½ · 0.95 (only the right action holds the right end, with 0.6 + 0.35); left 0.525 = ½ · 1 + ½ · 0.05"
+        explain_ref: "(policy chain)"
+      - n: 2
+        title: Hitting time against chain length
+        minutes: 9
+        writes: [hitting_times]
+        predict_answer: "about 936 · 3⁴ ≈ 75,800 (the solve gives 77,296.4): about 15 times the 5000-step budget"
+        explain_ref: "(hitting time)"
+      - n: 3
+        title: "Epsilon-greedy and visitation"
+        minutes: 7
+        writes: [visitation]
+        predict_answer: "more concentrated at the left end, and it never reaches the right end: once left has paid 0.005 at state 0, the greedy action there is left, and a right move needs an exploratory step (0.05 · 0.4 = 0.02 per step, against 0.2 under uniform play); on seeds 0–9 it spends 0.972–0.983 of its steps at state 0 and reaches the right end on none (runs/2026-10-18-local-m06-regret-seeds-exp-2.json)"
+        explain_ref: 'Gotcha: "ε-greedy gets there eventually."'
+      - n: 4
+        title: Optimistic initialization
+        minutes: 6
+        writes: [optimistic_q0]
+        predict_answer: "all 10, with the first visit within a few hundred to a thousand or so steps: every untried pair is worth 20, more than anything learned, so the agent tries right in each new state; on seeds 0–9 it reached the right end on 10 of 10, first at steps 399–1215 (runs/2026-10-18-local-m06-regret-seeds-exp-2.json)"
+        explain_ref: "(optimistic start)"
+      - n: 5
+        title: The MBIE-EB backup
+        minutes: 9
+        writes: [mbie_eb_backup]
+        predict_answer: "at the right end, over three quarters of the steps, close to the optimal policy's 0.852: every state with an untried action is worth at least c/(1 − γ) = 20 in the plan, so the agent swims right state by state, then holds the right end; on seeds 0–9 it spends 0.805–0.850 of its steps there (runs/2026-10-18-local-m06-regret-seeds-exp-2.json)"
+        explain_ref: "(MBIE-EB backup)"
+      - n: 6
+        title: Cumulative regret over 10 seeds
+        minutes: 8
+        writes: [regret]
+        predict_answer: "MBIE-EB lowest, then optimistic Q-learning, then ε-greedy, with no ties at 10 seeds: ε-greedy never leaves the left end, and optimistic Q-learning keeps revisiting states it already knows; on seeds 0–9 the IQMs are 133.2 [81.9, 171.9], 2611.9 [2513.6, 2672.9] and 4025.0 [4024.9, 4025.1] (runs/2026-10-18-local-m06-regret-seeds-exp-2.json)"
+        explain_ref: "(regret)"
+      - n: 7
+        title: "Planted bug: a bonus in the wrong place"
+        minutes: 8
+        writes: [mbie_eb_suspect]
+        predict_answer: "none at the right end, and more than half at the left end: the bonus only compares the two actions of the current state, and the plain plan values every unreached state at 0; on seeds 0–9 it never reaches the right end and spends 0.727–0.745 of its steps at state 0 (runs/2026-10-18-local-m06-regret-seeds-exp-2.json)"
+        explain_ref: 'Gotcha: "Add the bonus when acting."'
+    status: {briefing: reviewed, lab: reviewed}
 
   m07:
     n: 7

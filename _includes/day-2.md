@@ -7,7 +7,7 @@
 
 Regret, UCB derived from Hoeffding's inequality, and Thompson sampling from Bayes' rule.
 
-[Colab CPU]{.chip} [core 51 min]{.chip} [notebook not built yet]{.chip .chip-none}
+[Colab CPU]{.chip} [core 52 min]{.chip} [Open in Colab[, Lab 4 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/04-bandits.ipynb){.btn-quiet target="_blank" rel="noopener"}
 :::
 
 ::: {.module-card}
@@ -17,7 +17,7 @@ Regret, UCB derived from Hoeffding's inequality, and Thompson sampling from Baye
 
 Ridge regression, LinUCB and linear Thompson sampling on a recommender, and logging data you can learn from later.
 
-[Colab CPU]{.chip} [core 52 min]{.chip} [notebook not built yet]{.chip .chip-none}
+[Colab CPU]{.chip} [core 53 min]{.chip} [Open in Colab[, Lab 5 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/05-contextual-bandits.ipynb){.btn-quiet target="_blank" rel="noopener"}
 :::
 
 ::: {.module-card}
@@ -25,8 +25,8 @@ Ridge regression, LinUCB and linear Thompson sampling on a recommender, and logg
 
 [Briefing 14:45 · Lab 15:25 · Debrief 16:35]{.module-clock}
 
-Why epsilon-greedy fails on RiverSwim, and how optimism and count bonuses fix it.
+How to explore when the reward is many steps away: hitting times, optimism and count bonuses on RiverSwim.
 
-[Colab CPU]{.chip} [core 51 min]{.chip} [notebook not built yet]{.chip .chip-none}
+[Colab CPU]{.chip} [core 52 min]{.chip} [Open in Colab[, Lab 6 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb){.btn-quiet target="_blank" rel="noopener"}
 :::
 :::

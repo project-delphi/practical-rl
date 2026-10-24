@@ -22,12 +22,12 @@ and note the paper's original symbol here.
 | $V$, $Q$ | learned estimates of $V^\pi$ (or $V^*$) and of $Q^\pi$ (or $Q^*$); the arrays `V[s]` and `Q[s, a]` (Sutton and Barto's $V$, $Q$ against their $v_\pi$, $q_\pi$) | |
 | $N(s)$ | number of first visits to $s$ averaged by Monte Carlo (Module 3) | |
 | $Q_0$, $v_0$ | the starting value of every entry of $Q$ or $V$ (`q0`, `v0` in code); Module 3's optimistic start is $Q_0 = 10$ | |
-| $T$ | the number of transitions in an episode: states $s_0, \dots, s_T$, rewards $r_0, \dots, r_{T-1}$ | |
+| $T$ | the number of transitions in an episode: states $s_0, \dots, s_T$, rewards $r_0, \dots, r_{T-1}$; in Module 4, the number of rounds of a bandit run (rounds $t = 0, \dots, T-1$) | Lattimore and Szepesvári's horizon $n$ |
 | $G_t^{(n)}$ | the $n$-step return: $n$ sampled rewards, then $\gamma^n V(s_{t+n})$ (Module 3) | Sutton and Barto's $G_{t:t+n}$ |
 | `terminated`, `truncated` | Gymnasium's two episode ends: a terminal state (no bootstrap) and a cut (bootstrap) | |
 | online return | the sum of an episode's rewards while learning, undiscounted (Module 3's cliff contrast) | Sutton and Barto's "sum of rewards during episode" |
 | $\lVert x \rVert_\infty$ | the max norm, $\max_s \lvert x(s) \rvert$: the largest entry in absolute value | |
-| $\eta$ | an accuracy or an error bound: the error $\lVert V_k - V^\pi \rVert_\infty$ you want to reach (Module 1), or a bound $\lVert Q - Q^* \rVert_\infty \le \eta$ (Module 2); not $\varepsilon$, the exploration rate | |
+| $\eta$ | an accuracy or an error bound: the error $\lVert V_k - V^\pi \rVert_\infty$ you want to reach (Module 1), a bound $\lVert Q - Q^* \rVert_\infty \le \eta$ (Module 2), or the deviation of a sample mean in Hoeffding's inequality (Module 4); not $\varepsilon$, the exploration rate | Lattimore and Szepesvári's $\varepsilon$ in their Eq. 5.8 |
 | $\mathrm{tol}$ | stopping threshold on the change per sweep, $\lVert V_{k+1} - V_k \rVert_\infty$ | |
 | $\hat{A}_t$ | advantage estimate | |
 | $\delta_t$ | TD error | Hoeffding's failure probability → $p_{\text{fail}}$ |
@@ -42,6 +42,15 @@ and note the paper's original symbol here.
 | $K$ | GRPO group size | DeepSeekMath's $G$ (clashes with $G_t$) |
 | $N(s,a)$ | visit count ($n$ stays the n-step length); in Module 2 also $N$, the number of samples drawn at every $(s,a)$ | MBIE-EB's $n(s,a)$ |
 | $\Lambda_a$ | LinUCB Gram matrix | Li et al.'s $A_a$ |
+| $r(a)$, $r^*$ | a bandit's mean reward of arm $a$ (a bandit has one state, so $r(s, a)$ becomes $r(a)$), and the best mean, $r^* = \max_a r(a)$ (Module 4) | Auer et al.'s and Lattimore and Szepesvári's $\mu_a$, $\mu^*$ ($\mu$ is our state weighting) |
+| $\Delta_a$ | the gap of arm $a$, $r^* - r(a)$ | |
+| $N_t(a)$, $\hat r_t(a)$ | the number of pulls of arm $a$ in rounds $0, \dots, t-1$, and the mean of their rewards (Module 4; `counts[a]` and `sums[a] / counts[a]` in code) | Auer et al.'s $n_j$, $T_j(n)$, $\bar x_j$; Lattimore and Szepesvári's $T_i(t)$, $\hat\mu_i(t)$ |
+| $\mathrm{Reg}_T$ | pseudo-regret after $T$ rounds, $\sum_{t=0}^{T-1} \big(r^* - r(a_t)\big) = \sum_a \Delta_a N_T(a)$; its expectation is the regret | Lattimore and Szepesvári's $\bar R_n$ (pseudo-regret) and $R_n$ (regret) |
+| $p_{\text{fail}}$ | the failure probability of a confidence bound (Hoeffding's inequality) | Lattimore and Szepesvári's $\delta$ |
+| $U_t(a)$ | UCB1's index: $\hat r_t(a) + \sqrt{2 \ln t / N_t(a)}$, infinite for an arm never pulled | Lattimore and Szepesvári's $\mathrm{UCB}_i$ |
+| $B$ | the width of the reward range: rewards in $[0, B]$ (Module 4; UCB1 assumes $B = 1$) | |
+| $S_t(a)$, $F_t(a)$ | the rewards of 1 and of 0 among arm $a$'s pulls (Bernoulli rewards), so the posterior from a uniform prior is $\mathrm{Beta}(1 + S_t(a), 1 + F_t(a))$ (Module 4) | Russo et al.'s $\alpha_k - 1$, $\beta_k - 1$ ($\alpha$ and $\beta$ are our step size and KL coefficient) |
+| $\tilde r_t(a)$ | a mean for arm $a$ drawn from its posterior in Thompson sampling (Module 4) | Russo et al.'s $\hat\theta_k$ ($\theta$ is our policy parameters) |
 | $\theta$, $w$, $\phi(s)$ | policy parameters, value parameters, features | |
 | $\mu$, $d$ | state weighting, feature dimension | |
 | $\tau$, $\tau_e$ | trajectory, IQL expectile | |
@@ -54,3 +63,31 @@ and note the paper's original symbol here.
 | $\varepsilon_R$ | reward error, $\max_{s,a} \lvert r(s,a) - \hat r(s,a) \rvert$ (Module 2) | |
 | $Z(x)$ | partition function in the KL-regularized optimum | |
 | $H$ | horizon | |
+| $x$, $x_t$ | a context: what the agent observes about the user in round $t$ (Module 5); in RecSim $x \in \mathbb{R}^5$ | Li et al.'s $x_{t,a}$; Agrawal and Goyal's $b_i(t)$ |
+| $\phi(x)$ | Module 5's features of a context, $\phi(x) = (x, 1)$, with $d = 6$ entries | |
+| $K$ | the number of arms (items) of a bandit, Module 4's $\lvert \mathcal{A} \rvert$ (Modules 5 and 13); items are numbered 0 to $K - 1$ | |
+| $r(x, a)$ | the mean reward of item $a$ in context $x$; in RecSim, the click probability (Module 5). Module 5's pseudo-regret is Module 4's $\mathrm{Reg}_T$, measured against the best item for each context | RecSim's docstring writes $\mu(x, a)$ ($\mu$ is our state weighting) |
+| $\theta_a$, $\theta^{\text{alt}}_a$ | Module 5: item $a$'s hidden RecSim parameters, `env.theta` and `env.theta_alt` (the simulator's, not a learner's) | |
+| $w^*_a$, $\hat w_a$, $\tilde w_a$ | Module 5: item $a$'s true linear reward parameter $(0.15\,\theta_a, 0.5)$, its ridge estimate $\Lambda_a^{-1} b_a$ (code: `w_hat`), and a Thompson draw | Li et al.'s $\theta_a$; Agrawal and Goyal's $\mu$, $\hat\mu(t)$, $\tilde\mu(t)$ |
+| $b_a$ | Module 5: item $a$'s sum $\sum_i r_i\, \phi_i$; $\hat w_a = \Lambda_a^{-1} b_a$ (code: `A` is $\Lambda_a$, `A_inv`, `b`) | Li et al.'s $b_a$ |
+| $\lVert \phi \rVert_{\Lambda^{-1}}$ | the width $\sqrt{\phi^\top \Lambda^{-1} \phi}$ of a prediction in direction $\phi$ (Module 5); $\lVert v \rVert_\Lambda = \sqrt{v^\top \Lambda v}$ | |
+| $\kappa$, $\kappa_t$ | the radius of LinUCB's confidence ellipsoid $\lVert w - \hat w \rVert_\Lambda \le \kappa$ (Module 5); $\kappa_t$ is the radius in round $t$, and $\zeta_t$ the logarithmic term inside it, in Module 5's collapsed Theorem 20.5 | Lattimore and Szepesvári's $\sqrt{\beta_t}$ (our $\beta$ is the KL coefficient) |
+| $v$ | linear Thompson sampling's scale, $\tilde w_a \sim \mathcal{N}(\hat w_a, v^2 \Lambda_a^{-1})$ (Module 5); not $v_0$ | Agrawal and Goyal's $v$; MABWiser's `alpha` for LinTS |
+| $\xi_i$ | the noise of one observation, $r_i - w^{*\top}\phi_i$ (Module 5) | Lattimore and Szepesvári's $\eta_t$ (our $\eta$ is an error bound) |
+| $\sigma$ | the scale of sub-Gaussian noise (Module 5) | Agrawal and Goyal's $R$ |
+| $M$ | a bound on $\lVert w^* \rVert_2$ (Module 5, collapsed) | Lattimore and Szepesvári's $m_2$ |
+| $\nu$, $\omega$ | RecSim's misspecification weight and drift rate (Module 5) | RecSim's `misspec` and `drift` |
+| $p_i$ | the propensity of logged row $i$, $\pi_b(a_i \mid x_i)$ (Module 5); the array `log.P` | |
+| $a_{\text{UCB}}(x)$ | the item with the highest LinUCB score for context $x$ (Module 5) | |
+| $P_\pi$, $r_\pi$ | the state-to-state transition matrix and the expected reward under a fixed policy $\pi$, $P_\pi(s, s') = \sum_a \pi(a \mid s) P(s' \mid s, a)$ (Module 1; Module 6 calls $P_\pi$ the policy chain) | |
+| $h(s)$ | hitting time: the expected number of steps to first reach a target state from $s$ (Module 6) | |
+| $u_s$ | crossing time: the expected number of steps to first reach $s + 1$ from $s$ in a chain (Module 6) | |
+| $p_\rightarrow$, $p_\leftarrow$ | the per-step probabilities of moving right and left in a chain under a fixed policy (Module 6) | |
+| $r_{\max}$, $V_{\max}$ | the largest reward, and $V_{\max} = r_{\max}/(1 - \gamma)$, the largest discounted return when every reward lies in $[0, r_{\max}]$ (Module 6's optimistic start) | |
+| $\tilde Q, \tilde V$ | MBIE-EB's optimistic action values and state values: the solution of the estimated model's backup with the bonus $c/\sqrt{N(s,a)}$ in the reward (Module 6) | Strehl and Littman's $\tilde Q$ (same) |
+| $m$ | MBIE's model-size limit: how many visits of a pair the model uses (Module 6, reference only) | |
+| $\nu(s)$ | visitation: the fraction of a run's steps spent in state $s$ (Module 6) | |
+| $\bar r^*_t$ | the optimal policy's expected reward at step $t$ from the start (Module 6). Module 6 uses Module 4's $\mathrm{Reg}_T$ for $\sum_{t=0}^{T-1} \big(\bar r^*_t - r(s_t, a_t)\big)$, cumulative regret against the DP optimum | |
+| $\hat N(x)$ | pseudo-count of a state $x$, derived from a density model (Module 6, section 6) | Bellemare et al.'s $\hat N_n(x)$ |
+| $\rho_{\text{dens}}, \rho'_{\text{dens}}$ | a density model's probability of a state before and after seeing it once more (Module 6, reference only) | Bellemare et al.'s $\rho_n, \rho'_n$ (clash with $\rho_t$) |
+| $f, \hat f$ | RND's fixed random target network and its trained predictor (Module 6, section 6) | |

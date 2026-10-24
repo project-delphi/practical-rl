@@ -6,14 +6,14 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 ::: {.lab-steps}
 | # | Exercise | Min |
 |---|---|---|
-| 1 | Uniform random play on RiverSwim | 5 |
-| 2 | Hitting time against chain length | 10 |
-| 3 | Epsilon-greedy and visitation | 7 |
-| 4 | Optimistic initialization | 6 |
-| 5 | The MBIE-EB backup | 10 |
-| 6 | Cumulative regret over 10 seeds | 6 |
-| 7 | Planted bug: a bonus in the wrong place [Planted bug]{.chip .chip-stale} | 7 |
-| | **Core** | **51 of 70** |
+| 1 | [Uniform random play on RiverSwim [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} | 5 |
+| 2 | [Hitting time against chain length [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 9 |
+| 3 | [Epsilon-greedy and visitation [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 7 |
+| 4 | [Optimistic initialization [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb#scrollTo=ex4-head){target="_blank" rel="noopener"} | 6 |
+| 5 | [The MBIE-EB backup [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 9 |
+| 6 | [Cumulative regret over 10 seeds [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb#scrollTo=ex6-head){target="_blank" rel="noopener"} | 8 |
+| 7 | [Planted bug: a bonus in the wrong place [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/06-exploration-mdps.ipynb#scrollTo=ex7-head){target="_blank" rel="noopener"} [Planted bug]{.chip .chip-stale} | 8 |
+| | **Core** | **52 of 70** |
 :::
 
 ::: {.challenge}
