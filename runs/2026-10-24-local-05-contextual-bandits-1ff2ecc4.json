@@ -1,0 +1,146 @@
+{
+  "badge_ref": "main",
+  "checkpoints": [
+    {
+      "exercise": 1,
+      "label": "1",
+      "pass": true,
+      "seconds": 0.002,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4",
+      "pass": true,
+      "seconds": 0.042,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5",
+      "pass": true,
+      "seconds": 3.592,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6",
+      "pass": true,
+      "seconds": 0.133,
+      "whose": "reference"
+    },
+    {
+      "exercise": 7,
+      "label": "7",
+      "pass": true,
+      "seconds": 0.08,
+      "whose": "reference"
+    }
+  ],
+  "colab_release": null,
+  "content_sha": "1ff2ecc4e6739b6d",
+  "date": "2026-10-24",
+  "dirty": false,
+  "env": "local",
+  "git_sha": "8a9e7b2223085d5217a851344df9e9ed03792a7c",
+  "hardware": {
+    "accel": "cpu",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "notebook",
+  "metrics": {
+    "mean_weight": 1.1187,
+    "regret_iqm": {
+      "drifting": {
+        "LinTS": 149.75,
+        "LinUCB": 151.56,
+        "greedy": 166.89
+      },
+      "misspecified": {
+        "LinTS": 165.76,
+        "LinUCB": 148.67,
+        "greedy": 174.07
+      },
+      "warm launch": {
+        "LinTS": 101.25,
+        "LinUCB": 86.37,
+        "greedy": 83.81
+      },
+      "well-specified": {
+        "LinTS": 105.7,
+        "LinUCB": 91.37,
+        "greedy": 117.5
+      }
+    },
+    "ts_lead_spec": 11.8,
+    "ts_lead_warm": -17.45,
+    "ucb_lead_drift": 15.33,
+    "ucb_lead_misspec": 25.4,
+    "ucb_lead_spec": 26.12,
+    "ucb_lead_warm": -2.56,
+    "verdicts": {
+      "drifting/LinTS": "tie",
+      "drifting/LinUCB": "tie",
+      "misspecified/LinTS": "tie",
+      "misspecified/LinUCB": "tie",
+      "warm launch/LinTS": "tie",
+      "warm launch/LinUCB": "tie",
+      "well-specified/LinTS": "tie",
+      "well-specified/LinUCB": "tie"
+    }
+  },
+  "notebook": "05-contextual-bandits",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "mabwiser": null,
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "torch": "2.14.1"
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "quick": true,
+  "quick_reason": "PRL_QUICK=1 is set",
+  "schema": 1,
+  "scope": "notebook",
+  "seat": 0,
+  "seconds": 23.3,
+  "seeds": [
+    1000,
+    1100,
+    1101,
+    1102,
+    1103,
+    1104
+  ],
+  "settings": {
+    "T": 1000,
+    "n_log": 2000
+  },
+  "shims": [],
+  "solutions_bound": true,
+  "source": "tool",
+  "status": "pass",
+  "test_doubles": [],
+  "torch_threads": null
+}

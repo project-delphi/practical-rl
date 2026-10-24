@@ -348,7 +348,7 @@ Total: 30 + 10. The section split changed in Phase 3 after the pedagogy review (
 - **Question.** Each pull earns reward and also reveals information. How should we choose?
 
 **Objectives:**
-1. Define pseudo-regret from the known arm means, and measure it with seed bands.
+1. Define pseudo-regret Reg_T from the known arm means, and measure it with seed bands.
 2. Derive the UCB1 bonus √(2 ln t / n_j) from Hoeffding's inequality, which assumes rewards in [0,1] (Auer et al. 2002, §2, Fig. 1). Implement it.
 3. Implement Beta–Bernoulli Thompson sampling, which assumes rewards in {0,1}, from Bayes' rule.
 4. Show how ε-greedy and UCB1 depend on ε and on the reward scale, and explain why through the assumptions above.
@@ -357,27 +357,27 @@ Total: 30 + 10. The section split changed in Phase 3 after the pedagogy review (
 
 | § | Topic | Min |
 |---|---|---|
-| 1 | Regret | 5 |
+| 1 | Regret | 6 |
 | 2 | Why greedy fails | 6 (predict 3) |
-| 3 | Hoeffding → UCB1 | 11 (demo 3) |
-| 4 | TS from Bayes | 8 (chk 2) |
-| 5 | Scale and ε | 5 (chk 2) |
-| 6 | Bridge to context | 5 |
+| 3 | Hoeffding → UCB1 | 10 (chk 3) |
+| 4 | TS from Bayes | 9 (chk 2) |
+| 5 | Scale and ε | 6 (chk 2) |
+| 6 | Bridge to context | 3 |
 
-Total: 30 + 10. Sources: Lattimore & Szepesvári Ch. 5, 7, 36; Russo et al. 2018.
+Total: 30 + 10. Phase 3 (2026-10-18, R15): §3's activity is Check yourself 3.1 (three UCB1 indices by hand) rather than a demo; Check yourself 3.1 and 4.1 serve as the worked examples. Sources: Lattimore & Szepesvári Ch. 5, 7, 36; Russo et al. 2018.
 
-**Lab (core 51):**
+**Lab (core 52):** rewards come from a per-arm reward stack (L&S §4.6), so methods share rewards on a seed, scaling by 10 is exact, and most checkpoints are exact replays (R16).
 
 | # | Exercise | Writes | Checkpoint | Min |
 |---|---|---|---|---|
-| 1 | Bandit loop, ε-greedy, pseudo-regret | `run_bandit` (1a), `eps_greedy` (1b) | Exact on a seeded instance; greedy is linear on the trap instance | 11 |
-| 2 | UCB1 | `ucb1_index` | Bonus exact; counts on a fixed seed | 10 |
-| 3 | Thompson sampling | `thompson_step` | Posterior update exact; regret below threshold | 10 |
-| 4 | 3 methods × 20 seeds; the tie rule | Verdict sentences | Match `prl.evaluate.compare` | 7 |
-| 5 | Reward ×10 and ε sweep (runner provided) | Predicted direction per method | Checked against the computed direction | 6 |
-| 6 | **Planted bug**: UCB counts never incremented | Diagnose from the arm-pull histogram | Regret below threshold | 7 |
+| 1 | Bandit loop, ε-greedy, pseudo-regret | `run_bandit`, `eps_greedy` | 1.1 the loop driven by a spy policy; 1.2 exact replay (greedy is linear on the trap instance) | 11 |
+| 2 | UCB1 (plotted against greedy) | `ucb1_index` | 2.1 bonus exact; 2.2 counts on a fixed seed (replay) | 9 |
+| 3 | Thompson sampling | `beta_posterior`, `thompson_step` | 3.1 posterior update exact; 3.2 choice shares equal the exact probability of being best; 3.3 regret below the protocol threshold | 8 |
+| 4 | 3 methods × 20 seeds; ε-greedy and UCB1 continued to 20,000 rounds; the tie rule | `verdict` | Matches `prl.evaluate.compare` on fixed cases and on the lab's own results | 9 |
+| 5 | Reward ×10 and an ε sweep | `ucb1_for_range`, `scale_directions` | 5.1 exact; 5.2 "same" or "changes" per method (up/down and the tie are the Explain's) | 8 |
+| 6 | **Planted bug**: a colleague's UCB1 whose counts never grow | fix `UCB1Suspect` | Diagnosed from a per-seed log-scale pull histogram; replay of the fixed agent | 7 |
 
-- **Compare:** pseudo-regret from the known means.
+- **Compare:** pseudo-regret from the known means. At the lab's 5000 rounds ε-greedy beats UCB1 on 92 of 100 seats; by 20,000 rounds UCB1 is lower on 82 and tied on 18 (`runs/2026-10-18-local-m04-seats-exp.json`). The budget is part of the verdict.
 - **Stretch:** Gaussian Thompson sampling.
 
 #### M5 · Contextual bandits for recommendation (B, level 200, Colab CPU, S3)
@@ -387,9 +387,9 @@ Total: 30 + 10. Sources: Lattimore & Szepesvári Ch. 5, 7, 36; Russo et al. 2018
 
 **Objectives:**
 1. Frame a recommender as a contextual bandit, and state what is lost compared with full RL.
-2. Implement incremental ridge regression, LinUCB (Li et al. 2010, Alg. 1, disjoint) and linear Thompson sampling (Agrawal & Goyal 2013).
-3. Compare them with predict-then-greedy under misspecification and drift, over 5 seeds.
-4. Log data with correct propensities from a stochastic behavior policy, for Day 5.
+2. Implement incremental ridge regression, LinUCB (Li et al. 2010, Alg. 1, disjoint) and linear Thompson sampling (Agrawal & Goyal 2013). The learner's parameter is w; θ is the simulator's (R17).
+3. Compare them with predict-then-greedy under misspecification and drift, and after a warm launch, over 5 seeds.
+4. Log data with correct propensities from a stochastic behavior policy. Day 5 loads the committed `recsim_logs` dataset, not this lab's log (§3.10).
 
 **Briefing:**
 
@@ -399,29 +399,27 @@ Total: 30 + 10. Sources: Lattimore & Szepesvári Ch. 5, 7, 36; Russo et al. 2018
 | 2 | Incremental ridge | 7 |
 | 3 | Ellipsoid → LinUCB width | 8 (demo 3) |
 | 4 | LinTS | 5 (chk 2) |
-| 5 | Misspecification and drift | 4 |
+| 5 | Misspecification, drift and the launch | 4 |
 | 6 | Propensities; why logging must be stochastic | 7 (chk 2) |
 | — | Setup | 2 |
 
-Total: 29 + 9 + 2. **Collapsed:** L&S Thm 20.5; delayed feedback.
+Total: 29 + 9 + 2. **Collapsed:** L&S Thm 20.5; delayed feedback; the recorded regime and launch results ("After the lab" folds).
 
-**Lab (core 3 + 49):**
+**Lab (core 3 + 50):** every method starts with the same launch, each item shown once in order. A one-impression launch mostly tests the cold start (Module 4's trap), so Exercise 5 adds a warm launch of 3 passes, chosen from the recorded `m05-launch` experiment (R19).
 
 | # | Exercise | Writes | Checkpoint | Min |
 |---|---|---|---|---|
 | 0 | Reconnect | — | Setup check | 3 |
-| 1 | Frame RecSim | `reward_fn`, framing card | Reward on 3 hand-worked cases | 5 |
-| 2 | Incremental ridge | `Ridge.update`, `Ridge.predict` | Equals the closed form | 8 |
-| 3 | LinUCB | `linucb_scores` | Widths exact; a unit x seen n times has width α/√(1+n) | 10 |
-| 4 | Linear TS | `lints_sample` | Sample moments within tolerance | 7 |
-| 5 | Three regimes (runner provided) | Verdict sentences | Match `compare` | 8 |
-| 6 | Logging policy (ε-greedy over LinUCB) | `log_policy` | Propensities sum to 1; mean importance weight π/π_b ≈ 1 | 6 |
-| 7 | **Planted bug**: logs the greedy action's propensity | Diagnose and fix | Mean weight's CI covers 1 | 5 |
+| 1 | Frame RecSim (a framing card the participant fills in) | `reward_fn` | Reward on hand-worked cases | 5 |
+| 2 | Incremental ridge | `Ridge` (`update`, `predict`) | Equals the closed form | 8 |
+| 3 | LinUCB | `linucb_scores` | Widths exact; a unit φ seen n times has bonus c/√(1+n) | 10 |
+| 4 | Linear TS | `lints_sample` | Exact on fixed draws | 6 |
+| 5 | Three regimes and a warm launch (runner provided) | `verdicts(regrets, budget)` | Match `compare` on fixed cases and the lab's own results | 10 |
+| 6 | Logging policy (ε-greedy over LinUCB) | `log_policy` | Propensities sum to 1; mean importance weight on a fixed log | 6 |
+| 7 | **Planted bug**: logs the greedy action's propensity | fix `log_suspect` | Mean weight on a fixed log matches the exact value | 5 |
 
-- **Compare:** pseudo-regret from the simulator's known means.
-- **Stretch:**
-  - Parity with MABWiser 2.7.4's LinUCB on the same stream: compare its `A_inv` and `Xty` with your ridge statistics. The technical review verified that it installs and runs on Python 3.13 with NumPy 2.
-  - Delayed (batched) feedback.
+- **Compare:** pseudo-regret from the simulator's known means. With one pass LinUCB beats greedy at 18, 25 and 9 of 30 seats (well-specified, misspecified, drifting) and greedy wins none; with 3 passes the well-specified call is a tie at 29 of 30, while misspecification still separates them at 12 (`runs/2026-10-24-local-m05-seats-exp.json`, `…-m05-launch-exp.json`).
+- **Stretch:** parity with MABWiser 2.7.4's LinUCB on the same stream: compare its `A_inv` and `Xty` with your ridge statistics. The lab pins `mabwiser==2.7.4` in its front matter, so the Colab setup cell installs it and colab-sim CI runs the stretch on every PR. It is not in `uv.lock`; locally the stretch skips with a message. Delayed feedback is a collapsed note, not built.
 
 #### M6 · Exploration in MDPs (C, level 300, Colab CPU, S3)
 
@@ -1294,7 +1292,7 @@ Pages × {light, dark} × {360 px, 1280 px}. The check fails on any of the follo
 | SB3 | 2.9.0 | DQN, PPO, SAC comparisons |
 | CleanRL | Needs gymnasium 0.29.1 and Python <3.11 | Annotated reading only |
 | TRL | 1.15.0 (`PPOTrainer` removed in 1.13; `processing_class`; no `max_prompt_length`; `bf16` defaults to True). `DPOTrainer` always uses a Triton fused LM head, so it has **no CPU path**, and on a T4 (compute capability 7.5) it is unverified. | Pin exactly. On CPU: pure-torch shim plus `bf16=False`, recorded. On T4: a human smoke run in Phase 1. |
-| MABWiser | 2.7.4 (2024-08-30); works on Python 3.13 with NumPy 2 (verified) | Optional M5 parity cell (stretch) |
+| MABWiser | 2.7.4 (2024-08-30); works on Python 3.13 with NumPy 2 (verified) | M5 parity stretch: pinned in the lab's front matter (Colab installs it); not in `uv.lock` |
 | transformers, accelerate, peft, datasets | 5.19.0, 1.15.0, 0.21.2, 5.1.0 | No bf16 on T4: use fp16 or fp32 |
 | uv, jupytext, nbclient | 0.12.24, 1.19.6, 0.11.0 | — |
 | rliable | Archived | Own IQM and bootstrap |
@@ -1400,7 +1398,7 @@ The lead (the main session) integrates, owns `prl/`, and stops at each phase gat
 | M1 | γ from 0.9 to 0.99: how many times more iterations to reach 1e-6? | About 10× or more. The measured count stays within the bound. |
 | M2 | Does halving the data double the loss? | No. The bound rises by about √2, and the actual loss is often exactly 0 above a data threshold. |
 | M3 | Whose greedy path hugs the edge? Whose online return is higher? | Q-learning's path hugs the edge; SARSA's return is higher (constant ε) |
-| M4 | Rewards ×10 with the same UCB1 bonus: does regret go up or down? | Up. The bonus is now relatively small, so it behaves nearly greedily. |
+| M4 | Rewards ×10 with the same UCB1 bonus: do its pulls change, and does regret go up or down? | Its pulls change (the bonus is now relatively small, so it behaves more greedily), while ε-greedy's do not. The mean regret rises on 97 of 100 seats, but the tie rule calls ×10 against ×1 a tie on 96: "up" is a statement about the mean, not a verdict (R16). |
 | M5 | Unit x seen 100 times, λ_ridge = 1: what is LinUCB's width? | c/√101 ≈ 0.1c |
 | M6 | Under uniform random play, does hitting time grow linearly or exponentially in chain length? | Exponentially (ratio p_L/p_R) |
 | M7 | Baird's ‖w‖: does it go to 0, stay flat, or grow without bound? | It grows without bound |
@@ -1440,8 +1438,8 @@ For planted bugs, the Predict is the symptom's value: Q(goal) = 0, mean weight =
 | 1 | 1 Inventory | the room's framings; γ 0.9 and 0.99 | V^π(s₀); iterations vs bound |
 | 1 | 2 Inventory | VI, PI; plan in P̂ at 3 data sizes | sweeps; true loss over 5 seeds |
 | 1 | 3 Cliff | SARSA, Q-learning; MC vs TD | online return over the last 500 episodes; greedy path length; RMS error after 1000 episodes; bias² and variance |
-| 2 | 4 Bandits | greedy, ε-greedy, UCB1, TS; reward ×10 | regret at T over 20 seeds; verdict or tie |
-| 2 | 5 RecSim | LinUCB, LinTS, predict-then-greedy × 3 regimes | regret over 5 seeds; mean logged weight |
+| 2 | 4 Bandits | greedy, ε-greedy, UCB1, TS; reward ×10 | regret at 5000 and 20,000 rounds over 20 seeds; verdict or tie; seeds improved under ×10 |
+| 2 | 5 RecSim | LinUCB, LinTS, predict-then-greedy × 3 regimes + a warm launch | regret over 5 seeds; verdict or tie; mean logged weight |
 | 2 | 6 RiverSwim | ε-greedy, optimistic, MBIE-EB | hitting time; % of seeds reaching the right end; regret over 10 seeds |
 | 3 | 7 Baird / CartPole | each leg removed; linear Q | ‖w‖ after k updates; return ÷ random |
 | 3 | 8 CartPole | your DQN; DDQN and SB3 bands; room IQM | return at budget; Q(s₀) − MC |

@@ -11,6 +11,8 @@ from __future__ import annotations
 import io
 import sys
 import zipfile
+from fractions import Fraction
+from math import comb
 from pathlib import Path
 
 import numpy as np
@@ -761,6 +763,1040 @@ def m03_decomposition() -> bytes:
     return _save("m03_decomposition", **out)
 
 
+# ------------------------------------------------------------------ Module 4: bandits
+# Fixture code may implement the lab's policies and its loop; prl.checks.m04 only replays these
+# runs and compares. The functions below equal the lab's solutions statement for statement.
+M04_R = np.array([0.4, 0.3, 0.5])  # click rates of headlines 0, 1, 2
+M04_T_SCALE = 5000  # the lab's live T; checkpoint 5's reference run
+M04_SCALE_SEEDS = list(range(20))
+
+
+def _m04_argmax_tie(x):
+    x = np.asarray(x, dtype=float)
+    top = x.max()
+    if np.isinf(top):
+        return int(np.flatnonzero(x == top)[0])
+    tol = 1e-9 * (1 + np.abs(x).max())
+    return int(np.flatnonzero(x >= top - tol)[0])
+
+
+def _m04_stack(r_mean, T, seed, scale=1.0):
+    rng = np.random.default_rng([seed, 1])
+    r_mean = np.asarray(r_mean, dtype=float)
+    return scale * (rng.random((T, len(r_mean))) < r_mean)
+
+
+def _m04_run(policy, stack, r_mean, seed):
+    """The lab's run_bandit, also returning the counts and sums before every round."""
+    rng = np.random.default_rng(seed)
+    T, n_arms = stack.shape
+    counts = np.zeros(n_arms, dtype=np.int64)
+    sums = np.zeros(n_arms)
+    arms = np.zeros(T, dtype=np.int64)
+    before_c = np.zeros((T, n_arms), dtype=np.int64)
+    before_s = np.zeros((T, n_arms))
+    rewards = np.zeros(T)
+    for t in range(T):
+        before_c[t], before_s[t] = counts, sums
+        a = policy(counts, sums, t, rng)
+        reward = stack[counts[a], a]
+        counts[a] += 1
+        sums[a] += reward
+        arms[t], rewards[t] = a, reward
+    gaps = np.max(r_mean) - np.asarray(r_mean)
+    return {
+        "arms": arms,
+        "regret": np.cumsum(gaps[arms]),
+        "counts_before": before_c,
+        "sums_before": before_s,
+        "rewards": rewards,
+        "final_counts": counts.copy(),
+        "final_sums": sums.copy(),
+    }
+
+
+def _m04_eps_greedy(counts, sums, t, rng, epsilon=0.1):
+    if np.any(counts == 0):
+        return int(np.argmin(counts))
+    if rng.random() < epsilon:
+        return int(rng.integers(len(counts)))
+    return _m04_argmax_tie(sums / counts)
+
+
+def _m04_ucb1_index(counts, sums, t, *, log=np.log, plus=0, sqrt=np.sqrt, unpulled=np.inf):
+    """UCB1's index; the keywords give the usual mistakes' values for the check's hints."""
+    index = np.full(len(counts), unpulled)
+    seen = counts > 0
+    if seen.any():
+        index[seen] = sums[seen] / counts[seen] + sqrt(2 * log(t + plus) / counts[seen])
+    return index
+
+
+def _m04_ucb1(counts, sums, t, rng, B=1.0):
+    index = np.full(len(counts), np.inf)
+    seen = counts > 0
+    if seen.any():
+        index[seen] = sums[seen] / counts[seen] + B * np.sqrt(2 * np.log(t) / counts[seen])
+    return _m04_argmax_tie(index)
+
+
+def m04_bandit() -> bytes:
+    """Checkpoint 1.1: a spy policy that pulls rng.integers(n_arms) from the run's generator.
+
+    The arms are what a loop that makes default_rng(seed) once shows the spy; the regret adds
+    the gap of each arm pulled. Case 1 has two equal best arms, so every gap is 0.
+    """
+    cases = [(M04_R, 30, 3), (np.array([0.6, 0.6]), 12, 4), (np.array([0.2, 0.5, 0.1, 0.4]), 25, 5)]
+    out: dict[str, np.ndarray] = {"n_cases": np.array(len(cases), dtype=np.int64)}
+    for i, (r_mean, T, seed) in enumerate(cases):
+        n = len(r_mean)
+        run = _m04_run(
+            lambda c, s, t, rng, n=n: int(rng.integers(n)),
+            _m04_stack(r_mean, T, seed),
+            r_mean,
+            seed,
+        )
+        rng = np.random.default_rng(seed)
+        assert run["arms"].tolist() == [int(rng.integers(n)) for _ in range(T)]
+        assert len(set(run["arms"].tolist())) == n  # every arm is pulled at least once
+        out.update(
+            {
+                f"r_mean_{i}": r_mean,
+                f"seed_{i}": np.array(seed, dtype=np.int64),
+                f"stack_{i}": _m04_stack(r_mean, T, seed),
+                f"arms_{i}": run["arms"],
+                f"regret_{i}": run["regret"],
+            }
+        )
+    assert not out["regret_1"].any()
+    return _save("m04_bandit", **out)
+
+
+def m04_policy() -> bytes:
+    """Checkpoint 1.2: epsilon-greedy's choices on fixed states, and its exact shares."""
+    choice_counts = np.array([[1, 0, 1], [0, 0, 0], [20, 4, 10], [10, 10, 10]], dtype=np.int64)
+    choice_sums = np.array([[1.0, 0, 0], [0, 0, 0], [8, 3, 4], [5, 5, 3]])
+    want = np.array([1, 0, 1, 0], dtype=np.int64)  # an unpulled arm; the best mean; the tie
+    for c, s, w in zip(choice_counts, choice_sums, want, strict=True):
+        assert _m04_eps_greedy(c, s, 0, np.random.default_rng(0), epsilon=0.0) == w
+    share_counts = np.array([10, 10, 10], dtype=np.int64)
+    share_sums = np.array([5.0, 3.0, 7.0])
+    eps = np.array([1.0, 0.2])
+    n_arms = 3
+    shares = np.array([[e / n_arms + (1 - e) * (a == 2) for a in range(n_arms)] for e in eps])
+    ref = []
+    for e in eps:
+        rng = np.random.default_rng(0)
+        picks = [_m04_eps_greedy(share_counts, share_sums, 30, rng, epsilon=e) for _ in range(4000)]
+        ref.append(np.bincount(picks, minlength=n_arms) / 4000)
+    ref = np.array(ref)
+    assert np.all(np.abs(ref - shares) < 0.02)
+    return _save(
+        "m04_policy",
+        choice_counts=choice_counts,
+        choice_sums=choice_sums,
+        choice_want=want,
+        share_counts=share_counts,
+        share_sums=share_sums,
+        share_eps=eps,
+        share_exact=shares,
+        share_reference=ref,
+        share_n=np.array(4000, dtype=np.int64),
+    )
+
+
+def m04_greedy_replay() -> bytes:
+    """Checkpoint 1.2: greedy (epsilon = 0) on the lab's headlines, replayed round by round.
+
+    Seed 1's first rewards are (1, 0, 0): headline 2's first showing pays 0 and greedy never
+    shows it again (regret 0.3 + 0.1 x 197 = 20.0). Seed 17's are (0, 1, 0): greedy locks on
+    headline 1 (0.3 + 0.2 x 197 = 39.7).
+    """
+    out: dict[str, np.ndarray] = {}
+    for seed, first, total in ((1, [1.0, 0.0, 0.0], 20.0), (17, [0.0, 1.0, 0.0], 39.7)):
+        stack = _m04_stack(M04_R, 200, seed)
+        assert stack[0].tolist() == first
+        run = _m04_run(lambda c, s, t, rng: _m04_eps_greedy(c, s, t, rng, 0.0), stack, M04_R, seed)
+        assert run["arms"][:3].tolist() == [0, 1, 2] and not np.any(run["arms"][3:] == 2)
+        assert abs(run["regret"][-1] - total) < 1e-9
+        for key in ("arms", "counts_before", "sums_before"):
+            out[f"{key}_{seed}"] = run[key]
+        out[f"regret_{seed}"] = run["regret"]
+    out["seeds"] = np.array([1, 17], dtype=np.int64)
+    return _save("m04_greedy_replay", **out)
+
+
+def m04_ucb1() -> bytes:
+    """Checkpoint 2.1: UCB1's index on fixed counts and sums, and the usual mistakes' values."""
+    cases = [
+        ([0, 0, 0], [0.0, 0, 0], 0),
+        ([1, 0, 0], [1.0, 0, 0], 1),
+        ([1, 1, 1], [0.0, 1, 1], 3),
+        ([90, 9, 1], [54.0, 4, 0], 100),  # the briefing's Check yourself 3.1
+        ([50, 500, 4], [20.0, 260, 3], 554),
+    ]
+    counts = np.array([c for c, _, _ in cases], dtype=np.int64)
+    sums = np.array([s for _, s, _ in cases])
+    t = np.array([x for _, _, x in cases], dtype=np.int64)
+    out = {"counts": counts, "sums": sums, "t": t}
+    with np.errstate(divide="ignore"):
+        variants = {
+            "index": {},
+            "log10": {"log": np.log10},
+            "no_sqrt": {"sqrt": lambda x: x},
+            "log_t_plus_one": {"plus": 1},
+            "unpulled_zero": {"unpulled": 0.0},
+        }
+        for name, kw in variants.items():
+            out[name] = np.array(
+                [_m04_ucb1_index(c, s, x, **kw) for c, s, x in zip(counts, sums, t, strict=True)]
+            )
+    seen = counts > 0
+    sums_not_means = np.where(seen, 0.0, np.inf)
+    for i in range(len(cases)):
+        if seen[i].any():
+            sums_not_means[i, seen[i]] = sums[i, seen[i]] + np.sqrt(
+                2 * np.log(t[i]) / counts[i, seen[i]]
+            )
+    out["sums_not_means"] = sums_not_means
+    assert np.allclose(out["index"][3], [0.91990, 1.45606, 3.03485], atol=5e-6)
+    assert np.allclose(out["index"][2], [1.4823, 2.4823, 2.4823], atol=5e-5)
+    return _save("m04_ucb1", **out)
+
+
+def m04_ucb1_replay() -> bytes:
+    """Checkpoints 2.2 and 6: UCB1 on reward_stack(R, 1000, seed=2), round by round.
+
+    UCB1 uses no randomness, so the run is fixed by the stack. The smallest nonzero gap between
+    the largest index and another finite one is asserted far above argmax_tie's tolerance, so
+    the arms are the same on every platform.
+    """
+    stack = _m04_stack(M04_R, 1000, 2)
+    run = _m04_run(_m04_ucb1, stack, M04_R, 2)
+    assert run["final_counts"].tolist() == [126, 111, 763]
+    assert round(float(run["regret"][-1]), 4) == 34.8
+    smallest = np.inf
+    for c, s, t in zip(run["counts_before"], run["sums_before"], range(1000), strict=True):
+        x = _m04_ucb1_index(c, s, t)
+        if np.isinf(x.max()):
+            continue
+        d = np.sort((x.max() - x) / (1 + np.abs(x).max()))[1:]
+        if d[d > 0].size:
+            smallest = min(smallest, float(d[d > 0].min()))
+    assert smallest > 1e-6, smallest  # far from the tie tolerance 1e-9
+    return _save(
+        "m04_ucb1_replay",
+        seed=np.array(2, dtype=np.int64),
+        **{k: run[k] for k in ("arms", "counts_before", "sums_before", "rewards")},
+        final_counts=run["final_counts"],
+        final_sums=run["final_sums"],
+    )
+
+
+def m04_beta() -> bytes:
+    """Checkpoint 3.1: Beta(1 + S, 1 + F) on fixed counts, and the usual mistakes' values."""
+    counts = np.array([[0, 0, 0], [10, 4, 1], [50, 10, 4]], dtype=np.int64)
+    sums = np.array([[0.0, 0, 0], [3, 4, 0], [20, 3, 3]])
+    shape_s, shape_f = 1 + sums, 1 + (counts - sums)
+    assert shape_s[1].tolist() == [4, 5, 1] and shape_f[1].tolist() == [8, 1, 2]
+    assert shape_s[2].tolist() == [21, 4, 4] and shape_f[2].tolist() == [31, 8, 2]
+    return _save(
+        "m04_beta",
+        counts=counts,
+        sums=sums,
+        shape_s=shape_s,
+        shape_f=shape_f,
+        no_prior_s=sums,
+        no_prior_f=counts - sums,
+        counts_f=1.0 + counts,
+    )
+
+
+def _poly_mul(p, q):
+    out = [Fraction(0)] * (len(p) + len(q) - 1)
+    for i, a in enumerate(p):
+        if a:
+            for j, b in enumerate(q):
+                out[i + j] += a * b
+    return out
+
+
+def _poly_integral(p):
+    return [Fraction(0)] + [c / (k + 1) for k, c in enumerate(p)]
+
+
+def m04_prob_best(posteriors):
+    """P(arm i has the largest rate) for independent Beta(u, v) posteriors with integer u, v.
+
+    Each density x^(u-1) (1-x)^(v-1) / B(u, v) is a polynomial, so the integral over [0, 1] of
+    pdf_i(x) times the product of the other cdfs is computed exactly, in rationals, and is the
+    same on every platform. (Also used by scripts/make_figures_m04.py.)
+    """
+    pdfs = []
+    for u, v in posteriors:
+        u, v = int(u), int(v)
+        norm = (u + v - 1) * comb(u + v - 2, u - 1)  # 1 / B(u, v)
+        coef = [Fraction(0)] * (u + v - 1)
+        for k in range(v):
+            coef[u - 1 + k] += Fraction(norm * comb(v - 1, k) * (-1) ** k)
+        pdfs.append(coef)
+    cdfs = [_poly_integral(p) for p in pdfs]
+    out = []
+    for i, f in enumerate(pdfs):
+        for j, cdf in enumerate(cdfs):
+            if j != i:
+                f = _poly_mul(f, cdf)
+        out.append(sum(_poly_integral(f)))
+    assert sum(out) == 1
+    return [float(x) for x in out]
+
+
+def m04_ts_shares() -> bytes:
+    """Checkpoint 3.2: the exact probability that each arm is best on fixed posteriors.
+
+    Also the reference thompson_step's shares over 4000 calls from default_rng(0) at t = 64,
+    for the record (the check compares with the exact values).
+    """
+    counts = np.array([[50, 10, 4], [20, 20, 2], [0, 0, 0]], dtype=np.int64)
+    sums = np.array([[20.0, 3, 3], [10, 8, 1], [0, 0, 0]])
+    exact = np.array(
+        [
+            m04_prob_best(list(zip(1 + s, 1 + c - s, strict=True)))
+            for c, s in zip(counts, sums, strict=True)
+        ]
+    )
+    assert np.allclose(exact[0], [0.0771, 0.0543, 0.8686], atol=5e-5)
+    assert np.allclose(exact[1], [0.4011, 0.1338, 0.4651], atol=5e-5)
+    ref = []
+    for c, s in zip(counts, sums, strict=True):
+        rng = np.random.default_rng(0)
+        picks = [_m04_argmax_tie(rng.beta(1 + s, 1 + (c - s))) for _ in range(4000)]
+        ref.append(np.bincount(picks, minlength=3) / 4000)
+    ref = np.array(ref)
+    assert np.all(np.abs(ref - exact) < 0.02)
+    # The mistakes' shares: the posterior mean (greedy) and a 0/1 draw per arm.
+    means = (1 + sums) / (2 + counts)
+    greedy = np.zeros_like(exact)
+    for i, m in enumerate(means):
+        greedy[i, _m04_argmax_tie(m)] = 1.0
+    p = means
+    sample_reward = np.stack(
+        [
+            p[:, 0] + (1 - p[:, 0]) * (1 - p[:, 1]) * (1 - p[:, 2]),
+            (1 - p[:, 0]) * p[:, 1],
+            (1 - p[:, 0]) * (1 - p[:, 1]) * p[:, 2],
+        ],
+        axis=1,
+    )
+    assert np.allclose(sample_reward[0], [0.536, 0.199, 0.265], atol=5e-4)
+    return _save(
+        "m04_ts_shares",
+        counts=counts,
+        sums=sums,
+        t=np.array(64, dtype=np.int64),
+        n=np.array(4000, dtype=np.int64),
+        exact=exact,
+        reference=ref,
+        posterior_mean=greedy,
+        sample_reward=sample_reward,
+    )
+
+
+# Checkpoint 4's fixed cases (academic director's handoff, §2a): (name, a, b, expected winner).
+M04_VERDICT_CASES = [
+    (
+        "single",
+        [5.0],
+        [
+            7.2,
+            12.5,
+            8.3,
+            9.5,
+            9.8,
+            8.5,
+            7.3,
+            11.3,
+            10.7,
+            6.1,
+            14.7,
+            11.9,
+            8.5,
+            11.8,
+            9.1,
+            9.9,
+            11.6,
+            7.5,
+            11.2,
+            12.8,
+        ],
+        "single seed",
+    ),
+    ("ranges-3-disjoint", [1.0, 2.0, 3.0], [5.0, 6.0, 7.0], "A"),
+    ("ranges-3-overlap", [1.0, 1.2, 5.0], [4.8, 6.0, 6.2], "tie"),
+    (
+        "clear-20",
+        [
+            24.0,
+            19.1,
+            22.7,
+            15.1,
+            19.5,
+            21.3,
+            16.0,
+            19.8,
+            25.2,
+            27.9,
+            22.3,
+            22.5,
+            17.1,
+            16.4,
+            15.8,
+            21.6,
+            22.3,
+            18.0,
+            16.3,
+            20.8,
+        ],
+        [
+            61.6,
+            59.3,
+            66.3,
+            59.5,
+            59.7,
+            54.5,
+            60.7,
+            66.7,
+            60.3,
+            60.4,
+            62.2,
+            61.4,
+            62.7,
+            62.7,
+            63.1,
+            56.0,
+            61.5,
+            52.0,
+            61.3,
+            53.7,
+        ],
+        "A",
+    ),
+    (
+        "overlap-20",
+        [
+            49.3,
+            54.7,
+            45.9,
+            51.0,
+            33.6,
+            41.4,
+            56.9,
+            38.5,
+            56.5,
+            36.1,
+            40.9,
+            39.0,
+            50.1,
+            55.3,
+            39.3,
+            48.2,
+            66.2,
+            46.8,
+            41.8,
+            53.9,
+        ],
+        [
+            50.8,
+            46.0,
+            35.0,
+            61.2,
+            47.3,
+            53.0,
+            42.4,
+            66.0,
+            60.5,
+            62.8,
+            51.9,
+            57.7,
+            61.9,
+            63.2,
+            56.1,
+            52.4,
+            49.4,
+            45.5,
+            43.3,
+            56.6,
+        ],
+        "tie",
+    ),
+    (
+        "outlier-range-overlap",
+        [
+            60.0,
+            24.0,
+            29.5,
+            33.2,
+            29.2,
+            24.4,
+            29.6,
+            32.4,
+            30.6,
+            28.7,
+            35.5,
+            35.7,
+            29.7,
+            32.4,
+            31.2,
+            32.3,
+            34.4,
+            32.5,
+            30.3,
+            28.0,
+        ],
+        [
+            42.6,
+            44.9,
+            48.5,
+            45.9,
+            45.2,
+            45.8,
+            45.1,
+            46.6,
+            41.6,
+            39.1,
+            43.7,
+            41.6,
+            49.8,
+            44.5,
+            44.2,
+            40.4,
+            45.8,
+            43.1,
+            48.4,
+            47.5,
+        ],
+        "A",
+    ),
+    (
+        "outliers-mean-vs-iqm",
+        [
+            200.0,
+            180.0,
+            160.0,
+            28.8,
+            30.1,
+            25.3,
+            29.6,
+            27.5,
+            28.5,
+            28.9,
+            29.4,
+            30.8,
+            32.1,
+            29.7,
+            32.7,
+            28.7,
+            30.7,
+            31.8,
+            30.2,
+            28.5,
+        ],
+        [
+            46.9,
+            48.2,
+            45.8,
+            47.4,
+            47.5,
+            48.9,
+            48.2,
+            48.5,
+            46.5,
+            47.5,
+            49.3,
+            50.8,
+            45.3,
+            50.8,
+            50.5,
+            49.3,
+            48.3,
+            47.1,
+            50.7,
+            51.7,
+        ],
+        "A",
+    ),
+]
+
+
+def m04_verdict() -> bytes:
+    """Checkpoint 4: compare()'s verdict on fixed per-seed regrets (lower is better).
+
+    Each decided case's intervals are at least 1 apart and each tie's overlap at least 1, so
+    no rounding in the bootstrap can change a verdict.
+    """
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.evaluate import compare
+
+    width = max(max(len(a), len(b)) for _, a, b, _ in M04_VERDICT_CASES)
+    n = len(M04_VERDICT_CASES)
+    a_arr, b_arr = np.full((n, width), np.nan), np.full((n, width), np.nan)
+    n_a, n_b = np.zeros(n, dtype=np.int64), np.zeros(n, dtype=np.int64)
+    summary = np.zeros((n, 2, 3))
+    for i, (name, a, b, want) in enumerate(M04_VERDICT_CASES):
+        v = compare(a, b, higher_is_better=False)
+        assert v.winner == want, (name, v.winner)
+        a_arr[i, : len(a)], b_arr[i, : len(b)] = a, b
+        n_a[i], n_b[i] = len(a), len(b)
+        summary[i] = v.summary_a, v.summary_b
+        if want in ("A", "B"):
+            sep = max(v.summary_b[1] - v.summary_a[2], v.summary_a[1] - v.summary_b[2])
+            assert sep >= 1.0, (name, sep)
+        elif want == "tie":
+            ov = min(v.summary_a[2], v.summary_b[2]) - max(v.summary_a[1], v.summary_b[1])
+            assert ov >= 0.2, (name, ov)
+    return _save(
+        "m04_verdict",
+        names=np.array([c[0] for c in M04_VERDICT_CASES]),
+        a=a_arr,
+        b=b_arr,
+        n_a=n_a,
+        n_b=n_b,
+        winner=np.array([c[3] for c in M04_VERDICT_CASES]),
+        summary=summary,
+    )
+
+
+def _m04_ucb1_for_range(counts, sums, t, B):
+    """The lab's ucb1_for_range: rescale the rewards to [0, 1], take UCB1's index, scale back."""
+    return B * _m04_ucb1_index(counts, sums / B, t)
+
+
+def m04_ucb1_for_range() -> bytes:
+    """Checkpoint 5.1: UCB1's index for rewards in [0, B], and the usual mistakes' values.
+
+    The B = 1 case equals ucb1_index; the others separate `bonus-not-scaled`
+    (ucb1_index(counts, sums, t)) and `mean-scaled-twice` (B * ucb1_index(counts, sums, t)).
+    """
+    cases = [
+        ([0, 0, 0], [0.0, 0, 0], 0, 10.0),
+        ([1, 0, 1], [10.0, 0, 0], 2, 10.0),
+        ([90, 9, 1], [540.0, 40, 0], 100, 10.0),  # ten times Check yourself 3.1
+        ([90, 9, 1], [54.0, 4, 0], 100, 1.0),  # B = 1: ucb1_index itself
+        ([4, 10, 2], [5.0, 10, 0], 16, 2.5),
+    ]
+    counts = np.array([c for c, _, _, _ in cases], dtype=np.int64)
+    sums = np.array([x for _, x, _, _ in cases])
+    t = np.array([c[2] for c in cases], dtype=np.int64)
+    B = np.array([c[3] for c in cases])
+    rows = list(zip(counts, sums, t, B, strict=True))
+    with np.errstate(divide="ignore"):
+        index = np.array([_m04_ucb1_for_range(c, x, int(k), b) for c, x, k, b in rows])
+        not_scaled = np.array([_m04_ucb1_index(c, x, int(k)) for c, x, k, b in rows])
+        twice = np.array([b * _m04_ucb1_index(c, x, int(k)) for c, x, k, b in rows])
+    assert np.all(np.isposinf(index[0]))
+    assert np.allclose(index[1][[0, 2]], [21.7741, 11.7741], atol=5e-5) and np.isinf(index[1][1])
+    assert np.allclose(index[2], [9.19902, 14.56063, 30.34854], atol=5e-6)
+    assert np.allclose(index[3], _m04_ucb1_index(counts[3], sums[3], 100), rtol=0, atol=1e-12)
+    assert np.allclose(index[4], [4.19353, 2.86165, 4.16277], atol=5e-6)
+    for wrong in (not_scaled, twice):  # each case but B = 1 (and t = 0) separates both
+        for i in (1, 2, 4):
+            fin = np.isfinite(index[i])
+            assert np.max(np.abs(wrong[i][fin] - index[i][fin])) > 0.5
+    return _save(
+        "m04_ucb1_for_range",
+        counts=counts,
+        sums=sums,
+        t=t,
+        B=B,
+        index=index,
+        bonus_not_scaled=not_scaled,
+        mean_scaled_twice=twice,
+    )
+
+
+def m04_scale_runs(seeds=M04_SCALE_SEEDS, T=M04_T_SCALE) -> dict[str, np.ndarray]:
+    """Checkpoint 5.2's reference run: final pseudo-regret in the original units, and the arms,
+    per seed. UCB1 with the bonus x 10 is the lab's ucb1_for_range at B = 10."""
+
+    def for_range(c, s, t, rng, B=10.0):
+        return _m04_argmax_tie(_m04_ucb1_for_range(c, s, t, B))
+
+    configs = {
+        "eps_greedy_x1": (lambda c, s, t, rng: _m04_eps_greedy(c, s, t, rng, 0.1), 1.0),
+        "eps_greedy_x10": (lambda c, s, t, rng: _m04_eps_greedy(c, s, t, rng, 0.1), 10.0),
+        "ucb1_x1": (_m04_ucb1, 1.0),
+        "ucb1_x10": (_m04_ucb1, 10.0),
+        "ucb1_rescaled_x10": (for_range, 10.0),
+    }
+    out = {}
+    for name, (policy, scale) in configs.items():
+        regrets, arms = [], []
+        for k in seeds:
+            run = _m04_run(policy, _m04_stack(M04_R, T, k, scale), scale * M04_R, k)
+            regrets.append(run["regret"][-1] / scale)
+            arms.append(run["arms"])
+        out[name] = np.array(regrets)
+        out[f"{name}_arms"] = np.array(arms)
+    return out
+
+
+def m04_scale() -> bytes:
+    """Checkpoint 5.2: "same" or "changes" per method in the reference run (seeds 0-19,
+    T = 5000), from the arms: "same" means identical arms on every seed."""
+    runs = m04_scale_runs()
+    directions, same_seeds = {}, {}
+    for key, base in (
+        ("eps_greedy", "eps_greedy_x1"),
+        ("ucb1", "ucb1_x1"),
+        ("ucb1_rescaled", "ucb1_x1"),
+    ):
+        same = [
+            np.array_equal(x, y)
+            for x, y in zip(runs[f"{base}_arms"], runs[f"{key}_x10_arms"], strict=True)
+        ]
+        same_seeds[key] = sum(same)
+        directions[key] = "same" if all(same) else "changes"
+        if all(same):
+            assert np.allclose(runs[base], runs[f"{key}_x10"], rtol=0, atol=1e-9)
+    assert directions == {"eps_greedy": "same", "ucb1": "changes", "ucb1_rescaled": "same"}
+    assert same_seeds["ucb1"] == 0  # UCB1 x 10 changes its arms on every seed
+    return _save(
+        "m04_scale",
+        keys=np.array(list(directions)),
+        directions=np.array(list(directions.values())),
+        same_arms_seeds=np.array(list(same_seeds.values()), dtype=np.int64),
+        seeds=np.array(M04_SCALE_SEEDS, dtype=np.int64),
+        T=np.array(M04_T_SCALE, dtype=np.int64),
+        **{k: v for k, v in runs.items() if not k.endswith("_arms")},
+    )
+
+
+def m04_gauss() -> bytes:
+    """Stretch: the Gaussian posterior of each arm's mean, and the usual mistakes' values."""
+    cases = [
+        ([0, 0, 0], [0.0, 0, 0], 0.5, 1.0),
+        ([4, 10, 1], [2.0, 3, 1], 0.5, 1.0),
+        ([4, 10, 1], [20.0, 30, 10], 5.0, 10.0),  # 10 x the row above: the scale
+    ]
+    out: dict[str, np.ndarray] = {
+        "counts": np.array([c for c, _, _, _ in cases], dtype=np.int64),
+        "sums": np.array([s for _, s, _, _ in cases]),
+        "noise_sd": np.array([c[2] for c in cases]),
+        "prior_sd": np.array([c[3] for c in cases]),
+    }
+    mean, sd = [], []
+    for c, s, noise, prior in cases:
+        precision = 1 / prior**2 + np.asarray(c) / noise**2
+        mean.append((np.asarray(s) / noise**2) / precision)
+        sd.append(np.sqrt(1 / precision))
+    out["mean"], out["sd"] = np.array(mean), np.array(sd)
+    assert np.allclose(out["mean"][1], [8 / 17, 12 / 41, 0.8]) and np.allclose(
+        out["mean"][2], 10 * out["mean"][1]
+    )
+    assert np.allclose(out["sd"][1] ** 2, [1 / 17, 1 / 41, 1 / 5]) and np.allclose(
+        out["sd"][2], 10 * out["sd"][1]
+    )
+    out["sample_mean"] = out["sums"] / np.maximum(out["counts"], 1)
+    return _save("m04_gauss", **out)
+
+
+# ---------------------------------------------------------------- Module 5: contextual bandits
+# The lab's constants (labs/src/05-contextual-bandits.py): K items, contexts of dimension 5,
+# the catalog seed. Checkpoint seeds are 51-57, clear of the seats' (SEED + 1) * 1000 + i.
+M05_K, M05_D_RAW, M05_CATALOG = 10, 5, 0
+
+
+def _m05_features(x):
+    return np.append(x, 1.0)
+
+
+def _m05_ridge_closed_form(X, r, lam):
+    """Ridge by the closed form (fixture code; never shipped in prl)."""
+    A = lam * np.eye(X.shape[1]) + X.T @ X
+    b = X.T @ r
+    return A, b, np.linalg.inv(A), np.linalg.solve(A, b)
+
+
+def _m05_eps_greedy(scores, eps):
+    """The workshop's epsilon-greedy as probabilities: eps / K everywhere, 1 - eps on the best."""
+    probs = np.full(len(scores), eps / len(scores))
+    probs[int(np.argmax(scores))] += 1.0 - eps
+    return probs
+
+
+def m05_reward() -> bytes:
+    """Exercise 1: r(x, a) = clip(0.5 + scale theta_a^T x, 0.02, 0.98), by hand and on RecSim."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import RecSim
+
+    hand = [
+        ([[1, 0], [0, 2], [-3, 3]], [0.5, 0.5], 0.15),  # interior: (0.575, 0.65, 0.5)
+        ([[2, 0], [0, -4], [10, 10]], [0.5, 0.5], 0.15),  # top clip: 2.0 -> 0.98
+        ([[1, 0], [0, 1], [-3, 0]], [2.0, 1.0], 0.3),  # both clips: (0.98, 0.8, 0.02)
+    ]
+    theta = np.array([h[0] for h in hand], dtype=float)
+    x = np.array([h[1] for h in hand], dtype=float)
+    scale = np.array([h[2] for h in hand], dtype=float)
+    lin = np.einsum("ckd,cd->ck", theta, x)
+    want = np.clip(0.5 + scale[:, None] * lin, 0.02, 0.98)
+    by_hand = [[0.575, 0.65, 0.5], [0.65, 0.2, 0.98], [0.98, 0.8, 0.02]]
+    assert np.allclose(want, by_hand, atol=1e-15), want
+    env = RecSim(M05_K, M05_D_RAW, seed=M05_CATALOG)
+    recsim_x = env.sample_context(np.random.default_rng(55))
+    return _save(
+        "m05_reward",
+        hand_theta=theta,
+        hand_x=x,
+        hand_scale=scale,
+        hand_expected=want,
+        # The usual mistakes, for the checkpoint's hints.
+        hand_no_clip=0.5 + scale[:, None] * lin,
+        hand_no_intercept=np.clip(scale[:, None] * lin, 0.02, 0.98),
+        hand_no_scale=np.clip(0.5 + lin, 0.02, 0.98),
+        recsim_x=recsim_x,
+        recsim_expected=env.expected_reward(recsim_x),
+    )
+
+
+def m05_ridge() -> bytes:
+    """Exercise 2: seven updates of a 3-feature Ridge, for two penalties, against the closed form."""
+    rng = np.random.default_rng(54)
+    X = np.round(rng.normal(0.0, 1.5, size=(7, 3)), 2)  # rows far from unit length
+    r = np.array([1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0])
+    lams = np.array([1.0, 0.5])
+    probes = np.round(rng.normal(size=(3, 3)), 2)
+    A, A_inv, theta, pred = [], [], [], []
+    for lam in lams:
+        a, b, a_inv, th = _m05_ridge_closed_form(X, r, float(lam))
+        A.append(a)
+        A_inv.append(a_inv)
+        theta.append(th)
+        pred.append(probes @ th)
+    assert np.all(np.linalg.norm(X, axis=1) > 1.2), "non-unit rows"
+    return _save(
+        "m05_ridge",
+        X=X,
+        r=r,
+        lams=lams,
+        probes=probes,
+        A=np.array(A),
+        b=X.T @ r,
+        A_inv=np.array(A_inv),
+        pred=np.array(pred),
+        # The usual mistakes, for the hints: b = sum x, and predict with A in place of A^-1.
+        b_without_reward=X.sum(axis=0),
+        pred_with_A=np.array([probes @ (a @ (X.T @ r)) for a in A]),
+    )
+
+
+def m05_linucb() -> bytes:
+    """Exercise 3: LinUCB scores on fixed models, and the width of a unit x seen n times."""
+    rng = np.random.default_rng(56)
+    A, A_inv, b, n = [], [], [], []
+    for k in range(3):
+        M = rng.normal(size=(3, 4 + 2 * k))
+        a = np.eye(3) + M @ M.T  # a Gram matrix: lam I + sum x x^T, not diagonal
+        A.append(a)
+        A_inv.append(np.linalg.inv(a))
+        b.append(rng.normal(size=3))
+        n.append(M.shape[1])
+    A, A_inv, b = np.array(A), np.array(A_inv), np.array(b)
+    x = np.array([0.6, -0.3, 1.1])
+    cs = np.array([0.5, 2.0])
+    means = np.einsum("kij,kj->ki", A_inv, b) @ x
+    quad = np.einsum("i,kij,j->k", x, A_inv, x)
+    quad_A = np.einsum("i,kij,j->k", x, A, x)
+    scores = np.array([means + c * np.sqrt(quad) for c in cs])
+    wrong = {
+        "variance": np.array([means + c * quad for c in cs]),
+        "A_not_inverse": np.array([means + c * np.sqrt(quad_A) for c in cs]),
+        "width_only": np.array([c * np.sqrt(quad) for c in cs]),
+        "c_inside_sqrt": np.array([means + np.sqrt(c * quad) for c in cs]),
+    }
+    for name, w in wrong.items():  # every mistake is visibly wrong at one c at least
+        assert np.abs(w - scores).max() > 1e-3, name
+    u = np.array([1.0, 2.0, 2.0]) / 3.0
+    ns = np.array([0, 1, 10, 100])
+    unit_A = np.array([np.eye(3) + k * np.outer(u, u) for k in ns])
+    return _save(
+        "m05_linucb",
+        A=A,
+        A_inv=A_inv,
+        b=b,
+        n=np.array(n, dtype=np.int64),
+        x=x,
+        cs=cs,
+        scores=scores,
+        **{f"wrong_{k}": v for k, v in wrong.items()},
+        u=u,
+        unit_ns=ns,
+        unit_A=unit_A,
+        unit_A_inv=np.array([np.linalg.inv(a) for a in unit_A]),
+        unit_scores=np.array([c / np.sqrt(1.0 + ns) for c in cs]),
+    )
+
+
+def m05_lints() -> bytes:
+    """Exercise 4: a fixed model for the sampler's moments, and the reference's margins.
+
+    A's correlations are strong enough that every wrong covariance is far from v^2 A^-1 once
+    whitened: the upper Cholesky factor (L^T L) by 1.44, v^2 I by 2.0, v A^-1 by 1.0 and
+    v^2 A by 11, against the checkpoint's 0.2 (a correct sampler's entries have sd 0.022).
+    """
+    A = np.array([[3.0, 1.5, 0.0], [1.5, 2.0, 0.9], [0.0, 0.9, 1.5]])
+    A_inv = np.linalg.inv(A)
+    b = np.array([1.0, -0.5, 0.25])
+    v, n_draws = 0.5, 4000
+    mean = A_inv @ b
+    # The reference sampler (the lab's solution) on the checkpoint's draw, to show its margin:
+    # the checkpoint allows 6 standard errors for each mean and 0.2 for each entry of the
+    # whitened covariance.
+    rng = np.random.default_rng(11)
+    L = np.linalg.cholesky(A_inv)
+    draws = np.array([mean + v * L @ rng.standard_normal(3) for _ in range(n_draws)])
+    se = v * np.sqrt(np.diag(A_inv) / n_draws)
+    z = (draws.mean(axis=0) - mean) / se
+    Li = np.linalg.inv(L)
+    white = Li @ (np.cov(draws.T) / v**2) @ Li.T
+    dev = np.abs(white - np.eye(3)).max()
+    assert np.abs(z).max() < 3 and dev < 0.1, (z, dev)
+    wrong = {"upper": L.T @ L, "isotropic": np.eye(3), "sqrt-v": A_inv / v, "A": A}
+    for name, cov in wrong.items():
+        assert np.abs(Li @ cov @ Li.T - np.eye(3)).max() > 0.95, name
+    return _save(
+        "m05_lints",
+        A=A,
+        A_inv=A_inv,
+        b=b,
+        v=np.array(v),
+        n_draws=np.array(n_draws, dtype=np.int64),
+        estimate=mean,
+        ref_max_z=np.array(np.abs(z).max()),
+        ref_max_dev=np.array(dev),
+    )
+
+
+def m05_verdicts() -> bytes:
+    """Exercise 5: four tables of final regrets and prl.evaluate.compare's verdicts on them."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.evaluate import Budget, compare
+
+    tables = {
+        "clear": ([200, 210, 190, 205, 220], [100, 105, 110, 95, 102], [150, 260, 180, 230, 200]),
+        "reverse": (
+            [150, 160, 155, 145, 170],
+            [300, 310, 305, 290, 320],
+            [152, 158, 150, 149, 166],
+        ),
+        "three-seeds": ([200, 220, 210], [100, 120, 110], [190, 230, 205]),
+        "one-seed": ([200], [100], [150]),
+    }
+    by_hand = {
+        "clear": ("LinUCB", "tie"),
+        "reverse": ("greedy", "tie"),
+        "three-seeds": ("LinUCB", "tie"),
+        "one-seed": ("single seed", "single seed"),
+    }
+    methods = ("greedy", "LinUCB", "LinTS")
+    budget = Budget(steps=3000, seeds=5)
+    regrets = np.full((len(tables), 3, 5), np.nan)
+    n_seeds = np.zeros(len(tables), dtype=np.int64)
+    words = []
+    for i, (regime, rows) in enumerate(tables.items()):
+        n_seeds[i] = len(rows[0])
+        for j, row in enumerate(rows):
+            regrets[i, j, : len(row)] = row
+        got = []
+        for k, method in ((1, "LinUCB"), (2, "LinTS")):
+            v = compare(
+                rows[k], rows[0], names=(method, "greedy"), budget=budget, higher_is_better=False
+            )
+            got.append({"A": method, "B": "greedy"}.get(v.winner, v.winner))
+            if v.winner in ("A", "B"):  # a clear call: the intervals are well apart
+                lo_a, hi_a = v.summary_a[1:]
+                lo_b, hi_b = v.summary_b[1:]
+                assert max(lo_a - hi_b, lo_b - hi_a) > 10, (regime, method)
+        assert tuple(got) == by_hand[regime], (regime, got)
+        words.append(got)
+    return _save(
+        "m05_verdicts",
+        regimes=np.array(list(tables)),
+        methods=np.array(methods),
+        regrets=regrets,
+        n_seeds=n_seeds,
+        steps=np.array(budget.steps, dtype=np.int64),
+        seeds=np.array(budget.seeds, dtype=np.int64),
+        expected=np.array(words),
+    )
+
+
+def m05_logging() -> bytes:
+    """Exercises 6 and 7: epsilon-greedy probabilities, and RecSim logs with known propensities."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.envs import RecSim
+
+    scores4, eps4 = np.array([0.1, 0.5, 0.3, 0.2]), 0.1
+    scores10 = np.array([0.3, 0.1, 0.72, 0.2, 0.5, 0.65, 0.0, 0.4, 0.45, 0.6])
+    eps10 = np.array([0.0, 0.1, 0.3, 1.0])
+    expected4 = _m05_eps_greedy(scores4, eps4)
+    assert np.allclose(expected4, [0.025, 0.925, 0.025, 0.025], atol=1e-15)
+    # Fixed score weights for the logging checkpoints: scores(x) = W @ phi(x). Not a learner's.
+    W = np.round(np.random.default_rng(51).normal(size=(M05_K, M05_D_RAW + 1)), 3)
+    K = M05_K
+
+    def scores(x):
+        return W @ _m05_features(x)
+
+    # Exercise 6's checkpoint logs with env.log and the reference log_policy at epsilon 0.1.
+    log_eps, log_n, log_seed = 0.1, 4000, 52
+    env = RecSim(K, M05_D_RAW, seed=M05_CATALOG)
+    log = env.log(lambda x, rng: _m05_eps_greedy(scores(x), log_eps), log_n, seed=log_seed)
+    w = 1.0 / (K * log.P)
+    log_z = (w.mean() - 1.0) / (w.std(ddof=1) / np.sqrt(log_n))
+    # Exercise 7's checkpoint: the fixed log_suspect (the lab's solution) with its own
+    # epsilon-greedy policy at epsilon 0.2, on RecSim's stream `seed`, method coin seed + 1.
+    sus_eps, sus_n, sus_seed = 0.2, 3000, 53
+    env = RecSim(K, M05_D_RAW, seed=M05_CATALOG)
+    env.reset(seed=sus_seed)
+    rng = np.random.default_rng(sus_seed + 1)
+    A, P, best = [], [], []
+    for _ in range(sus_n):
+        probs = _m05_eps_greedy(scores(env.context()), sus_eps)
+        a = int(rng.choice(K, p=probs))
+        env.step(a)
+        A.append(a)
+        P.append(probs[a])
+        best.append(int(np.argmax(probs)))
+    A, P, best = np.array(A), np.array(P), np.array(best)
+    share = float(np.mean(A != best))
+    p_other = sus_eps * (K - 1) / K
+    share_z = (share - p_other) / np.sqrt(p_other * (1 - p_other) / sus_n)
+    w = (1.0 / K) / P
+    sus_z = (w.mean() - 1.0) / (w.std(ddof=1) / np.sqrt(sus_n))
+    # The checkpoints allow 4 (weights) and 5 (share) standard errors; the reference is well inside.
+    assert max(abs(log_z), abs(share_z), abs(sus_z)) < 3, (log_z, share_z, sus_z)
+    return _save(
+        "m05_logging",
+        scores4=scores4,
+        eps4=np.array(eps4),
+        expected4=expected4,
+        scores10=scores10,
+        eps10=eps10,
+        expected10=np.array([_m05_eps_greedy(scores10, e) for e in eps10]),
+        score_weights=W,
+        log_eps=np.array(log_eps),
+        log_n=np.array(log_n, dtype=np.int64),
+        log_seed=np.array(log_seed, dtype=np.int64),
+        ref_log_z=np.array(log_z),
+        suspect_eps=np.array(sus_eps),
+        suspect_n=np.array(sus_n, dtype=np.int64),
+        suspect_seed=np.array(sus_seed, dtype=np.int64),
+        ref_suspect_share=np.array(share),
+        ref_suspect_share_z=np.array(share_z),
+        ref_suspect_z=np.array(sus_z),
+    )
+
+
 # ---------------------------------------------------------------- Module 6 (exploration in MDPs)
 # Solver code for the fixtures: the policy chain, the hitting-time solve, simulated walks,
 # value iteration with the MBIE-EB bonus and the counts estimator (Module 2's, above). It
@@ -1073,6 +2109,23 @@ FIXTURES = {
     "m03_prediction": m03_prediction,
     "m03_nstep": m03_nstep,
     "m03_decomposition": m03_decomposition,
+    "m04_bandit": m04_bandit,
+    "m04_policy": m04_policy,
+    "m04_greedy_replay": m04_greedy_replay,
+    "m04_ucb1": m04_ucb1,
+    "m04_ucb1_replay": m04_ucb1_replay,
+    "m04_ucb1_for_range": m04_ucb1_for_range,
+    "m04_beta": m04_beta,
+    "m04_ts_shares": m04_ts_shares,
+    "m04_verdict": m04_verdict,
+    "m04_scale": m04_scale,
+    "m04_gauss": m04_gauss,
+    "m05_reward": m05_reward,
+    "m05_ridge": m05_ridge,
+    "m05_linucb": m05_linucb,
+    "m05_lints": m05_lints,
+    "m05_verdicts": m05_verdicts,
+    "m05_logging": m05_logging,
     "m06_chain": m06_chain,
     "m06_q0": m06_q0,
     "m06_mbie": m06_mbie,

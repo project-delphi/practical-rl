@@ -253,6 +253,158 @@ With $\alpha = 0.02$ each update moves $V$ only 2% of the way, so after 1000 epi
 **Evidence:** Lab 3, checkpoint 3, and the stretch sweep (its curves are reported, not checked); the figure is the recorded experiment `runs/2026-10-17-local-m03-nstep-dial-exp.json`.
 :::
 
+## Module 4 {#m04}
+
+Questions for [Module 4 · Bandits from first principles](/modules/04-bandits.qmd), for after the lab, two per objective. Each answer ends with the Lab 4 checkpoint that is its evidence.
+
+### Objective 1: define pseudo-regret from the known arm means and measure it with seed bands
+
+[**4.1**]{#q4-1} Three arms have rates $(0.4, 0.3, 0.5)$. A run of 10 rounds pulls arms 0, 1, 2, 2, 2, 0, 2, 2, 2, 2 and receives the rewards 1, 0, 0, 1, 1, 0, 1, 1, 1, 0. Compute the pseudo-regret after 10 rounds twice: as a sum over rounds and as a sum over arms. Then compute $10\, r^*$ minus the rewards received. Why does the lab measure the first and not the second?
+
+::: {.callout-tip collapse="true" title="Answer to 4.1"}
+The gaps are $\Delta = (0.1, 0.2, 0)$. Over rounds: $0.1 + 0.2 + 0 + 0 + 0 + 0.1 + 0 + 0 + 0 + 0 = 0.4$. Over arms, with counts $N_{10} = (2, 1, 7)$: $2 \cdot 0.1 + 1 \cdot 0.2 + 7 \cdot 0 = 0.4$, the same sum sorted by arm. The rewards add up to 6, so $10 \cdot 0.5 - 6 = -1$: negative, because the run was lucky. That quantity mixes the method's choices with the noise of the rewards; pseudo-regret uses the true rates of the arms pulled, so it measures only the choices. It needs the true rates, which only a simulation has.
+
+**Evidence:** Lab 4, checkpoint 1.1 (exact on fixed reward stacks; it rejects a loop that sums $r^*$ minus the rewards).
+:::
+
+[**4.2**]{#q4-2} Greedy on the lab's headlines ends one seed with pseudo-regret 0.3, another with 500.0 and a third with 999.7, after 5000 rounds. Explain each number. A neighbor ran greedy and $\varepsilon$-greedy on one seed each and says greedy is better because its regret was 0.3 and $\varepsilon$-greedy's 51. What does the workshop's rule say, and what would you run instead?
+
+::: {.callout-tip collapse="true" title="Answer to 4.2"}
+The first three rounds pull each headline once and cost $0.1 + 0.2 + 0 = 0.3$. A run that then stays on headline 2 costs nothing more: 0.3. A run that left headline 2 behind after its first showing paid no click pays a gap in every later round: $0.3 + 0.1 \cdot 4997 = 500.0$ on headline 0, and $0.3 + 0.2 \cdot 4997 = 999.7$ on headline 1. With one seed per side the rule says "single seed, not a ranking". Greedy's results fall in two groups, near 0 and in the hundreds, and at least half of all runs land in the second, so one seed says almost nothing. Run 20 seeds per method, compare the IQMs with their bootstrap intervals, call overlapping intervals a tie, and state the budget.
+
+**Evidence:** Lab 4, checkpoint 1.2 (a greedy run on the lab's headlines, replayed round by round), and checkpoint 4 (the tie rule).
+:::
+
+### Objective 2: derive the UCB1 bonus from Hoeffding's inequality, which assumes rewards in [0, 1], and implement it
+
+[**4.3**]{#q4-3} Start from Hoeffding's inequality for $N$ rewards in $[0, 1]$, $P(\hat r \ge r + \eta) \le e^{-2N\eta^2}$. Find the width $\eta$ that holds with failure probability $p_{\text{fail}}$, and show that $p_{\text{fail}} = t^{-4}$ gives UCB1's bonus. At $t = 1000$, how many pulls does an arm need before its bonus is at most 0.1? What does the inequality assume about the rewards?
+
+::: {.callout-tip collapse="true" title="Answer to 4.3"}
+Set $e^{-2N\eta^2} = p_{\text{fail}}$: $\eta = \sqrt{\ln(1/p_{\text{fail}}) / (2N)}$. With $p_{\text{fail}} = t^{-4}$, $\ln(1/p_{\text{fail}}) = 4 \ln t$ and $\eta = \sqrt{4 \ln t / (2N)} = \sqrt{2 \ln t / N}$. At $t = 1000$, $2 \ln 1000 = 13.82$, and $\sqrt{13.82 / N} \le 0.1$ needs $N \ge 1382$. The inequality assumes rewards that are independent (or at least have mean $r$ given the earlier ones), lie in $[0, 1]$, and share the mean $r$; it needs nothing else about their distribution.
+
+**Evidence:** Lab 4, checkpoint 2.1 (the index, exact on fixed counts and sums).
+:::
+
+[**4.4**]{#q4-4} One colleague's index uses `np.log10(t)`; another gives an arm never pulled the index 0 instead of $+\infty$. What does each change do to UCB1's behavior? Why does checkpoint 2.2, which replays a recorded run, reject both?
+
+::: {.callout-tip collapse="true" title="Answer to 4.4"}
+`log10` divides $\ln t$ by $\ln 10$, so every bonus is smaller by a factor $\sqrt{\ln 10} \approx 1.52$: UCB1 explores less, closer to greedy. With an index of 0 for unpulled arms, the method pulls arm 0 in round 0 (a tie at 0 goes to the first arm), again in round 1 (its index is its mean, at least 0), and in every later round, because from $t = 2$ on arm 0's bonus is positive while every other index stays 0. It never tries the other arms: greedy's trap in its strongest form. UCB1 uses no randomness of its own, so on a fixed reward stack its whole run is fixed. Checkpoint 2.2 feeds your index the recorded counts and sums of every round and requires the same arm each time; both changes pick a different arm at some round.
+
+**Evidence:** Lab 4, checkpoints 2.1 and 2.2.
+:::
+
+### Objective 3: implement Beta–Bernoulli Thompson sampling, which assumes rewards in {0, 1}, from Bayes' rule
+
+[**4.5**]{#q4-5} Derive the posterior of a 0/1 arm's rate $x$ from a uniform prior after $S$ clicks and $F$ non-clicks, and show that one more click gives $\mathrm{Beta}(2 + S, 1 + F)$. A colleague writes the posterior as $\mathrm{Beta}(S, F)$. What goes wrong, and when?
+
+::: {.callout-tip collapse="true" title="Answer to 4.5"}
+The likelihood of $S$ clicks and $F$ non-clicks is $x^S (1 - x)^F$; the uniform prior's density is 1; so the posterior density is proportional to $x^S (1 - x)^F$, which is the $\mathrm{Beta}(1 + S, 1 + F)$ density. One more click multiplies by $x$: $x^{S+1}(1 - x)^F$, that is $\mathrm{Beta}(2 + S, 1 + F)$. $\mathrm{Beta}(S, F)$ drops the prior. Its parameters must be positive, so it is not even defined for an arm never pulled ($S = F = 0$) or never clicked ($S = 0$): `rng.beta` raises an error, and in the first rounds every arm is in that state.
+
+**Evidence:** Lab 4, checkpoint 3.1 (the posterior, exact on fixed counts).
+:::
+
+[**4.6**]{#q4-6} Three arms have posteriors $\mathrm{Beta}(21, 31)$, $\mathrm{Beta}(4, 8)$ and $\mathrm{Beta}(4, 2)$. (a) Which arm has the largest posterior mean? (b) With what probability does Thompson sampling pull each arm? (c) A colleague's version draws a 0/1 outcome for each arm with probability equal to its posterior mean and pulls the first arm whose outcome is 1 (arm 0 if none). With what probabilities does it pull each arm, and what is the mistake?
+
+::: {.callout-tip collapse="true" title="Answer to 4.6"}
+(a) The means are $21/52 = 0.404$, $4/12 = 0.333$ and $4/6 = 0.667$: arm 2. (b) Its posterior probability of being the best arm: 0.077, 0.054 and 0.869, computed exactly (the briefing's figure; the lab's Exercise 3 prints the shares of 4000 draws, close to these). (c) Arm 0 is pulled whenever its outcome is 1, and also when all three are 0: $0.404 + 0.596 \cdot 0.667 \cdot 0.333 = 0.536$. Arm 1: $0.596 \cdot 0.333 = 0.199$. Arm 2: $0.596 \cdot 0.667 \cdot 0.667 = 0.265$. The arm most likely to be the best is pulled about a quarter of the time. The mistake is to sample a plausible reward instead of a plausible rate: an outcome of 0 or 1 says nothing about how sure the posterior is, and the ties favor the lowest arm.
+
+**Evidence:** Lab 4, checkpoint 3.2 (the shares of your `thompson_step`'s choices on fixed posteriors), and checkpoint 3.3 (regret below the protocol's threshold).
+:::
+
+### Objective 4: show how epsilon-greedy and UCB1 depend on epsilon and on the reward scale, and explain why from their assumptions
+
+[**4.7**]{#q4-7} Every reward is multiplied by 10. Explain why $\varepsilon$-greedy pulls exactly the same arms as before on every seed of the lab, and why UCB1 does not. What change to UCB1 makes it pull the same arms again, and which assumption does that change restore?
+
+::: {.callout-tip collapse="true" title="Answer to 4.7"}
+$\varepsilon$-greedy decides with a coin flip of probability $\varepsilon$, which has no units, and with the largest sample mean. Multiplying every reward by 10 multiplies every sample mean by 10 and keeps their order, ties included. The coin flips come from the same generator, and the reward stack is the same up to the factor 10, so every choice is the same, and the regret in the original units is identical on every seed. UCB1 adds $\sqrt{2 \ln t / N_t(a)}$, a width solved for rewards in $[0, 1]$, to means that are now 10 times larger: relative to the gaps the bonus is 10 times smaller, and some choices change. Hoeffding's inequality for rewards in $[0, B]$ gives the width $B \sqrt{2 \ln t / N_t(a)}$; with $B = 10$ the whole index is multiplied by 10, its order is the same, and UCB1 pulls the same arms. That is the lab's `ucb1_for_range`: divide the sums by $B$, take UCB1's index, multiply it by $B$. It restores the assumption that the bonus is in the same units as the rewards.
+
+**Evidence:** Lab 4, checkpoints 5.1 (`ucb1_for_range`, exact) and 5.2 ("same" or "changes" for each method), and Exercise 5's run (identical regret on every seed for $\varepsilon$-greedy and for UCB1 with `ucb1_for_range` at $B = 10$).
+:::
+
+[**4.8**]{#q4-8} With the lab's gaps $(0.1, 0.2, 0)$, compute $\varepsilon$-greedy's floor per round, and over 5000 rounds, at $\varepsilon = 0.05$ and at $\varepsilon = 0.2$. In Exercise 5's sweep, why does $\varepsilon = 0$ not have the lowest regret, although its floor is 0? And when UCB1 ran on rewards × 10 with its bonus unchanged, what happened to its mean regret, its IQM and the tie rule's verdict, and why do they disagree?
+
+::: {.callout-tip collapse="true" title="Answer to 4.8"}
+The floor is $\frac{\varepsilon}{|\mathcal{A}|} \sum_a \Delta_a = \varepsilon \cdot 0.3 / 3$: 0.005 per round and 25 over 5000 rounds at $\varepsilon = 0.05$; 0.02 per round and 100 at $\varepsilon = 0.2$. At $\varepsilon = 0$ the method is greedy: no floor, but in at least half of all runs it leaves headline 2 behind and pays 0.1 or 0.2 in every later round, so its regret is linear on those seeds. A small $\varepsilon$ is cheap per round and slow to escape that trap; a large one escapes quickly and pays its floor forever. With rewards × 10 and the same bonus, UCB1's choices change: the bonus is small next to the gaps, so it behaves more greedily. On the reference run (seeds 0 to 19, 5000 rounds), its mean rose from 112.2 to 195.1 while its IQM fell from 113.8 to 90.1, and the tie rule called a tie (`runs/2026-10-18-local-m04-scale-exp.json`). Thirteen seeds improved, because the small bonus stopped forcing pulls of the worse headlines, and 7 fell into greedy's trap and got far worse: two humps, which pull the mean and the IQM in different directions. Over 100 seats of 20 seeds, the mean rose on 97 seats and fell on 3, and 1174 of 2000 seeds improved (`runs/2026-10-18-local-m04-seats-exp.json`).
+
+**Evidence:** Lab 4, checkpoint 5.2 ("changes" for UCB1 with the same bonus), and Exercise 5's sweep and scale run (reported, not checked).
+## Module 5 {#m05}
+
+Questions for [Module 5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd), two per objective. Each answer ends with the Lab 5 checkpoint or cell that is its evidence.
+
+### Objective 1: frame a recommender as a contextual bandit and say what is lost compared with full RL
+
+[**5.1**]{#q5-1} A news site shows each visitor one headline and records whether they click. Give the context, the action and the reward of a contextual-bandit framing. A product manager then adds a fact: a user who clicks a clickbait headline is less likely to come back tomorrow. Is the problem still a contextual bandit? If not, what must the framing add?
+
+::: {.callout-tip collapse="true" title="Answer to 5.1"}
+Context: the visitor's features, such as their reading history and device, plus a constant 1 for the model. Action: the headline shown. Reward: the click, 1 or 0, observed for the shown headline only. In a contextual bandit the action changes nothing about the next context, and that is what the manager's fact breaks: today's headline changes whether this user returns, so it changes the future. The framing needs a state that carries that effect, for example the user's recent exposure to clickbait, a transition in which the action changes it, and an objective over the horizon, a discounted return, instead of the next click. That is Module 1's MDP.
+
+**Evidence:** Lab 5, Exercise 1: the run cell serves one stream of users with two fixed policies and shows that the users are the same whatever is shown; the framing is discussed in the debrief.
+:::
+
+[**5.2**]{#q5-2} RecSim's click model is $r(x, a) = \operatorname{clip}(0.5 + 0.15\, \theta_a^\top x,\ 0.02,\ 0.98)$. Take three items, numbered 0 to 2, with $\theta_0 = (2, 0)$, $\theta_1 = (0, -4)$, $\theta_2 = (10, 10)$ and the user $x = (0.5, 0.5)$. Compute the three click probabilities and say which item is best. Why does the lab's model use the features $\phi(x) = (x, 1)$ rather than $x$ alone?
+
+::: {.callout-tip collapse="true" title="Answer to 5.2"}
+$\theta^\top x = 1, -2, 10$, so $0.5 + 0.15\,\theta^\top x = 0.65, 0.2, 2.0$, and the clip gives $0.65$, $0.2$ and $0.98$. Item 2 is best. Without the constant, a linear model $w^\top x$ predicts 0 at $x = 0$ for every item, but every item's click probability there is 0.5. The constant feature lets $w^*_a = (0.15\,\theta_a,\ 0.5)$ represent the click model exactly inside the clip.
+
+**Evidence:** Lab 5, checkpoint 1 (`reward_fn` on hand-worked cases, two of them clipped).
+:::
+
+### Objective 2: implement incremental ridge regression, LinUCB and linear Thompson sampling
+
+[**5.3**]{#q5-3} With $\lambda_{\text{ridge}} = 1$, an item has seen one user with $\phi = (1, 0)$, so $\Lambda^{-1} = \operatorname{diag}(1/2,\ 1)$. Use the Sherman–Morrison formula to add the observation $\phi = (0, 2)$ and check your answer against a direct inverse. What goes wrong if the update drops the 1 in the denominator?
+
+::: {.callout-tip collapse="true" title="Answer to 5.3"}
+$\Lambda^{-1}\phi = (0, 2)$ and $1 + \phi^\top \Lambda^{-1}\phi = 1 + 4 = 5$. Subtract $(0, 2)(0, 2)^\top / 5$: the new inverse is $\operatorname{diag}(1/2,\ 1 - 4/5) = \operatorname{diag}(0.5,\ 0.2)$. Directly, $\Lambda = I + (1, 0)(1, 0)^\top + (0, 2)(0, 2)^\top = \operatorname{diag}(2, 5)$, whose inverse is $\operatorname{diag}(0.5, 0.2)$: the same. Without the 1 the denominator is 4, and the update gives $\operatorname{diag}(0.5,\ 0)$: a singular "inverse" that claims the direction $(0, 1)$ is known exactly after one observation. Its width there would be 0, so LinUCB would stop exploring that direction, and the Cholesky factor of Thompson sampling would fail.
+
+**Evidence:** Lab 5, checkpoint 2 (`Ridge`'s statistics, inverse and predictions against the closed form).
+:::
+
+[**5.4**]{#q5-4} A unit feature vector $\phi$ has been seen $n = 3$ times by an item, with $\lambda_{\text{ridge}} = 1$. What is LinUCB's bonus at $\phi$ with $c = 0.5$, and what is the standard deviation of linear Thompson sampling's drawn score at $\phi$ with $v = 0.25$? A colleague's LinUCB adds $c\, \phi^\top \Lambda^{-1} \phi$ instead of $c \sqrt{\phi^\top \Lambda^{-1} \phi}$: what bonus does it give here, and why is it wrong?
+
+::: {.callout-tip collapse="true" title="Answer to 5.4"}
+$\phi^\top \Lambda^{-1} \phi = 1/(1 + n) = 1/4$, so the width is $1/2$, LinUCB's bonus is $0.5 \cdot 0.5 = 0.25$, and the drawn score's standard deviation is $0.25 \cdot 0.5 = 0.125$. The colleague's bonus is $0.5 \cdot 1/4 = 0.125$. It adds a variance where the confidence interval needs a standard deviation: it has the wrong units, and it shrinks like $1/n$ instead of $1/\sqrt{n}$, so the method stops exploring too soon.
+
+**Evidence:** Lab 5, checkpoint 3 (the width of a unit vector seen $n$ times) and checkpoint 4 (the drawn scores' covariance $v^2 \Lambda^{-1}$).
+:::
+
+### Objective 3: compare them with predict-then-greedy under misspecification and drift over 5 seeds
+
+[**5.5**]{#q5-5} Suppose that over 5 seeds per side LinUCB's final regret has an interquartile mean of 170 with a 95% bootstrap interval [150, 190], and greedy's has 260 with [180, 320]. What is the verdict under the workshop's rule, and what must the sentence state besides it? What changes if each side has only 3 seeds? And if one?
+
+::: {.callout-tip collapse="true" title="Answer to 5.5"}
+The intervals overlap (190 > 180), so it is a tie, even though LinUCB's interquartile mean is lower: five seeds per side do not separate them. The sentence states the budget: the rounds per run, the seeds per method, the wall-clock time and the hardware. With 3 seeds per side there is no interval: show every seed, compare the means with the min–max ranges, and call a tie if the ranges overlap. With one seed per side the result is "single seed, not a ranking". In every case lower regret is better, so the comparison runs with `higher_is_better=False`.
+
+**Evidence:** Lab 5, checkpoint 5 (`verdicts` against `prl.evaluate.compare` on fixed tables, including ties and fewer seeds).
+:::
+
+[**5.6**]{#q5-6} In the misspecified regime a colleague notes that LinUCB's widths at the end of the run are about as narrow as in the well-specified regime, and concludes that the linear model fits well. What is wrong with the conclusion? In the drifting regime, what does LinUCB's ridge estimate converge to? And a second colleague concludes from Lab 5 that greedy recommenders always lose to LinUCB: what in the lab's design limits that conclusion?
+
+::: {.callout-tip collapse="true" title="Answer to 5.6"}
+The width $\lVert \phi \rVert_{\Lambda^{-1}}$ depends only on which users an item has seen, not on whether the model is right. It measures the noise around the model, assuming the model is linear. Under misspecification ridge converges to the best linear fit for the users the item was shown to, whose error stays, so the widths shrink while the regret keeps growing; narrow widths then mean a precise estimate of the wrong function. Under drift every observation counts equally in $\Lambda_a$ and $b_a$, so $\hat w_a$ estimates an average of the tastes the item has seen over the whole run, not the current ones, and its widths shrink as its data grow older.
+
+The second conclusion overreaches. The lab compares the methods after one launch design, mostly one impression per item, on one simulator whose users are diverse, with $c$ and $v$ set by hand, 3000 rounds and 5 seeds per seat. Change the launch to three passes and the well-specified call becomes a tie at 29 of 30 seats (`runs/2026-10-18-local-m05-launch-exp.json`). A verdict holds for its budget and its design.
+
+**Evidence:** Lab 5, Exercise 5's run cell, which prints LinUCB's width at the end in each regime beside the regrets, and its warm-launch condition; checkpoint 5 checks the verdicts.
+:::
+
+### Objective 4: log data with correct propensities from a stochastic behavior policy
+
+[**5.7**]{#q5-7} A team logs with $\varepsilon$-greedy over LinUCB, $K = 5$ items (numbered 0 to 4) and $\varepsilon = 0.25$. They store only $(x, a, r)$ and plan to recompute the propensities next month from the model they will have then. What goes wrong? With the propensities recorded correctly instead, a target policy always shows item 4, which is never the logger's best item. If the users shown item 4 click with probability 0.3, what does the mean of weight × click estimate?
+
+::: {.callout-tip collapse="true" title="Answer to 5.7"}
+A propensity is the probability the deployed policy used when it showed the item. Next month's model scores the items differently, so on many rows it names another best item and recomputes 0.8 where the logger used 0.05, or the reverse; the weights are then wrong exactly where they matter, and nothing in $(x, a, r)$ can repair them. Record the probability at the moment of showing.
+
+With correct propensities, the best item gets $1 - 0.25 + 0.25/5 = 0.8$ and each other item $0.25/5 = 0.05$. A row has weight $1/0.05 = 20$ when the logger showed item 4, which happens with probability 0.05, and 0 otherwise, so the mean weight is $0.05 \cdot 20 = 1$, as it must be on a correct log. The mean of weight × click is $0.05 \cdot 20 \cdot 0.3 = 0.3$: the click rate of the target policy, estimated from rows the target did not choose. With $\varepsilon = 0$ item 4 never appears and both means are 0.
+
+**Evidence:** Lab 5, checkpoint 6 (`log_policy` exact; the mean weight of a log made with it).
+:::
+
+[**5.8**]{#q5-8} A colleague's logger records `probs.max()`, the best item's probability, as the propensity of every row. The logger is $\varepsilon$-greedy with $K = 10$ and $\varepsilon = 0.1$. What is the mean weight of the uniform target on this log? Why does a target that usually agrees with the logger's best item give a mean weight close to 1, and why is that no comfort?
+
+::: {.callout-tip collapse="true" title="Answer to 5.8"}
+Every row records $0.91$, so every uniform-target weight is $0.1/0.91 \approx 0.11$, and so is the mean, instead of 1. The recorded propensity is right on rows where the logger showed its best item and wrong, by a factor of 91, on rows where it explored. A target that agrees with the logger puts its weight on the right rows, so the error barely shows. But the policies Day 5 wants to evaluate are the ones that differ from the logger, and their estimates rest on the explored rows, exactly where the propensities are wrong.
+
+**Evidence:** Lab 5, checkpoint 7 (every recorded propensity equals the shown item's probability) and Exercise 7's run cell, which prints the mean weight of two targets on the suspect's log.
 ## Module 6 {#m06}
 
 Questions for [Module 6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd), two per objective. Each answer ends with the Lab 6 checkpoint that is its evidence. Objective 4 has no checkpoint; its evidence is the briefing's section 6 and the papers it cites.
