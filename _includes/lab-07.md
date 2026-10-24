@@ -10,10 +10,10 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 | 2 | [The semi-gradient TD(0) update [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 7 |
 | 3 | [Why it is not a gradient [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 6 |
 | 4 | [Baird's counterexample [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb#scrollTo=ex4-head){target="_blank" rel="noopener"} | 8 |
-| 5 | [Remove one leg of the triad [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 9 |
+| 5 | [Remove one leg of the triad [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 10 |
 | 6 | [Linear Q-learning on CartPole [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb#scrollTo=ex6-head){target="_blank" rel="noopener"} | 8 |
-| 7 | [Planted bug: unnormalized features [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb#scrollTo=ex7-head){target="_blank" rel="noopener"} [Planted bug]{.chip .chip-stale} | 6 |
-| | **Core** | **49 of 70** |
+| 7 | [Planted bug: a colleague's featurizer [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb#scrollTo=ex7-head){target="_blank" rel="noopener"} [Planted bug]{.chip .chip-stale} | 7 |
+| | **Core** | **51 of 70** |
 :::
 
 ::: {.challenge}

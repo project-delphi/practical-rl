@@ -7,7 +7,7 @@
 
 Semi-gradient TD, the deadly triad on Baird's counterexample, and linear Q-learning on CartPole.
 
-[Colab CPU]{.chip} [core 49 min]{.chip} [Open in Colab[, Lab 7 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb){.btn-quiet target="_blank" rel="noopener"}
+[Colab CPU]{.chip} [core 51 min]{.chip} [Open in Colab[, Lab 7 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb){.btn-quiet target="_blank" rel="noopener"}
 :::
 
 ::: {.module-card}

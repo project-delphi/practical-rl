@@ -55,7 +55,7 @@ print(f"CartPole budget: {budget.steps} steps, epsilon decays over {budget.eps_s
 print(f"Your seed: {RUN_SEED}")
 
 # %% [markdown] role="ex1-head"
-# **Frame inventory at scale.** Module 1's shop had one product with stock 0 to 20. Now it
+# **Frame inventory at scale.** Module 1's shop had one product with stock 0 to 10. Now it
 # sells three products, each with stock 0 to 50, and each period it orders 0 to 50 units of
 # each. Write `scale_spec`, which counts what a table needs for n products of a given
 # capacity, and the length of the one-hot features the briefing proposes: for each product,
@@ -63,11 +63,40 @@ print(f"Your seed: {RUN_SEED}")
 # The run cell then builds a two-product shop small enough to solve exactly, twice: once
 # with independent products, and once where the two products share one delivery fee.
 
+
+# %%
+# Provided: a two-product shop small enough to solve exactly (no learning here).
+def two_product_values(shared_fee, capacity=5, reorder=2):
+    """Provided: the exact values of a two-product shop under an order-up-to rule.
+
+    Each product is a small version of Module 1's shop (prl's InventoryMDP with capacity 5 and
+    demand Poisson with mean 2). The rule: when stock is below `reorder`, order up to capacity;
+    otherwise order nothing. With `shared_fee`, the fixed delivery fee is paid once when both
+    products order. Returns (values over the 36 joint states, the one-hot feature matrix)."""
+    shop = InventoryMDP(capacity=capacity, demand_mean=2.0, max_demand=8)
+    levels = capacity + 1
+    rule = np.zeros((levels, levels))  # rule[x, q] = 1 for the order q at stock x
+    for x in range(levels):
+        rule[x, capacity - x if x < reorder else 0] = 1.0
+    P1 = np.einsum("sa,sat->st", rule, shop.P)  # one product's chain under the rule
+    r1 = (rule * shop.R).sum(axis=1)
+    P = np.kron(P1, P1)  # the products move independently: joint state (x1, x2)
+    ones = np.ones(levels)
+    r = np.kron(r1, ones) + np.kron(ones, r1)  # the rewards add up
+    if shared_fee:
+        orders = (np.arange(levels) < reorder).astype(float)  # does this stock order?
+        r = r + shop.params["fixed_cost"] * np.kron(orders, orders)  # one fee saved
+    v = np.linalg.solve(np.eye(levels**2) - shop.gamma * P, r)
+    eye = np.eye(levels)
+    features = np.hstack([np.kron(eye, ones[:, None]), np.kron(ones[:, None], eye)])
+    return v, features
+
+
 # %% [markdown] role="ex1-predict"
-# The second shop pays its fixed delivery fee of 5 once when both products are ordered in
-# the same period, instead of once per product. With one-hot features (12 for two products
-# of capacity 5), will the best linear fit of the second shop's exact values be exact? If
-# not, will its largest error be smaller or larger than the fee itself?
+# The second shop pays its fixed delivery fee of 5 once when both products are ordered in the
+# same period, instead of once per product. Its values are then not a sum of per-product values
+# (briefing, section 2). With one-hot features (12 for two products of capacity 5), will the
+# best linear fit's largest error be below 1, between 1 and 5, or above the fee of 5?
 
 
 # %% role="ex1-stub"
@@ -110,49 +139,20 @@ spec = scale_spec(3, 50)
 print(f"Three products, capacity 50: {spec['n_states']:,} states, {spec['n_actions']:,} orders")
 print(f"  Q table: {spec['q_entries']:,} entries, {spec['q_entries'] * 8 / 1e9:,.0f} GB in float64")
 print(f"  one-hot features: {spec['feature_dim']} weights per value function")
-
-
-def two_product_values(shared_fee, capacity=5, reorder=2):
-    """Provided: the exact values of a two-product shop under an order-up-to rule.
-
-    Each product follows Module 1's InventoryMDP (demand Poisson with mean 2). The rule: when
-    stock is below `reorder`, order up to capacity; otherwise order nothing. With
-    `shared_fee`, the fixed delivery fee is paid once when both products order. Returns
-    (values over the 36 joint states, the one-hot feature matrix)."""
-    shop = InventoryMDP(capacity=capacity, demand_mean=2.0, max_demand=8)
-    levels = capacity + 1
-    rule = np.zeros((levels, levels))  # rule[x, q] = 1 for the order q at stock x
-    for x in range(levels):
-        rule[x, capacity - x if x < reorder else 0] = 1.0
-    P1 = np.einsum("sa,sat->st", rule, shop.P)  # one product's chain under the rule
-    r1 = (rule * shop.R).sum(axis=1)
-    P = np.kron(P1, P1)  # the products move independently: joint state (x1, x2)
-    ones = np.ones(levels)
-    r = np.kron(r1, ones) + np.kron(ones, r1)  # the rewards add up
-    if shared_fee:
-        orders = (np.arange(levels) < reorder).astype(float)  # does this stock order?
-        r = r + shop.params["fixed_cost"] * np.kron(orders, orders)  # one fee saved
-    v = np.linalg.solve(np.eye(levels**2) - shop.gamma * P, r)
-    eye = np.eye(levels)
-    features = np.hstack([np.kron(eye, ones[:, None]), np.kron(ones[:, None], eye)])
-    return v, features
-
-
 for shared in (False, True):
     v, features = two_product_values(shared)
     w_fit, *_ = np.linalg.lstsq(features, v, rcond=None)
     gap = np.abs(features @ w_fit - v).max()
     name = "shared delivery fee" if shared else "independent products"
+    shown = f"{gap:.3g}" if gap > 1e-12 else "below 1e-12 (rounding)"
     print(f"Two products, capacity 5, {name}: values {v.min():.2f} to {v.max():.2f};")
-    print(f"  best fit with {features.shape[1]} one-hot features: largest error {gap:.3g}")
+    print(f"  best fit with {features.shape[1]} one-hot features: largest error {shown}")
 
 # %% [markdown] role="ex1-explain"
-# Why does a sum of one product's values fit the independent shop exactly (one-hot
-# features)? Where does the shared fee make the value of one product's stock depend on the
-# other's? For the three-product shop, how many weights would one indicator per pair of
-# stock levels add, and is that still far below 132,651? Which coupling would you expect in
-# a real shop (a shared truck, a shared warehouse, a budget), and which features would
-# represent it?
+# Why does a sum of per-product values fit the independent shop exactly (one-hot features)?
+# For the three-product shop, how many weights would one indicator per pair of stock levels
+# add, and is that still far below 132,651? (Which coupling a real shop has, and which
+# features would represent it, is for the debrief.)
 
 # %% role="ex1-chk"
 lab.check(1, m07.check_scale_spec, scale_spec)
@@ -227,10 +227,10 @@ lab.check(2, m07.check_semi_gradient_td0, semi_gradient_td0)
 # Hessian is symmetric. The run cell compares A with Aᵀ for Baird.
 
 # %% [markdown] role="ex3-predict"
-# Weight 1 appears only in state 1's value, and weight 7 only in state 7's. State 1's target
-# is state 7's value, and state 7's target is its own value. Before you run: will entry
-# A[1, 7] (how much w₇ moves the expected update of w₁) be zero or not? And A[7, 1]? (In code
-# these are A[0, 6] and A[6, 0].)
+# Weight 1 appears only in state 1's value, and weight 7 only in state 7's. State 1's target is
+# state 7's value, and state 7's target is its own value. Before you run, compute A[1, 7] and
+# A[7, 1] by hand from A = ΦᵀD(I − γP_π)Φ. Each is a single term: μ(s) times φᵢ(s) times entry
+# j of row s of (I − γP_π)Φ. Is A symmetric? (In code these are A[0, 6] and A[6, 0].)
 
 
 # %% role="ex3-stub"
@@ -262,7 +262,8 @@ def td_matrix(phi, mu, P, gamma):
 
 # %% role="ex3-run"
 A = td_matrix(baird.phi, baird.mu_behavior, baird.P_target, baird.gamma)
-print("7 A for Baird's counterexample (rows and columns are weights 1-8):")
+print("7 × A for Baird's counterexample (so the entries are short decimals; rows and columns")
+print("are weights 1-8):")
 print(np.array2string(7 * A, precision=2, suppress_small=True))
 print(
     f"A[1, 7] = {A[0, 6]:.5f}, A[7, 1] = {A[6, 0]:.5f}; largest |A - Aᵀ| = {np.abs(A - A.T).max():.4f}"
@@ -292,8 +293,8 @@ lab.check(3, m07.check_td_matrix, td_matrix)
 # run cell sweeps 1000 times with α = 0.01 from w = (1, 1, 1, 1, 1, 1, 10, 1).
 
 # %% [markdown] role="ex4-predict"
-# After 1000 sweeps with α = 0.01, is ‖w‖ nearer 10, 40 or 400? Which weights grow, and does
-# any weight fall?
+# After 1000 sweeps with α = 0.01, will ‖w‖ (10.3 at the start) still be below 20, or above
+# 100? Which weights grow, and does any weight fall?
 
 
 # %% role="ex4-stub"
@@ -356,9 +357,10 @@ plt.show()
 
 # %% [markdown] role="ex4-explain"
 # Nothing here is random: every sweep is the exact expectation. Which weight grows fastest,
-# and why does w₇ fall while w₈ rises? The run printed how fast the fastest direction grows
-# per sweep at three step sizes: what does a smaller α buy you? Where in A (TD matrix) is the
-# growth decided? (Gotcha: "A bigger network will fix divergence.")
+# and why does w₇ fall while w₈ rises? A smaller α changes the growth per sweep (printed
+# above): does it change whether w grows, and what in A (TD matrix) decides that? Baird could
+# represent v_π = 0 exactly with its 8 weights: what would more weights change? (Gotcha: "A
+# bigger network will fix divergence.")
 
 # %% role="ex4-chk"
 lab.check(4, m07.check_baird_expected_update, baird_expected_update)
@@ -374,8 +376,29 @@ lab.check(4, m07.check_baird_expected_update, baird_expected_update)
 # - **Monte Carlo targets:** no bootstrapping. The expected Monte Carlo target of state s is
 #   v_π(s), the solution of v = r_π + γ P_π v. In the update that is γ = 0 and r = v_π.
 #
-# The run cell starts each variant from the same values and runs it to a million sweeps
-# with α = 0.01, using powers of I − αA from your `td_matrix`.
+# One sweep is w ← (I − αA)w + αb, so k sweeps are one k-th matrix power: Exercise 4's run
+# checked this against your update, and this run checks it again for 100 sweeps of each
+# variant. That lets it follow each variant to a million sweeps at α = 0.01 in under a second,
+# instead of a million Python calls per variant. Each variant starts from the same values.
+
+
+# %%
+# Provided: k sweeps as one matrix power (no learning here).
+def run_variant(cfg, w_start, ks, alpha=ALPHA_BAIRD):
+    """Provided: weights after k sweeps for every k in ks, from powers of the affine map
+    w -> (I - alpha A) w + alpha b, with A from your td_matrix. Overflow gives inf or nan."""
+    A_v = td_matrix(cfg["phi"], cfg["mu"], cfg["P"], cfg["gamma"])
+    b_v = cfg["phi"].T @ (cfg["mu"] * cfg["r"])
+    d = len(w_start)
+    step = np.eye(d + 1)
+    step[:d, :d] -= alpha * A_v
+    step[:d, d] = alpha * b_v
+    out = []
+    with np.errstate(over="ignore", invalid="ignore"):
+        for k in ks:
+            out.append((np.linalg.matrix_power(step, int(k)) @ np.append(w_start, 1.0))[:d])
+    return np.array(out), A_v
+
 
 # %% [markdown] role="ex5-predict"
 # The briefing says each variant converges. For each one: will w reach 0? Will all seven
@@ -399,10 +422,10 @@ def remove_one_leg(env):
 
 
 # %% [markdown] role="ex5-hint"
-# A stationary distribution satisfies μᵀP = μᵀ: start from the uniform distribution and
-# repeat `mu = mu @ P` a few hundred times. `np.linalg.solve(np.eye(S) - gamma * P, r)` solves
-# the Bellman equation for v_π. The checkpoint also tries a different target policy and
-# nonzero rewards.
+# μ_π satisfies μᵀP_π = μᵀ with entries that sum to 1, and repeated multiplication from the
+# uniform distribution reaches it here. v_π solves the Bellman equation (I − γP_π)v = r_π: one
+# linear solve, not an inverse. The checkpoint also tries a different target policy and nonzero
+# rewards.
 
 
 # %% role="ex5-sol"
@@ -425,24 +448,6 @@ def remove_one_leg(env):
 legs = remove_one_leg(baird)
 v_pi = np.linalg.solve(np.eye(7) - baird.gamma * baird.P_target, baird.rewards)
 GRID = np.unique(np.round(np.logspace(0, 6, 61)).astype(int))  # sweeps 1 to 10^6
-
-
-def run_variant(cfg, w_start, ks, alpha=ALPHA_BAIRD):
-    """Provided: weights after k sweeps for every k in ks, from powers of the affine map
-    w -> (I - alpha A) w + alpha b, with A from your td_matrix. Overflow gives inf or nan."""
-    A_v = td_matrix(cfg["phi"], cfg["mu"], cfg["P"], cfg["gamma"])
-    b_v = cfg["phi"].T @ (cfg["mu"] * cfg["r"])
-    d = len(w_start)
-    step = np.eye(d + 1)
-    step[:d, :d] -= alpha * A_v
-    step[:d, d] = alpha * b_v
-    out = []
-    with np.errstate(over="ignore", invalid="ignore"):
-        for k in ks:
-            out.append((np.linalg.matrix_power(step, int(k)) @ np.append(w_start, 1.0))[:d])
-    return np.array(out), A_v
-
-
 variants = {"original": {}, **legs}
 results, agree = {}, []
 print(f"{'variant':12s} {'min Re eig(A)':>13s}   max|v - v_pi| after 10^3, 10^4, 10^5, 10^6 sweeps")
@@ -478,12 +483,12 @@ ax.legend()
 plt.show()
 
 # %% [markdown] role="ex5-explain"
-# Read each variant's smallest real part of an eigenvalue of A against its curve. With
-# on-policy weights all of μ_π sits on state 7, so A = (1 − γ)φ₇φ₇ᵀ (TD matrix): which part
-# of w does an update change, and which parts never move? Which values are then right, and
-# which stay wrong? The Monte Carlo variant follows the gradient of an objective: why does
-# w stop where it does and not at 0? The tabular variant is Module 1's policy evaluation,
-# damped: why is it the slowest at γ = 0.99?
+# With on-policy weights all of μ_π sits on state 7, so A = (1 − γ)φ₇φ₇ᵀ (TD matrix): which
+# part of w does an update change, and why do the six upper states keep the value −1.8? The
+# Monte Carlo variant follows the gradient of an objective, yet w stops at (1.692, …, 6.769,
+# −3.385) and not at 0: which direction does Φ map to 0? The tabular variant is Module 1's
+# policy evaluation, damped: what is its factor per sweep at α = 0.01, and why is it the
+# slowest?
 
 # %% role="ex5-chk"
 lab.check(5, m07.check_remove_one_leg, remove_one_leg)
@@ -499,44 +504,8 @@ lab.check(5, m07.check_remove_one_leg, remove_one_leg)
 # target still bootstraps. The provided loop picks actions ε-greedily, ε falling from 1 to
 # 0.05, with α = 0.3 and γ = 0.99.
 
-# %% [markdown] role="ex6-predict"
-# A random policy balances the pole for about 20 steps. After your training budget, will the
-# greedy policy's return be below 3 times random, around it, or far above? Will ‖W‖ keep
-# growing all run, or level off?
-
-
-# %% role="ex6-stub"
-def linear_q_update(W, phi, a, r, phi_next, terminated, truncated, gamma, alpha):
-    """One semi-gradient Q-learning update for linear action values (linear Q-learning).
-
-    W: (n_actions, d) weights, Q(s, b) = W[b] @ phi(s). phi, phi_next: (d,) features of s and
-    s'. a: the action taken (int). r, gamma, alpha: floats. terminated, truncated: bools from
-    env.step. Returns the new W, a new array; only row a changes.
-    """
-    # TODO 6: the target (which flag stops the bootstrap?), the TD error, then row a.
-    raise NotImplementedError(
-        "TODO 6: write linear_q_update, or run lab.use_reference(6) to continue with the solution"
-    )
-
-
-# %% [markdown] role="ex6-hint"
-# `W @ phi_next` gives Q(s', b) for every b at once. The gradient of W[a] @ phi with respect
-# to W[a] is phi, and with respect to every other row it is 0. One of the two flags does not
-# enter the target at all. Start from `W.copy()`.
-
-
-# %% role="ex6-sol"
-@lab.solution(6)
-def linear_q_update(W, phi, a, r, phi_next, terminated, truncated, gamma, alpha):
-    """W[a] += alpha * delta * phi; bootstrap unless terminated."""
-    bootstrap = 0.0 if terminated else gamma * np.max(W @ phi_next)
-    delta = r + bootstrap - W[a] @ phi  # TD error; truncated still bootstraps
-    W_new = W.copy()
-    W_new[a] = W[a] + alpha * delta * phi  # (linear Q-learning)
-    return W_new
-
-
-# %% role="ex6-run"
+# %%
+# Provided: features, the training loop and evaluation (no learning here).
 OBS_SCALE = np.array([2.4, 3.0, 0.2095, 3.5])  # cart x and pole angle: where CartPole ends
 CENTERS = np.linspace(-1.0, 1.0, 5)  # five bumps per scaled number
 WIDTH = CENTERS[1] - CENTERS[0]  # sigma = the spacing, 0.5
@@ -632,6 +601,44 @@ def random_return(seed, episodes):
     return total / episodes
 
 
+# %% [markdown] role="ex6-predict"
+# A random policy balances the pole for about 20 steps. After your training budget, will the
+# greedy policy's return be below 3 times random, around it, or far above? Will ‖W‖ keep
+# growing all run, or level off?
+
+
+# %% role="ex6-stub"
+def linear_q_update(W, phi, a, r, phi_next, terminated, truncated, gamma, alpha):
+    """One semi-gradient Q-learning update for linear action values (linear Q-learning).
+
+    W: (n_actions, d) weights, Q(s, b) = W[b] @ phi(s). phi, phi_next: (d,) features of s and
+    s'. a: the action taken (int). r, gamma, alpha: floats. terminated, truncated: bools from
+    env.step. Returns the new W, a new array; only row a changes.
+    """
+    # TODO 6: the target (which flag stops the bootstrap?), the TD error, then row a.
+    raise NotImplementedError(
+        "TODO 6: write linear_q_update, or run lab.use_reference(6) to continue with the solution"
+    )
+
+
+# %% [markdown] role="ex6-hint"
+# `W @ phi_next` gives Q(s', b) for every b at once. The gradient of W[a] @ phi with respect
+# to W[a] is phi, and with respect to every other row it is 0. One of the two flags does not
+# enter the target at all. Start from `W.copy()`.
+
+
+# %% role="ex6-sol"
+@lab.solution(6)
+def linear_q_update(W, phi, a, r, phi_next, terminated, truncated, gamma, alpha):
+    """W[a] += alpha * delta * phi; bootstrap unless terminated."""
+    bootstrap = 0.0 if terminated else gamma * np.max(W @ phi_next)
+    delta = r + bootstrap - W[a] @ phi  # TD error; truncated still bootstraps
+    W_new = W.copy()
+    W_new[a] = W[a] + alpha * delta * phi  # (linear Q-learning)
+    return W_new
+
+
+# %% role="ex6-run"
 print(f"Training your linear Q on seed {RUN_SEED}: {budget.steps} steps", flush=True)
 start = time.perf_counter()
 W, qlog = train_linear_q(linear_q_update, rbf_features, **TRAIN, seed=RUN_SEED)
@@ -643,6 +650,7 @@ print(
 )
 start_obs, _ = gym.make("CartPole-v1").reset(seed=RUN_SEED)
 print(f"Q at your first start state: {np.round(W @ rbf_features(start_obs), 2).tolist()}")
+print("  (a discounted return is at most 1 / (1 - γ) = 100; a little above it is estimation error)")
 print(f"Greedy return over {budget.eval_episodes} episodes: {score:.1f}")
 print(f"Random actions on the same start states: {baseline:.1f}; ratio {score / baseline:.1f}")
 used = Budget(steps=budget.steps, seeds=1, wall_clock_s=train_s, hardware=HARDWARE)
@@ -651,34 +659,40 @@ lab.metric("greedy_return", round(score, 1))  # room code
 lab.metric("random_return", round(baseline, 1))  # room code
 lab.metric("w_norm_end", round(qlog["w_norm"][-1], 1))  # room code
 lab.metric("q_log", {k: qlog[k] for k in ("step", "w_norm", "recent_return")})
-# Your seed against the recorded band: linear Q with these features, step size and budget.
-band = prl.data.band("m07_linear_q", budget)
 fig, (ax_r, ax_n) = plt.subplots(1, 2, figsize=(10, 3.8))
-prl.plot.with_recorded(
-    band,
-    qlog["recent_return"],
-    x=qlog["step"],
-    your_budget=budget,
-    ax=ax_r,
-    label=f"your seed ({RUN_SEED})",
-    xlabel="environment steps",
-    ylabel="mean return, last 10 episodes",
-    title="Linear Q on CartPole-v1",
-)
 ax_n.plot(qlog["step"], qlog["w_norm"], color=prl.plot.SERIES[0])
 ax_n.set(xlabel="environment steps", ylabel="‖W‖", title="Weight norm, your seed")
+# Your seed against the recorded band: linear Q with these features, step size and budget.
+try:
+    band = prl.data.band("m07_linear_q", budget)
+except (KeyError, ValueError) as exc:  # the settings were changed: no recording to match
+    band = None
+    print(textwrap.fill(f"No recorded band to compare with: {exc}", 98))
+    ax_r.plot(qlog["step"], qlog["recent_return"], color=prl.plot.SERIES[0], label="your seed")
+    ax_r.set(xlabel="environment steps", ylabel="mean return, last 10 episodes")
+else:
+    prl.plot.with_recorded(
+        band,
+        qlog["recent_return"],
+        x=qlog["step"],
+        your_budget=budget,
+        ax=ax_r,
+        label=f"your seed ({RUN_SEED})",
+        xlabel="environment steps",
+        ylabel="mean return, last 10 episodes",
+        title="Linear Q on CartPole-v1",
+    )
 plt.show()
-inside = band["runs"].min(axis=0)[-1] <= qlog["recent_return"][-1] <= band["runs"].max(axis=0)[-1]
-where = "inside" if inside else "outside"
-print(f"At the last step your seed is {where} the recorded {len(band['seeds'])}-seed range.")
+if band is not None:
+    lo, hi = band["runs"].min(axis=0)[-1], band["runs"].max(axis=0)[-1]
+    where = "inside" if lo <= qlog["recent_return"][-1] <= hi else "outside"
+    print(f"At the last step your seed is {where} the recorded {len(band['seeds'])}-seed range.")
 
 # %% [markdown] role="ex6-explain"
-# Q-learning with linear features has all three legs of the triad: features, a bootstrapped
-# target, and a greedy target policy learned from ε-greedy behavior. Baird shows such a
-# combination can diverge, and here it did not: what about this run's features and step
-# size kept the weights bounded (linear Q-learning)? Is that a guarantee for another seed or
-# another α? Your seed is one run: is landing outside the recorded band evidence that your code
-# is wrong?
+# Unit-length features make α‖φ(s)‖² = 0.3 at every state. Which failure does that rule out
+# (step-size rule), and which does it leave in place, given that this update has all three legs
+# of the triad (linear Q-learning)? Your seed is one run: is landing outside the recorded band
+# evidence that your code is wrong?
 
 # %% role="ex6-chk1"
 lab.check(6, m07.check_linear_q_update, linear_q_update, label="6.1")
@@ -688,10 +702,9 @@ lab.check(6, m07.check_linear_q_training, linear_q_update, label="6.2")
 
 # %% [markdown] role="ex7-head"
 # **Planted bug.** A colleague wrote a faster featurizer for the same 625 bumps: it measures
-# each grid point's distance to the scaled observation in one array operation. They removed
-# the last scaling step, because "each bump is already between 0 and 1". It runs without a
-# warning. Train with it at the same α = 0.3 and read the weight-norm log, then find the
-# problem and fix the function.
+# each grid point's distance to the scaled observation in one array operation. It runs without
+# a warning. Train with it at the same α = 0.3, read the weight-norm log, then find what is
+# wrong and fix the function.
 
 # %% [markdown] role="ex7-predict"
 # With the colleague's features and the same step size, will the log show ‖W‖ about the same
@@ -701,17 +714,18 @@ lab.check(6, m07.check_linear_q_training, linear_q_update, label="6.2")
 # %% role="ex7-stub"
 def colleague_features(obs):
     """A colleague's RBF featurizer for linear Q: the same 625 bumps. Is it right?"""
-    # TODO 7: once the weight-norm log shows the problem, fix this function, rerun this
-    # cell and the run cell.
+    # TODO 7: once the weight-norm log shows the problem, find the cause, fix this function
+    # and rerun this cell. Then run the checkpoints. The room code keeps your first, unfixed run.
     z = np.asarray(obs, dtype=float) / OBS_SCALE
     sq_dist = ((GRID_POINTS - z) ** 2).sum(axis=1)  # one squared distance per grid point
     return np.exp(-sq_dist / (2 * WIDTH**2))  # each bump is in [0, 1]: no scaling needed
 
 
 # %% [markdown] role="ex7-hint"
-# The run printed ‖φ(s)‖² for the start state. For one state whose target is held fixed, an
-# update changes Q(s, a) by α δ ‖φ(s)‖², so the error becomes (1 − α‖φ(s)‖²) δ (step-size
-# rule). What is that factor here, and what must ‖φ(s)‖ be for Exercise 6's α to work?
+# Print α‖φ(s)‖² at a few states, for example `x = colleague_features(np.zeros(4))` and then
+# `ALPHA_Q * x @ x`, and the same for `rbf_features`. For one state whose target is held fixed,
+# an update multiplies the error by 1 − α‖φ(s)‖² (step-size rule). What is that factor here,
+# and what must ‖φ(s)‖ be for Exercise 6's α to work?
 
 
 # %% role="ex7-sol"
@@ -726,8 +740,7 @@ def colleague_features(obs):
 
 # %% role="ex7-run"
 upright = colleague_features(np.zeros(4))
-sq = float(upright @ upright)
-print(f"‖φ(s)‖² at the upright start state: {sq:.4f}; α ‖φ(s)‖² = {ALPHA_Q * sq:.4f}")
+unfixed = ALPHA_Q * float(upright @ upright) > 2  # True until the function is fixed
 print(f"Training on seed {RUN_SEED} with colleague_features:", flush=True)
 start = time.perf_counter()
 W_c, clog = train_linear_q(linear_q_update, colleague_features, **TRAIN, seed=RUN_SEED)
@@ -740,10 +753,13 @@ start_obs, _ = gym.make("CartPole-v1").reset(seed=RUN_SEED)
 with np.errstate(over="ignore", invalid="ignore"):
     q_start = W_c @ colleague_features(start_obs)
 print(f"Q at your first start state: {np.array2string(q_start, precision=3)}")
-print(f"  (no discounted return of CartPole exceeds 1 / (1 - γ) = {1 / (1 - GAMMA_Q):.0f})")
+print("  (a discounted return is at most 1 / (1 - γ) = 100; Exercise 6's Q was near it)")
 print(f"Greedy return: {score_c:.1f} (Exercise 6: {score:.1f}); {suspect_s:.1f} s")
-finite = [x for x in clog["w_norm"] if np.isfinite(x)]
-lab.metric("colleague_log10_max_norm", round(float(np.log10(max(finite))), 1) if finite else None)
+if unfixed:  # room code: the unfixed features only, so a rerun after the fix keeps these
+    finite = [x for x in clog["w_norm"] if np.isfinite(x)]
+    top = round(float(np.log10(max(finite))), 1) if finite else None
+    lab.metric("colleague_log10_max_norm", top)  # room code
+    lab.metric("colleague_greedy_return", round(score_c, 1))  # room code
 fig, ax = plt.subplots()
 ax.plot(qlog["step"], qlog["w_norm"], color=prl.plot.SERIES[0], label="rbf_features (Exercise 6)")
 ok = np.isfinite(clog["w_norm"])
@@ -754,23 +770,10 @@ ax.legend()
 plt.show()
 
 # %% [markdown] role="ex7-explain"
-# Where in the log did ‖W‖ leave Exercise 6's range, and how fast did it grow after that?
-# Each bump is between 0 and 1, yet ‖φ(s)‖² was close to 10: why does the length of the whole
-# vector matter, not the range of each entry (step-size rule)? On some seeds the colleague's
-# greedy return is still high: is that evidence that its Q-values mean anything? Besides
-# unit-length features, what else would have fixed it? (Gotcha: "Features are just
-# preprocessing.")
-#
-# **Diagnostics for this lab.** Log ‖w‖ (or ‖W‖) every few thousand steps, next to the
-# returns. Healthy: it rises while Q grows toward the size of a discounted return (at most
-# 1/(1 − γ) = 100 here), then levels off, in the hundreds for this lab. Broken: it jumps by
-# orders of magnitude and keeps climbing, on a log scale far above the healthy curve, until it
-# may overflow to inf or nan. The greedy return is not a reliable alarm: it can collapse, or
-# stay high on a lucky seed. Print Q at a start state too; far above 100, it estimates no
-# return. Before blaming the algorithm, print ‖φ(s)‖² on a few states and multiply it by α:
-# above 2, a single state's error grows with each update. On Baird, ‖w‖ grows by a constant
-# factor per sweep with ‖φ(s)‖² small and α tiny: there the cause is the triad, and no step
-# size fixes it.
+# Each bump is between 0 and 1, yet α‖φ(s)‖² was about 3: why does the length of the whole
+# vector matter, not the range of each entry (step-size rule)? On some seats the colleague's
+# greedy return stays high (the debrief pools them): is that evidence that its Q-values mean
+# anything? (Gotcha: "Features are just preprocessing.")
 
 # %% role="ex7-chk1"
 lab.check(7, m07.check_colleague_features, colleague_features, label="7.1")
@@ -779,21 +782,33 @@ lab.check(7, m07.check_colleague_features, colleague_features, label="7.1")
 lab.check(7, m07.check_colleague_training, linear_q_update, colleague_features, label="7.2")
 
 # %% [markdown]
+# **Diagnostics for this lab.** Log ‖w‖ (or ‖W‖) every few thousand steps, next to the returns.
+# Healthy: it rises while Q grows toward the size of a discounted return, then settles, in the
+# hundreds for this lab; Q at a start state is near 1/(1 − γ) = 100. A little above 100 is
+# estimation error (the max in the target is biased upward, Module 8's topic); far above it, Q
+# estimates no return. Broken: ‖W‖ is orders of magnitude above the healthy run's from the
+# first log entry and keeps climbing, and it may overflow to inf or nan. The greedy return is
+# not a reliable alarm: it can collapse, or stay high on a lucky seed. Before blaming the
+# algorithm, print ‖φ(s)‖² on a few states and multiply it by α: above 2, a single state's
+# error grows with each update. On Baird, ‖w‖ grows by a constant factor per sweep with
+# ‖φ(s)‖² small and α tiny: there the cause is the triad, and no step size fixes it.
+
+# %% [markdown]
 # **Your room code.** The last cell, `lab.finish()`, prints one line that starts with
 # `ROOM m07`. It holds your seat, the checkpoints you passed, whether QUICK budgets ran, and the
 # numbers the debrief pools: your greedy return on CartPole (`greedy_return`, Exercise 6),
 # random play's return on the same start states (`random_return`), ‖W‖ at the end of training
-# (`w_norm_end`), and the base-10 logarithm of the largest finite ‖W‖ the colleague's features
-# reached (`colleague_log10_max_norm`, Exercise 7). Baird's ‖w‖ after 1000 sweeps
-# (`baird_norm_1000`) is the same for everyone: it is exact. Paste the line where your
-# instructor says.
+# (`w_norm_end`), and, from your first, unfixed run of Exercise 7, the base-10 logarithm of the
+# largest finite ‖W‖ the colleague's features reached (`colleague_log10_max_norm`) and their
+# greedy return (`colleague_greedy_return`). Baird's ‖w‖ after 1000 sweeps (`baird_norm_1000`)
+# is the same for everyone: it is exact. Paste the line where your instructor says.
 
 # %% [markdown] role="stretch"
 # **TDC on Baird.** Gradient-TD methods do follow the gradient of an objective, the projected
 # Bellman error (PBE), and they stay stable off-policy. TDC keeps a second weight vector v,
 # which estimates E[φφᵀ]⁻¹ E[ρ δ φ] (Sutton and Barto, Eq. 11.28), and corrects the
 # semi-gradient update with it (Sutton and Barto, §11.7). In expected form, with your
-# matrices: e = b − Aw, then w ← w + α(e − γ (P_πΦ)ᵀ D Φ v) and v ← v + β(e − ΦᵀDΦ v). Write it
+# matrices: g = b − Aw, then w ← w + α(g − γ (P_πΦ)ᵀ D Φ v) and v ← v + β(g − ΦᵀDΦ v). Write it
 # and run Sutton and Barto's Figure 11.5 setting: α = 0.005, β = 0.05, 1000 sweeps and more.
 # Watch √PBE and the value error √VE separately.
 
@@ -801,7 +816,7 @@ lab.check(7, m07.check_colleague_training, linear_q_update, colleague_features, 
 # %% role="stretch-stub"
 def tdc_expected_update(w, v, phi, mu, P, r, gamma, alpha, beta):
     """One expected TDC sweep. Returns (new w, new v), arrays of shape (d,)."""
-    # Stretch: e = phi.T @ (mu * (r + gamma * P @ phi @ w - phi @ w)); then the two updates.
+    # Stretch: g = phi.T @ (mu * (r + gamma * P @ phi @ w - phi @ w)); then the two updates.
     raise NotImplementedError(
         "Stretch: write tdc_expected_update, or run lab.use_reference('stretch') to see the solution"
     )
@@ -811,10 +826,10 @@ def tdc_expected_update(w, v, phi, mu, P, r, gamma, alpha, beta):
 @lab.solution("stretch")
 def tdc_expected_update(w, v, phi, mu, P, r, gamma, alpha, beta):
     """Expected TDC: a semi-gradient step plus the gradient correction."""
-    e = phi.T @ (mu * (r + gamma * P @ phi @ w - phi @ w))  # b - A w
+    g = phi.T @ (mu * (r + gamma * P @ phi @ w - phi @ w))  # b - A w
     cross = (P @ phi).T @ (mu[:, None] * phi)  # E[rho phi(s') phi(s)^T]
     gram = phi.T @ (mu[:, None] * phi)  # E[phi phi^T]
-    return w + alpha * (e - gamma * cross @ v), v + beta * (e - gram @ v)
+    return w + alpha * (g - gamma * cross @ v), v + beta * (g - gram @ v)
 
 
 # %% role="stretch-run"
@@ -827,8 +842,8 @@ def sqrt_pbe(w):
     """Provided: sqrt(PBE) = sqrt((b - Aw)^T (Phi^T D Phi)^+ (b - Aw)), Sutton and Barto Eq. 11.26."""
     v = baird.phi @ w
     delta = baird.rewards + baird.gamma * baird.P_target @ v - v
-    e = baird.phi.T @ (baird.mu_behavior * delta)  # b - A w
-    return float(np.sqrt(e @ gram_pinv @ e))
+    g = baird.phi.T @ (baird.mu_behavior * delta)  # b - A w
+    return float(np.sqrt(g @ gram_pinv @ g))
 
 
 def sqrt_ve(w):
@@ -845,3 +860,7 @@ for k in range(1, 100_001):
         )
 print("All seven values are 0 only when w is proportional to (1, 1, 1, 1, 1, 1, 4, -2).")
 print(f"TDC's w after 100,000 sweeps: {np.round(w_t, 3).tolist()}")
+
+# %% [markdown] role="stretch-explain"
+# √PBE is near 0 by sweep 1000 while √VE barely moves: what does PBE = 0 promise, and what does it
+# not?

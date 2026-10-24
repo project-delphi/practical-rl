@@ -20,7 +20,7 @@ Level
 :   [300 · Advanced](/index.qmd#levels)
 
 Lab runtime
-:   Google Colab, CPU runtime · core 49 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
+:   Google Colab, CPU runtime · core 51 of 70 min · at most 12 min of live compute [estimate]{.chip .chip-none}
 
 Cost
 :   Free (Google account)

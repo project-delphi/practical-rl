@@ -615,18 +615,20 @@ modules:
     scaffold: S2
     testbeds: [Baird, CartPole-v1, InventoryMDP]
     compared_with: {kind: band, what: "a recorded multi-seed band of the same linear Q-learning at the same budget"}
-    planted_bug: {what: "features not scaled to unit length (each bump in [0, 1], but the squared length near 10)", diagnostic: "the weight-norm log: the norm grows by orders of magnitude, a straight line on a log scale"}
+    planted_bug: {what: "features not scaled to unit length (each bump in [0, 1], but the squared length near 10)", diagnostic: "the weight-norm log: ‖W‖ is orders of magnitude above the healthy run's from the first entry and keeps climbing; the greedy return may or may not collapse"}
     stretch: TDC on Baird
     exercises:
       # predict_answer: the answer to the Predict prompt (for the pace sheet). "Exact" numbers are
-      # deterministic computations of the lab's code (no sampling). CartPole numbers are
-      # "pending record" until the technical expert files the records named in _notes/m07-handoff.md.
+      # deterministic computations of the lab's code (no sampling), asserted by
+      # scripts/make_figures_m07.py. CartPole numbers come from the band records
+      # runs/2026-10-24-local-m07-linear-q-{live,quick}-exp.json (seeds 0-19, arm64; seats use
+      # (SEED + 1) * 1000, so a seat's run differs).
       # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
       - n: 1
         title: Frame inventory at scale
         minutes: 5
         writes: [scale_spec]
-        predict_answer: "Not exact, and the largest error is smaller than the fee: 2.47 against 5, on values from 50.91 to 75.91; with independent products the error is 3.6e-14, rounding (exact computations). The fee makes one product's value depend on the other's stock, which a sum of per-product values cannot represent; the fit absorbs the part of the saving that does not depend on the pair. A feature that depends on both stocks at once (an interaction) is missing. For the three-product shop the run prints 132,651 states, 132,651 orders, 17,596,287,801 Q entries (141 GB in float64) and 153 one-hot features."
+        predict_answer: "Between 1 and 5: the largest error is 2.47 against the fee of 5, on values from 50.91 to 75.91. With independent products it is below 1e-12, rounding (exact computations). The fit absorbs the part of the saving that each product's own stock explains; what is left depends on the pair. A feature that depends on both stocks at once (an interaction) is missing. For the three-product shop the run prints 132,651 states, 132,651 orders, 17,596,287,801 Q entries (141 GB in float64) and 153 one-hot features."
         explain_ref: "(one-hot features)"
       - n: 2
         title: The semi-gradient TD(0) update
@@ -638,17 +640,17 @@ modules:
         title: Why it is not a gradient
         minutes: 6
         writes: [td_matrix]
-        predict_answer: "A[1, 7] = −1.98/7 = −0.28286, not zero; A[7, 1] = 0 (exact). So A ≠ Aᵀ: the largest |A − Aᵀ| is 0.8486. The real parts of A's eigenvalues are −0.23925, −0.02218, 0 and 0.57143 (five times)."
+        predict_answer: "A[1, 7] = μ(1) · φ₁(1) · (0 − γ · 1) = (1/7) · 2 · (−0.99) = −1.98/7 = −0.28286; A[7, 1] = μ(7) · φ₇(7) · (φ₁(7) − γ φ₁(7)) = 0, since φ₁(7) = 0 (exact). So A is not symmetric: the largest |A − Aᵀ| is 0.8486. The real parts of A's eigenvalues are −0.23925, −0.02218, 0 and 0.57143 (five times)."
         explain_ref: 'Gotcha: "Semi-gradient TD is gradient descent."'
       - n: 4
         title: "Baird's counterexample"
         minutes: 8
         writes: [baird_expected_update]
-        predict_answer: "Nearer 400: ‖w‖ = 10.344 at the start, 10.609 after 10 sweeps, 16.826 after 100 and 436.856 after 1000 (exact). w₁ to w₆ grow together to 114.43 and w₈ to 335.00, while w₇ falls from 10 to 6.85. A smaller α changes only the speed: the fastest direction grows by a factor 1 + 0.23925 α per sweep (1.000239 at α = 0.001, 1.002393 at 0.01, 1.023925 at 0.1), above 1 for every α > 0, because A has the eigenvalue −0.23925."
+        predict_answer: "Above 100: ‖w‖ = 10.344 at the start, 10.609 after 10 sweeps, 16.826 after 100 and 436.856 after 1000 (exact). Each upper state's target, 0.99 · v̂(7), starts above its value, so w₁ to w₆ and w₈ rise; state 7's target, 0.99 · v̂(7), is below its own value, so w₇ falls from 10 to 6.85. w₁ to w₆ end at 114.43 and w₈ at 335.00. A smaller α changes only the speed: the fastest direction grows by 1 + 0.23925 α per sweep (1.000239, 1.002393 and 1.023925 at α = 0.001, 0.01 and 0.1). Facilitator note: 1.002393^1000 ≈ 10.9 predicts about 113, but ‖w‖ grows 42-fold, because w₀'s component along the growing unit eigenvector has size 44.9, more than ‖w₀‖ itself: A is not symmetric and its eigenvectors are far from orthogonal (exact). Both routes give 'above 100'."
         explain_ref: 'Gotcha: "A bigger network will fix divergence."'
       - n: 5
         title: Remove one leg of the triad
-        minutes: 9
+        minutes: 10
         writes: [remove_one_leg]
         predict_answer: "Only the tabular variant reaches w = 0, and it is the slowest. On-policy: A = (1 − γ)φ₇φ₇ᵀ changes only the component of w along φ₇, so v̂(7) → 0 while the six upper states stay at −1.8, and w → (1, 1, 1, 1, 1, 1, 7.6, −3.8). Monte Carlo: every value reaches 0 (largest error 2e-12 after 10^4 sweeps) while w → (22/13)(1, 1, 1, 1, 1, 1, 4, −2) ≈ (1.692, …, 6.769, −3.385), the part of w₀ that Φ maps to 0. Tabular: values 7.5e-6 after 10^6 sweeps and still falling; its slowest direction shrinks by a factor 1 − α(1 − γ)/7 = 1 − 1.43e-5 per sweep. The original's largest error is 1.6e12 after 10^4 sweeps (all exact)."
         explain_ref: "(TD matrix)"
@@ -656,13 +658,13 @@ modules:
         title: Linear Q-learning on CartPole
         minutes: 8
         writes: [linear_q_update]
-        predict_answer: "Far above 3 × random: a correct run's greedy return is many times random play's, which is about 20 steps, and ‖W‖ rises and then levels off in the hundreds. Exact numbers: pending record (m07_linear_q bands; see _notes/m07-handoff.md)."
+        predict_answer: "Far above 3 × random. Over seeds 0-19 of the live band record the greedy return runs from 206.6 to 500 (median 493.5) against random play's 12.2 to 29.0 (median 22.0) on the same start states, at least 8.1 times random on every seed; at the QUICK budget 214.9 to 500 (median 348.4). ‖W‖ rises to a peak of 327 to 420 and settles a little below it, 263 to 312 at the end (QUICK: peaks 172 to 193). Records: runs/2026-10-24-local-m07-linear-q-live-exp.json and -quick-exp.json."
         explain_ref: "(linear Q-learning)"
       - n: 7
-        title: "Planted bug: unnormalized features"
-        minutes: 6
+        title: "Planted bug: a colleague's featurizer"
+        minutes: 7
         writes: [colleague_features]
-        predict_answer: "Growing by many orders of magnitude. ‖φ(s)‖² = 9.868 at the upright state (exact), so α ‖φ(s)‖² = 2.960 and one update multiplies a fixed-target error by 1 − 2.960 = −1.960. Q at the start state is then far above 1/(1 − γ) = 100, the largest discounted return CartPole can pay. The log's magnitudes and the greedy returns: pending record; the greedy return can stay high on some seeds while ‖W‖ is astronomically large."
+        predict_answer: "Growing by many orders of magnitude, already at the first log entry. Facilitator facts: ‖φ(s)‖² = 9.868 at the upright state (exact), so α ‖φ(s)‖² = 2.960 and one update multiplies a fixed-target error by 1 − 2.960 = −1.960. Over seeds 0-19 of the live band record the largest ‖W‖ is 10^85.6 to 10^115.4 (QUICK budget: 10^32.1 to 10^52.8), never inf or nan within the budget; |Q| at the start state exceeds 1000 on every seed, far above 1/(1 − γ) = 100. The greedy return runs from 9.2 to 459.3 (median 14.4) and is above 160 on seeds 3, 4 and 12: the return alone does not reveal the bug. Records: runs/2026-10-24-local-m07-linear-q-live-exp.json and -quick-exp.json."
         explain_ref: 'Gotcha: "Features are just preprocessing."'
     status: {briefing: draft, lab: draft}
 
