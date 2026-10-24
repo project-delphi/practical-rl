@@ -8,7 +8,11 @@ a stochastic checkpoint's functions to fail its threshold at every seed, with a 
 Each mutant is a mistake a participant could plausibly make; `why` says which.
 
 Checkpoint 4.2 (train_dqn's greedy return) is the only stochastic one. Its protocol mutants
-are the train_dqn mutants below without exact_only, plus `random`. Whether each one separates
+are the train_dqn mutants below without exact_only, plus `random`. Checkpoint 4.1 is exact and
+also calls train_dqn, so verify mode needs it to reject every train_dqn mutant: it checks the
+log's keys and that the target equals the online network right after each copy, which
+rejects `target-is-online`, `no-target-copy` and `random` as well. Forgetting `zero_grad`
+is a plausible mistake that no exact check rejects, so it is not listed (see the handoff). Whether each one separates
 from the solution at both budgets is for the protocol to say; the draft notes say what the
 academic director expects. Mutants that only the exact checkpoint 4.1 can see are
 exact_only=True. Exercise 7's mutant depends on what the records say (see its note).
@@ -280,8 +284,8 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
 @mutant(
     ex=4,
     replaces="train_dqn",
-    id="no-zero-grad",
-    why="never zeroes the gradients, so every step adds all earlier gradients",
+    id="no-target-copy",
+    why="never copies w into w-: the targets come from the initial network (Module 9's bug)",
 )
 def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
     target_fn = target_fn or dqn_target  # noqa: F821
@@ -310,13 +314,11 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
             q_sa = gather_q(q_values, batch.act)  # noqa: F821
             y = target_fn(batch, q_net, target_net, config.gamma)
             loss = huber(y - q_sa, config.huber_threshold).mean()  # noqa: F821
+            opt.zero_grad()
             loss.backward()
             norm = nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
             opt.step()
             log.update(t, batch, q_values, q_sa, y, loss, norm)
-        if config.target_sync and t % config.target_sync == 0:
-            target_net.load_state_dict(q_net.state_dict())
-            log.sync(t)
         log.step(t, eps, r, terminated, truncated)
     env.close()
     return q_net, log.result()

@@ -581,10 +581,10 @@ plt.show()
 # returns went up, so it works.")
 
 # %% role="ex4-chk1"
-lab.check(4, m08.check_train_dqn_masks, train_dqn, label="4.1")
+lab.check(4, m08.check_train_dqn_masks, train_dqn, CONFIG, label="4.1")
 
 # %% role="ex4-chk2"
-lab.check(4, m08.check_train_dqn, train_dqn, label="4.2")
+lab.check(4, m08.check_train_dqn, train_dqn, make_cartpole, CONFIG, label="4.2")
 
 # %% [markdown]
 # **Diagnostics for this lab.** Plot what the logger kept, not only the return. Healthy, at
