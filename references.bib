@@ -67,7 +67,44 @@
                learning problem.' Module 5 cites s2.9.
                Also opened (academic director, Module 6, 2026-10-18, same PDF, pp. 34-35): s2.6 Optimistic Initial Values: optimistic initial estimates
                make even greedy methods explore; "a simple trick that can be quite effective on stationary problems, but it is far from being a generally
-               useful approach to encouraging exploration"; not well suited to nonstationary problems because its drive for exploration is temporary.}
+               useful approach to encouraging exploration"; not well suited to nonstationary problems because its drive for exploration is temporary.
+               Also opened (academic director, Module 7, 2026-10-24, RLbook2020.pdf downloaded from http://incompleteideas.net/book/RLbook2020.pdf,
+               sha256 2dd0d71d9ee8..., text extracted with pypdf; book pages): s9.2 (p. 199): VE, Eq. 9.1; the on-policy distribution; "In continuing
+               tasks, the on-policy distribution is the stationary distribution under pi". s9.3 (pp. 200-203): SGD Eq. 9.4-9.5; Eq. 9.7; gradient MC;
+               p. 202 "Bootstrapping methods are not in fact instances of true gradient descent (Barnard, 1993). They take into account the effect of
+               changing the weight vector w_t on the estimate, but ignore its effect on the target" ("semi-gradient methods"); semi-gradient TD(0) box
+               (v-hat(terminal) = 0). s9.4 (pp. 204-209): Eq. 9.8 linear v-hat = w^T x(s); Eq. 9.9; E[w_{t+1}|w_t] = w_t + alpha(b - A w_t) Eq. 9.10;
+               b, A Eq. 9.11; TD fixed point Eq. 9.12; box "Proof of Convergence of Linear TD(0)": Eq. 9.13, A = X^T D (I - gamma P) X with mu the
+               stationary distribution, positive definite (y^T A y > 0) via the column sums (1 - gamma) mu^T; VE bound Eq. 9.14; p. 208: full details in
+               Tsitsiklis and Van Roy (1997); Exercise 9.1 (tabular as a special case of linear). s9.5 (p. 210): pole-balancing interaction example
+               (angle x angular velocity); "the features should correspond to the aspects of the state space along which generalization may be
+               appropriate". s9.5.5 (pp. 221-222): RBF x_i(s) = exp(-||s - c_i||^2 / (2 sigma_i^2)). s9.6 (pp. 222-223): Eq. 9.19
+               alpha = (tau E[x^T x])^-1, "This method works best if the feature vectors do not vary greatly in length; ideally x^T x is a constant";
+               Exercise 9.6. s10.1 (pp. 243-244): Eq. 10.1 (semi-gradient update for action values), Eq. 10.2 (episodic semi-gradient Sarsa).
+               s11.1 (p. 259): semi-gradient Expected Sarsa Eq. 11.5. s11.2 (pp. 260-264): the w-to-2w fragment (w = 10, alpha = 0.1; diverges for
+               gamma > 0.5 for any alpha > 0); p. 261 "Eventually the piper must be paid"; Baird's counterexample, Figure 11.1: seven states, two
+               actions, dashed -> one of six upper states uniformly, solid -> seventh state; b(dashed) = 6/7, b(solid) = 1/7, next-state distribution
+               uniform; pi(solid) = 1; reward 0; gamma = 0.99; upper state i: 2 w_i + w_8, x(1) = (2,0,0,0,0,0,0,1)^T; lower: w_7 + 2 w_8; p. 262:
+               "In all these ways this task seems a favorable case for linear function approximation"; DP expected update Eq. 11.9 (alpha/|S| sum over
+               s, expectation under pi); on-policy distribution of DP updates guarantees convergence with error bounded by (9.14); Figure 11.2:
+               alpha = 0.01, w = (1,1,1,1,1,1,10,1)^T; p. 263: Q-learning counterexamples; with epsilon-greedy behavior "Q-learning has never been
+               found to diverge in this case, but there has been no theoretical analysis"; Example 11.1 (Tsitsiklis and Van Roy), Eq. 11.10;
+               Exercise 11.3 (semi-gradient Q-learning on Baird). s11.3 (pp. 264-265): the deadly triad; "Sweeping through the state space and updating
+               all states uniformly... is an example of off-policy training"; "occurs just as strongly in planning methods, such as dynamic programming,
+               in which the environment is completely known"; "If any two elements of the deadly triad are present, but not all three, then instability
+               can be avoided"; "function approximation most clearly cannot be given up". s11.4 (pp. 266-269): mu-norm Eq. 11.11, projection Eqs.
+               11.12-11.13 (pseudoinverse if needed), Bellman error 11.17-11.19, Bellman operator 11.20, PBE Eq. 11.22. s11.5 (pp. 269-271): p. 270 MC
+               methods are true SGD methods that "converge robustly under both on-policy and off-policy training"; TDE and the naive residual-gradient
+               algorithm Eq. 11.23; p. 271 it "converges robustly" but "does not necessarily converge to a desirable place" (Example 11.2, A-split).
+               s11.7 (pp. 278-281): PBE in matrix form Eqs. 11.25-11.26; gradient Eq. 11.27; v Eq. 11.28; GTD2 Eq. 11.29; TDC update
+               w <- w + alpha rho (delta x - gamma x' x^T v), v <- v + beta rho (delta - v^T x) x; Figure 11.5: TDC on Baird, alpha = 0.005,
+               beta = 0.05, expected TDC: PBE falls to 0, w far from optimal; p. 281: v-hat = 0 needs w proportional to (1,1,1,1,1,1,4,-2)^T, VE
+               "remains almost 2" after 1000 iterations, "converging to an optimal solution, but progress is extremely slow". Module 7 cites these.
+               prl.envs.Baird checked against s11.2: features, w0, the 6/7-1/7 behavior policy (uniform next state), the target policy, gamma = 0.99
+               and zero rewards all match. NOTE: S&B call Baird's MDP "episodic" but it has no terminal state; Module 7 treats it as continuing.
+               Also opened (academic director, Module 7 second pass, 2026-10-24, same PDF): s6.7 (book p. 134): "a maximum over estimated values is
+               used implicitly as an estimate of the maximum value, which can lead to a significant positive bias ... We call this maximization
+               bias" (Example 6.7, Figure 6.5, p. 135). Module 7 cites p. 134 for why a healthy CartPole Q can sit a little above 1/(1 - gamma).}
 }
 
 @book{lattimore2020bandit,
@@ -437,7 +474,8 @@
   publisher = {Morgan Kaufmann},
   year      = {1995},
   doi       = {10.1016/B978-1-55860-377-6.50013-X},
-  annote    = {Verified 2026-10-09 via the DOI record. Original source of the counterexample. Module 7 follows the presentation in sutton2018rl s11.2.}
+  annote    = {Verified 2026-10-09 via the DOI record. Original source of the counterexample. Module 7 follows the presentation in sutton2018rl s11.2.
+               The paper itself was not opened (2026-10-24): Module 7 names it as the origin only, with "not opened" in its Further reading.}
 }
 
 @article{tsitsiklis1997td,
@@ -449,7 +487,8 @@
   pages   = {674--690},
   year    = {1997},
   doi     = {10.1109/9.580874},
-  annote  = {Verified 2026-10-09 via the DOI record. Module 7: on-policy linear TD converges (stated, not proved).}
+  annote  = {Verified 2026-10-09 via the DOI record. Not opened. Module 7 (2026-10-24) names it only as the source sutton2018rl s9.4 (p. 208)
+             points to for the full conditions of on-policy linear TD's convergence; every claim on the page is cited to sutton2018rl.}
 }
 
 @misc{mnih2013playing,
@@ -1050,7 +1089,10 @@
                Interface for Reinforcement Learning Environments" (OPEN_QUESTIONS B18); the title field above follows the proceedings BibTeX, which
                was not re-opened. Cite (arXiv v4 numbering): s3 Library Structure (Env with observation_space, action_space, reset and step; spaces
                provide sample); s4.2 Termination and Truncation (Figure 2; Eqs. 1-2 multiply the next-state value by (not terminated); truncation is
-               an end unrelated to the state, usually a step limit set by the TimeLimit wrapper).}
+               an end unrelated to the state, usually a step limit set by the TimeLimit wrapper).
+               Module 7 (academic director, 2026-10-24): CartPole-v1's facts on the page (termination when |cart position| > 2.4 or |pole angle|
+               > 0.2095 rad = 12 degrees; +1 per step, including the last; truncation after 500 steps; start state uniform in (-0.05, 0.05)) were
+               read from the docstring and code of gymnasium 1.4.0's envs/classic_control/cartpole.py (the version the labs pin), not from this paper.}
 }
 
 @article{raffin2021sb3,

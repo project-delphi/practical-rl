@@ -1,0 +1,167 @@
+{
+  "badge_ref": "main",
+  "checkpoints": [
+    {
+      "exercise": 1,
+      "label": "1",
+      "pass": true,
+      "seconds": 0.002,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2",
+      "pass": true,
+      "seconds": 0.003,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4",
+      "pass": true,
+      "seconds": 0.01,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5",
+      "pass": true,
+      "seconds": 0.003,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6.1",
+      "pass": true,
+      "seconds": 0.002,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6.2",
+      "pass": true,
+      "seconds": 1.053,
+      "whose": "reference"
+    },
+    {
+      "exercise": 7,
+      "label": "7.1",
+      "pass": true,
+      "seconds": 0.002,
+      "whose": "reference"
+    },
+    {
+      "exercise": 7,
+      "label": "7.2",
+      "pass": true,
+      "seconds": 1.256,
+      "whose": "reference"
+    }
+  ],
+  "colab_release": null,
+  "content_sha": "b19f5868e78b0aba",
+  "date": "2026-10-24",
+  "dirty": false,
+  "env": "local",
+  "git_sha": "5c78732ce5abf210bed8d95a23c48c7679eedf7a",
+  "hardware": {
+    "accel": "cpu",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "notebook",
+  "metrics": {
+    "baird_norm_1000": 436.856,
+    "colleague_log10_max_norm": 2.2,
+    "greedy_return": 325.5,
+    "legs_error_1e4": {
+      "monte-carlo": 1.9468870959826745e-12,
+      "on-policy": 1.7676982702952597,
+      "original": 1636219504399.5415,
+      "tabular": 10.402524182072742
+    },
+    "q_log": {
+      "recent_return": [
+        28.0,
+        84.2,
+        143.2,
+        188.7,
+        194.2,
+        225.7,
+        267.4,
+        297.2,
+        275.5,
+        267.3
+      ],
+      "step": [
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+        6000,
+        7000,
+        8000,
+        9000,
+        10000
+      ],
+      "w_norm": [
+        84.6301915402902,
+        153.1630949736446,
+        166.00237637785378,
+        157.7986270868592,
+        154.4699865308497,
+        167.3236246124243,
+        170.38070037104163,
+        164.7647781938187,
+        166.72372197174843,
+        174.0636050875595
+      ]
+    },
+    "random_return": 25.0,
+    "w_norm_end": 174.1
+  },
+  "note": "Worked mode (QUICK) via scripts/check_notebooks.py --record on local (Apple M1 Pro, arm64): a laptop time, not a Colab time. One-minute load average about 4.3 (other agents' builds were running). colleague_log10_max_norm is the fixed featurizer's here: worked mode binds the solution before ex7-run.",
+  "notebook": "07-function-approximation",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "torch": "2.14.1"
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "quick": true,
+  "quick_reason": "PRL_QUICK=1 is set",
+  "schema": 1,
+  "scope": "notebook",
+  "seat": 0,
+  "seconds": 4.9,
+  "seeds": [
+    1000
+  ],
+  "settings": {
+    "eps_steps": 4000,
+    "eval_episodes": 10,
+    "log_every": 1000,
+    "steps": 10000
+  },
+  "shims": [],
+  "solutions_bound": true,
+  "source": "tool",
+  "status": "pass",
+  "test_doubles": [],
+  "torch_threads": null
+}
