@@ -507,7 +507,7 @@ check_train_dqn = StochasticCheck(
         # (rule of three).
         "live": (
             91.0,
-            "threshold protocol, 200 seeds: runs/2026-10-25-local-threshold-m08-check_train_dqn-live-n200-exp.json",
+            "threshold protocol, 200 seeds: runs/2026-10-25-local-threshold-m08-check_train_dqn-live-n200-exp-2.json",
         ),
         # threshold_protocol.py, quick budget {"steps": 20000}, N = 200 seeds (0-199),
         # 2026-10-25, local (Apple M1 Pro, arm64). Solution p1 165.2; strongest wrong version
@@ -516,7 +516,7 @@ check_train_dqn = StochasticCheck(
         # (rule of three).
         "quick": (
             91.0,
-            "threshold protocol, 200 seeds: runs/2026-10-25-local-threshold-m08-check_train_dqn-quick-n200-exp.json",
+            "threshold protocol, 200 seeds: runs/2026-10-25-local-threshold-m08-check_train_dqn-quick-n200-exp-2.json",
         ),
     },
 )

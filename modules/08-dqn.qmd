@@ -26,7 +26,8 @@ Module 7 replaced the table with a linear function of features and watched semi-
 
 $$
 \begin{aligned}
-\delta &= r + \gamma \max_{a'} Q(s', a'; w) - Q(s, a; w), \\
+\delta &= r + \gamma \max_{a'} Q(s', a'; w) \\
+&\quad - Q(s, a; w), \\
 w &\leftarrow w + \alpha\, \delta\, \nabla_w Q(s, a; w).
 \end{aligned}
 $$ {#eq-q-update}
@@ -40,7 +41,7 @@ Run online, one transition at a time, this is unstable. Mnih et al. name three c
 A *replay buffer* $\mathcal{D}$ keeps the last $N$ transitions $(s, a, r, s', \mathrm{term}, \mathrm{trunc})$. Each gradient step draws a minibatch $\mathcal{B}$ of $|\mathcal{B}|$ transitions, uniformly and with replacement:
 
 $$
-(s_i, a_i, r_i, s'_i) \sim \mathcal{U}(\mathcal{D}), \quad i = 1, \dots, |\mathcal{B}|.
+(s_i, a_i, r_i, s'_i) \sim \mathcal{U}(\mathcal{D}),\ i \le |\mathcal{B}|.
 $$ {#eq-replay}
 
 Mnih et al. store only the last $N$ transitions, overwrite the oldest, and sample uniformly [@mnih2015dqn, Methods, "Training algorithm for deep Q-networks"]. Two of the gains they list are the ones this module relies on.
@@ -92,12 +93,15 @@ class ReplayBuffer:
 **A target network.** DQN computes its targets with a second network, $Q(s, a; w^-)$. Its parameters $w^-$ are a copy of $w$, refreshed every `target_sync` steps (every $C$ updates in Mnih et al.'s Methods) and held fixed in between. Without it, an update that raises $Q(s_t, a_t)$ often raises $Q(s_{t+1}, a)$ too, and so the target; the delay makes divergence or oscillations "much more unlikely" [@mnih2015dqn, Methods]. On a minibatch the loss is
 
 $$
-\mathcal{L}(w) = \frac{1}{|\mathcal{B}|} \sum_{i \in \mathcal{B}} \operatorname{huber}_\psi\big(y_i - Q(s_i, a_i; w)\big),
+\begin{aligned}
+\mathcal{L}(w) &= \frac{1}{|\mathcal{B}|} \sum_{i \in \mathcal{B}} \operatorname{huber}_\psi(\delta_i), \\
+\delta_i &= y_i - Q(s_i, a_i; w),
+\end{aligned}
 $$ {#eq-dqn-loss}
 
 with targets $y_i$ computed from $w^-$ (section 4) and the Huber loss below. Between two copies, each fit is a regression onto fixed targets, "a sequence of well-defined optimization problems" [@mnih2015dqn, Methods].
 
-**What holding the target costs.** Suppose each fit were exact. Then the online network after the $k$-th copy would hold the $k$-th iterate of Module 2's value iteration, $Q_k = T^* Q_{k-1}$, started from $Q_0$. In CartPole every step pays 1 until the pole falls. From a start state $s_0$ where some sequence of actions survives $k$ steps, and from $Q_0 = 0$,
+**What holding the target costs.** Suppose each fit were exact. Then the online network after the $k$-th copy would hold the $k$-th iterate of Module 2's value iteration, $Q_k = T^* Q_{k-1}$, started from $Q_0$. In CartPole every step pays 1 until the pole falls. From a start state $s_0$ where every first action $a$ can be followed by actions that keep the pole up for $k$ steps in all, and from $Q_0 = 0$,
 
 $$
 Q_k(s_0, a) = \sum_{t=0}^{k-1} \gamma^t = \frac{1 - \gamma^k}{1 - \gamma}.
@@ -140,7 +144,7 @@ def huber(x, threshold=1.0):
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** The Huber loss is provided as `huber(x, threshold)`, @eq-huber elementwise; **Exercise 2**'s run plots it and its derivative beside the squared error and the clipped loss. **Exercise 3** is `train_dqn`, the whole loop with @eq-dqn-loss, a target copy every 500 steps, and one live seed of 50,000 steps; a provided `dqn_parts` does the setup. Its run draws your network's values at fixed start states against @eq-sync-lag. Checkpoint 3.1 is exact on small chains (section 4). Checkpoint 3.2 trains your loop again from its own seed for 20,000 steps and passes if the best greedy evaluation beats the first, made before any gradient step, by at least 91.0, a threshold the workshop's threshold protocol set over 200 seeds.
+**In the lab.** The Huber loss is provided as `huber(x, threshold)`, @eq-huber elementwise; **Exercise 2**'s run plots it and its derivative beside the squared error and the clipped loss. **Exercise 3** is `train_dqn`, the whole loop with @eq-dqn-loss, a target copy every 500 steps, and one live seed of 50,000 steps; a provided `dqn_parts` does the setup. Its run draws your network's values at fixed start states against @eq-sync-lag. Checkpoint 3.1 is exact on small chains (section 4). Checkpoint 3.2 trains your loop again from its own seed for 20,000 steps and passes if the best greedy evaluation beats the first, made before any gradient step, by a margin set by the threshold protocol: many seeds of the reference solution and of wrong versions, with a stated gap between them.
 :::
 
 ## 4. Masks
@@ -150,12 +154,15 @@ def huber(x, threshold=1.0):
 For transition $i$ of a minibatch, DQN's target is
 
 $$
-y_i = r_i + \gamma\, (1 - \mathrm{term}_i) \max_{a'} Q(s'_i, a'; w^-),
+\begin{aligned}
+y_i = r_i &+ \gamma\, (1 - \mathrm{term}_i) \\
+&\times \max_{a'} Q(s'_i, a'; w^-),
+\end{aligned}
 $$ {#eq-masked-target}
 
 where $\mathrm{term}_i = 1$ if $s'_i$ is a terminal state and 0 otherwise. After a terminal state no reward ever comes, so the target is the reward alone, as in Mnih et al.'s Algorithm 1 [@mnih2015dqn, Algorithm 1].
 
-Gymnasium reports two different ends. `terminated` means the episode reached a terminal state of the task: in CartPole, the pole leaned past 12° or the cart left the track. `truncated` means the episode was cut for a reason unrelated to the state, usually a step limit; the Gymnasium paper's TD targets multiply the next state's value by "not terminated" [@towers2025gymnasium, §4.2]. CartPole-v1 truncates at 500 steps. A truncated $s'$ is an ordinary state whose future rewards were simply not observed, so its target keeps the bootstrap. The time is not part of CartPole's observation, so the network cannot tell a state where the clock ran out from the same state earlier in an episode.
+Gymnasium reports two different ends. `terminated` means the episode reached a terminal state of the task: in CartPole, the pole leaned past 12° or the cart left the track. `truncated` means the episode was cut for a reason unrelated to the state, usually a step limit; the Gymnasium paper's TD targets multiply the next state's value by "not terminated" [@towers2025gymnasium, §4.2]. CartPole-v1 truncates at 500 steps. A truncated $s'$ is an ordinary state whose future rewards were not observed, so its target keeps the bootstrap. The time is not part of CartPole's observation, so the network cannot tell a state where the clock ran out from the same state earlier in an episode.
 
 The lab steps one environment and resets it itself, so `env.step` returns the true $s'$ even at the last step: store it, then reset.
 
@@ -194,7 +201,9 @@ This is Jensen's inequality for the convex function max. If every $\hat Q(a)$ is
 **Demo: the max of noisy estimates (3 min).** All actions have the same true value, 0. Each estimate is the truth plus independent noise. **Predict first, as a room:** for 10 actions with standard normal noise, is the expected max about 0.5, about 1.5, or about 3?
 
 ::: {.callout-tip collapse="true" title="Answer: two columns of exact numbers"}
-| Actions | $\mathbb{E}[\max]$, noise $\mathcal{N}(0, 1)$ | $\mathbb{E}[\max]$, noise uniform on $[-1, 1]$ |
+Expected max of the estimates, $\mathbb{E}[\max_a \hat Q(a)]$, when every true value is 0:
+
+| Actions | Normal noise $\mathcal{N}(0, 1)$ | Uniform noise on $[-1, 1]$ |
 |---|---|---|
 | 2 | 0.564 | 0.333 |
 | 4 | 1.029 | 0.600 |
@@ -209,7 +218,8 @@ About 1.5, and the expected max grows with the number of actions. The Gaussian c
 $$
 \begin{aligned}
 &\frac{1}{|\mathcal{A}|} \sum_a \big(Q_t(s, a) - V^*(s)\big)^2 = C \\
-&\quad \Longrightarrow\ \max_a Q_t(s, a) \ge V^*(s) + \sqrt{\frac{C}{|\mathcal{A}| - 1}}.
+&\Longrightarrow \max_a Q_t(s, a) \\
+&\qquad \ge V^*(s) + \sqrt{\frac{C}{|\mathcal{A}| - 1}}.
 \end{aligned}
 $$ {#eq-thm1}
 
@@ -220,7 +230,8 @@ The bound is tight, and under the same conditions the absolute error of the Doub
 $$
 \begin{aligned}
 a^\star_i &= \arg\max_{a'} Q(s'_i, a'; w), \\
-y_i &= r_i + \gamma (1 - \mathrm{term}_i)\, Q(s'_i, a^\star_i; w^-).
+y_i &= r_i + \gamma (1 - \mathrm{term}_i) \\
+&\quad \times Q(s'_i, a^\star_i; w^-).
 \end{aligned}
 $$ {#eq-ddqn}
 
@@ -236,14 +247,14 @@ so $G_0 = \sum_t \gamma^t r_t$. CartPole's dynamics are deterministic once $s_0$
 
 ::: {.callout-note collapse="true" title="After the lab: what Q(s₀) against G₀ showed in the records"}
 ::: {#fig-q-vs-mc layout="[[50,50]]"}
-![DQN.](/images/08-q-vs-mc-dqn.svg){#fig-q-vs-mc-dqn fig-alt="Against environment steps from 0 to 50,000, five solid lines with circles, one per seed, climb in steps from about 8 to about 64, hugging a dashed staircase that ends at 62.65. Five dotted lines with squares stay above them throughout, between about 53 and 97."}
+![DQN.](/images/08-q-vs-mc-dqn.svg){#fig-q-vs-mc-dqn fig-alt="Against environment steps from 0 to 50,000, five solid lines with circles, one per seed, climb steadily from about 8 to between 64.2 and 65.2, just above a dashed curve that ends at 62.65. Five dotted lines with squares stay above them throughout, between about 53 and 97."}
 
-![Double DQN.](/images/08-q-vs-mc-ddqn.svg){#fig-q-vs-mc-ddqn fig-alt="The same layout for Double DQN: five solid lines with circles climb from about 8 to about 64 along the dashed staircase, a little closer to it than DQN's, and five dotted lines with squares stay above them, between about 67 and 99."}
+![Double DQN.](/images/08-q-vs-mc-ddqn.svg){#fig-q-vs-mc-ddqn fig-alt="The same layout for Double DQN: five solid lines with circles climb steadily from about 8 to between 63.5 and 64.3, a little closer to the dashed curve than DQN's, and five dotted lines with squares stay above them, between about 67 and 99."}
 
-**What to notice:** on every seed $Q(s_0)$ (solid) climbs along @eq-sync-lag (dashed) and stays below the discounted return $G_0$ of the greedy policy (dotted): the copies' lag dominates at this budget. $Q(s_0)$ and $G_0$ at the 10 fixed start states, every 5,000 steps of a 50,000-step run, seeds 0 to 4 (`runs/2026-10-24-local-m08-dqn-live-exp.json`, `runs/2026-10-24-local-m08-ddqn-live-exp.json`).
+**What to notice:** on each of the five band seeds $Q(s_0)$ (solid) climbs along @eq-sync-lag (dashed) and stays below the discounted return $G_0$ of the greedy policy (dotted): at this budget the copies' lag usually dominates. $Q(s_0)$ and $G_0$ at the 10 fixed start states, every 5,000 steps of a 50,000-step run, seeds 0 to 4 (`runs/2026-10-24-local-m08-dqn-live-exp.json`, `runs/2026-10-24-local-m08-ddqn-live-exp.json`).
 :::
 
-"$Q(s_0)$ is below the MC return, so DQN does not overestimate." After 98 copies, even exact fits reach only @eq-sync-lag, 62.65. At 50,000 steps DQN's $Q(s_0)$ ends 1.55 to 2.52 above that line and Double DQN's 0.83 to 1.65 above it: the max still pushes up, and Double DQN, which removes part of that push, ends lower at the same seed on all 5 seeds (by 0.05 to 1.60). Both stay below $G_0$ (by 3.4 to 25.2), on every seed and at every evaluation, and so does SB3's DQN. At 10,000 steps (18 copies, 16.55) the same holds, and Double DQN is lower at 4 of the 5 seeds (`runs/2026-10-24-local-m08-{dqn,ddqn,sb3}-{live,quick}-exp.json`). In a much longer run, $Q(s_0)$ climbs past $G_0$ unless the policy never fails.
+"$Q(s_0)$ is below the MC return, so DQN does not overestimate." After 98 copies, even exact fits reach only @eq-sync-lag, 62.65. Over 20 seats at 50,000 steps (`runs/2026-10-25-local-m08-seats-exp.json`, seats 0 to 19), DQN's $Q(s_0)$ ends 1.15 to 3.10 above that line and Double DQN's 0.53 to 2.20 above it, which is what the max's upward push predicts. Double DQN, which removes part of that push, ends lower than DQN at the same seat on 19 of the 20 seats, by a median of 0.78. $Q(s_0)$ ends below $G_0$ on 17 of the 20 seats for DQN and on 18 for Double DQN. The exceptions are seats whose greedy policy had not learned (a greedy return below 91, so $G_0$ below 60). In the five-seed band records drawn above, $Q(s_0)$ is below $G_0$ on every seed and at every evaluation, for SB3's DQN too, at 50,000 and at 10,000 steps (`runs/2026-10-24-local-m08-{dqn,ddqn,sb3}-{live,quick}-exp.json`). In a much longer run, $Q(s_0)$ climbs past $G_0$ unless the policy never fails.
 :::
 
 ::: {.callout-note collapse="true" title="Code: double_dqn_target and mc_return (open after Lab 8)"}
@@ -322,6 +333,7 @@ At 50,000 steps the IQMs are 145.0 [120.7, 173.4] for the reference DQN and 149.
 | The max bias (@eq-jensen); Theorem 1 (@eq-thm1) | Read in Exercise 5 | (Jensen) |
 | The Double DQN target (@eq-ddqn) | Exercise 4: `double_dqn_target` | (Double DQN target) |
 | Monte Carlo returns (@eq-mc-return) | Exercise 5: `mc_return` | (MC return) |
+: {tbl-colwidths="[34,44,22]"}
 
 ## Gotchas and troubleshooting
 

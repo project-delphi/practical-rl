@@ -595,10 +595,11 @@ lab.check(3, m08.check_train_dqn, train_dqn, make_cartpole, CONFIG, label="3.2")
 
 # %% [markdown]
 # **Diagnostics for this lab.** Read the logger's arrays, not only the return. Healthy here:
-# the loss and the mean |δ| stay of order 1; the steps since the last copy run in a sawtooth
-# from 0 to 500; the gradient norm sits mostly under the clip. Broken: Q above 100 (a missing
-# mask, or divergence), a sawtooth that never resets (no copy), a mean |δ| that grows by orders
-# of magnitude (steps too large). Module 9 reads exactly these arrays.
+# the loss and the mean |δ| stay of order 1; the steps since the last copy read 0 at every log
+# point, because each log point (every 1,000 steps; 500 at QUICK) lands on a copy (every 500);
+# the gradient norm sits mostly under the clip. Broken: Q above 100 (a missing mask, or
+# divergence), steps since the last copy that climb with the step count (no copy), a mean |δ|
+# that grows by orders of magnitude (steps too large). Module 9 reads exactly these arrays.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(10, 3), sharex=True)
@@ -724,7 +725,7 @@ lab.metric("ddqn_return", round(float(log_ddqn["eval_return"][-1]), 1))  # room 
 lab.check(4, m08.check_double_dqn_target, double_dqn_target)
 
 # %% [markdown] role="ex5-head"
-# **What Q claims, and what the policy earns.** What does your network believe a start state
+# **Q(s₀) against the Monte Carlo return.** What does your network believe a start state
 # is worth, and what does its greedy policy earn from there? `evaluate_greedy` runs the greedy
 # policy from 10 fixed start states and returns each episode's rewards and
 # Q(s₀) = max_a Q(s₀, a; w). You write `mc_return`: the discounted return from every step to the
@@ -841,7 +842,7 @@ print(
 lab.check(5, m08.check_mc_return, mc_return)
 
 # %% [markdown] role="ex6-head"
-# **The library at the same budget.** Is your implementation right? A matched library run is
+# **SB3 at the same budget.** Is your implementation right? A matched library run is
 # one way to find out. The workshop's records hold Stable-Baselines3 2.9's DQN, with every one
 # of the lab's knobs that it has matched, and the reference DQN (this lab's solution code),
 # 5 seeds each at your budget. The cell below prints each side's interquartile mean (IQM) of
@@ -950,8 +951,8 @@ lab.check(6, m08.check_sb3_call, sb3_call)
 print(textwrap.fill(verdict.sentence, 98))  # the rule's own sentence, after your answer
 
 # %% [markdown]
-# **Your room code.** The last cell, `lab.finish()`, prints one line that starts with
-# `ROOM m08`. It holds your seat, the checkpoints you passed, whether QUICK budgets ran, and
+# **Your room code.** The finish cell below, `lab.finish()`, ends with one line that starts
+# with `ROOM m08`. It holds your seat, the checkpoints you passed, whether QUICK budgets ran, and
 # the numbers the debrief pools: your DQN's and Double DQN's greedy return at the budget
 # (`dqn_return`, `ddqn_return`), their Q(s₀) at the same seed (`dqn_q0`, `ddqn_q0`), your DQN's
 # Q(s₀) − G₀ (`dqn_q0_gap`) and your training time (`train_seconds`). Paste it where your
