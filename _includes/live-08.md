@@ -3,12 +3,12 @@
 | Minutes | Section | In the room |
 |---|---|---|
 | 0–3 | 1. From a table to a network | — |
-| 3–9 | 2. Replay | [Check yourself 2.1](#chk-replay) (2 min) |
-| 9–17 | 3. The target network and the Huber loss | — |
-| 17–22 | 4. Masks | [Check yourself 4.1](#chk-masks) (2 min) |
+| 3–8 | 2. Replay | [Check yourself 2.1](#chk-replay) (2 min) |
+| 8–16 | 3. The target network and the Huber loss | — |
+| 16–22 | 4. Masks | [Check yourself 4.1](#chk-masks) (3 min) |
 | 22–33 | 5. The max bias and Double DQN | [Demo: the max of noisy estimates](#demo-max) (3 min) |
 | 33–38 | 6. Equal-budget bands | [Predict: where does one correct seed land?](#predict-bands) (2 min) |
 | 38–40 | Setup: open the notebook and run the setup cell | — |
-| **40** | **Total** | **29 exposition + 9 activities + 2 setup** |
+| **40** | **Total** | **28 exposition + 10 activities + 2 setup** |
 : Briefing, 40 min {.agenda}
 :::
