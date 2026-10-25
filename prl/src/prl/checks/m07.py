@@ -562,22 +562,24 @@ check_linear_q_training = _HintedCheck(
     ),
     thresholds={
         # threshold_protocol.py, live budget {"eps_steps": 10000, "log_every": 1000, "steps":
-        # 30000}, N = 100 seeds (0-99), 2026-10-24, local (Apple M1 Pro, arm64). Solution p1
+        # 30000}, N = 100 seeds (0-99), 2026-10-25, local (Apple M1 Pro, arm64). Solution p1
         # 189.1; strongest wrong version mutant 'action-0-target' p99 121.3; gap 67.84 (minimum
         # 20); threshold: the midpoint 155.225, rounded to 160.0. 0 of 100 solution seeds fail:
         # flake rate at most about 3/N = 3.0% (rule of three).
         "live": (
             160.0,
-            "threshold protocol, 100 seeds: runs/2026-10-24-local-threshold-m07-check_linear_q_training-live-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m07-check_linear_q_training-live-n100-exp.json",
         ),
         # threshold_protocol.py, quick budget {"eps_steps": 10000, "log_every": 1000, "steps":
-        # 30000} (the live budget; see LIVE), N = 100 seeds (0-99), 2026-10-24, local (Apple M1
+        # 30000} (the live budget; see LIVE), N = 100 seeds (0-99), 2026-10-25, local (Apple M1
         # Pro, arm64). Solution p1 189.1; strongest wrong version mutant 'action-0-target' p99
         # 121.3; gap 67.84 (minimum 20); threshold: the midpoint 155.225, rounded to 160.0. 0 of
-        # 100 solution seeds fail: flake rate at most about 3/N = 3.0% (rule of three).
+        # 100 solution seeds fail: flake rate at most about 3/N = 3.0% (rule of three). Refiled
+        # at e50f9a7 (content_sha 41b0f546, clean tree) after the second pass: per-seed values
+        # equal the 2026-10-24 records'.
         "quick": (
             160.0,
-            "threshold protocol, 100 seeds: runs/2026-10-24-local-threshold-m07-check_linear_q_training-quick-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m07-check_linear_q_training-quick-n100-exp.json",
         ),
     },
 )
@@ -598,7 +600,7 @@ check_colleague_training = _HintedCheck(
     ),
     thresholds={
         # threshold_protocol.py, live budget {"eps_steps": 10000, "log_every": 1000, "steps":
-        # 30000}, N = 100 seeds (0-99), 2026-10-24, local (Apple M1 Pro, arm64). Solution p1
+        # 30000}, N = 100 seeds (0-99), 2026-10-25, local (Apple M1 Pro, arm64). Solution p1
         # 189.1; strongest wrong version mutant 'action-0-target' p99 121.3; gap 67.84 (minimum
         # 20); threshold: the midpoint 155.225, rounded to 160.0. 0 of 100 solution seeds fail:
         # flake rate at most about 3/N = 3.0% (rule of three). Exercise 7's own strongest
@@ -606,16 +608,16 @@ check_colleague_training = _HintedCheck(
         # seed.
         "live": (
             160.0,
-            "threshold protocol, 100 seeds: runs/2026-10-24-local-threshold-m07-check_colleague_training-live-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m07-check_colleague_training-live-n100-exp.json",
         ),
         # threshold_protocol.py, quick budget {"eps_steps": 10000, "log_every": 1000, "steps":
-        # 30000} (the live budget; see LIVE), N = 100 seeds (0-99), 2026-10-24, local (Apple M1
+        # 30000} (the live budget; see LIVE), N = 100 seeds (0-99), 2026-10-25, local (Apple M1
         # Pro, arm64). Solution p1 189.1; strongest wrong version mutant 'action-0-target' p99
         # 121.3; gap 67.84 (minimum 20); threshold: the midpoint 155.225, rounded to 160.0. 0 of
         # 100 solution seeds fail: flake rate at most about 3/N = 3.0% (rule of three).
         "quick": (
             160.0,
-            "threshold protocol, 100 seeds: runs/2026-10-24-local-threshold-m07-check_colleague_training-quick-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m07-check_colleague_training-quick-n100-exp.json",
         ),
     },
 )
