@@ -2087,6 +2087,342 @@ def m06_psrl() -> bytes:
     )
 
 
+# ------------------------------------------------------------------ Module 7
+# Function approximation (labs/src/07-function-approximation.py; contracts in
+# _notes/m07-handoff.md). Each builder also stores the outputs of the usual mistakes (the
+# mutants in labs/mutants/m07.py), so a checkpoint can name the one it sees.
+M07_SCALE_CASES = [(3, 50), (2, 5), (1, 20), (4, 9)]  # (n_products, capacity)
+M07_OBS_SCALE = np.array([2.4, 3.0, 0.2095, 3.5])  # the lab's OBS_SCALE (ex6-run)
+M07_CENTERS = np.linspace(-1.0, 1.0, 5)
+M07_WIDTH = 0.5
+
+
+def _m07_baird():
+    """Sutton and Barto's Figure 11.1, as prl.envs.Baird builds it."""
+    from prl.envs import Baird
+
+    b = Baird()
+    return b.phi, b.mu_behavior, b.P_target, b.rewards, b.w0, b.gamma
+
+
+def _m07_small_mdp(seed: int, S: int = 4, d: int = 3):
+    """A random model (the handoff's small_mdp): normal features, Dirichlet mu and rows of P."""
+    rng = np.random.default_rng(seed)
+    phi = rng.normal(size=(S, d))
+    mu = rng.dirichlet(np.ones(S))
+    P = rng.dirichlet(np.ones(S), size=S)
+    r = rng.normal(size=S)
+    return phi, mu, P, r
+
+
+def _m07_sweep(w, phi, mu, P, r, gamma, alpha):
+    v = phi @ w
+    return w + alpha * phi.T @ (mu * (r + gamma * P @ v - v))
+
+
+def m07_scale() -> bytes:
+    n = np.array([c[0] for c in M07_SCALE_CASES], dtype=np.int64)
+    capacity = np.array([c[1] for c in M07_SCALE_CASES], dtype=np.int64)
+    levels = [c + 1 for _, c in M07_SCALE_CASES]  # Python ints: exact
+    states = [lv**k for (k, _), lv in zip(M07_SCALE_CASES, levels, strict=True)]
+    out = {
+        "n_products": n,
+        "capacity": capacity,
+        "n_states": np.array(states, dtype=np.int64),
+        "n_actions": np.array(states, dtype=np.int64),
+        "q_entries": np.array([s * s for s in states], dtype=np.int64),
+        "feature_dim": np.array(
+            [k * lv for (k, _), lv in zip(M07_SCALE_CASES, levels, strict=True)], dtype=np.int64
+        ),
+    }
+    want = [
+        (132_651, 132_651, 17_596_287_801, 153),
+        (36, 36, 1296, 12),
+        (21, 21, 441, 21),
+        (10_000, 10_000, 100_000_000, 40),
+    ]
+    got = list(
+        zip(
+            out["n_states"].tolist(),
+            out["n_actions"].tolist(),
+            out["q_entries"].tolist(),
+            out["feature_dim"].tolist(),
+            strict=True,
+        )
+    )
+    assert got == want, got
+    return _save("m07_scale", **out)
+
+
+def m07_td0() -> bytes:
+    """Checkpoint 2: Baird's 1 -> 7, a terminal transition, three random d = 5 cases."""
+    phi_b, _, _, _, w0, gamma_b = _m07_baird()
+    rng = np.random.default_rng(70)
+    cases = [
+        (w0.copy(), phi_b[0], 0.0, phi_b[6], gamma_b, 0.01),
+        (np.array([0.5, -1.0, 2.0]), np.array([1.0, 0.0, 2.0]), 1.0, np.zeros(3), 0.9, 0.1),
+    ]
+    for _ in range(3):
+        cases.append(
+            (
+                rng.normal(size=5),
+                rng.normal(size=5),
+                float(rng.normal()),
+                rng.normal(size=5),
+                0.95,
+                0.05,
+            )
+        )
+    out: dict[str, np.ndarray] = {"n_cases": np.array(len(cases), dtype=np.int64)}
+    for i, (w, phi, r, phi_next, g, a) in enumerate(cases):
+        delta = r + g * w @ phi_next - w @ phi
+        out |= {
+            f"w_{i}": w,
+            f"phi_{i}": phi,
+            f"r_{i}": np.array(r),
+            f"phi_next_{i}": phi_next,
+            f"gamma_{i}": np.array(g),
+            f"alpha_{i}": np.array(a),
+            f"want_{i}": w + a * delta * phi,
+            # the usual mistakes (mutants residual-gradient, next-features, no-discount, sign)
+            f"residual_{i}": w + a * delta * (phi - g * phi_next),
+            f"next_{i}": w + a * delta * phi_next,
+            f"no_discount_{i}": w + a * (r + w @ phi_next - w @ phi) * phi,
+            f"sign_{i}": w - a * delta * phi,
+        }
+    assert np.allclose(out["want_0"], [1.1776, 1, 1, 1, 1, 1, 10, 1.0888], atol=1e-12)
+    assert np.allclose(out["want_1"], [0.15, -1.0, 1.3], atol=1e-12)
+    for i in range(len(cases)):  # every mistake is visible in every case but the terminal one
+        for key in ("residual", "no_discount", "next", "sign"):
+            if i == 1 and key in ("residual", "no_discount"):
+                continue  # phi(s') = 0: these equal the right answer there
+            assert np.abs(out[f"{key}_{i}"] - out[f"want_{i}"]).max() > 1e-3, (key, i)
+    return _save("m07_td0", **out)
+
+
+def _m07_A(phi, mu, P, gamma):
+    return phi.T @ np.diag(mu) @ (np.eye(len(mu)) - gamma * P) @ phi
+
+
+def m07_td_matrix() -> bytes:
+    """Checkpoint 3: A on Baird and on a random S = 4, d = 3 model (default_rng(71))."""
+    phi_b, mu_b, P_b, _, _, gamma_b = _m07_baird()
+    phi_r, mu_r, P_r, _ = _m07_small_mdp(71)
+    out: dict[str, np.ndarray] = {}
+    for tag, (phi, mu, P, g) in {
+        "baird": (phi_b, mu_b, P_b, gamma_b),
+        "random": (phi_r, mu_r, P_r, 0.9),
+    }.items():
+        A = _m07_A(phi, mu, P, g)
+        out |= {
+            f"{tag}_phi": phi,
+            f"{tag}_mu": mu,
+            f"{tag}_P": P,
+            f"{tag}_gamma": np.array(g),
+            f"{tag}_A": A,
+            f"{tag}_transposed": A.T,
+            f"{tag}_no_weights": phi.T @ (np.eye(len(mu)) - g * P) @ phi,
+            f"{tag}_P_transposed": _m07_A(phi, mu, P.T, g),
+            f"{tag}_symmetrized": (A + A.T) / 2,
+            f"{tag}_plus_gamma": phi.T @ np.diag(mu) @ (np.eye(len(mu)) + g * P) @ phi,
+        }
+    sevenA = 7 * out["baird_A"]
+    upper = np.zeros(8)
+    upper[6:] = [-1.98, -1.96]
+    for i in range(6):
+        row = upper.copy()
+        row[i] = 4.0
+        assert np.allclose(sevenA[i], row, atol=1e-12)
+    assert np.allclose(sevenA[6], [0, 0, 0, 0, 0, 0, 0.01, 0.02], atol=1e-12)
+    assert np.allclose(sevenA[7], [2, 2, 2, 2, 2, 2, -5.92, -5.84], atol=1e-12)
+    return _save("m07_td_matrix", **out)
+
+
+M07_SWEEPS = (1, 10, 100, 1000)
+
+
+def m07_expected_update() -> bytes:
+    """Checkpoint 4: one sweep on a random model with rewards; Baird's path from w0."""
+    phi, mu, P, r = _m07_small_mdp(72)
+    w = np.array([0.3, -0.2, 1.0])
+    g, a = 0.9, 0.1
+    v = phi @ w
+    seq = w.copy()
+    for s in range(len(mu)):  # mutant 'sequential': one state at a time
+        vs = phi @ seq
+        seq = seq + a * mu[s] * (r[s] + g * P[s] @ vs - vs[s]) * phi[s]
+    out: dict[str, np.ndarray] = {
+        "phi": phi,
+        "mu": mu,
+        "P": P,
+        "r": r,
+        "w": w,
+        "gamma": np.array(g),
+        "alpha": np.array(a),
+        "want": _m07_sweep(w, phi, mu, P, r, g, a),
+        "unweighted": w + a * phi.T @ (r + g * P @ v - v),
+        "P_transposed": w + a * phi.T @ (mu * (r + g * P.T @ v - v)),
+        "sequential": seq,
+    }
+    phi_b, mu_b, P_b, r_b, w0, gamma_b = _m07_baird()
+    wk = w0.copy()
+    for k in range(1, M07_SWEEPS[-1] + 1):
+        wk = _m07_sweep(wk, phi_b, mu_b, P_b, r_b, gamma_b, 0.01)
+        if k in M07_SWEEPS:
+            out[f"baird_{k}"] = wk.copy()
+    out["sweeps"] = np.array(M07_SWEEPS, dtype=np.int64)
+    out["alpha_baird"] = np.array(0.01)
+    norms = [round(float(np.linalg.norm(out[f"baird_{k}"])), 3) for k in M07_SWEEPS]
+    assert round(float(np.linalg.norm(w0)), 3) == 10.344
+    assert norms == [10.366, 10.609, 16.826, 436.856], norms
+    w1000 = np.round(out["baird_1000"], 3)
+    assert np.all(w1000[:6] == 114.434) and w1000[6] == 6.850 and w1000[7] == 335.001, w1000
+    for key in ("unweighted", "P_transposed", "sequential"):
+        assert np.abs(out[key] - out["want"]).max() > 1e-3, key
+    return _save("m07_expected_update", **out)
+
+
+def _m07_stationary(P):
+    """The stationary distribution of P: the left eigenvector for eigenvalue 1, normalized."""
+    S = len(P)
+    M = np.vstack([P.T - np.eye(S), np.ones(S)])
+    rhs = np.zeros(S + 1)
+    rhs[-1] = 1.0
+    mu, *_ = np.linalg.lstsq(M, rhs, rcond=None)
+    mu = np.where(np.abs(mu) < 1e-14, 0.0, mu)  # rounding noise, printed as -0. otherwise
+    return mu / mu.sum()
+
+
+def m07_legs() -> bytes:
+    """Checkpoint 5: Baird, and a second target policy with nonzero rewards."""
+    _, _, P_b, r_b, _, gamma = _m07_baird()
+    P_m = np.zeros((7, 7))
+    P_m[:, 6] = 0.5
+    P_m[:, :6] = 0.5 / 6
+    r_m = np.array([1.0, 0, 0, 0, 0, 0, 2.0])
+    out: dict[str, np.ndarray] = {"gamma": np.array(gamma)}
+    for tag, (P, r) in {"baird": (P_b, r_b), "modified": (P_m, r_m)}.items():
+        mu = _m07_stationary(P)
+        assert np.allclose(mu @ P, mu, atol=1e-14) and abs(mu.sum() - 1) < 1e-14
+        out |= {
+            f"{tag}_P": P,
+            f"{tag}_rewards": r,
+            f"{tag}_mu": mu,
+            f"{tag}_v_pi": np.linalg.solve(np.eye(7) - gamma * P, r),
+        }
+    assert np.allclose(out["baird_mu"], np.eye(7)[6], atol=1e-14)
+    assert np.allclose(out["modified_mu"], [1 / 12] * 6 + [0.5], atol=1e-14)
+    assert np.all(out["baird_v_pi"] == 0)
+    assert np.abs(out["modified_v_pi"] - r_m).max() > 1  # mutant mc-rewards fails here
+    return _save("m07_legs", **out)
+
+
+M07_Q_CASES = [(0, False, False), (1, True, False), (0, False, True), (1, True, True)]
+
+
+def m07_linear_q() -> bytes:
+    """Checkpoint 6.1: four transitions (a, terminated, truncated) on fixed arrays."""
+    rng = np.random.default_rng(76)
+    W = rng.normal(size=(2, 6))
+    phi = rng.random(6)
+    phi_next = rng.random(6)
+    r, g, alpha = 1.0, 0.99, 0.3
+
+    def update(a, target):
+        W_new = W.copy()
+        W_new[a] = W[a] + alpha * (target - W[a] @ phi) * phi
+        return W_new
+
+    out: dict[str, np.ndarray] = {
+        "W": W,
+        "phi": phi,
+        "phi_next": phi_next,
+        "r": np.array(r),
+        "gamma": np.array(g),
+        "alpha": np.array(alpha),
+        "cases": np.array(M07_Q_CASES, dtype=np.int64),
+    }
+    q_max = np.max(W @ phi_next)
+    for i, (a, term, _trunc) in enumerate(M07_Q_CASES):
+        out[f"want_{i}"] = update(a, r if term else r + g * q_max)
+        out[f"always_{i}"] = update(a, r + g * q_max)  # bootstraps from a terminal state
+        out[f"never_{i}"] = update(a, r)  # stops the bootstrap on truncation as well
+        out[f"action0_{i}"] = update(a, r if term else r + g * W[0] @ phi_next)
+        out[f"no_discount_{i}"] = update(a, r if term else r + q_max)
+        W_next = W.copy()  # steps along phi(s') instead of phi(s)
+        W_next[a] = W[a] + alpha * ((r if term else r + g * q_max) - W[a] @ phi) * phi_next
+        out[f"next_{i}"] = W_next
+    assert W[1] @ phi_next > W[0] @ phi_next  # the max is action 1, so 'action0' differs
+    assert not np.allclose(out["want_2"], out["never_2"])  # truncated: must bootstrap
+    assert not np.allclose(out["want_1"], out["always_1"])  # terminated: must not
+    return _save("m07_linear_q", **out)
+
+
+def _m07_bumps(obs):
+    """The 625 Gaussian bumps of the lab's rbf_raw: a product over the four scaled numbers."""
+    z = np.asarray(obs, dtype=float) / M07_OBS_SCALE
+    per_dim = np.exp(-((z[:, None] - M07_CENTERS) ** 2) / (2 * M07_WIDTH**2))
+    return np.einsum("i,j,k,l->ijkl", *per_dim).ravel()
+
+
+def m07_features() -> bytes:
+    """Checkpoint 7.1: unit-length features at seven fixed observations (default_rng(77))."""
+    rng = np.random.default_rng(77)
+    obs = np.vstack(
+        [
+            np.zeros(4),
+            [2.4, -3.0, 0.2, 3.5],
+            rng.uniform(-1, 1, (5, 4)) * np.array([2.4, 3.0, 0.21, 3.5]),
+        ]
+    )
+    raw = np.array([_m07_bumps(o) for o in obs])
+    out = {"obs": obs, "features": raw / np.linalg.norm(raw, axis=1, keepdims=True)}
+    assert round(float(raw[0] @ raw[0]), 3) == 9.868  # the colleague's upright state
+    return _save("m07_features", **out)
+
+
+def _m07_tdc(w, v, phi, mu, P, r, g, alpha, beta, sign=-1.0):
+    e = phi.T @ (mu * (r + g * P @ phi @ w - phi @ w))
+    cross = (P @ phi).T @ (mu[:, None] * phi)
+    gram = phi.T @ (mu[:, None] * phi)
+    return w + alpha * (e + sign * g * cross @ v), v + beta * (e - gram @ v), e
+
+
+def m07_tdc() -> bytes:
+    """The stretch: one expected TDC sweep on Baird and on a random model (default_rng(78))."""
+    phi_b, mu_b, P_b, r_b, w0, gamma_b = _m07_baird()
+    phi_r, mu_r, P_r, r_r = _m07_small_mdp(78)
+    cases = {
+        "baird": (w0, np.linspace(-1, 1, 8), phi_b, mu_b, P_b, r_b, gamma_b, 0.005, 0.05),
+        "random": (
+            np.array([0.3, -0.2, 1.0]),
+            np.array([0.1, 0.2, -0.3]),
+            phi_r,
+            mu_r,
+            P_r,
+            r_r,
+            0.9,
+            0.1,
+            0.2,
+        ),
+    }
+    out: dict[str, np.ndarray] = {}
+    names = ("w", "v", "phi", "mu", "P", "r", "gamma", "alpha", "beta")
+    for tag, args in cases.items():
+        w_new, v_new, e = _m07_tdc(*args)
+        w_plus, _, _ = _m07_tdc(*args, sign=1.0)
+        out |= {f"{tag}_{k}": np.asarray(x, dtype=float) for k, x in zip(names, args, strict=True)}
+        out |= {
+            f"{tag}_want_w": w_new,
+            f"{tag}_want_v": v_new,
+            f"{tag}_no_correction_w": args[0] + args[7] * e,
+            f"{tag}_correction_sign_w": w_plus,
+        }
+        assert np.abs(out[f"{tag}_no_correction_w"] - w_new).max() > 1e-4, tag
+        assert np.abs(w_plus - w_new).max() > 1e-4, tag
+    return _save("m07_tdc", **out)
+
+
 FIXTURES = {
     "m01_returns": m01_returns,
     "m01_eval": m01_eval,
@@ -2119,6 +2455,14 @@ FIXTURES = {
     "m06_mbie": m06_mbie,
     "m06_regret": m06_regret,
     "m06_psrl": m06_psrl,
+    "m07_scale": m07_scale,
+    "m07_td0": m07_td0,
+    "m07_td_matrix": m07_td_matrix,
+    "m07_expected_update": m07_expected_update,
+    "m07_legs": m07_legs,
+    "m07_linear_q": m07_linear_q,
+    "m07_features": m07_features,
+    "m07_tdc": m07_tdc,
 }
 
 

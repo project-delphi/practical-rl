@@ -31,8 +31,8 @@
 ## Day 3 · Value-based deep RL
 
 ::: {.lab-list}
-- **[7 · Function approximation and why it can diverge](/modules/07-function-approximation.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 7]{.visually-hidden}](/readiness.qmd#m07){.chip}  
-  Not built yet.
+- **[7 · Function approximation and why it can diverge](/modules/07-function-approximation.qmd)** [Colab CPU]{.chip} [lab draft]{.chip} [readiness [of Lab 7]{.visually-hidden}](/readiness.qmd#m07){.chip}  
+  [Open in Colab[, Lab 7 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/07-function-approximation.ipynb){.btn-quiet target="_blank" rel="noopener"} [Download .ipynb[, Lab 7]{.visually-hidden}](https://github.com/project-delphi/practical-rl/raw/main/notebooks/07-function-approximation.ipynb){.btn-quiet}
 - **[8 · DQN from scratch](/modules/08-dqn.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 8]{.visually-hidden}](/readiness.qmd#m08){.chip}  
   Not built yet.
 - **[9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd)** [Colab CPU]{.chip} [lab planned]{.chip} [readiness [of Lab 9]{.visually-hidden}](/readiness.qmd#m09){.chip}  

@@ -370,6 +370,8 @@ def build(path: Path, v: dict[str, Any]) -> tuple[str, dict[str, Any]]:
             auto += 1
             cid = f"c{auto:03d}"
         if cell.cell_type == "markdown":
+            if role == "stretch-explain" and not src.lstrip().startswith("**"):
+                src = "**Explain.** " + src  # as for ex<N>-explain
             add(nbformat.v4.new_markdown_cell(src, metadata=meta), cid, hashed=False)
         else:
             add(nbformat.v4.new_code_cell(src, metadata=meta), cid, hashed=True)
