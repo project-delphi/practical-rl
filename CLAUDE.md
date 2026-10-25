@@ -25,6 +25,8 @@ and ask before restructuring anything already approved.
 | `notebooks/*.ipynb` | `scripts/build_notebooks.py` from `labs/src/*.py` |
 | `prl/src/prl/_palette.py` | `scripts/gen_tokens.py` from `brand/*.yml` |
 | `prl/src/prl/_expected/*.npz` | `scripts/make_expected.py` |
+| `prl/src/prl/datasets/*.npz`, `*.provenance.json`, dataset entries in `datasets/manifest.json` | `scripts/make_datasets.py` |
+| `prl/src/prl/datasets/bands/*.npz`, band entries in `datasets/manifest.json` | `scripts/export_bands.py` from `runs/bands.yml` and the records it names |
 CI's drift gate fails if any of these is out of date.
 
 ## Everyday commands

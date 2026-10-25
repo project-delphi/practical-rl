@@ -30,3 +30,11 @@ elsewhere, a CI run, or a run from before the notebook last changed.
 
 Never edit a record by hand except to add a `note`. Never label a laptop or
 CI time as a Colab time.
+
+## Recorded bands
+
+Labs overlay a participant's seed on a band recorded in an experiment record.
+`runs/bands.yml` names each band and its record at each budget (live and
+QUICK); `scripts/export_bands.py` copies them into `prl` so Colab can read
+them (`prl.data.band(name, settings)`). Adding a `note` to such a record
+changes its sha, so re-export after it.
