@@ -20,7 +20,10 @@ Experiments (seeds 0-4, which no seat uses; seats train with (SEED + 1) * 1000):
                          (SB3_KWARGS), greedy-evaluated with the lab's evaluate_greedy on the
                          same grid. The lab never imports SB3; only this script does.
 
-Each record holds per seed the evaluation curves (greedy return, the discounted return G_0 and
+  m08-seats              Seats 0-19 at the live budget, as their lab runs: DQN (Exercise 3)
+                         and Double DQN (Exercise 4) at RUN_SEED = (seat + 1) * 1000.
+
+Each band record holds per seed the evaluation curves (greedy return, the discounted return G_0 and
 Q(s0) = max_a Q(s0, a), means of 10 episodes from reset(seed=EVAL_SEED + i)), the wall-clock
 seconds of the run, and max Q at the lab's 32 probe states at the end (what Exercise 4 prints).
 The reference runs call train_dqn as the lab's run cells do. Logging options never touch the
@@ -902,6 +905,37 @@ def record_facts(data: dict) -> None:
     v = data["final"]["verdict"]
     assert {"A": "reference", "B": "sb3"}.get(v.winner, v.winner) == want
     quoted_from_records(data)
+    seat_facts()
+
+
+def seat_facts() -> dict:
+    """What m08-seats says (seats 0-19, live), for the predict_answers and the debrief.
+
+    Nothing on the page quotes it yet (B70); these are the facts reported to the director,
+    asserted so that a quote of them stays true.
+    """
+    rec = record_for(SEATS_EXPERIMENT)
+    d = {k: np.array(v, dtype=float) for k, v in rec["per_seed"].items()}
+    lag = sync_lag(50_000)
+    q_d, g_d = d["dqn_q0"][:, -1], d["dqn_disc_return"][:, -1]
+    q_dd, g_dd = d["ddqn_q0"][:, -1], d["ddqn_disc_return"][:, -1]
+    out = {
+        "below_dqn": int(np.sum(q_d < g_d)),
+        "below_ddqn": int(np.sum(q_dd < g_dd)),
+        "ddqn_lower": int(np.sum(q_dd < q_d)),
+        "lower_median": _r(float(np.median(q_d - q_dd)), 2),
+        "lag_dqn": _span(q_d - lag),
+        "lag_ddqn": _span(q_dd - lag),
+    }
+    assert (out["below_dqn"], out["below_ddqn"], out["ddqn_lower"]) == (17, 18, 19), out
+    assert out["lower_median"] == 0.78 and _span(q_d - q_dd) == (-0.75, 2.22)
+    assert out["lag_dqn"] == (1.15, 3.10) and out["lag_ddqn"] == (0.53, 2.20)
+    # Where Q(s0) is above G_0, the greedy policy plays poorly: return below 91, G_0 below 60.
+    for q, g, ret in ((q_d, g_d, d["dqn_return"][:, -1]), (q_dd, g_dd, d["ddqn_return"][:, -1])):
+        assert np.all(ret[q > g] < 91) and np.all(g[q > g] < 60)
+    # Exercise 3's predict_answer: max Q at the probe states within 5 above (sync lag), 20 of 20.
+    assert np.all((d["dqn_q_probe_end"] - lag > 0) & (d["dqn_q_probe_end"] - lag < 5))
+    return out
 
 
 def _span(a, d: int = 2) -> tuple[float, float]:
