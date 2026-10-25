@@ -22,7 +22,7 @@
 | []{#m05}[5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-24 | — | — |
 | []{#m06}[6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-24 | — | — |
 | []{#m07}[7 · Function approximation and why it can diverge](/modules/07-function-approximation.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-25 | — | — |
-| []{#m08}[8 · DQN from scratch](/modules/08-dqn.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale} newest 2026-10-25 |
+| []{#m08}[8 · DQN from scratch](/modules/08-dqn.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-25 | — | — |
 | []{#m09}[9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-25 | — | — |
 | []{#m10}[10 · Policy gradients](/modules/10-policy-gradients.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m11}[11 · PPO from scratch](/modules/11-ppo.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
@@ -109,7 +109,9 @@
 - `2026-10-24-local-07-function-approximation-b19f5868.json`: 2026-10-24 · local · 6 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::
 
-::: {.callout-note collapse="true" title="8 · DQN from scratch: 2 record(s)"}
+::: {.callout-note collapse="true" title="8 · DQN from scratch: 4 record(s)"}
+- `2026-10-25-local-08-dqn-35db0422-2.json`: 2026-10-25 · local · 20 s · QUICK · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
+- `2026-10-25-local-08-dqn-35db0422.json`: 2026-10-25 · local · 54 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
 - `2026-10-25-local-08-dqn-83effb78-2.json`: 2026-10-25 · local · 18 s · QUICK · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-25-local-08-dqn-83effb78.json`: 2026-10-25 · local · 33 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::
