@@ -95,7 +95,7 @@ def test_train_dqn_check_is_declared_with_both_thresholds():
         record = re.search(r"runs/(\S+\.json)", provenance).group(1)
         assert (ROOT / "runs" / record).exists(), f"{budget}: {record} is not in runs/"
         assert f"-{budget}-" in record
-        assert 22.3 + c.min_gap < threshold  # clear of uniform random play's mean return
+        assert c.min_gap < threshold < 500  # an improvement in greedy return, in steps
 
 
 # ------------------------------------------------------------------ the checks (need torch)
@@ -200,22 +200,24 @@ def test_sb3_call_rejects_a_word_outside_the_rule(monkeypatch):
         m08.check_sb3_call(lambda: next(c for c in m08.CALLS if c != want))
 
 
-def test_best_greedy_return_needs_the_logged_evaluations(lab):
+def test_greedy_improvement_needs_the_logged_evaluations(lab):
+    cfg = lab["CONFIG"]
     with pytest.raises(CheckFailed, match="greedy evaluations"):
-        m08._best_greedy_return(
-            lambda *a, **k: (None, {}), lab["make_cartpole"], lab["CONFIG"], seed=0, steps=10
-        )
+        m08._greedy_improvement(lambda *a, **k: (None, {}), None, cfg, seed=0, steps=2000)
 
     def wrong_grid(make_env, config, seed, steps, **kw):
         return None, {"eval_step": np.array([5, 10]), "eval_return": np.array([9.0, 9.0])}
 
     with pytest.raises(CheckFailed, match="should be at steps"):
-        m08._best_greedy_return(wrong_grid, lab["make_cartpole"], lab["CONFIG"], seed=0, steps=10)
+        m08._greedy_improvement(wrong_grid, None, cfg, seed=0, steps=2000)
 
 
-def test_best_greedy_return_is_the_best_of_ten_evaluations(lab):
+def test_greedy_improvement_is_the_best_evaluation_above_the_first(lab):
     def fake(make_env, config, seed, steps, *, eval_every, **kw):
+        assert eval_every == config.learning_starts  # the first one precedes any gradient step
         grid = np.arange(eval_every, steps + 1, eval_every)
-        return None, {"eval_step": grid, "eval_return": np.arange(len(grid), dtype=float)}
+        returns = np.full(len(grid), 40.0)
+        returns[0], returns[7] = 130.0, 200.0  # a lucky untrained network, then learning
+        return None, {"eval_step": grid, "eval_return": returns}
 
-    assert m08._best_greedy_return(fake, None, None, seed=0, steps=20_000) == 9.0
+    assert m08._greedy_improvement(fake, None, lab["CONFIG"], seed=0, steps=20_000) == 70.0

@@ -7,10 +7,11 @@ are skipped there, because scripts/threshold_protocol.py has already required ev
 a stochastic checkpoint's functions to fail its threshold at every seed, with a stated gap.
 Each mutant is a mistake a participant could plausibly make; `why` says which.
 
-Checkpoint 4.2 (train_dqn's best greedy return on CartPole) is the only stochastic one. Its
-protocol mutants are the train_dqn mutants below without exact_only: `target-is-online`,
-`zero-grad-late`, `no-step` and `random`. Checkpoint 4.1 is exact and also calls
-train_dqn, so verify mode needs it to reject every train_dqn mutant. It does: its chain runs
+Checkpoint 4.2 (how far train_dqn raises CartPole's greedy return above its untrained
+network's) is the only stochastic one. Its protocol mutants are the train_dqn mutants below
+without exact_only: `target-is-online`, `zero-grad-late`, `no-step` and `random`.
+Checkpoint 4.1 is exact and also calls train_dqn, so verify mode needs it to reject every
+train_dqn mutant. It does: its chain runs
 check the log's keys, the snapshots' steps, a target copy every target_sync steps, the
 terminal mask and the bootstrap on cut episodes, that Q at the probe states moves
 (`no-step`), and, with config.lr = 0, that the gradient norm does not grow (which rejects
@@ -19,8 +20,9 @@ terminal mask and the bootstrap on cut episodes, that Q at the probe states move
 exact_only=True marks the mutants that only 4.1 can see: `done-in-buffer` (CartPole rarely
 reaches the time limit at the check's budget); `no-zero-grad`, which still learns CartPole
 (greedy returns 73-272 at 20,000 steps on seeds 0-3 in a scratch scan); and `no-target-copy`,
-whose targets from the initial network sometimes make a fair policy by chance (best greedy
-return up to 185 over seeds 0-99 in a scratch scan), so no return threshold rejects them all. Exercise 7's mutant depends on what the recorded bands say (see its note).
+whose targets from the initial network sometimes make a fair policy by chance (up to 175
+above its first evaluation over seeds 0-99 in a scratch scan), so no return threshold rejects
+them all. Exercise 7's mutants depend on what the recorded bands say (see their note).
 """
 
 import numpy as np

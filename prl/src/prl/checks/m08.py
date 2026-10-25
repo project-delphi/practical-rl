@@ -12,9 +12,9 @@ train_dqn on a five-step chain, whose log must show the structure DQN needs (epi
 end the way the chain ends, a target copy every `target_sync` steps, terminal rows masked and
 truncated rows bootstrapped, and, with the step size set to zero, gradients that do not pile
 up from one step to the next). It never compares learned values with numbers, so it does not
-depend on torch's kernels. Checkpoint 4.2 is the one StochasticCheck: the best of ten greedy
-evaluations during a run of the participant's train_dqn on CartPole (the lab's provided
-evaluate_greedy, through the participant's logger), with thresholds from
+depend on torch's kernels. Checkpoint 4.2 is the one StochasticCheck: how far a run of the
+participant's train_dqn on CartPole raises the greedy return above its untrained network's
+(the lab's provided evaluate_greedy, through the participant's logger), with thresholds from
 scripts/threshold_protocol.py.
 
 prl does not depend on torch: every function that needs it imports it inside. Nothing here
@@ -453,8 +453,7 @@ def check_train_dqn_masks(train_dqn, config) -> None:
         np.broadcast_to(np.asarray(log["q_probe"])[:1], np.shape(log["q_probe"])),
         atol=1e-6,
         what="With config.lr = 0, Q at the probe states over the run",
-        hint="the network should not move at step size 0: build the optimizer with "
-        "lr=config.lr",
+        hint="the network should not move at step size 0: build the optimizer with lr=config.lr",
     )
     norms = np.asarray(log["grad_norm"], dtype=float)
     assert_true(
@@ -474,17 +473,18 @@ def check_train_dqn_masks(train_dqn, config) -> None:
 
 
 # ------------------------------------------------------------------ 4.2 train_dqn learns (stochastic)
-EVALUATIONS = 10  # greedy evaluations per run, evenly spaced: every steps // 10 steps
+def _greedy_improvement(train_dqn, make_env, config, *, seed: int, steps: int) -> float:
+    """How far training raised the greedy return above the untrained network's.
 
-
-def _best_greedy_return(train_dqn, make_env, config, *, seed: int, steps: int) -> float:
-    """The best of the run's 10 greedy evaluations (each the mean return of 10 episodes from
-    the lab's start states, by the provided evaluate_greedy through the participant's logger).
-
-    The best, not the last: DQN's greedy return dips late on some seeds, while code that never
-    learns keeps its initial network, which balances for at most about 80 steps.
+    The run evaluates the greedy policy every config.learning_starts steps (10 episodes from
+    the lab's start states, by the provided evaluate_greedy through the participant's
+    logger). The first evaluation comes before the first gradient step, so it scores the
+    untrained network; the metric is the best evaluation minus that one. Code that never
+    learns scores exactly 0, however well its initial network happens to balance; the best
+    evaluation alone could not tell it apart, since an untrained network balanced for more
+    than 130 steps on one seed in 200.
     """
-    every = steps // EVALUATIONS
+    every = int(config.learning_starts)
     out = train_dqn(
         make_env,
         config,
@@ -508,24 +508,26 @@ def _best_greedy_return(train_dqn, make_env, config, *, seed: int, steps: int) -
             f"{grid[0]:,}, {grid[1]:,}, ..., {grid[-1]:,}; they are at "
             f"{np.asarray(log['eval_step']).tolist()}. Call log.step(t, ...) once per step."
         )
-    return float(np.max(log["eval_return"]))
+    returns = np.asarray(log["eval_return"], dtype=float)
+    return float(returns.max() - returns[0])
 
 
 check_train_dqn = StochasticCheck(
     ex=4,
     functions=("train_dqn", "make_cartpole", "CONFIG"),
-    metric=_best_greedy_return,
+    metric=_greedy_improvement,
     # C33: 20,000 steps, not the lab's 50,000, at both budgets. With the last evaluation as the
     # metric, the gap at 20,000 (68.7 on seeds 0-19) was twice that at 50,000 (33.3), and
-    # 10,000 gave none (12.4 over 100 seeds); over 100 seeds even 20,000 had a solution seed
-    # below and a wrong one above the midpoint, so the metric is the best evaluation.
+    # 10,000 gave none (12.4 over 100 seeds). Over more seeds the last evaluation, and then the
+    # best one, let a never-learning network through on some seed, hence the improvement.
     live={"steps": 20_000},
     quick={"steps": 20_000},
     higher_is_better=True,
     min_gap=25.0,  # about one uniform-random policy's own mean return (22.3 over 1,000 episodes)
     what=(
-        "the best greedy return of your train_dqn on CartPole over the run's 10 evaluations "
-        "(each a mean of 10 episodes from the lab's start states), at the checkpoint's seed"
+        "how far your train_dqn raised the greedy return on CartPole at the checkpoint's seed: "
+        "the best of the run's evaluations (every 1,000 steps, 10 episodes each) minus the "
+        "first, taken before any gradient step"
     ),
     thresholds={},
 )
@@ -547,9 +549,7 @@ def check_double_dqn_target(double_dqn_target) -> None:
     def target_net(s):
         return target[s[:, 0].long()] + 0 * w
 
-    b = _batch(
-        fx["rew"], fx["terminated"], fx["truncated"], obs=fx["obs"], next_obs=fx["next_obs"]
-    )
+    b = _batch(fx["rew"], fx["terminated"], fx["truncated"], obs=fx["obs"], next_obs=fx["next_obs"])
     y = double_dqn_target(b, q_net, target_net, float(fx["gamma"]))
     got = _numpy(y)
     hint = "select a' with q_net at s' (batch.next_obs), evaluate it with target_net"
