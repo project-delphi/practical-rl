@@ -19,7 +19,6 @@
 # "Equations and where you implement them" gives each name's equation number.
 
 # %%
-import collections
 import dataclasses
 import textwrap
 import time
@@ -29,6 +28,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+import prl.data
+from prl.checks import m09  # the checkpoints of this lab
 from prl.evaluate import Budget, compare
 
 # Budgets (live, then QUICK). Lab code reads them from here and never branches on QUICK.
@@ -52,221 +53,14 @@ print(f"Budget: {budget.steps:,} env steps for your live run; {budget.probe_step
 # %% [markdown]
 # ### The reference version of your Lab 8 code
 #
-# The cell below is Module 8's DQN: its configuration `CONFIG`, the masked target `td_target`,
-# `gather_q`, which reads Q(s, a; w) for the action taken, and the training loop `train_dqn`,
-# which returns the network and a log. Every run in this lab, recorded or live, uses this code
-# and this configuration.
+# The two cells below are Module 8's DQN: its configuration `CONFIG`, the masked target
+# `td_target`, `gather_q`, which reads Q(s, a; w) for the action taken, and the training loop
+# `train_dqn`, which returns the network and a log. Every run in this lab, recorded or live,
+# uses this code and this configuration.
 
-# %%
-# PROVISIONAL (Module 9, first pass). Replaced by Module 8's reference files, included with
-# "# %% include labs/shared/<name>.py", once they exist. Written to the names of Module 8's
-# draft (2026-10-24) and _notes/m09-needs.md; Module 9 relies only on train_dqn's signature,
-# CONFIG's fields lr and target_sync, the global names td_target and gather_q, and the log keys.
-Batch = collections.namedtuple("Batch", "obs act rew next_obs terminated truncated")
-PROBE_SEED = 1_000_000  # probe states: reset(seed=PROBE_SEED + i)
-EVAL_SEED = 1_100_000  # evaluation episodes: reset(seed=EVAL_SEED + i)
+# %% include labs/shared/dqn_setup.py
 
-
-@dataclasses.dataclass(frozen=True)
-class DQNConfig:
-    """Provided: the DQN configuration every lab uses."""
-
-    hidden: tuple = (64, 64)
-    lr: float = 1e-3
-    buffer_size: int = 10_000
-    batch_size: int = 64
-    gamma: float = 0.99
-    train_freq: int = 4
-    target_sync: int | None = 500  # env steps between copies w -> w-; None: never
-    learning_starts: int = 1_000
-    eps_start: float = 1.0
-    eps_end: float = 0.05
-    eps_fraction: float = 0.2  # epsilon falls linearly over this share of the run
-    max_grad_norm: float = 10.0
-    huber_threshold: float = 1.0
-
-
-CONFIG = DQNConfig()
-
-
-def td_target(batch, q_next, gamma):
-    """Provided: r + gamma (1 - terminated) q_next (masked target)."""
-    return batch.rew + gamma * (1.0 - batch.terminated) * q_next
-
-
-def gather_q(q_values, actions):
-    """Provided: Q(s_i, a_i; w) for every row i of the batch."""
-    return q_values.gather(1, actions.long().unsqueeze(1)).squeeze(1)
-
-
-def dqn_target(batch, q_net, target_net, gamma):
-    """Provided: td_target with the target network's max_a' Q(s', a'; w-)."""
-    with torch.no_grad():
-        q_next = target_net(batch.next_obs).max(dim=1).values
-        return td_target(batch, q_next, gamma)
-
-
-def make_q_net(obs_dim, n_actions, config):
-    """Provided: the Q-network, ReLU layers of config.hidden widths."""
-    layers, width = [], obs_dim
-    for h in config.hidden:
-        layers += [torch.nn.Linear(width, h), torch.nn.ReLU()]
-        width = h
-    return torch.nn.Sequential(*layers, torch.nn.Linear(width, n_actions))
-
-
-def probe_states(make_env, n=32):
-    """Provided: n fixed start states, the same for every run: reset(seed=PROBE_SEED + i)."""
-    env = make_env()
-    return np.asarray([env.reset(seed=PROBE_SEED + i)[0] for i in range(n)], np.float32)
-
-
-def greedy_return(q_net, make_env, episodes):
-    """Provided: the mean undiscounted return of greedy episodes from fixed start states."""
-    env, total = make_env(), 0.0
-    for i in range(episodes):
-        obs, _ = env.reset(seed=EVAL_SEED + i)
-        done = False
-        while not done:
-            with torch.no_grad():
-                a = int(q_net(torch.as_tensor(obs, dtype=torch.float32)[None]).argmax())
-            obs, r, term, trunc, _ = env.step(a)
-            total += float(r)
-            done = term or trunc
-    return total / episodes
-
-
-def train_dqn(
-    make_env,
-    config,
-    seed,
-    steps,
-    *,
-    target_fn=None,
-    log_every=1000,
-    eval_every=None,
-    eval_episodes=10,
-    probe_obs=None,
-    snapshot_steps=(),
-    verbose=True,
-):
-    """Provided: DQN with replay, a target network and the Huber loss, for `steps` env steps.
-    Returns (q_net, log); the log is a dict of NumPy arrays."""
-    target_fn = target_fn or dqn_target
-    torch.manual_seed(seed)
-    rng = np.random.default_rng(seed)
-    env = make_env()
-    obs_dim, n_act = env.observation_space.shape[0], env.action_space.n
-    probe = torch.as_tensor(probe_states(make_env) if probe_obs is None else probe_obs)
-    q_net = make_q_net(obs_dim, n_act, config)
-    target_net = make_q_net(obs_dim, n_act, config)
-    target_net.load_state_dict(q_net.state_dict())
-    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
-    cap = min(config.buffer_size, steps)
-    buf = {k: np.zeros((cap, obs_dim), np.float32) for k in ("obs", "next_obs")}
-    buf.update({k: np.zeros(cap, np.float32) for k in ("rew", "terminated", "truncated")})
-    buf["act"] = np.zeros(cap, np.int64)
-    log = {k: [] for k in _LOG_KEYS}
-    acc = {k: [] for k in ("loss", "td", "td_max", "q_max", "gn", "q_term")}
-    pending, last_sync, ep = sorted(snapshot_steps), 0, [0.0, 0.0, 0]
-    obs, _ = env.reset(seed=seed)
-    start = shown = time.perf_counter()
-    for t in range(1, steps + 1):
-        frac = min(1.0, (t - 1) / max(1.0, config.eps_fraction * steps))
-        eps = config.eps_start + frac * (config.eps_end - config.eps_start)
-        if rng.random() < eps:
-            a = int(rng.integers(n_act))
-        else:
-            with torch.no_grad():
-                a = int(q_net(torch.as_tensor(obs, dtype=torch.float32)[None]).argmax())
-        obs2, r, term, trunc, _ = env.step(a)
-        slot = (t - 1) % cap
-        for k, x in zip(_BUF_KEYS, (obs, a, r, obs2, float(term), float(trunc)), strict=True):
-            buf[k][slot] = x
-        ep = [ep[0] + r, ep[1] + config.gamma ** ep[2] * r, ep[2] + 1]
-        obs = obs2
-        if term or trunc:
-            for k, x in zip(_EP_KEYS, (ep[0], ep[1], ep[2], t, bool(term)), strict=True):
-                log[k].append(x)
-            obs, _ = env.reset()
-            ep = [0.0, 0.0, 0]
-        if t > config.learning_starts and t % config.train_freq == 0:
-            idx = rng.integers(0, min(t, cap), config.batch_size)
-            batch = Batch(*(torch.as_tensor(buf[k][idx]) for k in _BUF_KEYS))
-            q_values = q_net(batch.obs)
-            q_sa = gather_q(q_values, batch.act)
-            y = target_fn(batch, q_net, target_net, config.gamma)
-            loss = torch.nn.functional.huber_loss(q_sa, y, delta=config.huber_threshold)
-            opt.zero_grad()
-            loss.backward()
-            gn = torch.nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
-            opt.step()
-            td = (y - q_sa).detach().abs()
-            done = batch.terminated > 0.5
-            q_max = q_values.detach().max(1).values.mean()
-            for k, x in (("loss", loss.detach()), ("td", td.mean()), ("td_max", td.max())):
-                acc[k].append(float(x))
-            acc["q_max"].append(float(q_max))
-            acc["gn"].append(float(gn))
-            if done.any():
-                acc["q_term"].append(float(q_sa.detach()[done].mean()))
-            while pending and t >= pending[0]:
-                pending.pop(0)
-                values = (t, q_values, batch.act, q_sa, y, batch.rew, done)
-                for k, x in zip(_SNAP_KEYS, values, strict=True):
-                    log[k].append(x.detach().numpy().copy() if torch.is_tensor(x) else x)
-        if config.target_sync and t % config.target_sync == 0:
-            target_net.load_state_dict(q_net.state_dict())
-            last_sync = t
-        if t % log_every == 0:
-            with torch.no_grad():
-                log["q_probe"].append(q_net(probe).numpy())
-                log["q_probe_target"].append(target_net(probe).numpy())
-            for k, src, f in _LOG_REDUCE:
-                log[k].append(float(f(acc[src])) if acc[src] else np.nan)
-            for k, x in (("step", t), ("epsilon", eps), ("steps_since_sync", t - last_sync)):
-                log[k].append(x)
-            for v in acc.values():
-                v.clear()
-        if eval_every and t % eval_every == 0:
-            log["eval_step"].append(t)
-            log["eval_return"].append(greedy_return(q_net, make_env, eval_episodes))
-        if verbose and time.perf_counter() - shown > 10:
-            shown = time.perf_counter()
-            print(f"  step {t:,} of {steps:,}", flush=True)
-    out = {k: np.asarray(v) for k, v in log.items()}
-    out["probe_obs"] = probe.numpy()
-    out["seconds"] = time.perf_counter() - start
-    out["config"] = dataclasses.asdict(config)
-    return q_net, out
-
-
-_BUF_KEYS = ("obs", "act", "rew", "next_obs", "terminated", "truncated")
-_EP_KEYS = ("ep_return", "ep_disc_return", "ep_length", "ep_end_step", "ep_terminated")
-_SNAP_KEYS = (
-    "snap_step",
-    "snap_q",
-    "snap_actions",
-    "snap_gathered",
-    "snap_target",
-    "snap_reward",
-    "snap_terminated",
-)
-_LOG_REDUCE = (
-    ("loss", "loss", np.mean),
-    ("td_abs_mean", "td", np.mean),
-    ("td_abs_max", "td_max", np.max),
-    ("q_max_mean", "q_max", np.mean),
-    ("grad_norm", "gn", np.mean),
-    ("q_terminal", "q_term", np.mean),
-)
-_LOG_KEYS = (
-    ("step", "epsilon", "steps_since_sync", "q_probe", "q_probe_target")
-    + tuple(k for k, _, _ in _LOG_REDUCE)
-    + _EP_KEYS
-    + _SNAP_KEYS
-    + ("eval_step", "eval_return")
-)
+# %% include labs/shared/dqn.py
 
 
 # %% [markdown]
@@ -289,11 +83,11 @@ def run_log(run, seed):
     s = int(np.flatnonzero(RUNS["seeds"] == seed)[0])
     log = {"step": RUNS["step"], "probe_obs": RUNS["probe_obs"]}
     for key in RUNS:
-        if key.startswith(f"{run}/"):
-            name = key.split("/", 1)[1]
+        if key.startswith(f"{run}__"):
+            name = key.split("__", 1)[1]
             arr = RUNS[key]
             if name.startswith("ep_") and name != "ep_seed":
-                log[name] = arr[RUNS[f"{run}/ep_seed"] == seed]
+                log[name] = arr[RUNS[f"{run}__ep_seed"] == seed]
             elif name != "ep_seed":
                 log[name] = arr[s]
     return log
@@ -1058,6 +852,7 @@ print(
 lab.check(6, m09.check_band_position, band_position, label="6.1")
 
 # %% role="ex6-chk2"
+# live_return is the last greedy evaluation of train_dqn in the run cell: no second run.
 lab.check(6, m09.check_live_return, live_return, label="6.2")
 
 # %% [markdown]
