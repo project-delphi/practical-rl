@@ -243,6 +243,34 @@ def test_mutants_of_a_checked_function_count_whichever_exercise_declares_them(la
     assert set(res.per_seed) == {"solution", "mutant:drops-last", "mutant:biased", "mutant:halved"}
 
 
+DUPLICATE_ID_MUTANT = """
+@mutant(ex=1, replaces="total", id="biased", why="same id as an exercise-2 mutant")
+def total(samples):
+    return float(np.sum(samples)) + 1.0
+"""
+
+
+def test_duplicate_mutant_ids_are_refused(lab):
+    # Per-seed values are keyed by id: two "biased" mutants (exercises 1 and 2) would collide.
+    with (lab[1] / "m99.py").open("a") as fh:
+        fh.write(textwrap.dedent(DUPLICATE_ID_MUTANT))
+
+    def two(total, mean_estimate, *, seed, n):
+        return abs_error(lambda s: total(s) / len(s), seed=seed, n=n)
+
+    check = StochasticCheck(
+        ex=2,
+        functions=("total", "mean_estimate"),
+        metric=two,
+        live={"n": 1600},
+        quick={"n": 400},
+        higher_is_better=False,
+        min_gap=0.1,
+    )
+    with pytest.raises(tp.ProtocolError, match="biased appear more than once"):
+        run(lab, check)
+
+
 def test_a_crashing_mutant_is_not_a_rejection(lab):
     with (lab[1] / "m99.py").open("a") as fh:
         fh.write(textwrap.dedent(CRASHING_MUTANT))

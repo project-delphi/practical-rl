@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
         "gen_readiness.py",
         "gen_tokens.py",
         "make_expected.py",
+        "make_datasets.py",
+        "export_bands.py",
     ],
 )
 def test_generated_files_are_current(script):

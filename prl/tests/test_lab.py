@@ -271,6 +271,7 @@ def test_finish_prints_the_room_code(monkeypatch, capsys, tmp_path):
 
     lab.check(1, ok, lambda: None)
     lab.metric("rms", 0.5)
-    lab.finish()
+    # None, so a notebook does not display the whole record below the room code.
+    assert lab.finish() is None
     out = capsys.readouterr().out
     assert out.rstrip().splitlines()[-1] == "ROOM m03 seat=4 checks=1/2 quick=0 rms=0.5"
