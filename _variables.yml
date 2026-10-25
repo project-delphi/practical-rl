@@ -708,7 +708,7 @@ modules:
     question: How do we know an agent works, and find out why when it does not?
     where_we_are: Module 8 works on one seed.
     objectives:
-      - Diagnose four DQN failures from their logged metrics by writing the signal that exposes each one.
+      - Diagnose four broken DQN runs from one table of signals on their logs, two exact checks and two scale signals.
       - Confirm a diagnosis with probe environments and a debugging checklist.
       - Report a comparison with IQM, bootstrap confidence intervals and a budget sentence, and call ties.
       - Interpret a hyperparameter sensitivity sweep.
@@ -718,49 +718,51 @@ modules:
     scaffold: S2
     testbeds: [CartPole-v1, probe environments]
     compared_with: {kind: band, what: "recorded bands of the reference DQN at the same budget"}
-    planted_bug: {what: "four recorded broken runs of the reference DQN (A to D)", diagnostic: "one table of four signals on every run (two exact checks, two scale signals), the logged rewards, then probe environments"}
+    planted_bug: {exercise: 3, what: "four recorded broken runs of the reference DQN (A to D)", diagnostic: "one table of four signals on every run (two exact checks, two scale signals), the logged rewards, then probe environments"}
     diagnostics: "Q at fixed start states against the discounted return earned, the relative TD error, the gather check on a logged batch, and the target network's lag; then probes 1 and 2"
     stretch: "Jones's probe 3: two steps and discounting"
     exercises:
-      # Every number below is exact arithmetic, or "pending record": it then comes from the AD's
-      # scratch design scan (_notes/m09-ad/, not a record) and the technical expert replaces it
-      # with the m09 records (see _notes/m09-handoff.md). Pattern design: lead decision 12.
+      # Every number below is exact arithmetic or comes from a record in runs/:
+      # 2026-10-25-local-m09-broken-runs-exp.json (healthy and runs A-D, seeds 0-2),
+      # 2026-10-25-local-m09-probes-exp.json (seats 0-9), 2026-10-25-local-m09-sweep-exp.json and
+      # 2026-10-25-local-m09-reference-{live,quick}-exp.json (seeds 0-9). scripts/make_figures_m09.py
+      # asserts each. Pattern design: lead decision 12; run A's margin: decision 15.
       # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
       - n: 1
         title: Two exact checks
         minutes: 9
         writes: [gather_check, target_lag]
-        predict_answer: "gather_check is exactly 0.0 on every healthy seed: the logged gathered value is the very tensor the loss used, from the same forward pass (exact). target_lag at the last log point: 0 on the healthy run, because the target is synced at every log step and its probe values changed since the previous log point (exact); 49,500 = 50,000 - 500 for a target that never syncs (exact). The healthy run's largest lag, 500 at step 1,000, comes before the first gradient step (t = 1,004), when a sync copies unchanged weights (exact for Module 8's loop)."
+        predict_answer: "gather_check is exactly 0.0 on every healthy seed: the logged gathered value is the very tensor the loss used, from the same forward pass (exact). target_lag at the last log point: 0 on the healthy run, because the target is synced at every log step and its probe values changed since the previous log point (exact); 49,500 = 50,000 - 500 for a target that never syncs (exact). The healthy run's largest lag, 500 at step 1,000, comes before the first gradient step (t = 1,004), when a sync copies unchanged weights (exact for Module 8's loop). All asserted on every healthy seed of runs/2026-10-25-local-m09-broken-runs-exp.json."
         explain_ref: "(TD error)"
       - n: 2
         title: Two scale signals
         minutes: 10
         writes: [q_drift, td_error_scale]
-        predict_answer: "The sum of 0.99^t for t = 0..499 is 99.34 (exact; with the truncation bootstrap a correct Q may reach about 100). The healthy relative TD error in the second half is about 0.01 (pending record), and it varies from seed to seed."
+        predict_answer: "99.34 = 1 + 0.99 + … + 0.99^499 = (1 - 0.99^500)/(1 - 0.99), the discounted sum of 500 rewards of 1 (exact; with the truncation bootstrap a correct Q may reach about 100). The relative TD error: 0.01 is the nearest of the three choices on a log scale; the healthy second-half medians are 0.0041 to 0.0061 on seeds 0-2, and vary by about half from seed to seed (runs/2026-10-25-local-m09-broken-runs-exp.json)."
         explain_ref: "(Q drift)"
       - n: 3
         title: Broken runs A to D
         minutes: 7
         writes: [diagnoses]
-        predict_answer: "Missing mask: the Q drift rises far above the healthy range (Q above 99.34, because targets past the end of an episode add value no episode delivers); the exact checks stay healthy; the relative TD error need not change, since δ and Q grow together. Learning rate far too large: the relative TD error rises (updates overshoot their targets) and the Q drift may rise; the exact checks stay healthy. Diagnoses: B gather (the gather check fails), D sync (the target never changes), C mask (Q far above 99.34 with rewards of 1), A lr by elimination (both exact checks pass, Q in range, rewards 1, all 3 seeds fail). 'reward' is ruled out by the logged batches' rewards (all 1.0), not by the relative TD error, which a reward scale leaves unchanged. Magnitudes pending record."
+        predict_answer: "Missing mask: the Q drift rises far above the healthy range and Q at the start states climbs to many times 99.34, because targets past the end of an episode add value no episode delivers; the exact checks stay healthy; the relative TD error need not change, since δ and Q grow together. Learning rate far too large: the relative TD error rises (updates overshoot their targets) and the Q drift may rise; the exact checks stay healthy. The record (runs/2026-10-25-local-m09-broken-runs-exp.json, seeds 0-2): B gather (the gather check fails on 96% to 97% of rows); D sync (target_lag 49,500; Q near the reward, 1.05 to 1.17); C mask (Q at the start states ends at 1,806 to 4,130, at least 13 times every other run's on every seed, with rewards of 1); A lr by elimination (both exact checks pass, rewards 1, all 3 seeds fail with greedy returns 9.5 to 10.4, Q ends at 64.5 to 132.7: a little above 99.34 on seed 0 only, as estimation error can leave it, not many times above it; relative TD error 8.8 to 15.3 times the healthy median). 'reward' is ruled out by the logged rewards (all 1.0), not by the relative TD error, which a reward scale leaves unchanged."
         explain_ref: 'Gotcha: "An out-of-range signal names the cause."'
       - n: 4
         title: Probe environments
         minutes: 11
         writes: [ConstantRewardEnv, ObsRewardEnv]
-        predict_answer: "Q = 1 with the mask; without it Q = 1 + 0.99 Q, so Q = 100 (exact). With 20 target copies after the first gradient step (step 65; copies every 100 to step 2,000), the unmasked Q is about 1 + 0.99 + … + 0.99^19 = 18.2 if each period's regression converges (exact under that assumption). Runs B and C fail probe 2 (C fails probe 1 as well); runs A and D pass both. Pending record (scratch: C 18.02-18.13; B's Q(±1) 0.02-0.18)."
+        predict_answer: "Q = 1 with the mask; without it Q = 1 + 0.99 Q, so Q = 100 (exact). With 20 target copies after the first gradient step (step 65; copies every 100 to step 2,000), the unmasked Q is about 1 + 0.99 + … + 0.99^19 = 18.2 if each period's regression converges (exact under that assumption); run C ends probe 1 at 18.02 to 18.47 on seats 0-9. Runs B and C fail probe 2: B's Q(±1) ends between -0.08 and 0.12, C's near ±18. Run D learns both probes exactly; run A learns probe 1 exactly and probe 2 to within 0.075, a loose pass (runs/2026-10-25-local-m09-probes-exp.json, seats 0-9)."
         explain_ref: 'Gotcha: "The probes pass, so the agent is correct."'
       - n: 5
         title: Reporting a recorded sweep
         minutes: 9
         writes: [iqm, bootstrap_ci]
-        predict_answer: "Pending record (m09_sweep): whether ×1 has the highest IQM, which rates tie with it, whether seed 0 alone gives the same ranking, and where the mean and the IQM differ most (expected where seeds reach the 500 cap or collapse). With 10 seeds the IQM averages the middle 6 values (exact)."
+        predict_answer: "No: ×3's IQM, 159.7 [102.0, 328.2], is above ×1's 155.1 [138.9, 199.1], and the tie rule calls them a tie. The tie rule separates ×1 only from ×0.1 (9.4 [9.2, 9.5]); ×0.3 (141.1) and ×10 (95.2) tie with it. Seed 0 alone ranks ×3 > ×1 > ×10 > ×0.3 > ×0.1, which swaps ×10 and ×0.3 against the IQMs. The mean and the IQM differ most at ×3 (207.5 against 159.7; two seeds at 500) and at ×10 (123.8 against 95.2; one seed at 459.4). With 10 seeds the IQM averages the middle 6 values (exact). runs/2026-10-25-local-m09-sweep-exp.json."
         explain_ref: "(IQM)"
       - n: 6
         title: One live seed
         minutes: 6
         writes: [band_position]
-        predict_answer: "About 20 × 2/11 ≈ 4 seats outside if the band's top is below 500 (exact under exchangeability, no ties); about 20 × 1/11 ≈ 2 if a recorded seed reached 500, because no return can exceed it. Which case holds is pending the record (the scratch band's top is 500). Checked at the debrief from the room's live_position tally. Adding one seed moves the IQM by less than half the interval's width on most seats: pending record."
+        predict_answer: "The band's top is 321.7 live (254.8 QUICK), below 500, so about 20 × 2/11 ≈ 4 seats land outside (exact under exchangeability with no ties); the debrief checks it against the room's live_position tally. No seat can move the IQM by half its interval's width: one more seed moves it by -3.3 to +10.2 live against a half-width of 30.1, and by -8.9 to +6.5 QUICK against 32.8, exact for any return (runs/2026-10-25-local-m09-reference-live-exp.json, -quick-exp.json)."
         explain_ref: "(band)"
     budgets: {live: {steps: 50000, log_every: 500, eval_every: 5000, eval_episodes: 10, probe_steps: 2000}, quick: {steps: 10000, log_every: 500, eval_every: 1000, eval_episodes: 10, probe_steps: 2000}}
     status: {briefing: draft, lab: draft}

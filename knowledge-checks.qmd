@@ -571,7 +571,7 @@ The intervals do not overlap, so SB3's DQN is better at this budget. Before blam
 
 Questions for [Module 9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd), for after the lab, two per objective. Each answer ends with the Lab 9 checkpoint or exercise that is its evidence.
 
-### Objective 1: diagnose four DQN failures from their logged metrics by writing the signal that exposes each one
+### Objective 1: diagnose four broken DQN runs from one table of signals on their logs, two exact checks and two scale signals
 
 [**9.1**]{#q9-1} A CartPole DQN with $\gamma = 0.99$ logs $Q$ at its start states near 4,000 at step 50,000, while its recent episodes last about 10 steps. Compute the discounted return of a 10-step episode and the largest discounted return any CartPole episode can earn. What is the Q drift, roughly? Which cause on the lab's list does it point to, and why do you still run a probe before you call it?
 

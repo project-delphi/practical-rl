@@ -604,7 +604,12 @@
                prl.evaluate use, keeps n - 2 floor(n/4), e.g. 6 of 10), robust to outliers, smaller CIs than the median; s4.1: bootstrap CIs
                for single-task scores are "less useful when N is small (Figure A.18)"; stratified resampling of runs within each task; Fig. 6
                caption: percentile CIs have the best coverage, good from N = 10 runs, and with 3 runs bootstrap CIs underestimate the true 95% CIs
-               (Atari 100k, DER, 200 runs). Figure A.18 itself not opened.}
+               (Atari 100k, DER, 200 runs).
+               APPENDIX (academic director, Module 9 sign-off, 2026-10-25): opened arXiv 2108.13264 v4 (28 pages; the appendix is not in the
+               proceedings PDF). Fig. A.18 (p. 21; cited from App. A.3 and A.5): per-game bootstrap CIs for mean scores, DER on Atari 100k,
+               "For many games, the true coverage for per-game CIs is below the nominal coverage of 95% even with 30 runs per game"; App. A.3:
+               such CIs "require at least 20-30 runs per task (Figure A.18) as opposed to 5-10 runs for stratified bootstrap CIs for aggregate
+               metrics" (Fig. A.19). Module 9's page cites "arXiv v4, Fig. A.18". App. A.4 (maximum across runs biases scores up) noted, not cited.}
 }
 
 @misc{rliable2021,
@@ -617,7 +622,8 @@
                   (2024-08-12). metrics.aggregate_iqm returns scipy.stats.trim_mean(scores, proportiontocut=0.25, axis=None);
                   library.get_interval_estimates defaults to method='percentile', reps=50000, confidence_interval_size=0.95 (stratified bootstrap).
                   prl.evaluate uses the same IQM and a percentile bootstrap with n_boot=5000. The year is the paper's (the repository's first
-                  release date was not checked). The archive date (2025-10-15) is from the Phase 0 entry for agarwal2021precipice, not re-checked.}
+                  release date was not checked). Archive date re-checked 2026-10-25: the repository page says "archived by the owner on
+                  Oct 15, 2025" (GitHub API: archived true, last push 2024-08-12).}
 }
 
 @article{patterson2024empirical,

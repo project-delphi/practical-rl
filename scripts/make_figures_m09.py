@@ -1040,6 +1040,101 @@ def record_facts(data: dict) -> None:
         assert np.all(p[group]["C"]["probe 1"] > 5.0), group
 
 
+def signoff_facts(data: dict) -> None:
+    """The numbers the director's sign-off put on the page (the healthy-run fold, Exercise 3's
+    fold, the sweep fold) and in the predict_answers of Exercises 2-6 (asserted on every build)."""
+    s, rows = data["sweep"], data["sweep"]["rows"]
+    r = {row["f"]: row for row in rows}
+    fin = {float(f): v for f, v in zip(s["factors"], s["final"], strict=True)}
+    # The sweep fold and Exercise 5's predict_answer.
+    assert (_r(r[3.0]["iqm"], 1), _r(r[1.0]["iqm"], 1)) == (159.7, 155.1)
+    assert (_r(r[3.0]["lo"], 1), _r(r[3.0]["hi"], 1)) == (102.0, 328.2)
+    assert (_r(r[1.0]["lo"], 1), _r(r[1.0]["hi"], 1)) == (138.9, 199.1)
+    assert (_r(r[0.1]["iqm"], 1), _r(r[0.1]["lo"], 1), _r(r[0.1]["hi"], 1)) == (9.4, 9.2, 9.5)
+    assert (_r(r[0.3]["iqm"], 1), _r(r[10.0]["iqm"], 1)) == (141.1, 95.2)
+    assert s["calls"] == {"x0.1": "worse", "x0.3": "tie", "x3": "tie", "x10": "tie"}
+    assert np.all(np.abs(fin[0.1] - 9) < 1)  # "every seed ends near 9"
+    assert (_r(r[3.0]["mean"], 1), _r(r[10.0]["mean"], 1)) == (207.5, 123.8)
+    assert int(np.sum(fin[3.0] == 500)) == 2 and _r(fin[10.0].max(), 1) == 459.4
+    assert s["by_iqm"] == ["x3", "x1", "x0.3", "x10", "x0.1"]
+    assert s["by_seed0"] == ["x3", "x1", "x10", "x0.3", "x0.1"]
+    assert round(float(s["seconds"].sum())) == 376
+    assert s["hardware"].startswith("Apple M1 Pro (arm64, 2 torch threads")
+    # Exercise 6's predict_answer.
+    for label, top, shift, half in (
+        ("live", 321.7, (-3.3, 10.2), 30.1),
+        ("quick", 254.8, (-8.9, 6.5), 32.8),
+    ):
+        b = data["band"][label]
+        assert _r(b["top"], 1) == top and tuple(_r(v, 1) for v in b["shift"]) == shift, label
+        assert _r((b["ci"][1] - b["ci"][0]) / 2, 1) == half, label
+    # Exercise 4's predict_answer and Exercise 3's fold (seats 0-9).
+    p = data["probes"]["seats"]
+    assert np.all(np.round(p["A"]["probe 1"], 3) == 1.0) and np.all(
+        np.round(p["D"]["probe 1"], 3) == 1.0
+    )
+    assert np.all(np.round(p["D"]["probe 2"], 3) == np.array([-1.0, 1.0]))
+    assert _r(np.abs(p["A"]["probe 2"] - np.array([-1.0, 1.0])).max(), 3) == 0.075
+    assert (_r(p["C"]["probe 1"].min(), 2), _r(p["C"]["probe 1"].max(), 2)) == (18.02, 18.47)
+    assert np.all(np.abs(np.abs(p["C"]["probe 2"]) - 18) < 0.6)  # "near ±18"
+    assert _r(p["B"]["probe 2"].min(), 2) == -0.08 and _r(p["B"]["probe 2"].max(), 2) == 0.12
+    if "broken" not in data:
+        return
+    t, f = data["margins"].table, data["lab"]
+    # Exercise 3's fold, its predict_answer, and the alt texts of the signal-table panels.
+    assert [_r(v, 2) for v in t["B"]["gather_check"]] == [0.96, 0.97, 0.96]
+    assert (_r(min(t["C"]["q_start_end"]), 0), _r(max(t["C"]["q_start_end"]), 0)) == (1806, 4130)
+    assert min(t["C"]["q_start_end"]) >= 13 * max(
+        max(t[run]["q_start_end"]) for run in ("healthy", "A", "B", "D")
+    )
+    assert [_r(v, 2) for v in sorted(t["D"]["q_start_end"])] == [1.05, 1.16, 1.17]
+    qa = t["A"]["q_start_end"]
+    assert (
+        _r(qa[0], 1) == 132.7 and _r(min(qa), 1) == 64.5 and 64 < min(qa[1:]) and max(qa[1:]) < 67
+    )
+    assert [_r(v, 1) for v in t["A"]["eval_return_end"]] == [9.5, 9.5, 10.4]
+    healthy_td = float(np.median(t["healthy"]["td_scale_2nd_half"]))
+    assert (
+        _r(min(t["A"]["td_scale_2nd_half"]) / healthy_td, 1),
+        _r(max(t["A"]["td_scale_2nd_half"]) / healthy_td, 1),
+    ) == (8.8, 15.3)
+    assert (
+        _r(min(t["healthy"]["td_scale_2nd_half"]), 4),
+        _r(max(t["healthy"]["td_scale_2nd_half"]), 4),
+    ) == (0.0041, 0.0061)
+    drift = {run: list(t[run]["q_drift_last5"]) for run in RUNS}
+    assert (
+        -14 < min(drift["healthy"])
+        and max(drift["healthy"]) < 1.5
+        and all(abs(v + 8) < 0.5 for v in drift["D"])
+    )
+    assert 45 < min(drift["A"] + drift["B"]) and max(drift["A"] + drift["B"]) < 95
+    assert 1600 < min(drift["C"]) and max(drift["C"]) < 3700
+    tds = {run: list(t[run]["td_scale_2nd_half"]) for run in RUNS}
+    assert _r(min(tds["C"] + tds["D"]), 3) == 0.007 and max(tds["C"] + tds["D"]) < 0.011
+    assert 0.05 < min(tds["A"] + tds["B"]) and max(tds["A"] + tds["B"]) < 0.11
+    # The healthy-run fold: captions and alt texts, every seed.
+    step = data["broken"]["step"]
+    at = {k: int(np.flatnonzero(step == k)[0]) for k in (2_000, 10_000, 15_000, 25_000)}
+    for seed in data["broken"]["seeds"]:
+        g = f.run_log("healthy", int(seed))
+        loss, td, q = g["loss"], g["td_abs_mean"], f.q_start(g)
+        assert _r(loss[at[2_000]], 2) == 0.06 and 0.24 <= _r(loss[at[10_000]], 2) <= 0.30, seed
+        assert 0.11 <= _r(loss[at[15_000]], 2) <= 0.18, seed
+        assert 0.18 <= _r(td[at[2_000]], 2) <= 0.2 and 0.39 <= _r(td[at[10_000]], 2) <= 0.45, seed
+        assert 0.2 <= _r(td[at[25_000]], 2) <= 0.26, seed
+        assert _r(q[-1], 0) in (64, 65) and np.all(np.diff(q[at[2_000] :]) > -0.5), seed
+        edges, ret = f.smooth_returns(g)
+        assert 19.5 <= ret[0] < 21.5 and 180 <= ret[edges <= 25_000].max() <= 355, seed
+        assert 125 <= ret[-1] <= 145, seed
+    seeds = data["broken"]["seeds"]
+
+    def ends(key: str) -> list:
+        return sorted(_r(f.run_log("healthy", int(x))[key][-1], 2) for x in seeds)
+
+    assert ends("loss") == [0.06, 0.24, 0.35] and ends("td_abs_mean") == [0.14, 0.35, 0.45]
+
+
 def build() -> tuple[dict[Path, bytes], dict]:
     import matplotlib as mpl
 
@@ -1048,6 +1143,7 @@ def build() -> tuple[dict[Path, bytes], dict]:
     quoted = quoted_numbers()
     data = figure_data()
     record_facts(data)
+    signoff_facts(data)
     figures = dict(FIGURES)
     if "broken" in data:
         figures.update(PENDING_FIGURES)

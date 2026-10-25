@@ -37,7 +37,7 @@ Without GPU
 
 In this module you will:
 
-- Diagnose four DQN failures from their logged metrics by writing the signal that exposes each one.
+- Diagnose four broken DQN runs from one table of signals on their logs, two exact checks and two scale signals.
 - Confirm a diagnosis with probe environments and a debugging checklist.
 - Report a comparison with IQM, bootstrap confidence intervals and a budget sentence, and call ties.
 - Interpret a hyperparameter sensitivity sweep.

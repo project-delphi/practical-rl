@@ -39,7 +39,10 @@ The lab gives you the logs of five recorded runs of the reference DQN at the sam
 **The two equations every signal reads.** Module 8's target for a transition $(s, a, r, s')$ is
 
 $$
-y = r + \gamma\,(1 - \text{terminated})\, \max_{a'} Q(s', a'; w^-),
+\begin{aligned}
+y = r &+ \gamma\,(1 - \text{terminated}) \\
+&\times \max_{a'} Q(s', a'; w^-),
+\end{aligned}
 $$ {#eq-masked-target}
 
 where $w$ are the online network's parameters and $w^-$ the target network's: a copy of $w$, refreshed every 500 environment steps in the reference configuration. The target network is Mnih et al.'s [@mnih2015dqn, Methods]. "terminated" is 1 when $s'$ is a terminal state and 0 otherwise; a truncated episode still bootstraps. The TD error of the transition is
@@ -59,9 +62,21 @@ with $Q(s, a; w)$ the entry of the network's output for the action $a$ that was 
 Jones's own list is longer [@jones2021debugging, "Log excessively"]. A quantity you did not log cannot help you later.
 
 ::: {#demo-dashboard .demo}
-**Demo (3 min).** Vote first, then look. In a healthy run of Module 8's DQN, does the mean loss (a) fall steadily toward 0, (b) drop early and then stay level or rise slowly, or (c) rise without bound? Does $Q$ at the start states (a) stay near 1, (b) climb over the whole run, or (c) reach its final value within the first 5,000 steps? Then open the healthy run's four panels, every seed: the return, the mean loss, the mean $|\delta|$ and $Q$ at the start states. Read them as a room: which votes held? Write one sentence about the loss.
+**Demo (3 min).** Vote first, then look. In a healthy run of Module 8's DQN, does the mean loss (a) fall steadily toward 0, (b) rise early and then wander, never heading to 0, or (c) rise without bound? Does $Q$ at the start states (a) stay near 1, (b) climb over the whole run, or (c) reach its final value within the first 5,000 steps? Then open the fold below: the healthy run's four panels, every seed. Read them as a room: which votes held? Write one sentence about the loss.
 
-*Figure pending the healthy record* (`images/09-healthy-dashboard.svg`, from `m09_broken_runs`; technical expert). Until it exists, the instructor projects Exercise 1's plot from a worked run of the notebook.
+::: {.callout-note collapse="true" title="After the vote: the healthy run, every seed"}
+::: {#fig-healthy layout="[[50,50],[50,50]]"}
+![Return.](/images/09-healthy-dashboard-return.svg){#fig-healthy-return fig-alt="Against environment steps from 0 to 50,000, three blue lines, one per seed (solid, dashed, dotted), rise from about 20 to peaks between about 180 and 350 by 25,000 steps, then wander and end between about 125 and 145."}
+
+![Mean loss.](/images/09-healthy-dashboard-loss.svg){#fig-healthy-loss fig-alt="On a linear axis from 0 to 0.45, three blue lines, one per seed, rise from about 0.06 at 2,000 steps to between 0.24 and 0.30 by 10,000, fall to between 0.11 and 0.18 by 15,000, then wander: one seed ends near 0.06, the others near 0.24 and 0.35."}
+
+![Mean |δ|.](/images/09-healthy-dashboard-td.svg){#fig-healthy-td fig-alt="On a linear axis from 0 to 0.6, the loss's shape: from about 0.19 at 2,000 steps up to between 0.39 and 0.45 by 10,000, down to between 0.2 and 0.26 by 25,000, then one seed falls to about 0.14 and the others end near 0.35 and 0.45."}
+
+![Q at the start states.](/images/09-healthy-dashboard-q.svg){#fig-healthy-q fig-alt="Three nearly coincident blue lines climb steadily from 0 to about 64 or 65 at 50,000 steps, below a grey dashed line at 99.34 labeled the most an episode earns."}
+
+**What to notice:** the loss rises with $Q$ over the first 10,000 steps, from about 0.06 to between 0.24 and 0.30, then wanders without heading to 0: vote (b). $Q$ at the start states climbs over the whole run on every seed, to about 64 or 65 at 50,000 steps: vote (b). The return peaks by 25,000 steps and wanders after, while $Q$ keeps climbing. The healthy run of Module 8's reference DQN on CartPole, seeds 0 to 2, logged every 500 environment steps of a 50,000-step run (`runs/2026-10-25-local-m09-broken-runs-exp.json`).
+:::
+:::
 :::
 
 **Four signals.** Each turns a log into a number or a curve you can compare with a healthy run. Two are scale signals: they say that something is out of range. Two are exact checks: when one fails, it names its cause.
@@ -94,7 +109,9 @@ def gather_check(log):
     """Share of batch rows whose gathered value is not Q(s_i, a_i)."""
     q, a = log["snap_q"], log["snap_actions"]
     want = np.take_along_axis(q, a[..., None], axis=-1)[..., 0]
-    wrong = ~np.isclose(log["snap_gathered"], want, rtol=1e-5, atol=1e-6)
+    wrong = ~np.isclose(
+        log["snap_gathered"], want, rtol=1e-5, atol=1e-6
+    )
     return float(wrong.mean())
 
 
@@ -125,6 +142,27 @@ def target_lag(log):
 
 ::: {.callout-note appearance="simple"}
 **In the lab.** **Exercise 1** writes the two exact checks, `gather_check` and `target_lag`, and **Exercise 2** the two scale signals, `q_drift` (@eq-q-drift) and `td_error_scale` (@eq-relative-td), each tried on the healthy run. In **Exercise 3** the four signals are computed on every run and seed, and you name each broken run's cause from a list of six. Checkpoints 1.1 to 2.2 are exact; checkpoints 3.1 to 3.4 check the four diagnoses.
+:::
+
+::: {.callout-note collapse="true" title="After the lab: every signal on every run"}
+::: {#fig-signals layout="[[50,50],[50,50]]"}
+![gather_check.](/images/09-signal-table-gather.svg){#fig-signals-gather fig-alt="Three open circles per run on a share axis from 0 to 1: every run sits at 0 except B, whose three seeds sit between 0.96 and 0.97."}
+
+![target_lag at the last log point.](/images/09-signal-table-lag.svg){#fig-signals-lag fig-alt="Three open circles per run on an axis of environment steps from 0 to 50,000: every run sits at 0 except D, at 49,500 on every seed."}
+
+![Q drift over the last 5 log points.](/images/09-signal-table-drift.svg){#fig-signals-drift fig-alt="On a symmetric log axis from minus 10 to beyond 1,000, the healthy seeds sit between about minus 13 and 1 and D's near minus 8; A and B sit between about 46 and 94, and C's three seeds between about 1,600 and 3,700."}
+
+![Relative TD error, second half.](/images/09-signal-table-td.svg){#fig-signals-td fig-alt="On a log axis, the healthy seeds sit between about 0.004 and 0.006, C and D a little higher at 0.007 to 0.011, and A and B between about 0.05 and 0.11."}
+
+**What to notice:** each exact check singles out one run: the gather check run B, the target lag run D. The scale signals flag several runs: the Q drift is high on A and B and far higher on C, and the relative TD error is high on A and B. Each signal on the healthy run and runs A to D, seeds 0, 1 and 2, from the recorded logs (`runs/2026-10-25-local-m09-broken-runs-exp.json`).
+:::
+
+How the four runs were made, each with one change from Module 8's reference:
+
+- **A:** the learning rate is 100 times the reference, ten times past the sweep's right end (section 6). Both exact checks pass. Its $Q$ at the start states ends at 132.7 on seed 0, a little above 99.34, as estimation error can leave it (Module 7), and between 64 and 67 on the others; run C's ends at least 13 times higher on every seed. On the lab's seats 0 to 9 it passes probe 1 exactly and is off by up to 0.075 on probe 2. It was found by ruling out the other causes, as faults in a setting usually are.
+- **B:** `gather_q` gathers along dimension 0 instead of 1, so the loss trains the wrong entries of $Q$: 96% to 97% of the logged rows fail the gather check.
+- **C:** `td_target` ignores `terminated`, so every target bootstraps past the end of its episode: $Q$ at the start states ends between 1,806 and 4,130.
+- **D:** the target network is never synced, so its values never change (a lag of 49,500 steps), and $Q$ at the start states stays near the reward, between 1.05 and 1.17.
 :::
 
 ## 3. The checklist and probe environments
@@ -191,7 +229,9 @@ class ObsRewardEnv(gym.Env):
         return np.array([self.obs], np.float32), {}
 
     def step(self, action):
-        return np.array([self.obs], np.float32), self.obs, True, False, {}
+        return (
+            np.array([self.obs], np.float32), self.obs, True, False, {}
+        )
 ```
 :::
 
@@ -212,7 +252,7 @@ A training run is random: the seed fixes the network's initial weights, the expl
 One in three. The six returns are six independent draws from the same distribution, so before you look, each of the six is equally likely to be the smallest, and equally likely to be the largest. The new seed falls outside the band exactly when it is the smallest or the largest of the six: probability $2/6$. In general, for a band of $n$ seeds,
 
 $$
-P(\text{a new seed lands outside}) = \frac{2}{n + 1},
+P(\text{outside}) = \frac{2}{n + 1},
 $$ {#eq-band}
 
 when no two returns can tie. Ties make it smaller: a return can never exceed a band that already reaches CartPole's maximum of 500.
@@ -239,14 +279,16 @@ Agarwal et al. recommend it for comparisons from few runs: it "discards the bott
 
 $$
 \begin{aligned}
-z^{(b)} &= \text{$n$ draws from } z \text{ with replacement}, \\
-\text{CI} &= \big[\, q_{0.025},\ q_{0.975} \,\big] \text{ of } \operatorname{IQM}(z^{(b)}),
+z^{(b)} &= \text{$n$ draws from } z \\
+&\qquad \text{with replacement}, \\
+\text{CI} &= \big[\, q_{0.025},\ q_{0.975} \,\big] \\
+&\qquad \text{of } \operatorname{IQM}(z^{(b)}),
 \end{aligned}
 $$ {#eq-bootstrap}
 
 for $b = 1, \dots, n_{\text{boot}}$. `prl.evaluate` uses $n_{\text{boot}} = 5000$ and a fixed seed, so the interval is reproducible. When there are several tasks, Agarwal et al. resample runs *within each task*, the stratified bootstrap, and they found percentile intervals to have good coverage from about 10 runs per task on their Atari 100k benchmark [@agarwal2021precipice, §4.1, Fig. 6].
 
-**What it does not say.** Their coverage study pools runs over many tasks. With one task and $n$ runs, the bootstrap leans on the $n$ values you have standing in for the whole distribution, and Agarwal et al. call the single-task bootstrap "less useful when N is small" [@agarwal2021precipice, §4.1]; they also note that with 3 runs the intervals come out too narrow. Ten seeds on one task is the regime the workshop can afford, not the regime their coverage numbers come from. Read an interval from 10 seeds as a rough statement of spread, and call overlapping intervals a tie.
+**What it does not say.** Their coverage study pools runs over many tasks. With one task and $n$ runs, the bootstrap leans on the $n$ values you have standing in for the whole distribution, and Agarwal et al. call the single-task bootstrap "less useful when N is small" [@agarwal2021precipice, §4.1]; they also note that with 3 runs the intervals come out too narrow. In their appendix, single-task intervals for the mean fall short of 95% coverage on many games even with 30 runs (arXiv v4, Fig. A.18). Ten seeds on one task is the regime the workshop can afford, not the regime their coverage numbers come from. Read an interval from 10 seeds as a rough statement of spread, and call overlapping intervals a tie.
 
 ::: {#chk-iqm .self-check}
 **Check yourself 5.1.** Ten seeds end with returns 12, 500, 480, 35, 500, 210, 9, 495, 500 and 260. Compute the mean, the median and the IQM. Then the seed that returned 9 is rerun and returns 0: which of the three change?
@@ -265,7 +307,8 @@ def iqm(x):
     return float(x[k : len(x) - k].mean())  # (IQM)
 
 
-def bootstrap_ci(x, statistic=np.mean, *, level=0.95, n_boot=5000, seed=0):
+def bootstrap_ci(x, statistic=np.mean, *, level=0.95, n_boot=5000,
+                 seed=0):
     """Percentile bootstrap interval for statistic(x)."""
     x = np.asarray(x, dtype=float).ravel()
     rng = np.random.default_rng(seed)
@@ -278,7 +321,7 @@ def bootstrap_ci(x, statistic=np.mean, *, level=0.95, n_boot=5000, seed=0):
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 5** has two parts: `iqm` (@eq-iqm) and `bootstrap_ci` (@eq-bootstrap), written to match `prl.evaluate` exactly; checkpoints 5.1 and 5.2 compare them on fixed inputs. The run cell reports a recorded sweep of 5 learning rates × 10 seeds with your functions, the mean beside each IQM. **Exercise 6** trains one seed of the reference configuration live. You write `band_position`, which says whether a value lands above, inside or below a band (@eq-band); checkpoint 6.1 is exact. Checkpoint 6.2 compares your return with a threshold from the threshold protocol, not with the band.
+**In the lab.** **Exercise 5** has two parts: `iqm` (@eq-iqm) and `bootstrap_ci` (@eq-bootstrap), written to match `prl.evaluate` exactly; checkpoints 5.1 and 5.2 compare them on fixed inputs. The run cell reports a recorded sweep of 5 learning rates × 10 seeds with your functions, the mean beside each IQM. **Exercise 6** trains one seed of the reference configuration live. You write `band_position`, which says whether a value lands above, inside or below a band (@eq-band); checkpoint 6.1 is exact. Checkpoint 6.2 compares the best of your run's greedy evaluations with a threshold from the threshold protocol, not with the band.
 :::
 
 ## 6. Budget sentences, ties and sweeps
@@ -297,8 +340,8 @@ def bootstrap_ci(x, statistic=np.mean, *, level=0.95, n_boot=5000, seed=0):
 
 **Where the lab's learning rates come from.** The sweep varies only the learning rate, at 0.1, 0.3, 1, 3 and 10 times the reference, and keeps every other part of Module 8's configuration.
 
-::: {.callout-note collapse="true" title="After the lab: run A and the sweep"}
-Run A's learning rate is 100 times the reference, ten times past the sweep's right end. No exact check and no probe can see it: it was found by ruling out the other causes, as hyperparameter faults usually are.
+::: {.callout-note collapse="true" title="After the lab: the recorded sweep"}
+![**What to notice:** the reference, ×1, does not have the highest IQM: ×3's, 159.7, is above its 155.1, and the tie rule calls them a tie. ×1 ties with ×0.3 and ×10 as well, and is better only than ×0.1, where every seed ends near 9. The mean and the IQM differ most at ×3 (207.5 against 159.7), where two seeds reach 500, and at ×10 (123.8 against 95.2), where one seed reaches 459. Seed 0 alone would rank ×10 above ×0.3. Final greedy return at five learning rates, 0.1 to 10 times the reference, 10 seeds each; 50,000 environment steps per run, 376 s of wall-clock in all on an Apple M1 Pro laptop (arm64, 2 torch threads; not Colab) (`runs/2026-10-25-local-m09-sweep-exp.json`).](/images/09-sweep.svg){#fig-sweep fig-alt="Final greedy return at five learning rates, 0.1 to 10 times the reference. At each rate ten open circles, one per seed, stand beside a filled diamond with an interval bar (the IQM and its 95% bootstrap interval) and a cross (the mean). At 0.1 every seed is near 9; at 0.3, 1 and 3 the diamonds sit between about 140 and 160 with overlapping bars, and two seeds at 3 reach 500; at 10 the diamond is near 95, with one seed at 459."}
 :::
 
 ## Summary
@@ -307,7 +350,7 @@ Run A's learning rate is 100 times the reference, ten times past the sweep's rig
 - Turn logs into signals and compare each with a healthy run: two exact checks (the gathered values against $Q(s_i, a_i)$, and how long ago the target network's values changed) and two scale signals (Q at the start states against the discounted return earned, @eq-q-drift, and the relative TD error, @eq-relative-td, a weak one). An exact check that fails names its cause; a scale signal only says that something is wrong.
 - A diagnosis is a hypothesis. Test it on probe environments, whose answers you compute by hand [@jones2021debugging]. A passing probe rules out only what it exercises; no probe tests a hyperparameter.
 - A correct new seed lands outside an $n$-seed band with probability $2/(n+1)$ when returns cannot tie (@eq-band). Bands are never pass or fail.
-- Summarize seeds with the IQM (@eq-iqm) and a percentile bootstrap interval (@eq-bootstrap) [@agarwal2021precipice, §4.1, §4.3]; with 10 seeds on one task, read the interval as rough. State the budget, and call overlapping intervals a tie.
+- Summarize seeds with the IQM (@eq-iqm) and a percentile bootstrap interval (@eq-bootstrap) [@agarwal2021precipice, §§4.1, 4.3]; with 10 seeds on one task, read the interval as rough. State the budget, and call overlapping intervals a tie.
 - In a sweep, read the shape, the ties and the selection: the best configuration's score is optimistic.
 
 ### Equations and where you implement them
@@ -321,6 +364,8 @@ Run A's learning rate is 100 times the reference, ten times past the sweep's rig
 | The interquartile mean (@eq-iqm) | Exercise 5: `iqm` | (IQM) |
 | The percentile bootstrap (@eq-bootstrap) | Exercise 5: `bootstrap_ci` | (bootstrap CI) |
 | A new seed against a band (@eq-band) | Exercise 6: `band_position` | (band) |
+
+: {tbl-colwidths="[40,36,24]"}
 
 ## Gotchas and troubleshooting
 
