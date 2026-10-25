@@ -439,15 +439,19 @@ class Lab:
             rec["note"] = note
         return rec
 
-    def finish(self, **kwargs: Any) -> dict[str, Any]:
-        """Print the summary and emit this run's record."""
+    def finish(self, **kwargs: Any) -> None:
+        """Print the summary, emit this run's record and print the room code.
+
+        Returns None: a notebook's last cell is `lab.finish()`, and a returned record would be
+        displayed below the room code (about 200 lines on Colab). The record is in the printed
+        JSON and the saved file; `build_record()` returns it.
+        """
         self.summary()
         rec = self.build_record(**kwargs)
         record.emit(rec)
         # Last, so it is what a participant sees after the long record.
         print("\nYour room code (paste it where your instructor says):")
         print(self.room_code())
-        return rec
 
     def use_settings(self, settings: runtime.Settings) -> runtime.Settings:
         """Record which budget this run used."""
