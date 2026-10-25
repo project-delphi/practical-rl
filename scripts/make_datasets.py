@@ -114,8 +114,142 @@ def dataset(
 
 
 # ------------------------------------------------------------------ datasets, by module
-# None yet. Module 9 adds m09_broken_runs and m09_sweep (built from records of Module 8's
-# shared DQN); Day 5 adds the rest of PLAN.md §5's table.
+# Module 9 adds m09_broken_runs and m09_sweep (built from records of Module 8's shared DQN);
+# Day 5 adds the rest of PLAN.md §5's table.
+
+
+# ------------------------------------------------------------------ Module 9
+# Records of scripts/make_figures_m09.py (torch); the builders below only convert them.
+M09_BROKEN = "2026-10-25-local-m09-broken-runs-exp"
+M09_SWEEP = "2026-10-25-local-m09-sweep-exp"
+M09_RUNS = ("healthy", "A", "B", "C", "D")
+M09_SCALARS = (
+    "epsilon",
+    "loss",
+    "td_abs_mean",
+    "td_abs_max",
+    "q_max_mean",
+    "grad_norm",
+    "q_terminal",
+)
+
+
+def _m09_float(x: Any, dtype: Any = np.float32) -> np.ndarray:
+    """Nested lists of numbers with None for NaN (as the records store them) as an array."""
+
+    def nan(v: Any) -> Any:
+        return [nan(u) for u in v] if isinstance(v, list) else (np.nan if v is None else v)
+
+    return np.asarray(nan(x), dtype=dtype)
+
+
+def _m09_hardware(rec: dict[str, Any]) -> str:
+    """Where a record ran, for the lab's budget sentence. A laptop stays a laptop."""
+    hw = rec["hardware"]
+    where = "a laptop, not Colab" if rec["platform"] == "local" else rec["env"]
+    return f"{hw['cpu']} ({hw['arch']}, {rec['torch_threads']} torch threads; {where})"
+
+
+def m09_broken_runs(records: dict[str, dict[str, Any]]) -> dict[str, np.ndarray]:
+    import m09_signals
+
+    rec = records[M09_BROKEN]
+    b = rec["budget"]
+    seeds = list(rec["seeds"])
+    gamma = float(b["gamma"])
+    out: dict[str, np.ndarray] = {
+        "runs": np.array(M09_RUNS, dtype="<U7"),
+        "seeds": np.array(seeds, dtype=np.int64),
+        "gamma": np.array(gamma),
+        "target_sync": np.array(b["target_sync"], dtype=np.int64),
+        "log_every": np.array(b["log_every"], dtype=np.int64),
+        "budget_steps": np.array(b["steps"], dtype=np.int64),
+        "step": np.array(b["grid"], dtype=np.int64),
+        "probe_obs": _m09_float(b["probe_states"]["obs"]),
+    }
+    for run in M09_RUNS:
+        r = rec["per_seed"][run]
+        for key in ("q_probe", "q_probe_target", *M09_SCALARS):
+            out[f"{run}__{key}"] = _m09_float(r[key])
+        out[f"{run}__snap_step"] = np.array(r["snap_step"], dtype=np.int64)
+        out[f"{run}__snap_q"] = _m09_float(r["snap_q"])
+        out[f"{run}__snap_actions"] = np.array(r["snap_actions"], dtype=np.int64)
+        for key in ("snap_gathered", "snap_target", "snap_reward"):
+            out[f"{run}__{key}"] = _m09_float(r[key])
+        out[f"{run}__snap_terminated"] = np.array(r["snap_terminated"], dtype=bool)
+        out[f"{run}__eval_return"] = _m09_float(r["eval_return"])
+        # Per episode: CartPole pays 1 a step, so the return is the length and G_0 is
+        # (1 - gamma^L) / (1 - gamma); the episodes tile the steps, so each ends at the running
+        # sum of the lengths. The recording script checked all three against the raw log.
+        lengths, ends, terms, ep_seed = [], [], [], []
+        for seed, length, cut in zip(seeds, r["ep_length"], r["ep_truncated"], strict=True):
+            length = np.array(length, dtype=np.int64)
+            term = np.ones(len(length), dtype=bool)
+            term[np.array(cut, dtype=np.int64)] = False
+            lengths.append(length)
+            ends.append(np.cumsum(length))
+            terms.append(term)
+            ep_seed.append(np.full(len(length), seed, dtype=np.int64))
+        length = np.concatenate(lengths)
+        out[f"{run}__ep_length"] = length
+        out[f"{run}__ep_end_step"] = np.concatenate(ends)
+        out[f"{run}__ep_terminated"] = np.concatenate(terms)
+        out[f"{run}__ep_return"] = length.astype(np.float32)
+        disc = (1 - gamma ** length.astype(float)) / (1 - gamma)
+        out[f"{run}__ep_disc_return"] = disc.astype(np.float32)
+        out[f"{run}__ep_seed"] = np.concatenate(ep_seed)
+    m09_signals.assert_margins(out)  # every margin on every seed, or no dataset
+    return out
+
+
+M09_BROKEN_SPEC = dict(
+    description=(
+        "Module 8's reference DQN on CartPole-v1, 50,000 steps: the healthy run and four broken "
+        "runs A-D (a learning rate 100 times the reference, a gather along the wrong dimension, "
+        "a target without the terminal mask, a target network never synced), seeds 0-2 each, "
+        "with Module 9's logging (every 500 steps, 8 probe states, three batch snapshots of 32 "
+        "rows). Keys <run>__<log key>; per-episode arrays hold the three seeds one after another "
+        "(<run>__ep_seed). Lab 9, Exercises 1-3."
+    ),
+    modules=["m09"],
+    license="CC BY 4.0",
+    sources=[M09_BROKEN],
+)
+# Not registered yet: on the record of 2026-10-25 one margin fails (run A, seed 0, ends with Q
+# at the start states 132.7 > 99.34; OPEN_QUESTIONS B81), so the builder refuses it and the
+# record is not filed. Once the director and the lead decide, file the record and register:
+#     dataset("m09_broken_runs", **M09_BROKEN_SPEC)(m09_broken_runs)
+
+
+@dataset(
+    "m09_sweep",
+    description=(
+        "Module 8's reference DQN on CartPole-v1 with only the learning rate changed (0.1, 0.3, "
+        "1, 3 and 10 times the reference), seeds 0-9 each, 50,000 steps: the greedy return "
+        "(mean of 10 episodes) every 5,000 steps, each run's laptop wall-clock and where it ran. "
+        "Lab 9, Exercise 5."
+    ),
+    modules=["m09"],
+    license="CC BY 4.0",
+    sources=[M09_SWEEP],
+)
+def m09_sweep(records: dict[str, dict[str, Any]]) -> dict[str, np.ndarray]:
+    rec = records[M09_SWEEP]
+    b = rec["budget"]
+    rows = [rec["per_seed"][name] for name in b["configs"]]
+    curves = _m09_float([row["return"] for row in rows])
+    assert curves.shape == (len(rows), len(rec["seeds"]), len(b["grid"]))
+    return {
+        "lr_factor": np.array(b["lr_factors"], dtype=np.float64),
+        "lr": np.array(b["lr"], dtype=np.float64),
+        "seeds": np.array(rec["seeds"], dtype=np.int64),
+        "final_return": curves[:, :, -1].astype(np.float64),
+        "curve_step": np.array(b["grid"], dtype=np.int64),
+        "curve_return": curves,
+        "seconds": np.array([row["seconds"] for row in rows], dtype=np.float64),
+        "budget_steps": np.array(b["steps"], dtype=np.int64),
+        "hardware": np.array(_m09_hardware(rec)),
+    }
 
 
 # ------------------------------------------------------------------ building
