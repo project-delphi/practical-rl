@@ -593,19 +593,21 @@ check_live_return = StochasticCheck(
         # threshold: the midpoint 134.425, rounded to 130.0. 0 of 100 solution seeds fail: flake
         # rate at most about 3/N = 3.0% (rule of three). Wrong versions: random play and the
         # untrained network (labs/mutants/protocol/m09.py); neither passes on any seed.
+        # Refiled after the sign-off (efe1cde); per-seed values identical to -exp.
         "live": (
             130.0,
-            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m09-check_live_return-live-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m09-check_live_return-live-n100-exp-2.json",
         ),
         # threshold_protocol.py, quick budget {"eval_episodes": 10, "eval_every": 1000, "steps":
         # 10000}, N = 100 seeds (0-99), 2026-10-25, local (Apple M1 Pro, arm64). Solution p1
         # 149.2; strongest wrong version mutant 'untrained' p99 78.92; gap 70.25 (minimum 25);
         # threshold: the midpoint 114.046, rounded to 110.0. 0 of 100 solution seeds fail: flake
         # rate at most about 3/N = 3.0% (rule of three). The earlier QUICK records (-exp,
-        # -exp-2) measured the last evaluation, before decision 16.
+        # -exp-2) measured the last evaluation, before decision 16; -exp-3 is this metric before
+        # the director's sign-off (per-seed values identical to this refiling, efe1cde).
         "quick": (
             110.0,
-            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m09-check_live_return-quick-n100-exp-3.json",
+            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m09-check_live_return-quick-n100-exp-4.json",
         ),
     },
 )
