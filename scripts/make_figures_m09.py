@@ -875,7 +875,7 @@ def sweep_figure(t, data: dict):
     ax.yaxis.set_major_locator(FixedLocator([0, 100, 200, 300, 400, 500]))
     ax.grid(True, axis="y", lw=0.8)
     _style_axes(ax)
-    ax.set_xlabel("Learning rate, times the reference (1e-3)")
+    ax.set_xlabel(r"Learning rate, times the reference ($10^{-3}$)")
     ax.set_ylabel("Greedy return at 50,000 steps")
     handles = [
         Line2D([], [], marker="o", color=t.series[0], mfc="none", ls="none", ms=6, mew=1.4),
@@ -895,6 +895,9 @@ def sweep_figure(t, data: dict):
         columnspacing=1.0,
     )
     return fig
+
+
+LOSS_TOP, TD_TOP = 0.45, 0.6  # the healthy panels' linear y ranges (record_facts checks them)
 
 
 def _dashboard_panel(t, data: dict, panel: str):
@@ -926,19 +929,23 @@ def _dashboard_panel(t, data: dict, panel: str):
         )
     title, ylabel = {
         "return": ("Return", "Mean return, per 2,500 steps"),
-        "loss": ("Loss", "Mean loss (log scale)"),
-        "td": ("Mean |δ|", "Mean |δ| (log scale)"),
-        "q": ("Q at the start states", "Mean of max_a Q"),
+        "loss": ("Loss", "Mean loss"),
+        "td": ("Mean |δ|", "Mean |δ| over the batches"),
+        "q": ("Q at the start states", r"Mean of $\mathrm{max}_a\,Q$"),
     }[panel]
-    if panel in ("loss", "td"):
-        ax.set_yscale("log")
+    if panel == "loss":  # linear from 0: the vote asks whether the loss heads to 0
+        ax.set_ylim(0, LOSS_TOP)
+        ax.yaxis.set_major_locator(FixedLocator([0, 0.1, 0.2, 0.3, 0.4]))
+    if panel == "td":
+        ax.set_ylim(0, TD_TOP)
+        ax.yaxis.set_major_locator(FixedLocator([0, 0.2, 0.4, 0.6]))
     if panel == "q":
         ax.axhline(_r(m09_signals.G_MAX, 2), color=t.neutral, ls=(0, (5, 2)), lw=1.2)
         ax.text(2_000, 96, "99.34, the most\nan episode earns", color=t.text, fontsize=12, va="top")
         ax.set_ylim(0, 110)
     if panel == "return":
         ax.set_ylim(0, 520)
-        ax.legend(loc="upper left", frameon=False, fontsize=12)
+        ax.legend(loc="upper right", frameon=False, fontsize=12)
     ax.set_xlim(0, 50_000)
     ax.xaxis.set_major_locator(FixedLocator([0, 25_000, 50_000]))
     ax.xaxis.set_major_formatter(FuncFormatter(_thousands))
@@ -958,14 +965,15 @@ def _table_panel(t, data: dict, signal: str):
     from make_figures_m01 import WIDTH_IN
 
     tab = data["margins"].table
-    key, title, scale = {
-        "gather": ("gather_check", "gather_check", "linear"),
-        "lag": ("target_lag_last", "target_lag, last log point", "linear"),
-        "drift": ("q_drift_last5", "Q drift, last 5 log points", "symlog"),
-        "td": ("td_scale_2nd_half", "Relative TD error, 2nd half", "log"),
+    key, title, unit, scale = {  # the unit is the y label: titles stay within 340 px
+        "gather": ("gather_check", "gather_check", "share of rows", "linear"),
+        "lag": ("target_lag_last", "target_lag, last log point", "env steps", "linear"),
+        "drift": ("q_drift_last5", "Q drift, last 5 log points", "return", "symlog"),
+        "td": ("td_scale_2nd_half", "Relative TD error, 2nd half", "mean |δ| / mean max Q", "log"),
     }[signal]
     fig = Figure(figsize=(WIDTH_IN / 2, 300 * PX))
-    ax = fig.add_axes((0.22, 0.15, 0.73, 0.74))
+    ax = fig.add_axes((0.27, 0.15, 0.69, 0.74))
+    ax.set_ylabel(unit)
     for i, run in enumerate(RUNS):
         v = np.round(np.asarray(tab[run][key], dtype=float), 6)
         color = t.neutral if run == "healthy" else t.series[0]
@@ -976,6 +984,8 @@ def _table_panel(t, data: dict, signal: str):
         ax.set_yticklabels(["−10", "0", "10", "100", "1,000"])
     else:
         ax.set_yscale(scale)
+    if signal == "lag":
+        ax.yaxis.set_major_formatter(lambda v, _: f"{v:,.0f}")
     ax.xaxis.set_major_locator(FixedLocator(list(range(len(RUNS)))))
     ax.set_xticklabels(["healthy", "A", "B", "C", "D"])
     ax.set_xlim(-0.6, len(RUNS) - 0.4)
@@ -1020,6 +1030,7 @@ def record_facts(data: dict) -> None:
             assert f.gather_check(g) == 0.0 and lag[-1] == 0, seed
             assert lag.max() == 500 and g["step"][int(np.argmax(lag))] == 1_000, seed
             assert f.target_lag(f.run_log("D", int(seed)))[-1] == 49_500, seed
+            assert np.nanmax(g["loss"]) < LOSS_TOP and np.nanmax(g["td_abs_mean"]) < TD_TOP, seed
     p = data["probes"]
     for group in p:
         # Probe 1 with the mask learns 1 to two decimals on every seed for every agent but C,

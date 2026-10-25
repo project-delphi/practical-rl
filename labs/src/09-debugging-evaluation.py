@@ -46,8 +46,8 @@ budget = lab.use_settings(
 # Your seat's seed, clear of the recorded seeds, the figures' and the checkpoints' (0-99).
 RUN_SEED = (SEED + 1) * 1000
 _rt = prl.runtime.detect()
-HARDWARE = f"{_rt.platform}, {_rt.cpu}, {_rt.n_cpu} CPU"
 torch.set_num_threads(min(2, _rt.n_cpu))
+HARDWARE = f"{_rt.cpu} ({_rt.platform}, {torch.get_num_threads()} torch threads)"
 print(f"Budget: {budget.steps:,} env steps for your live run; {budget.probe_steps:,} per probe.")
 
 # %% [markdown]
@@ -56,7 +56,8 @@ print(f"Budget: {budget.steps:,} env steps for your live run; {budget.probe_step
 # The two cells below are Module 8's DQN: its configuration `CONFIG`, the masked target
 # `td_target`, `gather_q`, which reads Q(s, a; w) for the action taken, and the training loop
 # `train_dqn`, which returns the network and a log. Every run in this lab, recorded or live,
-# uses this code and this configuration.
+# uses this code and this configuration. Run both; you write none of this code. Open a cell to
+# read a function: each keeps its docstring.
 
 # %% include labs/shared/dqn_setup.py
 
@@ -118,14 +119,19 @@ RUN_STYLE = {
 
 def dashboard(runs, title, panels=("return", "loss", "td", "q")):
     """Provided: the chosen panels for the runs you name, every seed as its own line."""
+    q_scale = "linear" if list(runs) == ["healthy"] else "symlog"  # run C reaches about 4,000
     draw = {
-        "return": ("return (episodes per 2,500 steps)", "linear", smooth_returns),
-        "loss": ("mean loss", "log", lambda g: (g["step"], g["loss"])),
-        "td": ("mean |δ|", "log", lambda g: (g["step"], g["td_abs_mean"])),
-        "q": ("Q at the start states", "symlog", lambda g: (g["step"], q_start(g))),
+        "return": ("mean return, per 2,500-step window", "linear", smooth_returns),
+        "loss": ("mean loss", "linear", lambda g: (g["step"], g["loss"])),
+        "td": ("mean |δ|", "linear", lambda g: (g["step"], g["td_abs_mean"])),
+        "q": ("Q at the start states", q_scale, lambda g: (g["step"], q_start(g))),
     }
-    fig, axes = plt.subplots(1, len(panels), figsize=(4.2 * len(panels), 3.6))
-    for ax, panel in zip(np.atleast_1d(axes), panels, strict=True):
+    ncols = min(2, len(panels))
+    nrows = -(-len(panels) // ncols)
+    fig, axes = plt.subplots(
+        nrows, ncols, figsize=(4.8 * ncols, 3.3 * nrows), layout="constrained", squeeze=False
+    )
+    for ax, panel in zip(axes.flat, panels, strict=True):
         ylabel, scale, xy = draw[panel]
         for run in runs:
             for k, seed in enumerate(RUNS["seeds"]):
@@ -133,9 +139,13 @@ def dashboard(runs, title, panels=("return", "loss", "td", "q")):
                 kw = dict(lw=1.2, alpha=0.85, label=name if k == 0 else None)
                 ax.plot(*xy(run_log(run, int(seed))), **kw, **RUN_STYLE[run])
         if panel == "q":
-            ax.axhline(G_MAX, color=prl.plot.NEUTRAL_LIGHT, ls=":", lw=1, label="99.34")
+            ax.axhline(G_MAX, color=prl.plot.NEUTRAL_LIGHT, ls=":", lw=1)
+            label = f"{G_MAX:.2f}, the most an episode earns"
+            ax.text(1_000, G_MAX * 0.93, label, va="top", fontsize=8, color=prl.plot.NEUTRAL_LIGHT)
         ax.set(ylabel=ylabel, yscale=scale, xlabel="env step")
-    np.atleast_1d(axes)[0].legend()
+        ax.set_ylim(bottom=0)
+        ax.xaxis.set_major_formatter(lambda v, _: f"{v / 1000:.0f}k" if v else "0")
+    axes.flat[0].legend(fontsize=8)
     fig.suptitle(title)
     plt.show()
 
@@ -399,21 +409,31 @@ values = {
     name: {run: [summ(fn(run_log(run, int(s)))) for s in RUNS["seeds"]] for run in RUN_STYLE}
     for name, (fn, summ) in SUMMARY.items()
 }
-healthy_td = np.median(values["rel. TD error, 2nd half"]["healthy"])
-print(f"Each cell: the range over seeds {RUNS['seeds'].tolist()}. The relative TD error also as")
-print("a multiple of the healthy median.")
-WIDTH = {"gather_check": 15, "target_lag, last": 17, "Q drift, last 5": 17}
-print(f"{'run':8s}" + "".join(f"{name:>{WIDTH.get(name, 26)}s}" for name in SUMMARY))
+
+
+def cell(lo, hi, fmt):
+    """Provided: one run's range over the seeds, in the column's format."""
+    a, b = fmt(lo), fmt(hi)
+    return a if a == b else f"{a} to {b}"
+
+
+healthy_td = float(np.median(values["rel. TD error, 2nd half"]["healthy"]))
+COLUMNS = {  # column -> (unit, width, format of one seed's summary)
+    "gather_check": ("(share of rows)", 18, lambda v: "0" if v == 0 else f"{v:.2f}"),
+    "target_lag, last": ("(env steps)", 18, lambda v: f"{v:,.0f}"),
+    "Q drift, last 5": ("(return)", 17, lambda v: f"{v:,.0f}"),
+    "rel. TD error, 2nd half": ("(x healthy median)", 24, lambda v: f"{v / healthy_td:.1f}x"),
+}
+seeds = RUNS["seeds"]
+print(f"Every signal on every run: lowest to highest over seeds {seeds[0]} to {seeds[-1]}.")
+print(f"The healthy row is the reference. Healthy median relative TD error: {healthy_td:.4f}.")
+print((f"{'run':9s}" + "".join(f"{n:{w}s}" for n, (_, w, _) in COLUMNS.items())).rstrip())
+print((f"{'':9s}" + "".join(f"{u:{w}s}" for u, w, _ in COLUMNS.values())).rstrip())
 for run in RUN_STYLE:
-    row = []
-    for name in SUMMARY:
-        lo, hi = min(values[name][run]), max(values[name][run])
-        cell = short(lo) if short(lo) == short(hi) else f"{short(lo)} to {short(hi)}"
-        if name == "rel. TD error, 2nd half":
-            cell += f" ({hi / healthy_td:.1f}x)"
-        row.append(f"{cell:>{WIDTH.get(name, 26)}s}")
-    print(f"{run:8s}" + "".join(row))
-print(f"Other evidence (Q at the start states can reach about {G_MAX:.2f} at most):")
+    row = [cell(min(values[n][run]), max(values[n][run]), f) for n, (_, _, f) in COLUMNS.items()]
+    widths = [w for _, w, _ in COLUMNS.values()]
+    print((f"{run:9s}" + "".join(f"{c:{w}s}" for c, w in zip(row, widths, strict=True))).rstrip())
+print(f"Other evidence (the most an episode can earn from its first state: {G_MAX:.2f}):")
 for run in RUN_STYLE:
     logs = [run_log(run, int(s)) for s in RUNS["seeds"]]
     seen = np.unique(np.concatenate([g["snap_reward"].ravel() for g in logs]))
@@ -448,10 +468,12 @@ lab.check(3, m09.check_diagnosis, diagnoses, "D", label="3.4")
 # ### How runs A to D were made
 #
 # This cell shows how the teammate made runs A to D: a configuration change, or a function
-# swapped into `train_dqn`, never an edit of the shared code. Run it after checkpoints 3.1-3.4.
+# swapped into `train_dqn`, never an edit of the shared code. Run the cell below now (Exercise 4
+# trains these agents). Its code stays folded; open it after checkpoints 3.1 to 3.4.
 
 
 # %%
+# @title How runs A to D were made: open after checkpoints 3.1 to 3.4 { display-mode: "form" }
 def td_target_no_mask(batch, q_next, gamma):
     """Run C's td_target: it ignores terminated."""
     return batch.rew + gamma * q_next
@@ -593,10 +615,11 @@ for run in AGENTS:
         with torch.no_grad():
             got = q_net(torch.as_tensor(obs))[:, 0].numpy()
         probe_q[(run, name)] = got
-        shown = ", ".join(f"Q({o[0]:+.0f}) = {g:8.3f}" for o, g in zip(obs, got, strict=True))
+        at = [f"{o[0]:+.0f}" if o[0] else "0" for o in obs]
+        shown = ", ".join(f"Q({a}) = {g:8.3f}" for a, g in zip(at, got, strict=True))
         cells.append(f"{name}: {shown}")
     print(f"  {run:8s} " + " | ".join(cells), flush=True)
-print("Exact answers: probe 1, Q(+0) = 1; probe 2, Q(-1) = -1 and Q(+1) = +1.")
+print("Exact answers: probe 1, Q(0) = 1; probe 2, Q(-1) = -1 and Q(+1) = +1.")
 print(f"{len(AGENTS) * len(probes)} probe runs in {time.perf_counter() - start:.0f} s.")
 lab.metric("probe_q_c", round(float(probe_q[("C", "probe 1")][0]), 2))  # room code
 
@@ -688,11 +711,11 @@ print(f"Greedy return at {int(SWEEP['budget_steps']):,} steps, {final.shape[1]} 
 for f, x in zip(factors, final, strict=True):
     lo, hi = bootstrap_ci(x, iqm)
     summary.append((iqm(x), lo, hi))
-    print(f"  lr x{f:<4g} IQM {iqm(x):6.1f} [{lo:6.1f}, {hi:6.1f}]  mean {x.mean():6.1f}")
+    print(f"  lr ×{f:<4g} IQM {iqm(x):6.1f} [{lo:6.1f}, {hi:6.1f}]  mean {x.mean():6.1f}")
     print(f"           seeds: {' '.join(f'{v:4.0f}' for v in x)}")
 for i, f in enumerate(factors):
     if i != ref:
-        v = compare(final[i], final[ref], names=(f"lr x{f:g}", "lr x1"))
+        v = compare(final[i], final[ref], names=(f"lr ×{f:g}", "lr ×1"))
         print(textwrap.fill(v.sentence.split(" (IQM")[0], 98, initial_indent="  "))
 sweep_budget = Budget(
     steps=int(SWEEP["budget_steps"]),
@@ -701,30 +724,40 @@ sweep_budget = Budget(
     hardware=str(SWEEP["hardware"]),
 )
 print(textwrap.fill(sweep_budget.sentence(), 98))
-by_seed0 = [f"x{factors[i]:g}" for i in np.argsort(-final[:, 0], kind="stable")]
-by_iqm = [f"x{factors[i]:g}" for i in np.argsort([-s[0] for s in summary], kind="stable")]
+by_seed0 = [f"×{factors[i]:g}" for i in np.argsort(-final[:, 0], kind="stable")]
+by_iqm = [f"×{factors[i]:g}" for i in np.argsort([-s[0] for s in summary], kind="stable")]
 print(f"Ranked by IQM:        {' > '.join(by_iqm)}")
 print(f"Ranked by seed 0 only: {' > '.join(by_seed0)}")
-fig, ax = plt.subplots()
+fig, ax = plt.subplots(figsize=(7, 3.6), layout="constrained")
 xs = np.arange(len(factors))
-spread = np.linspace(-0.2, 0.2, final.shape[1])  # one x per seed, so equal values stay apart
+spread = np.linspace(-0.25, 0.05, final.shape[1])  # seeds sorted, left of the summary
 for i in xs:
-    ax.plot(i + spread, final[i], ".", color=prl.plot.NEUTRAL_LIGHT)
+    label = "one seed (10 per rate)" if i == 0 else None
+    ax.plot(
+        i + spread,
+        np.sort(final[i]),
+        "o",
+        mfc="none",
+        ms=4,
+        color=prl.plot.NEUTRAL_LIGHT,
+        label=label,
+    )
 centers = np.array([s[0] for s in summary])
 err = np.array([[s[0] - s[1], s[2] - s[0]] for s in summary]).T
 ax.errorbar(
-    xs,
+    xs + 0.15,
     centers,
     yerr=err,
-    marker="o",
+    fmt="D",
+    ls="none",
     capsize=3,
     color=prl.plot.SERIES[0],
     label="IQM [95% bootstrap CI]",
 )
-ax.plot(xs, final.mean(axis=1), "x", color=prl.plot.SERIES[1], label="mean")
+ax.plot(xs + 0.28, final.mean(axis=1), "x", ls="none", color=prl.plot.SERIES[1], label="mean")
 ax.set(
     xticks=xs,
-    xticklabels=[f"x{f:g}" for f in factors],
+    xticklabels=[f"×{f:g}" for f in factors],
     xlabel="learning rate / reference",
     ylabel="greedy return at the budget",
     title="Learning-rate sweep, every seed",

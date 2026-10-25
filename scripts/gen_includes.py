@@ -192,7 +192,7 @@ def lab_md(mid: str, v: dict[str, Any]) -> str:
         )
         bug = " [Planted bug]{.chip .chip-stale}" if is_bug else ""
         link = (
-            f"[{title} [(opens a fresh copy in a new tab)]{{.visually-hidden}}]"
+            f"[{title}[ (opens a fresh copy in a new tab)]{{.visually-hidden}}]"
             f'({colab_url(m, v)}#scrollTo={anchor}){{target="_blank" rel="noopener"}}'
             if has_notebook(m)
             else title

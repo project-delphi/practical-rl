@@ -83,3 +83,35 @@ def test_notebooks_end_with_a_link_to_the_next_module():
         assert ids[ids.index("gen-finish") + 1] == "gen-next", path.name
         assert ids[-1] in ("gen-next", "gen-next-end"), path.name
         assert "**Next:** [Module" in "".join(cells[-1]["source"]), path.name
+
+
+def test_an_earlier_labs_include_is_folded_under_its_lab_without_the_origin_note():
+    nb = json.loads(built("06-exploration-mdps.py")["text"])
+    cell = next(c for c in nb["cells"] if c["id"] == "shared-value-iteration")
+    src = "".join(cell["source"])
+    assert src.startswith("#@title From Lab 2: value_iteration.py, run this cell")
+    assert "# origin:" not in src and "def value_iteration" in src
+    assert cell["metadata"]["cellView"] == "form" and cell["metadata"]["jupyter"]["source_hidden"]
+
+
+def test_folding_an_include_leaves_content_sha_unchanged(monkeypatch):
+    folded = built("06-exploration-mdps.py")
+    monkeypatch.setattr(bn, "_earlier_include", lambda src: None)
+    plain = built("06-exploration-mdps.py")
+    assert folded["sha"] == plain["sha"] and folded["text"] != plain["text"]
+
+
+def test_a_provided_cell_with_a_form_title_is_folded(tmp_path):
+    v = variables.load()
+    src = (ROOT / "labs" / "src" / "01-mdps-bellman.py").read_text()
+    target = tmp_path / "01-mdps-bellman.py"
+    target.write_text(
+        src + '\n# %%\n#@title Open later { display-mode: "form" }\nANSWER = 42\n'
+        "\n# %%\n# A comment first: not a form title\nOTHER = 1\n"
+    )
+    nb = json.loads(bn.build(target, v)[1]["text"])
+    cells = {
+        "".join(c["source"]).splitlines()[0]: c for c in nb["cells"] if c["cell_type"] == "code"
+    }
+    assert cells['#@title Open later { display-mode: "form" }']["metadata"]["cellView"] == "form"
+    assert "cellView" not in cells["# A comment first: not a form title"]["metadata"]

@@ -14,7 +14,12 @@ One-way and deterministic. The source marks cells with a `role` metadata key:
 
 `# %% include labs/shared/NAME.py` pastes a shared file in as one code cell. A file whose
 `# origin:` is this very lab is its provided code: a folded form cell titled "Provided code",
-without the origin note. Any other file is an earlier lab's reference code, shown as such.
+without the origin note. Any other file is an earlier lab's reference code: a folded form cell
+titled "From Lab N: NAME", again without the origin note. That title and that edit are made
+after content_sha is computed, so folding an include never makes a record stale.
+
+Any other code cell whose first line is a Colab form title (`#@title ... { display-mode:
+"form" }`) is folded too: a provided cell that should not be read before its time.
 
 Generated cells (excluded from content_sha): the header, the setup cell, the
 init cell and the finish cell. Exercise headings come from _variables.yml, so
@@ -53,6 +58,23 @@ INCLUDE = re.compile(r"^#\s*%%\s*include\s+(\S+)\s*$")
 PROVIDED_TITLE = (
     '#@title Provided code: run this cell; you write none of it { display-mode: "form" }'
 )
+EARLIER_TITLE = (
+    '#@title From Lab {n}: {name}, run this cell; you write none of it {{ display-mode: "form" }}'
+)
+FORM_TITLE = re.compile(r'^#@title .*\{ display-mode: "form" \}\s*$')
+INCLUDED = re.compile(r"^# Reference code included from (\S+)\.\n# origin: labs/src/(\d+)-\S+\n")
+FOLDED = {"cellView": "form", "jupyter": {"source_hidden": True}}
+
+
+def _earlier_include(src: str) -> str | None:
+    """An earlier lab's include as the notebook shows it: a form title naming that lab, then
+    the file without its origin note (which is for the repository's tests). None otherwise."""
+    m = INCLUDED.match(src)
+    if not m:
+        return None
+    name = m.group(1).rsplit("/", 1)[-1]
+    head = EARLIER_TITLE.format(n=int(m.group(2)), name=name)
+    return f"{head}\n# From {m.group(1)}, written in Lab {int(m.group(2))}.\n" + src[m.end() :]
 
 
 class BuildError(Exception):
@@ -377,8 +399,13 @@ def build(path: Path, v: dict[str, Any]) -> tuple[str, dict[str, Any]]:
             seen_ids.add(role)
             out_cells.append(new)
             continue
+        shown = src
         if role.startswith("shared-") and src.startswith(PROVIDED_TITLE):
-            meta = {**meta, "cellView": "form", "jupyter": {"source_hidden": True}}
+            meta = {**meta, **FOLDED}
+        elif role.startswith("shared-") and _earlier_include(src) is not None:
+            shown, meta = _earlier_include(src), {**meta, **FOLDED}
+        elif cell.cell_type == "code" and FORM_TITLE.match(src.split("\n", 1)[0]):
+            meta = {**meta, **FOLDED}
         if role.startswith("shared-") or role.startswith("stretch"):
             cid = role if role not in seen_ids else f"{role}-{auto}"
         elif role:
@@ -389,7 +416,8 @@ def build(path: Path, v: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         if cell.cell_type == "markdown":
             add(nbformat.v4.new_markdown_cell(src, metadata=meta), cid, hashed=False)
         else:
-            add(nbformat.v4.new_code_cell(src, metadata=meta), cid, hashed=True)
+            add(nbformat.v4.new_code_cell(shown, metadata=meta), cid, hashed=False)
+            code_for_sha.append((cid, src))  # the include as expanded, before any display edit
 
     sha = content_sha(code_for_sha)
     head = nbformat.v4.new_markdown_cell(header_md(mid, v))
