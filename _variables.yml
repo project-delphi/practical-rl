@@ -658,7 +658,7 @@ modules:
         title: Linear Q-learning on CartPole
         minutes: 8
         writes: [linear_q_update]
-        predict_answer: "Far above 3 × random. Over seeds 0-19 of the live band record the greedy return runs from 206.6 to 500 (median 493.5) against random play's 12.2 to 29.0 (median 22.0) on the same start states, at least 8.1 times random on every seed; at the QUICK budget 214.9 to 500 (median 348.4). ‖W‖ rises to a peak of 327 to 420 and settles a little below it, 263 to 312 at the end (QUICK: peaks 172 to 193). Records: runs/2026-10-24-local-m07-linear-q-live-exp.json and -quick-exp.json."
+        predict_answer: "Far above 3 × random. Over seeds 0-19 of the live band record the greedy return runs from 206.6 to 500 (median 493.5) against random play's 12.2 to 29.0 (median 22.0) on the same start states, at least 8 times random on every seed; at the QUICK budget 214.9 to 500 (median 348.5). ‖W‖ rises to a peak of 327 to 420 and settles a little below it, 263 to 312 at the end (QUICK: peaks 172 to 193). Records: runs/2026-10-24-local-m07-linear-q-live-exp.json and -quick-exp.json."
         explain_ref: "(linear Q-learning)"
       - n: 7
         title: "Planted bug: a colleague's featurizer"

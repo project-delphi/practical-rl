@@ -800,8 +800,8 @@ lab.check(7, m07.check_colleague_training, linear_q_update, colleague_features, 
 # %% [markdown]
 # **Diagnostics for this lab.** Log ‖w‖ (or ‖W‖) every few thousand steps, next to the returns.
 # Healthy: it rises while Q grows toward the size of a discounted return, then settles, in the
-# hundreds for this lab; Q at a start state is near 1/(1 − γ) = 100. A little above 100 is
-# estimation error (the max in the target is biased upward, Module 8's topic); far above it, Q
+# hundreds for this lab; Q at a start state is of the order of 1/(1 − γ) = 100 (about 75 to
+# 110 in the recorded runs). A little above 100 is estimation error (the max in the target is biased upward, Module 8's topic); far above it, Q
 # estimates no return. Broken: ‖W‖ is orders of magnitude above the healthy run's from the
 # first log entry and keeps climbing, and it may overflow to inf or nan. The greedy return is
 # not a reliable alarm: it can collapse, or stay high on a lucky seed. Before blaming the
@@ -810,7 +810,7 @@ lab.check(7, m07.check_colleague_training, linear_q_update, colleague_features, 
 # ‖φ(s)‖² small and α tiny: there the cause is the triad, and no step size fixes it.
 
 # %% [markdown]
-# **Your room code.** The last cell, `lab.finish()`, prints one line that starts with
+# **Your room code.** The finish cell below, `lab.finish()`, prints one line that starts with
 # `ROOM m07`. It holds your seat, the checkpoints you passed, whether QUICK budgets ran, and the
 # numbers the debrief pools: your greedy return on CartPole (`greedy_return`, Exercise 6),
 # random play's return on the same start states (`random_return`), ‖W‖ at the end of training
@@ -820,8 +820,8 @@ lab.check(7, m07.check_colleague_training, linear_q_update, colleague_features, 
 # is the same for everyone: it is exact. Paste the line where your instructor says.
 
 # %% [markdown] role="stretch"
-# **TDC on Baird.** Gradient-TD methods do follow the gradient of an objective, the projected
-# Bellman error (PBE), and they stay stable off-policy. TDC keeps a second weight vector v,
+# **TDC on Baird.** Gradient-TD methods are built from the gradient of an objective, the
+# projected Bellman error (PBE), and they have robust convergence properties off-policy. TDC keeps a second weight vector v,
 # which estimates E[φφᵀ]⁻¹ E[ρ δ φ] (Sutton and Barto, Eq. 11.28), and corrects the
 # semi-gradient update with it (Sutton and Barto, §11.7). In expected form, with your
 # matrices: g = b − Aw, then w ← w + α(g − γ (P_πΦ)ᵀ D Φ v) and v ← v + β(g − ΦᵀDΦ v). Write it
@@ -878,5 +878,5 @@ print("All seven values are 0 only when w is proportional to (1, 1, 1, 1, 1, 1, 
 print(f"TDC's w after 100,000 sweeps: {np.round(w_t, 3).tolist()}")
 
 # %% [markdown] role="stretch-explain"
-# √PBE is near 0 by sweep 1000 while √VE barely moves: what does PBE = 0 promise, and what does it
-# not?
+# √PBE is near 0 by sweep 1000, and from then on √VE barely moves: what does PBE = 0 promise, and
+# what does it not?
