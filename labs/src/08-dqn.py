@@ -79,7 +79,8 @@ obs, _ = env.reset(seed=RUN_SEED)
 q_net = make_q_net(env.observation_space.shape[0], env.action_space.n, CONFIG)
 print("CartPole observation (cart position, cart velocity, pole angle, pole angular velocity):")
 print("  ", np.round(obs, 3))
-print(f"Q(s, .; w) of an untrained network: {q_net(torch.as_tensor(obs)[None]).detach().numpy()}")
+q_untrained = q_net(torch.as_tensor(obs)[None]).detach().numpy()[0]
+print(f"Q(s, ·; w) of an untrained network: {np.round(q_untrained, 3).tolist()}")
 print(f"epsilon at steps 0, 5,000 and 10,000 of a {budget.steps:,}-step run:", end=" ")
 print([round(epsilon_at(t, budget.steps, CONFIG), 3) for t in (0, 5_000, 10_000)])
 
@@ -284,7 +285,7 @@ buf = ReplayBuffer(1_000, 4)
 play_random(buf, 1_500, RUN_SEED)
 print(f"Your buffer after 1,500 steps into 1,000 slots: size {buf.size}, ptr {buf.ptr}")
 batch = buf.sample(64, rng)
-print("a batch of 64:", ", ".join(f"{k} {tuple(x.shape)}" for k, x in batch._asdict().items()))
+print("batch of 64:", ", ".join(f"{k} {tuple(x.shape)}" for k, x in batch._asdict().items()))
 nb = numbered(ReplayBuffer, 1_000, 1_500)
 written = np.concatenate([nb.sample(1_000, rng).obs[:, 0].numpy() for _ in range(100)])
 counts = np.bincount(written.astype(int) % 1_000, minlength=1_000)  # draws per slot
@@ -509,6 +510,11 @@ def sync_lag(t, config):
     return (1 - config.gamma**k) / (1 - config.gamma)
 
 
+def steps_in_k(ax):
+    """Provided. Environment-step ticks as 0, 10k, 20k, ..."""
+    ax.xaxis.set_major_formatter(lambda v, _: f"{v / 1000:g}k" if v else "0")
+
+
 lab.seeds([RUN_SEED])
 SNAPSHOTS = (CONFIG.learning_starts + 1, budget.steps // 2, budget.steps)
 q_dqn, log_dqn = train_dqn(
@@ -536,8 +542,9 @@ print("Single seed: a fact to put beside the band and the room's seeds, not a ra
 lab.metric("dqn_return", round(float(log_dqn["eval_return"][-1]), 1))  # room code
 lab.metric("train_seconds", round(float(log_dqn["seconds"]), 1))  # room code
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.4))
+band = prl.data.band("m08_dqn_return", budget)
 prl.plot.with_recorded(
-    prl.data.band("m08_dqn_return", budget),
+    band,
     log_dqn["eval_return"],
     x=log_dqn["eval_step"],
     your_budget=budget,
@@ -547,6 +554,7 @@ prl.plot.with_recorded(
     ylabel="greedy return (mean of 10 episodes)",
     title="Return: your seed and the band",
 )
+ax1.legend(fontsize=8)
 steps_axis = log_dqn["step"]
 ax2.plot(steps_axis, log_dqn["q_probe"].max(axis=2).mean(axis=1), label="max Q, probe states")
 ax2.plot(
@@ -558,8 +566,18 @@ ax2.plot(
 )
 ax2.set(xlabel="environment steps", ylabel="value", title="Q at the probe states")
 ax2.legend(fontsize=8)
+for ax in (ax1, ax2):
+    steps_in_k(ax)
 plt.tight_layout()
 plt.show()
+seeds = f"seeds {band['seeds'][0]}-{band['seeds'][-1]}"
+print(
+    textwrap.fill(
+        f"The band: the reference DQN (this lab's solution), {seeds} at your budget "
+        f"({band['record']}).",
+        98,
+    )
+)
 
 # %% [markdown] role="ex3-explain"
 # Compare the printed max Q at the probe states with (sync lag) for your number of copies:
@@ -589,10 +607,17 @@ axes[0].plot(steps_axis, log_dqn["td_abs_mean"], ls="--", label="mean |δ|")
 axes[0].set(title="Loss and TD error", xlabel="environment steps")
 axes[0].legend(fontsize=8)
 axes[1].plot(steps_axis, log_dqn["steps_since_sync"])
-axes[1].set(title="Steps since the last copy", xlabel="environment steps")
+axes[1].set(
+    title="Steps since the last copy",
+    xlabel="environment steps",
+    ylim=(-25, CONFIG.target_sync + 25),  # on the scale of the copy interval
+)
 axes[2].plot(steps_axis, log_dqn["grad_norm"])
 axes[2].axhline(CONFIG.max_grad_norm, ls=":", color=NEUTRAL_LIGHT)
+axes[2].text(steps_axis[0], CONFIG.max_grad_norm, " clip", va="top", color=NEUTRAL_LIGHT)
 axes[2].set(title="Gradient norm before clipping", xlabel="environment steps")
+for ax in axes:
+    steps_in_k(ax)
 plt.tight_layout()
 plt.show()
 snap = len(log_dqn["snap_step"]) - 1
@@ -746,32 +771,65 @@ for name, net in (("DQN", q_dqn), ("Double DQN", q_ddqn)):
     rows[name] = (ev["q0"].mean(), g0.mean(), ev["returns"].mean())
 print(f"After {budget.steps:,} steps, seed {RUN_SEED}, {budget.eval_episodes} greedy episodes;")
 print(f"(sync lag) after {syncs_by(budget.steps, CONFIG)} copies: {lag:.2f}")
-print("                Q(s0)      G_0   Q(s0) - G_0   Q(s0) - (sync lag)   greedy return")
+print("                Q(s₀)       G₀    Q(s₀) − G₀   Q(s₀) − (sync lag)   greedy return")
 for name, (q0, g0, ret) in rows.items():
     print(
         f"  {name:>10}   {q0:7.2f}  {g0:7.2f}   {q0 - g0:+11.2f}   {q0 - lag:+18.2f}   {ret:13.1f}"
     )
 d = rows["Double DQN"][0] - rows["DQN"][0]
-print(f"Double DQN minus DQN at seed {RUN_SEED}: Q(s0) {d:+.2f}")
+print(f"Double DQN minus DQN at seed {RUN_SEED}: Q(s₀) {d:+.2f}")
 lab.metric("dqn_q0", round(float(rows["DQN"][0]), 2))  # room code
 lab.metric("ddqn_q0", round(float(rows["Double DQN"][0]), 2))  # room code
 lab.metric("dqn_q0_gap", round(float(rows["DQN"][0] - rows["DQN"][1]), 2))  # room code
-fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), sharey=True)
+STYLE = {  # as the briefing's figure: Q(s0) solid with circles, G0 dotted with squares
+    "q0": ("eval_q0", "-", "o", r"$Q(s_0)$"),
+    "mc": ("eval_disc_return", ":", "s", r"$G_0$"),
+}
+fig, axes = plt.subplots(1, 2, figsize=(9, 3.8), sharey=True)
 grid = np.arange(0, budget.steps + 1, budget.steps // 100)
 for ax, (name, log) in zip(axes, (("dqn", log_dqn), ("ddqn", log_ddqn)), strict=True):
-    for what, key, ls in (("q0", "eval_q0", "-"), ("mc", "eval_disc_return", ":")):
+    for i, (what, (key, ls, marker, sym)) in enumerate(STYLE.items()):
         b = prl.data.band(f"m08_{name}_{what}", budget)
-        ax.fill_between(b["x"], b["runs"].min(axis=0), b["runs"].max(axis=0), alpha=0.2)
-        label = "Q(s0)" if what == "q0" else "G_0"
-        ax.plot(log["eval_step"], log[key], ls=ls, marker="o", ms=3, label=f"{label}, your seed")
+        color = prl.plot.SERIES[i]
+        ax.fill_between(
+            b["x"],
+            b["runs"].min(axis=0),
+            b["runs"].max(axis=0),
+            color=color,
+            alpha=0.2,
+            lw=0,
+            label=f"{sym}, recorded 5 seeds (min to max)",
+        )
+        ax.plot(
+            log["eval_step"],
+            log[key],
+            ls=ls,
+            marker=marker,
+            ms=3,
+            color=color,
+            label=f"{sym}, your seed",
+        )
     ax.plot(
         grid, [sync_lag(t, CONFIG) for t in grid], color=NEUTRAL_LIGHT, ls="--", label="(sync lag)"
     )
     ax.set(xlabel="environment steps", title="DQN" if name == "dqn" else "Double DQN")
-    ax.legend(fontsize=8)
+    steps_in_k(ax)
 axes[0].set(ylabel="value at the start states")
-plt.tight_layout()
+handles, labels = axes[0].get_legend_handles_labels()
+fig.legend(handles, labels, loc="lower center", ncol=3, fontsize=8, frameon=False)
+fig.tight_layout(rect=(0, 0.14, 1, 1))
 plt.show()
+bands = [prl.data.band(f"m08_{n}_q0", budget) for n in ("dqn", "ddqn")]
+seeds = f"seeds {bands[0]['seeds'][0]}-{bands[0]['seeds'][-1]}"
+records = " and ".join(b["record"] for b in bands)
+print(
+    textwrap.fill(
+        f"The bands: the reference DQN and Double DQN (this lab's solutions), {seeds} at your "
+        f"budget ({records}).",
+        98,
+    )
+)
+
 
 # %% [markdown] role="ex5-explain"
 # Is Q(s₀) on the side of G₀ you predicted? After k copies even a perfect fit sits near
@@ -851,27 +909,34 @@ for name, b in (("reference DQN", ref), ("SB3 DQN", sb3)):
     lo, hi = b["runs"][:, -1].min(), b["runs"][:, -1].max()
     where = "inside" if lo <= yours <= hi else ("above" if yours > hi else "below")
     print(f"your seed {yours:.1f} is {where} the {name} range [{lo:.1f}, {hi:.1f}]")
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.4), width_ratios=(3, 1))
-for b, label, ls in ((ref, "reference DQN", "-"), (sb3, "SB3 2.9 DQN", "--")):
+SIDES = (  # as the briefing's figure: reference blue circles, SB3 green triangles
+    (ref, "reference DQN", prl.plot.SERIES[0], "-", "o"),
+    (sb3, "SB3 2.9 DQN", prl.plot.SERIES[2], "--", "^"),
+)
+YOU = prl.plot.SERIES[1]
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.4), width_ratios=(3, 1), sharey=True)
+for b, label, color, ls, _ in SIDES:
     for i, run in enumerate(b["runs"]):
-        ax1.plot(
-            b["x"],
-            run,
-            ls=ls,
-            lw=0.8,
-            color=NEUTRAL_LIGHT if ls == "--" else None,
-            label=f"{label} (5 seeds)" if i == 0 else None,
-        )
-ax1.plot(log_dqn["eval_step"], log_dqn["eval_return"], lw=2.2, label=f"your seed ({RUN_SEED})")
+        lab_i = f"{label} (5 seeds)" if i == 0 else None
+        ax1.plot(b["x"], run, ls=ls, lw=0.8, color=color, label=lab_i)
+ax1.plot(
+    log_dqn["eval_step"],
+    log_dqn["eval_return"],
+    lw=2.2,
+    color=YOU,
+    label=f"your seed ({RUN_SEED})",
+)
 ax1.set(xlabel="environment steps", ylabel="greedy return", title="Every seed, same budget")
-ax1.legend(fontsize=7)
-for i, (b, marker) in enumerate(((ref, "o"), (sb3, "^"))):
-    ax2.plot(np.full(len(b["seeds"]), i), b["runs"][:, -1], marker, mfc="none", ls="none")
-ax2.plot([0], [yours], "*", ms=12, label="your seed")
+steps_in_k(ax1)
+ax1.legend(fontsize=8)
+for i, (b, _, color, _, marker) in enumerate(SIDES):
+    ax2.plot(np.full(len(b["seeds"]), i), b["runs"][:, -1], marker, color=color, mfc="none")
+ax2.axhline(yours, color=YOU, lw=2.2)  # your seed, against both ranges
+ax2.text(0.5, yours, "your seed", ha="center", va="bottom", fontsize=8)
 ax2.set(xticks=[0, 1], xticklabels=["reference", "SB3"], xlim=(-0.6, 1.6), title="At the budget")
-ax2.legend(fontsize=7)
 plt.tight_layout()
 plt.show()
+
 
 # %% [markdown] role="ex6-explain"
 # Where your seed landed is a fact about one draw, not a grade. What does the

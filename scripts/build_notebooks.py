@@ -12,6 +12,10 @@ One-way and deterministic. The source marks cells with a `role` metadata key:
   ex<N>-chk      code:     the checkpoint (lab.check(...))
   stretch        any:      cells of the optional stretch section
 
+`# %% include labs/shared/NAME.py` pastes a shared file in as one code cell. A file whose
+`# origin:` is this very lab is its provided code: a folded form cell titled "Provided code",
+without the origin note. Any other file is an earlier lab's reference code, shown as such.
+
 Generated cells (excluded from content_sha): the header, the setup cell, the
 init cell and the finish cell. Exercise headings come from _variables.yml, so
 the site's "In the lab" table and the notebook can never disagree.
@@ -46,6 +50,9 @@ ROLE = re.compile(
 )
 CELL_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 INCLUDE = re.compile(r"^#\s*%%\s*include\s+(\S+)\s*$")
+PROVIDED_TITLE = (
+    '#@title Provided code: run this cell; you write none of it { display-mode: "form" }'
+)
 
 
 class BuildError(Exception):
@@ -251,9 +258,17 @@ def _expand_includes(text: str, path: Path) -> str:
         if not inc.is_file():
             raise BuildError(f"{path.name}: include {m.group(1)} not found")
         role = "shared-" + inc.stem.replace("_", "-")
+        body = inc.read_text().rstrip("\n").splitlines()
         out.append(f'# %% role="{role}"')
-        out.append(f"# Reference code included from {m.group(1)}.")
-        out.extend(inc.read_text().rstrip("\n").splitlines())
+        if body and body[0].strip() == f"# origin: labs/src/{path.name}":
+            # The including lab's own provided code (not a solution of an earlier lab): a
+            # folded form cell, without the origin note, which is for the repository's tests.
+            out.append(PROVIDED_TITLE)
+            out.append(f"# From {m.group(1)}; later labs that build on this one run the same file.")
+            out.extend(body[1:])
+        else:
+            out.append(f"# Reference code included from {m.group(1)}.")
+            out.extend(body)
     return "\n".join(out) + "\n"
 
 
@@ -362,6 +377,8 @@ def build(path: Path, v: dict[str, Any]) -> tuple[str, dict[str, Any]]:
             seen_ids.add(role)
             out_cells.append(new)
             continue
+        if role.startswith("shared-") and src.startswith(PROVIDED_TITLE):
+            meta = {**meta, "cellView": "form", "jupyter": {"source_hidden": True}}
         if role.startswith("shared-") or role.startswith("stretch"):
             cid = role if role not in seen_ids else f"{role}-{auto}"
         elif role:

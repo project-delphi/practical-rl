@@ -772,6 +772,15 @@ def quoted_numbers() -> dict:
     assert _r(0.5 + 0.9 * target.max(), 9) == 4.1
     assert _r(0.5 + 0.9 * target[online.argmax()], 9) == 2.3
     assert _r(64 - _r(sync_lag(50_000), 2), 9) == 1.35  # 64, 78 and 63 are hypothetical
+    # Checkpoint 3.2's threshold, as the lab's ex3-chk2 comment and section 3 quote it.
+    from prl.checks import m08 as checks
+
+    live, quick = (checks.check_train_dqn.thresholds[b][0] for b in ("live", "quick"))
+    assert live == quick == 91.0
+    assert all("200 seeds" in checks.check_train_dqn.thresholds[b][1] for b in ("live", "quick"))
+    assert "by at least 91.0" in LAB.read_text()
+    page = (ROOT / "modules" / "08-dqn.qmd").read_text()
+    assert "91.0" not in page or "at least 91.0" in page
     return {"gauss": gauss, "uniform": uniform, "floor": floor, "g500": g500}
 
 
@@ -792,7 +801,7 @@ def _thousands(v: float, _pos=None) -> str:
 def q_panel(t: Theme, data: dict, algo: str) -> Figure:
     """Q(s0) and G_0 against steps, every seed, with (sync lag)."""
     fig = Figure(figsize=(WIDTH_IN / 2, 360 * PX))  # one of two panels, 340 x 360 px
-    ax = fig.add_axes((0.2, 0.15, 0.76, 0.76))
+    ax = fig.add_axes((0.2, 0.15, 0.72, 0.76))  # room for the "50k" tick label
     c = data[algo]
     color = t.series[0] if algo == "dqn" else t.series[1]
     for key in ("q0", "disc_return"):
@@ -805,6 +814,7 @@ def q_panel(t: Theme, data: dict, algo: str) -> Figure:
                 ls=STYLE[key],
                 marker="o" if key == "q0" else "s",
                 ms=3,
+                clip_on=False,  # the last evaluation's markers drawn whole
             )
     grid = np.arange(0, BUDGETS["live"]["steps"] + 1, 250)
     ax.plot(
@@ -827,9 +837,10 @@ def q_panel(t: Theme, data: dict, algo: str) -> Figure:
     ax.set_title("DQN" if algo == "dqn" else "Double DQN", fontsize=13, color=t.text)
     # Direct labels (both panels): Q(s0) above its five lines, (sync lag) below them, G_0
     # above its cluster (record_facts asserts that the records leave that room).
-    ax.text(2_000, 40, "Q(s₀), solid", color=color)
+    # In the text color: the series colors meet 3:1 for marks, not 4.5:1 for text.
+    ax.text(2_000, 40, "Q(s₀), solid", color=t.text)
     ax.text(21_000, 10, "(sync lag), dashed", color=t.text)
-    ax.text(27_000, 101, "G₀, dotted", color=color)
+    ax.text(27_000, 101, "G₀, dotted", color=t.text)
     return fig
 
 

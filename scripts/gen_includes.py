@@ -181,11 +181,16 @@ def lab_md(mid: str, v: dict[str, Any]) -> str:
     if not ex:
         return NOTICE + "## In the lab {#in-the-lab}\n\nSee the track starters below.\n"
     core = variables.core_minutes(m)
+    # The planted bug's exercise: named in the data (planted_bug.exercise) or by its title.
+    bug_ex = (m.get("planted_bug") or {}).get("exercise")
     rows = []
     for e in ex:
         anchor = f"ex{e['n']}-head"
         title = e["title"]
-        bug = " [Planted bug]{.chip .chip-stale}" if title.lower().startswith("planted bug") else ""
+        is_bug = title.lower().startswith("planted bug") or (
+            bug_ex is not None and e["n"] == bug_ex
+        )
+        bug = " [Planted bug]{.chip .chip-stale}" if is_bug else ""
         link = (
             f"[{title} [(opens a fresh copy in a new tab)]{{.visually-hidden}}]"
             f'({colab_url(m, v)}#scrollTo={anchor}){{target="_blank" rel="noopener"}}'
