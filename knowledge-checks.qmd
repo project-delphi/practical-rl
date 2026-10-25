@@ -327,6 +327,8 @@ $\varepsilon$-greedy decides with a coin flip of probability $\varepsilon$, whic
 The floor is $\frac{\varepsilon}{|\mathcal{A}|} \sum_a \Delta_a = \varepsilon \cdot 0.3 / 3$: 0.005 per round and 25 over 5000 rounds at $\varepsilon = 0.05$; 0.02 per round and 100 at $\varepsilon = 0.2$. At $\varepsilon = 0$ the method is greedy: no floor, but in at least half of all runs it leaves headline 2 behind and pays 0.1 or 0.2 in every later round, so its regret is linear on those seeds. A small $\varepsilon$ is cheap per round and slow to escape that trap; a large one escapes quickly and pays its floor forever. With rewards × 10 and the same bonus, UCB1's choices change: the bonus is small next to the gaps, so it behaves more greedily. On the reference run (seeds 0 to 19, 5000 rounds), its mean rose from 112.2 to 195.1 while its IQM fell from 113.8 to 90.1, and the tie rule called a tie (`runs/2026-10-18-local-m04-scale-exp.json`). Thirteen seeds improved, because the small bonus stopped forcing pulls of the worse headlines, and 7 fell into greedy's trap and got far worse: two humps, which pull the mean and the IQM in different directions. Over 100 seats of 20 seeds, the mean rose on 97 seats and fell on 3, and 1174 of 2000 seeds improved (`runs/2026-10-18-local-m04-seats-exp.json`).
 
 **Evidence:** Lab 4, checkpoint 5.2 ("changes" for UCB1 with the same bonus), and Exercise 5's sweep and scale run (reported, not checked).
+:::
+
 ## Module 5 {#m05}
 
 Questions for [Module 5 · Contextual bandits for recommendation](/modules/05-contextual-bandits.qmd), two per objective. Each answer ends with the Lab 5 checkpoint or cell that is its evidence.
@@ -405,6 +407,8 @@ With correct propensities, the best item gets $1 - 0.25 + 0.25/5 = 0.8$ and each
 Every row records $0.91$, so every uniform-target weight is $0.1/0.91 \approx 0.11$, and so is the mean, instead of 1. The recorded propensity is right on rows where the logger showed its best item and wrong, by a factor of 91, on rows where it explored. A target that agrees with the logger puts its weight on the right rows, so the error barely shows. But the policies Day 5 wants to evaluate are the ones that differ from the logger, and their estimates rest on the explored rows, exactly where the propensities are wrong.
 
 **Evidence:** Lab 5, checkpoint 7 (every recorded propensity equals the shown item's probability) and Exercise 7's run cell, which prints the mean weight of two targets on the suspect's log.
+:::
+
 ## Module 6 {#m06}
 
 Questions for [Module 6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd), two per objective. Each answer ends with the Lab 6 checkpoint that is its evidence. Objective 4 has no checkpoint; its evidence is the briefing's section 6 and the papers it cites.
