@@ -39,7 +39,7 @@ In this module you will:
 
 - Implement a replay buffer with uniform sampling and explain the two problems it fixes, correlated samples and data reuse.
 - Implement DQN with a target network and the Huber loss, masking only on terminated.
-- Derive why the max over noisy estimates is biased upward, state van Hasselt et al.'s Theorem 1 with its conditions, implement Double DQN, and measure Q(s0) against the discounted Monte Carlo return of the greedy policy.
+- Derive why the max over noisy estimates is biased upward, state van Hasselt et al.'s Theorem 1 with its conditions, implement Double DQN, and measure Q(s₀) against the discounted Monte Carlo return of the greedy policy.
 - Place your live seed against recorded 5-seed bands of the reference DQN and SB3's DQN at the same budget, and call the comparison a tie or a ranking.
 
 ## Before you start {#before}
