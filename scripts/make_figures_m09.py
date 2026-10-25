@@ -517,12 +517,22 @@ def measure(name: str, ns: dict) -> tuple[dict, dict, list[int]]:
     raise SystemExit(f"unknown experiment {name!r}; known: {', '.join(EXPERIMENTS)}")
 
 
-def verify_broken(rec: dict) -> m09_signals.Margins:
-    """Build the dataset from the record (the NumPy builder) and assert every margin."""
+def broken_arrays(rec: dict) -> dict:
+    """The dataset's arrays from a record, by the NumPy builder, without its final assertion
+    (so every margin can be printed before anything stops)."""
     import make_datasets
 
-    data = make_datasets.m09_broken_runs({make_datasets.M09_BROKEN: rec})
-    m = m09_signals.margins(data)
+    real = m09_signals.assert_margins
+    m09_signals.assert_margins = lambda data: None
+    try:
+        return make_datasets.m09_broken_runs({make_datasets.M09_BROKEN: rec})
+    finally:
+        m09_signals.assert_margins = real
+
+
+def verify_broken(rec: dict) -> m09_signals.Margins:
+    """Every margin of the handoff on every seed, printed; the caller stops on a failure."""
+    m = m09_signals.margins(broken_arrays(rec))
     print("\n".join(m.lines))
     return m
 
@@ -544,9 +554,11 @@ def run(names: list[str], inbox: Path = tp.INBOX, hold: Path | None = None) -> l
             print(check_healthy_reproduces_m08(per))
             m = verify_broken(rec)
             if not m.ok():
-                if hold is not None:
+                if hold is not None:  # kept outside runs/: no dataset may be built from it
                     hold.mkdir(parents=True, exist_ok=True)
-                    (hold / f"{name}-FAILED-margins.json").write_text(json.dumps(rec))
+                    path = hold / f"{name}-FAILED-margins.json"
+                    path.write_text(json.dumps(rec, indent=2, sort_keys=True) + "\n")
+                    print(f"held (not a filed record): {path}")
                 raise SystemExit(
                     "A margin failed; no record written. Report it, do not change seeds:\n  "
                     + "\n  ".join(m.hard)
