@@ -269,7 +269,7 @@ print(
     f"A[1, 7] = {A[0, 6]:.5f}, A[7, 1] = {A[6, 0]:.5f}; largest |A - Aᵀ| = {np.abs(A - A.T).max():.4f}"
 )
 eig = np.linalg.eigvals(A)
-print(f"Eigenvalues of A, real parts: {np.round(np.sort(eig.real), 5).tolist()}")
+print(f"Eigenvalues of A, real parts: {(np.round(np.sort(eig.real), 5) + 0.0).tolist()}")
 
 # %% [markdown] role="ex3-explain"
 # A[1, 7] is not zero because state 1's target uses w₇; A[7, 1] is zero because state 7's
@@ -342,7 +342,7 @@ same = np.allclose(path[-1], np.linalg.matrix_power(M, SWEEPS) @ baird.w0, rtol=
 print(f"Your update and your td_matrix agree after {SWEEPS} sweeps: {same}")
 for a_try in (0.001, 0.01, 0.1):
     rho = np.abs(np.linalg.eigvals(np.eye(8) - a_try * A)).max()
-    print(f"alpha = {a_try:<5}: the fastest-growing direction grows by {rho:.6f} per sweep")
+    print(f"α = {a_try:<5}: the fastest-growing direction grows by {rho:.6f} per sweep")
 lab.metric("baird_norm_1000", round(float(norms[-1]), 3))
 fig, (ax_w, ax_n) = plt.subplots(1, 2, figsize=(10, 3.8))
 sweeps = np.arange(SWEEPS + 1)
@@ -450,7 +450,9 @@ v_pi = np.linalg.solve(np.eye(7) - baird.gamma * baird.P_target, baird.rewards)
 GRID = np.unique(np.round(np.logspace(0, 6, 61)).astype(int))  # sweeps 1 to 10^6
 variants = {"original": {}, **legs}
 results, agree = {}, []
-print(f"{'variant':12s} {'min Re eig(A)':>13s}   max|v - v_pi| after 10^3, 10^4, 10^5, 10^6 sweeps")
+print("Largest |v - v_π| over the states after k sweeps:")
+head = "  ".join(f"{'k = 10^' + str(j):>10s}" for j in (3, 4, 5, 6))
+print(f"{'variant':12s} {'min Re eig(A)':>13s}   {head}")
 for name, change in variants.items():
     cfg = {**base, "gamma": baird.gamma, **change}
     w_start = baird.phi @ baird.w0 if name == "tabular" else baird.w0  # same starting values
@@ -464,7 +466,7 @@ for name, change in variants.items():
         err = np.abs(ws @ cfg["phi"].T - v_pi).max(axis=1)
     results[name] = (ws, err)
     at = [err[np.searchsorted(GRID, 10**j)] for j in (3, 4, 5, 6)]
-    cells = "  ".join(f"{x:10.3g}" for x in at)
+    cells = "  ".join(f"{x:10.3g}" if np.isfinite(x) else f"{'overflow':>10s}" for x in at)
     print(f"{name:12s} {np.linalg.eigvals(A_v).real.min():13.5f}   {cells}")
 print(f"Your update and your td_matrix agree on all four variants (100 sweeps): {all(agree)}")
 for name in ("on-policy", "monte-carlo", "tabular"):
@@ -472,12 +474,19 @@ for name in ("on-policy", "monte-carlo", "tabular"):
     print(f"{name:12s} after 10^6 sweeps: w = {np.round(w_end, 3).tolist()}")
 at_1e4 = np.searchsorted(GRID, 10**4)
 lab.metric("legs_error_1e4", {k: float(v[1][at_1e4]) for k, v in results.items()})
+LEG = {  # the briefing's Figure 1 uses the same colors, dashes and labels
+    "original": (0, "-", "original (all three legs)"),
+    "on-policy": (1, "--", "on-policy weights"),
+    "monte-carlo": (2, "-.", "Monte Carlo targets"),
+    "tabular": (3, ":", "tabular features"),
+}
 fig, ax = plt.subplots()
-styles = {"original": "-", "on-policy": "--", "tabular": ":", "monte-carlo": "-."}
-for i, (name, (ws, err)) in enumerate(results.items()):
+for name, (i, ls, label) in LEG.items():
+    err = results[name][1]
     ok = np.isfinite(err)
-    ax.plot(GRID[ok], err[ok], ls=styles[name], color=prl.plot.SERIES[i], label=name)
-ax.set(xscale="log", yscale="log", xlabel="sweeps (log scale)", ylabel="max over states |v - v_π|")
+    ax.plot(GRID[ok], err[ok], ls=ls, color=prl.plot.SERIES[i], label=label)
+ax.set(xscale="log", yscale="log", ylim=(1e-8, 1e15), xlabel="sweeps (log scale)")
+ax.set(ylabel=r"max over states $|v - v_\pi|$ (log scale)")
 ax.set_title("Each leg removed, α = 0.01")
 ax.legend()
 plt.show()
@@ -658,7 +667,11 @@ print(textwrap.fill(used.sentence() + " Single seed, not a ranking.", 98))
 lab.metric("greedy_return", round(score, 1))  # room code
 lab.metric("random_return", round(baseline, 1))  # room code
 lab.metric("w_norm_end", round(qlog["w_norm"][-1], 1))  # room code
-lab.metric("q_log", {k: qlog[k] for k in ("step", "w_norm", "recent_return")})
+lab.metric(
+    "q_log",
+    {"step": qlog["step"]}
+    | {k: [round(x, 1) for x in qlog[k]] for k in ("w_norm", "recent_return")},
+)
 fig, (ax_r, ax_n) = plt.subplots(1, 2, figsize=(10, 3.8))
 ax_n.plot(qlog["step"], qlog["w_norm"], color=prl.plot.SERIES[0])
 ax_n.set(xlabel="environment steps", ylabel="‖W‖", title="Weight norm, your seed")
@@ -686,7 +699,10 @@ plt.show()
 if band is not None:
     lo, hi = band["runs"].min(axis=0)[-1], band["runs"].max(axis=0)[-1]
     where = "inside" if lo <= qlog["recent_return"][-1] <= hi else "outside"
-    print(f"At the last step your seed is {where} the recorded {len(band['seeds'])}-seed range.")
+    words = f"the recorded {len(band['seeds'])}-seed range ({band['record']})"
+    print(
+        textwrap.fill(f"At the last step your seed is {where} {words}.", 98, break_on_hyphens=False)
+    )
 
 # %% [markdown] role="ex6-explain"
 # Unit-length features make α‖φ(s)‖² = 0.3 at every state. Which failure does that rule out
@@ -752,7 +768,7 @@ for row in range(0, len(clog["w_norm"]), 8):  # eight entries per line
 start_obs, _ = gym.make("CartPole-v1").reset(seed=RUN_SEED)
 with np.errstate(over="ignore", invalid="ignore"):
     q_start = W_c @ colleague_features(start_obs)
-print(f"Q at your first start state: {np.array2string(q_start, precision=3)}")
+print(f"Q at your first start state: [{', '.join(f'{x:.5g}' for x in q_start)}]")
 print("  (a discounted return is at most 1 / (1 - γ) = 100; Exercise 6's Q was near it)")
 print(f"Greedy return: {score_c:.1f} (Exercise 6: {score:.1f}); {suspect_s:.1f} s")
 if unfixed:  # room code: the unfixed features only, so a rerun after the fix keeps these
