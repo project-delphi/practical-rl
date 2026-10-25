@@ -805,7 +805,11 @@ live_return = float(log_live["eval_return"][-1])  # the band's metric at the las
 recorded = np.asarray(band["runs"], dtype=float)[:, -1]
 lab.metric("live_return", round(live_return, 1))  # room code
 print(f"Your greedy return: {live_return:.1f}; band [{recorded.min():.1f}, {recorded.max():.1f}]")
-print(f"Band: {band['metric']}; {len(band['seeds'])} seeds; record {band['record']}.")
+print(
+    textwrap.fill(
+        f"Band: {band['metric']}; {len(band['seeds'])} seeds; record {band['record']}.", 98
+    )
+)
 live_budget = Budget(steps=budget.steps, seeds=1, wall_clock_s=seconds_live, hardware=HARDWARE)
 print(textwrap.fill(live_budget.sentence() + " Single seed, not a ranking.", 98))
 fig, ax = plt.subplots()

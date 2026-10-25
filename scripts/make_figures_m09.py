@@ -784,11 +784,24 @@ def sweep_facts() -> dict:
 
 def band_facts() -> dict:
     """Exercise 6: the band's per-seed final values at each budget, and its top."""
+    from prl.evaluate import bootstrap_ci, iqm
+
     out = {}
     for label in BUDGETS:
         b = _band(label)
         final = np.asarray(b["runs"], dtype=float)[:, -1]
-        out[label] = {"final": final, "top": float(final.max()), "record": b["record"]}
+        lo, hi = bootstrap_ci(final, iqm)
+        # Adding one seed v moves the IQM by an amount monotone in v, so its extremes are at
+        # v below every recorded value and above every one (exact, any seat's return).
+        shifts = [iqm(np.append(final, v)) - iqm(final) for v in (-1e9, 1e9)]
+        out[label] = {
+            "final": final,
+            "top": float(final.max()),
+            "record": b["record"],
+            "iqm": iqm(final),
+            "ci": (lo, hi),
+            "shift": (min(shifts), max(shifts)),
+        }
     return out
 
 
@@ -869,15 +882,17 @@ def sweep_figure(t, data: dict):
         Line2D([], [], marker="D", color=t.series[0], ls="-", ms=6, lw=1.8),
         Line2D([], [], marker="x", color=t.series[1], ls="none", ms=8, mew=2),
     ]
-    labels = ["one seed (10 per rate)", "IQM, 95% bootstrap interval", "mean"]
+    labels = ["one seed (10 per rate)", "IQM, 95% bootstrap CI", "mean"]
     ax.legend(
         handles,
         labels,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.13),
+        loc="lower left",
+        bbox_to_anchor=(-0.02, 1.0),
         ncol=3,
         frameon=False,
         fontsize=MIN_FONT,
+        handletextpad=0.4,
+        columnspacing=1.0,
     )
     return fig
 
@@ -919,7 +934,7 @@ def _dashboard_panel(t, data: dict, panel: str):
         ax.set_yscale("log")
     if panel == "q":
         ax.axhline(_r(m09_signals.G_MAX, 2), color=t.neutral, ls=(0, (5, 2)), lw=1.2)
-        ax.text(2_000, 92, "99.34: the most any episode earns", color=t.text, fontsize=12)
+        ax.text(2_000, 96, "99.34, the most\nan episode earns", color=t.text, fontsize=12, va="top")
         ax.set_ylim(0, 110)
     if panel == "return":
         ax.set_ylim(0, 520)
@@ -955,7 +970,12 @@ def _table_panel(t, data: dict, signal: str):
         v = np.round(np.asarray(tab[run][key], dtype=float), 6)
         color = t.neutral if run == "healthy" else t.series[0]
         ax.plot(i + np.array([-0.15, 0.0, 0.15]), v, "o", color=color, mfc="none", mew=1.5, ms=7)
-    ax.set_yscale(scale)
+    if scale == "symlog":
+        ax.set_yscale("symlog", linthresh=10)
+        ax.yaxis.set_major_locator(FixedLocator([-10, 0, 10, 100, 1000]))
+        ax.set_yticklabels(["−10", "0", "10", "100", "1,000"])
+    else:
+        ax.set_yscale(scale)
     ax.xaxis.set_major_locator(FixedLocator(list(range(len(RUNS)))))
     ax.set_xticklabels(["healthy", "A", "B", "C", "D"])
     ax.set_xlim(-0.6, len(RUNS) - 0.4)
@@ -988,6 +1008,10 @@ def record_facts(data: dict) -> None:
     assert s["final"].shape == (5, 10) and np.all(s["seconds"] > 0)
     for label, b in data["band"].items():
         assert len(b["final"]) == 10, label
+        # Exercise 6: no seat can move the band's IQM by half its interval's width, and the
+        # band's top is below 500, so 20 x 2/11 (not 1/11) seats are expected outside.
+        assert max(abs(v) for v in b["shift"]) < (b["ci"][1] - b["ci"][0]) / 2, label
+        assert b["top"] < 500, label
     p = data["probes"]
     for group in p:
         # Probe 1 with the mask learns 1 to two decimals on every seed for every agent but C,
@@ -1045,7 +1069,9 @@ def report(data: dict) -> None:
     for label, b in data["band"].items():
         print(
             f"m09_reference {label} ({b['record']}): finals {np.round(b['final'], 1).tolist()}; "
-            f"top {b['top']:.1f}"
+            f"top {b['top']:.1f}; IQM {b['iqm']:.1f} [{b['ci'][0]:.1f}, {b['ci'][1]:.1f}]; one "
+            f"more seed moves it by {b['shift'][0]:+.1f} to {b['shift'][1]:+.1f} (half the "
+            f"interval: {(b['ci'][1] - b['ci'][0]) / 2:.1f})"
         )
     for group, by_run in data["probes"].items():
         print(f"m09-probes, {group} seeds:")

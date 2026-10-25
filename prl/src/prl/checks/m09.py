@@ -573,5 +573,20 @@ check_live_return = StochasticCheck(
         "your live seed's greedy return at the end of training (mean of 10 episodes): a guard "
         "on the platform, not on your code"
     ),
-    thresholds={},
+    thresholds={
+        # threshold_protocol.py, quick budget {"eval_episodes": 10, "eval_every": 1000, "steps":
+        # 10000}, N = 100 seeds (0-99), 2026-10-25, local (Apple M1 Pro, arm64). Solution p1
+        # 92.54; strongest wrong version mutant 'random' p99 30.32; gap 62.22 (minimum 25);
+        # threshold: the midpoint 61.433, rounded to 61.0. 0 of 100 solution seeds fail: flake
+        # rate at most about 3/N = 3.0% (rule of three).
+        "quick": (
+            61.0,
+            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m09-check_live_return-quick-n100-exp.json",
+        ),
+        # No live threshold: at the live budget (50,000 steps) the protocol refused over seeds
+        # 0-99 (solution p1 26.75, below random play's p99 30.32; seeds 78 and 94 end below
+        # 28.5): the last greedy evaluation of one run at 50,000 steps can collapse late. Over
+        # seeds 0-19 alone it gave 69.0, which seeds 78 and 94 contradict, so it is not used.
+        # Logs: _notes/m09-te/protocol_live*.log. OPEN_QUESTIONS C38.
+    },
 )

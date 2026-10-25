@@ -104,9 +104,9 @@ def test_live_return_check_is_a_stochastic_check_of_the_lab_budgets():
 
 def test_live_return_thresholds_name_filed_protocol_records():
     c = m09.check_live_return
-    if not c.thresholds:
-        pytest.skip("checkpoint 6.2 has no protocol threshold on this branch yet")
-    assert set(c.thresholds) == {"live", "quick"}
+    # QUICK has a protocol threshold; the live budget has none: the protocol refused it over
+    # 100 seeds (OPEN_QUESTIONS C38), so it waits for a decision on the metric.
+    assert "quick" in c.thresholds and set(c.thresholds) <= {"live", "quick"}
     for budget, (threshold, provenance) in c.thresholds.items():
         record = re.search(r"runs/(\S+\.json)", provenance).group(1)
         assert (ROOT / "runs" / record).exists(), f"{budget}: {record} is not in runs/"
