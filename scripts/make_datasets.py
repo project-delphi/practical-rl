@@ -215,10 +215,9 @@ M09_BROKEN_SPEC = dict(
     license="CC BY 4.0",
     sources=[M09_BROKEN],
 )
-# Not registered yet: on the record of 2026-10-25 one margin fails (run A, seed 0, ends with Q
-# at the start states 132.7 > 99.34; OPEN_QUESTIONS B81), so the builder refuses it and the
-# record is not filed. Once the director and the lead decide, file the record and register:
-#     dataset("m09_broken_runs", **M09_BROKEN_SPEC)(m09_broken_runs)
+# Registered after the lead's day-3 decision 15 (OPEN_QUESTIONS B81): the builder asserts
+# every margin on every seed (scripts/m09_signals.py) and builds nothing if one fails.
+dataset("m09_broken_runs", **M09_BROKEN_SPEC)(m09_broken_runs)
 
 
 @dataset(

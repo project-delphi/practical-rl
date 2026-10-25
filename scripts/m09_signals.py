@@ -9,10 +9,13 @@ scripts/make_figures_m09.py are computed by the code the participants see.
 NumPy only (no torch, no gymnasium): scripts/make_datasets.py and scripts/make_expected.py
 import this module, and CI's drift gate runs them without torch.
 
-`margins(data)` evaluates every margin of the director's handoff (section 4) on every seed of
-the dataset `m09_broken_runs` and returns them; `assert_margins(data)` raises MarginError, with
-the numbers, if a hard one fails. Seeds and configurations are fixed: a failed margin is
-reported, never fixed by choosing seeds.
+`margins(data)` evaluates every margin of the director's handoff (section 4), as the lead's
+day-3 decision 15 amends it, on every seed of the dataset `m09_broken_runs` and returns them;
+`assert_margins(data)` raises MarginError, with the numbers, if a hard one fails. Seeds and
+configurations are fixed: a failed margin is reported, never fixed by choosing seeds.
+Decision 15 replaced "healthy, A, B and D end with Q at the start states <= 99.34" (run A, seed
+0, ends at 132.67) by "run C's lowest final Q is at least 10 times every other run's"; the
+others' values are still printed.
 """
 
 from __future__ import annotations
@@ -172,11 +175,20 @@ def margins(data: dict[str, np.ndarray]) -> Margins:
         all(v > G_MAX for v in t["C"]["q_start_end"]),
         f"Q at the start states at the end: run C > {G_MAX:.4f}: {show('C', 'q_start_end')}",
     )
-    for run in ("healthy", "A", "B", "D"):
-        need(
-            all(v <= G_MAX for v in t[run]["q_start_end"]),
-            f"Q at the start states at the end: run {run} <= {G_MAX:.4f}: "
-            f"{show(run, 'q_start_end')}",
+    # Lead's day-3 decision 15: a missing mask drives Q to many times the ceiling, while a large
+    # step size may overshoot it by tens, so the rule is a ratio, not "every other run <= 99.34".
+    rest_q = max(v for run in RUNS if run != "C" for v in t[run]["q_start_end"])
+    low_c = min(t["C"]["q_start_end"])
+    need(
+        low_c >= 10 * rest_q,
+        f"Q at the start states at the end: run C's lowest {low_c:.6g} >= 10 x the highest of "
+        f"every other run ({rest_q:.6g}, so >= {10 * rest_q:.6g}; ratio {low_c / rest_q:.2f})",
+    )
+    for run in ("healthy", "A", "B", "D"):  # reported, not required (decision 15)
+        above = sum(v > G_MAX for v in t[run]["q_start_end"])
+        m.lines.append(
+            f"info  Q at the start states at the end: run {run} {show(run, 'q_start_end')}; "
+            f"above {G_MAX:.4f} on {above} of {len(t[run]['q_start_end'])} seeds"
         )
     others = max(abs(v) for run in RUNS if run != "C" for v in t[run]["q_drift_last5"])
     need(

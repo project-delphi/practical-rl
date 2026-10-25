@@ -2508,8 +2508,6 @@ def m09_record() -> bytes:
     )
 
 
-# m09_record joins M09_FIXTURES once the dataset m09_broken_runs ships (B81: every margin of the
-# director's handoff must hold on every seed first; see scripts/make_datasets.py).
 M09_FIXTURES = {
     "m09_gather": m09_gather,
     "m09_lag": m09_lag,
@@ -2520,6 +2518,7 @@ M09_FIXTURES = {
     "m09_iqm": m09_iqm,
     "m09_bootstrap": m09_bootstrap,
     "m09_band_position": m09_band_position,
+    "m09_record": m09_record,  # from the dataset m09_broken_runs (build it first)
 }
 
 

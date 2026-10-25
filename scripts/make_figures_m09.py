@@ -541,8 +541,8 @@ def margin_note(m: m09_signals.Margins) -> str:
     """The record's own statement of the margins (scripts/m09_signals.py), first in its note."""
     if m.ok():
         return (
-            "Every margin of the director's handoff (section 4) held on every seed when this "
-            "record was made (scripts/m09_signals.py). "
+            "Every margin of the director's handoff (section 4, as the lead's day-3 decision 15 "
+            "amends it) hold on every seed of this record (scripts/m09_signals.py). "
         )
     return (
         "MARGINS: every margin of the director's handoff (section 4) held on every seed except "
@@ -1012,6 +1012,14 @@ def record_facts(data: dict) -> None:
         # band's top is below 500, so 20 x 2/11 (not 1/11) seats are expected outside.
         assert max(abs(v) for v in b["shift"]) < (b["ci"][1] - b["ci"][0]) / 2, label
         assert b["top"] < 500, label
+    if "broken" in data:  # Exercise 1's predict_answer, on every healthy seed
+        f, d = data["lab"], data["broken"]
+        for seed in d["seeds"]:
+            g = f.run_log("healthy", int(seed))
+            lag = f.target_lag(g)
+            assert f.gather_check(g) == 0.0 and lag[-1] == 0, seed
+            assert lag.max() == 500 and g["step"][int(np.argmax(lag))] == 1_000, seed
+            assert f.target_lag(f.run_log("D", int(seed)))[-1] == 49_500, seed
     p = data["probes"]
     for group in p:
         # Probe 1 with the mask learns 1 to two decimals on every seed for every agent but C,

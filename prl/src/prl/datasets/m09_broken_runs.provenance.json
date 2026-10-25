@@ -1,0 +1,892 @@
+{
+  "arrays": {
+    "A__ep_disc_return": {
+      "dtype": "float32",
+      "shape": [
+        7411
+      ]
+    },
+    "A__ep_end_step": {
+      "dtype": "int64",
+      "shape": [
+        7411
+      ]
+    },
+    "A__ep_length": {
+      "dtype": "int64",
+      "shape": [
+        7411
+      ]
+    },
+    "A__ep_return": {
+      "dtype": "float32",
+      "shape": [
+        7411
+      ]
+    },
+    "A__ep_seed": {
+      "dtype": "int64",
+      "shape": [
+        7411
+      ]
+    },
+    "A__ep_terminated": {
+      "dtype": "bool",
+      "shape": [
+        7411
+      ]
+    },
+    "A__epsilon": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "A__eval_return": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        10
+      ]
+    },
+    "A__grad_norm": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "A__loss": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "A__q_max_mean": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "A__q_probe": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100,
+        8,
+        2
+      ]
+    },
+    "A__q_probe_target": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100,
+        8,
+        2
+      ]
+    },
+    "A__q_terminal": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "A__snap_actions": {
+      "dtype": "int64",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "A__snap_gathered": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "A__snap_q": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32,
+        2
+      ]
+    },
+    "A__snap_reward": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "A__snap_step": {
+      "dtype": "int64",
+      "shape": [
+        3,
+        3
+      ]
+    },
+    "A__snap_target": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "A__snap_terminated": {
+      "dtype": "bool",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "A__td_abs_max": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "A__td_abs_mean": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "B__ep_disc_return": {
+      "dtype": "float32",
+      "shape": [
+        14635
+      ]
+    },
+    "B__ep_end_step": {
+      "dtype": "int64",
+      "shape": [
+        14635
+      ]
+    },
+    "B__ep_length": {
+      "dtype": "int64",
+      "shape": [
+        14635
+      ]
+    },
+    "B__ep_return": {
+      "dtype": "float32",
+      "shape": [
+        14635
+      ]
+    },
+    "B__ep_seed": {
+      "dtype": "int64",
+      "shape": [
+        14635
+      ]
+    },
+    "B__ep_terminated": {
+      "dtype": "bool",
+      "shape": [
+        14635
+      ]
+    },
+    "B__epsilon": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "B__eval_return": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        10
+      ]
+    },
+    "B__grad_norm": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "B__loss": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "B__q_max_mean": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "B__q_probe": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100,
+        8,
+        2
+      ]
+    },
+    "B__q_probe_target": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100,
+        8,
+        2
+      ]
+    },
+    "B__q_terminal": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "B__snap_actions": {
+      "dtype": "int64",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "B__snap_gathered": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "B__snap_q": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32,
+        2
+      ]
+    },
+    "B__snap_reward": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "B__snap_step": {
+      "dtype": "int64",
+      "shape": [
+        3,
+        3
+      ]
+    },
+    "B__snap_target": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "B__snap_terminated": {
+      "dtype": "bool",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "B__td_abs_max": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "B__td_abs_mean": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "C__ep_disc_return": {
+      "dtype": "float32",
+      "shape": [
+        14714
+      ]
+    },
+    "C__ep_end_step": {
+      "dtype": "int64",
+      "shape": [
+        14714
+      ]
+    },
+    "C__ep_length": {
+      "dtype": "int64",
+      "shape": [
+        14714
+      ]
+    },
+    "C__ep_return": {
+      "dtype": "float32",
+      "shape": [
+        14714
+      ]
+    },
+    "C__ep_seed": {
+      "dtype": "int64",
+      "shape": [
+        14714
+      ]
+    },
+    "C__ep_terminated": {
+      "dtype": "bool",
+      "shape": [
+        14714
+      ]
+    },
+    "C__epsilon": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "C__eval_return": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        10
+      ]
+    },
+    "C__grad_norm": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "C__loss": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "C__q_max_mean": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "C__q_probe": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100,
+        8,
+        2
+      ]
+    },
+    "C__q_probe_target": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100,
+        8,
+        2
+      ]
+    },
+    "C__q_terminal": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "C__snap_actions": {
+      "dtype": "int64",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "C__snap_gathered": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "C__snap_q": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32,
+        2
+      ]
+    },
+    "C__snap_reward": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "C__snap_step": {
+      "dtype": "int64",
+      "shape": [
+        3,
+        3
+      ]
+    },
+    "C__snap_target": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "C__snap_terminated": {
+      "dtype": "bool",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "C__td_abs_max": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "C__td_abs_mean": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "D__ep_disc_return": {
+      "dtype": "float32",
+      "shape": [
+        14549
+      ]
+    },
+    "D__ep_end_step": {
+      "dtype": "int64",
+      "shape": [
+        14549
+      ]
+    },
+    "D__ep_length": {
+      "dtype": "int64",
+      "shape": [
+        14549
+      ]
+    },
+    "D__ep_return": {
+      "dtype": "float32",
+      "shape": [
+        14549
+      ]
+    },
+    "D__ep_seed": {
+      "dtype": "int64",
+      "shape": [
+        14549
+      ]
+    },
+    "D__ep_terminated": {
+      "dtype": "bool",
+      "shape": [
+        14549
+      ]
+    },
+    "D__epsilon": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "D__eval_return": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        10
+      ]
+    },
+    "D__grad_norm": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "D__loss": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "D__q_max_mean": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "D__q_probe": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100,
+        8,
+        2
+      ]
+    },
+    "D__q_probe_target": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100,
+        8,
+        2
+      ]
+    },
+    "D__q_terminal": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "D__snap_actions": {
+      "dtype": "int64",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "D__snap_gathered": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "D__snap_q": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32,
+        2
+      ]
+    },
+    "D__snap_reward": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "D__snap_step": {
+      "dtype": "int64",
+      "shape": [
+        3,
+        3
+      ]
+    },
+    "D__snap_target": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "D__snap_terminated": {
+      "dtype": "bool",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "D__td_abs_max": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "D__td_abs_mean": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "budget_steps": {
+      "dtype": "int64",
+      "shape": []
+    },
+    "gamma": {
+      "dtype": "float64",
+      "shape": []
+    },
+    "healthy__ep_disc_return": {
+      "dtype": "float32",
+      "shape": [
+        1409
+      ]
+    },
+    "healthy__ep_end_step": {
+      "dtype": "int64",
+      "shape": [
+        1409
+      ]
+    },
+    "healthy__ep_length": {
+      "dtype": "int64",
+      "shape": [
+        1409
+      ]
+    },
+    "healthy__ep_return": {
+      "dtype": "float32",
+      "shape": [
+        1409
+      ]
+    },
+    "healthy__ep_seed": {
+      "dtype": "int64",
+      "shape": [
+        1409
+      ]
+    },
+    "healthy__ep_terminated": {
+      "dtype": "bool",
+      "shape": [
+        1409
+      ]
+    },
+    "healthy__epsilon": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "healthy__eval_return": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        10
+      ]
+    },
+    "healthy__grad_norm": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "healthy__loss": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "healthy__q_max_mean": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "healthy__q_probe": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100,
+        8,
+        2
+      ]
+    },
+    "healthy__q_probe_target": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100,
+        8,
+        2
+      ]
+    },
+    "healthy__q_terminal": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "healthy__snap_actions": {
+      "dtype": "int64",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "healthy__snap_gathered": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "healthy__snap_q": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32,
+        2
+      ]
+    },
+    "healthy__snap_reward": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "healthy__snap_step": {
+      "dtype": "int64",
+      "shape": [
+        3,
+        3
+      ]
+    },
+    "healthy__snap_target": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "healthy__snap_terminated": {
+      "dtype": "bool",
+      "shape": [
+        3,
+        3,
+        32
+      ]
+    },
+    "healthy__td_abs_max": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "healthy__td_abs_mean": {
+      "dtype": "float32",
+      "shape": [
+        3,
+        100
+      ]
+    },
+    "log_every": {
+      "dtype": "int64",
+      "shape": []
+    },
+    "probe_obs": {
+      "dtype": "float32",
+      "shape": [
+        8,
+        4
+      ]
+    },
+    "runs": {
+      "dtype": "<U7",
+      "shape": [
+        5
+      ]
+    },
+    "seeds": {
+      "dtype": "int64",
+      "shape": [
+        3
+      ]
+    },
+    "step": {
+      "dtype": "int64",
+      "shape": [
+        100
+      ]
+    },
+    "target_sync": {
+      "dtype": "int64",
+      "shape": []
+    }
+  },
+  "bytes": 2047050,
+  "description": "Module 8's reference DQN on CartPole-v1, 50,000 steps: the healthy run and four broken runs A-D (a learning rate 100 times the reference, a gather along the wrong dimension, a target without the terminal mask, a target network never synced), seeds 0-2 each, with Module 9's logging (every 500 steps, 8 probe states, three batch snapshots of 32 rows). Keys <run>__<log key>; per-episode arrays hold the three seeds one after another (<run>__ep_seed). Lab 9, Exercises 1-3.",
+  "file": "m09_broken_runs.npz",
+  "generator": "scripts/make_datasets.py (m09_broken_runs)",
+  "license": "CC BY 4.0",
+  "modules": [
+    "m09"
+  ],
+  "name": "m09_broken_runs",
+  "seeds": [],
+  "sha256": "8456849c4cd8e74ce9049cc2ee5b4f530fe6668175e537397db19edb4621880f",
+  "sources": [
+    {
+      "record": "2026-10-25-local-m09-broken-runs-exp",
+      "record_sha": "4a5e54900d4f4dcd2711945c0f44ea0a0464b9d0fee5d5c02ab3447d50b90a84"
+    }
+  ]
+}
