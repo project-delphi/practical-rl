@@ -929,6 +929,21 @@ details.disclosure-tip {
   margin-left: 1.5em;
 }
 
+// Short inline formulas, and the text glued to them, stay on one line
+// (filters/katex-render.js marks them). A glued formula that is no longer short after
+// a resize keeps its own break points.
+.prl-glue {
+  white-space: nowrap;
+}
+
+.prl-glue > .math .katex-html {
+  white-space: normal;
+}
+
+.math.inline.prl-short .katex-html {
+  white-space: nowrap;
+}
+
 // ---------------------------------------------------------------- navbar and chrome
 #quarto-header .navbar {
   border-bottom: 1px solid var(--prl-border-subtle);

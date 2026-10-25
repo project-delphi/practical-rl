@@ -12,7 +12,9 @@ fails on:
   focus     a Tab stop, or a sampled focusable element in the content, without a
             visible focus indicator, or entirely hidden (e.g. under the navbar)
   summary   a <summary> that does not toggle its <details> with Enter and with Space
-  katex     a page with math where KaTeX did not typeset every formula
+  katex     a page with math where KaTeX did not typeset every formula; a short inline
+            formula left breakable, or broken across lines (filters/katex-render.js,
+            styles/prl.scss)
   network   a request to a host outside the allow-list, or a failed local request
   motion    smooth scrolling or endless animation with prefers-reduced-motion
             (light, 1280 only)
@@ -160,6 +162,36 @@ JS_STATE = """() => {
     theme: body.includes('quarto-dark') ? 'dark' : (body.includes('quarto-light') ? 'light' : 'none'),
     math: math.length, typeset, errors, katex: !!window.katex,
   };
+}"""
+
+# Inline math layout (filters/katex-render.js and styles/prl.scss). A formula narrower than
+# 150 px and than 0.65 of its text column gets prl-short and stays on one line; table cells
+# are left alone. Checked with a smaller bound (100 px, half the column), so a formula near
+# the threshold never decides the result. A new line starts where a box lies wholly below
+# the boxes before it (roots and fractions have other tops).
+JS_MATH_LAYOUT = """() => {
+  const boxes = m => [...m.querySelectorAll('.katex-html > .base, .katex-html > .katex-base')]
+    .map(b => b.getBoundingClientRect()).filter(r => r.width > 0);
+  const tex = m => ((m.querySelector('annotation') || {}).textContent || '').trim().slice(0, 40);
+  const split = [], unmarked = [];
+  for (const m of document.querySelectorAll('span.math.inline')) {
+    if (m.closest('td, th, figcaption, .gslide, .tippy-box')) continue;
+    const rects = boxes(m);
+    if (!rects.length) continue;
+    if (m.classList.contains('prl-short')) {
+      let bottom = rects[0].bottom;
+      for (const r of rects.slice(1)) {
+        if (r.top >= bottom - 2) { split.push(tex(m)); break; }
+        bottom = Math.max(bottom, r.bottom);
+      }
+      continue;
+    }
+    const w = rects.reduce((a, r) => a + r.width, 0);
+    const box = m.parentElement.closest('p, li, dd, dt, figcaption, blockquote, summary, div');
+    const col = box ? box.clientWidth : Infinity;
+    if (w < 100 && w < col / 2) unmarked.push(tex(m));
+  }
+  return {split, unmarked};
 }"""
 
 JS_OVERFLOW = """() => {
@@ -357,6 +389,18 @@ async def check_page(
                     f"katex: {state['typeset']}/{state['math']} formulas typeset, "
                     f"{state['errors']} KaTeX errors"
                 )
+            if not state["reveal"]:
+                lay = await page.evaluate(JS_MATH_LAYOUT)
+                if lay["split"]:
+                    res.failures.append(
+                        f"katex: {len(lay['split'])} short inline formula(s) broken across "
+                        f"lines: {'; '.join(lay['split'][:3])}"
+                    )
+                if lay["unmarked"]:
+                    res.failures.append(
+                        f"katex: {len(lay['unmarked'])} short inline formula(s) not kept on one "
+                        f"line (did katex-render.js run?): {'; '.join(lay['unmarked'][:3])}"
+                    )
 
         # reflow
         if not state["reveal"]:
