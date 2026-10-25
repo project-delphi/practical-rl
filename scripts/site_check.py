@@ -13,8 +13,8 @@ fails on:
             visible focus indicator, or entirely hidden (e.g. under the navbar)
   summary   a <summary> that does not toggle its <details> with Enter and with Space
   katex     a page with math where KaTeX did not typeset every formula; a short inline
-            formula left breakable, or broken across lines (filters/katex-render.js,
-            styles/prl.scss)
+            formula left breakable, or broken across lines; a display that scrolls
+            without its scroll shadows (filters/katex-render.js, styles/prl.scss)
   network   a request to a host outside the allow-list, or a failed local request
   motion    smooth scrolling or endless animation with prefers-reduced-motion
             (light, 1280 only)
@@ -191,7 +191,9 @@ JS_MATH_LAYOUT = """() => {
     const col = box ? box.clientWidth : Infinity;
     if (w < 100 && w < col / 2) unmarked.push(tex(m));
   }
-  return {split, unmarked};
+  const noCue = [...document.querySelectorAll('.katex-display[role="region"]')]
+    .filter(d => getComputedStyle(d).backgroundImage === 'none').length;
+  return {split, unmarked, noCue};
 }"""
 
 JS_OVERFLOW = """() => {
@@ -400,6 +402,10 @@ async def check_page(
                     res.failures.append(
                         f"katex: {len(lay['unmarked'])} short inline formula(s) not kept on one "
                         f"line (did katex-render.js run?): {'; '.join(lay['unmarked'][:3])}"
+                    )
+                if lay["noCue"]:
+                    res.failures.append(
+                        f"katex: {lay['noCue']} scrolling display(s) without scroll shadows"
                     )
 
         # reflow
