@@ -547,43 +547,45 @@ Total: 30 + 10. The demo is a two-state fragment, not Baird live, so Baird's num
 - **Question.** Which changes make neural Q-learning stable, and what bias remains?
 
 **Objectives:**
-1. Implement a replay buffer, and explain the two problems it fixes: correlated samples and data reuse.
+1. Implement a replay buffer with uniform sampling, and explain the two problems it fixes: correlated samples and data reuse.
 2. Implement DQN with a target network and Huber loss, masking only on `terminated`.
    - *Wording for the page:* Mnih et al. 2015 clip the TD error to [−1, 1] in the update. That is exactly the gradient of the Huber loss with threshold 1. The gradients are equal; the loss values are not. Clipping the *loss* is not equivalent.
 3. Derive E[max_a Q̂] ≥ max_a E[Q̂] (Jensen), and state van Hasselt et al. 2016 Thm 1 with its conditions: equal true values, zero-mean errors. Implement Double DQN. Measure Q(s₀) against the discounted MC return of the greedy policy.
 4. Place your single live seed against recorded 5-seed bands of the reference DQN and SB3's DQN at the same budget. Call the reference-vs-SB3 comparison a tie or a ranking from the bands.
 
-**Briefing:**
+**The configuration** (one, provided, shared with Module 9 through `labs/shared/dqn_setup.py`): two hidden layers of 64, Adam at 1e-3, buffer 10k, batch 64, γ = 0.99, `train_freq = 4`, a hard target copy every 500 steps, learning starts at 1,000, ε from 1 to 0.05 over the first 20% of steps, gradient clipping at 10, Huber threshold 1. Budgets: 50,000 steps live, 10,000 QUICK.
+
+**Briefing** (as built, 2026-10-25):
 
 | § | Topic | Min |
 |---|---|---|
-| 1 | Linear → neural | 3 |
-| 2 | Replay | 6 (chk 2) |
-| 3 | Target network and Huber | 8 |
-| 4 | Masks | 5 (chk 2) |
-| 5 | Max bias; Double DQN | 11 (demo 3) |
+| 1 | From a table to a network | 3 |
+| 2 | Replay | 5 (chk 2) |
+| 3 | The target network and the Huber loss | 8 |
+| 4 | Masks | 6 (chk 3) |
+| 5 | The max bias and Double DQN | 11 (demo 3) |
 | 6 | Equal-budget bands | 5 (predict 2) |
 | — | Setup | 2 |
 
-Total: 29 + 9 + 2. **Reference:** prioritized replay (PER), dueling networks.
+Total: 28 + 10 + 2. **Reference:** prioritized replay (PER), dueling networks. §5 says which comparison shows which force: Q against the sync-lag value (1 − γᵏ)/(1 − γ) shows the max bias; Q against G₀ mixes the bias, the copies' lag and the policy's quality (R28).
 
 **Gotcha:** bootstrapping through truncation at γ = 0.99 makes an exact Q exceed a 500-step MC return by about γ⁵⁰⁰/(1−γ) ≈ 0.66.
 
-**Lab (core 3 + 51):**
+**Lab (core 3 + 51; decision 14 cut the draft's 73 minutes):**
 
 | # | Exercise | Writes | Checkpoint | Min |
 |---|---|---|---|---|
 | 0 | Reconnect | — | Setup check | 3 |
-| 1 | Replay buffer (preallocated arrays) | `ReplayBuffer.add`, `.sample` | Shapes; uniform (χ²) | 8 |
-| 2 | **Planted bug**: "recent-only" buffer | Diagnose (multiple choice) and fix | The fixed buffer passes χ² | 5 |
-| 3 | Masked TD target (3a) and Huber loss (3b) | `td_target`, `huber` | Exact on fixed tensors; truncation bootstrapped | 9 |
-| 4 | Training loop with target sync; one live seed (30–50k steps, `train_freq=4`) | `train_dqn` | ≥ 3× random (protocol) | 12 |
-| 5 | Double DQN target | `double_dqn_target` | Exact | 5 |
-| 6 | Overestimation: Q(s₀) vs discounted MC return (your seed over recorded DQN and DDQN bands) | `mc_return` | Exact on fixed rewards; the gap is reported | 7 |
-| 7 | SB3 at equal budget: your seed over recorded bands | Budget sentence | Generated from the records | 5 |
+| 1 | Replay buffer (preallocated arrays), and the **planted bug**: a colleague's buffer that samples with its write pointer | `ReplayBuffer`, `buffer_diagnosis`, `ColleagueBuffer` | 1.1 shapes, uniform (χ²); 1.2 diagnosis from the histogram of drawn ages; 1.3 the fixed buffer passes χ² | 11 |
+| 2 | Masked TD target (the Huber loss is provided; its derivative is plotted against Mnih et al.'s clipped error) | `td_target` | Exact on fixed tensors; truncation bootstrapped | 6 |
+| 3 | Training loop with target copies, from a provided `dqn_parts(...)` setup; one live seed | `train_dqn` | 3.1 exact (masks, copies, Q at probe states moves at the normal step size); 3.2 best greedy evaluation minus the first (made before any gradient step) ≥ 91.0 over 20,000 steps (protocol, 200 seeds, both budgets; R27) | 16 |
+| 4 | Double DQN target; a second live seed (same seed and budget) | `double_dqn_target` | Exact | 5 |
+| 5 | Q(s₀) vs the discounted MC return, DQN and Double DQN, over recorded bands | `mc_return` | Exact on fixed rewards; the sign and the same-seat difference reported | 7 |
+| 6 | SB3 at equal budget: your seed over recorded bands | `sb3_call` | The rule's verdict on the recorded bands (a tie at both budgets) | 6 |
 
-- **Compare:** SB3 2.9 DQN (recorded bands).
-- **Stretch:** `LunarLander-v3`, installing only `box2d`.
+- **First cut if the pilot runs long:** merge Exercises 4 and 5 (decision 14 (d)).
+- **Compare:** SB3 2.9 DQN at the lab's configuration (recorded bands, 5 seeds per side, both budgets); the notebook never imports SB3. Every knob that cannot match is listed in the records.
+- **Stretch:** `LunarLander-v3`, installing `box2d` (and `pygame` outside Colab).
 
 #### M9 · Debugging and evaluating RL (C, level 300, Colab CPU, S2)
 
@@ -1403,7 +1405,7 @@ The lead (the main session) integrates, owns `prl/`, and stops at each phase gat
 | M5 | Unit x seen 100 times, λ_ridge = 1: what is LinUCB's width? | c/√101 ≈ 0.1c |
 | M6 | Under uniform random play, does hitting time grow linearly or exponentially in chain length? | Exponentially (ratio p_L/p_R) |
 | M7 | Baird's ‖w‖ after 1000 expected sweeps: below 20, or above 100? (The briefing already says Baird diverges; C28 → R23.) | Above 100: 436.856 (exact). One eigenvalue predicts about 113; A's eigenvectors are far from orthogonal. |
-| M8 | Is Q(s₀) above or below the MC return? Does Double DQN shrink the gap? | Above; yes (on the recorded band) |
+| M8 | Is Q(s₀) above or below the MC return of the greedy policy? At the same seat, is Double DQN's Q(s₀) higher or lower than DQN's? | Below at this configuration: Q tracks the target copies' lag. Below on 17 of 20 seats for DQN and 18 of 20 for Double DQN (above only where the greedy return was below 91); Double DQN lower on 19 of 20 seats, median 0.78 (`m08-seats`; R28). |
 | M9 | Constant-reward probe with reward 1, γ = 0.99: what is Q? And without the terminal mask? | 1; 100 |
 | M10 | With a learned baseline, does the mean gradient change? Does the variance? | The mean doesn't; the variance ratio is < 1 |
 | M11 | Â > 0, ρ = 1.5, ε_clip = 0.2: what is the gradient of the clipped term? | 0 |
@@ -1443,7 +1445,7 @@ For planted bugs, the Predict is the symptom's value: Q(goal) = 0, mean weight =
 | 2 | 5 RecSim | LinUCB, LinTS, predict-then-greedy × 3 regimes + a warm launch | regret over 5 seeds; verdict or tie; mean logged weight |
 | 2 | 6 RiverSwim | ε-greedy, optimistic, MBIE-EB | hitting time; % of seeds reaching the right end; regret over 10 seeds |
 | 3 | 7 Baird / CartPole | Baird; each leg removed; linear Q; a colleague's featurizer | ‖w‖ after 1000 sweeps; error after 10⁴ sweeps per leg; greedy return and return ÷ random; the colleague's greedy return and log₁₀ max ‖W‖ |
-| 3 | 8 CartPole | your DQN; DDQN and SB3 bands; room IQM | return at budget; Q(s₀) − MC |
+| 3 | 8 CartPole | your DQN and Double DQN; DQN, DDQN and SB3 bands; room IQM | return at budget; Q(s₀) for DQN and Double DQN; Q(s₀) − MC; the SB3 call (a tie) |
 | 3 | 9 Logs | 4 bugs; probes; room IQM | diagnosis tally; probe Q; IQM [CI] + budget |
 | 4 | 10 CartPole / gridworld | REINFORCE, + baseline, actor-critic; λ sweep | variance ratio; return; bias and variance by λ |
 | 4 | 11 CartPole | clip on vs off × 3; SB3 band | return, approx-KL, clipfrac; verdict |

@@ -4,7 +4,9 @@ A later lab pulls an earlier lab's algorithm in with `# %% include labs/shared/N
 Each shared file names its origin on its first line, `# origin: labs/src/NN-slug.py`, and
 every top-level function or class it defines must match, token for token (decorators aside), the
 function of the same name in one of that source's solution cells. So a shared copy can
-never drift from the solution participants wrote.
+never drift from the solution participants wrote. A shared file that its origin lab itself
+includes (provided code such as a configuration or a logger) is its own source instead, and
+must define none of that lab's solutions.
 """
 
 import ast
@@ -39,6 +41,10 @@ def _solution_defs(source: Path) -> dict[str, str]:
     return found
 
 
+def _includes(source: Path) -> list[str]:
+    return re.findall(r"^#\s*%%\s*include\s+(\S+)\s*$", source.read_text(), re.M)
+
+
 @pytest.mark.parametrize("path", SHARED, ids=[p.name for p in SHARED])
 def test_shared_code_equals_its_origin_solution(path: Path):
     lines = path.read_text().splitlines()
@@ -49,6 +55,13 @@ def test_shared_code_equals_its_origin_solution(path: Path):
     shared = _defs(ast.parse(path.read_text()))
     assert shared, f"{path.name} defines no top-level function or class"
     solutions = _solution_defs(origin)
+    if f"labs/shared/{path.name}" in _includes(origin):
+        # Provided code (a configuration, a logger, plumbing) that its origin lab includes is
+        # its own source and cannot drift. It must not carry that lab's solutions, or the lab
+        # would hand participants the answer.
+        leaked = sorted(set(shared) & set(solutions))
+        assert not leaked, f"{path.name}: {origin.name} includes it, but it defines {leaked}"
+        return
     for name, dumped in shared.items():
         assert name in solutions, f"{path.name}: {name} is not a solution in {origin.name}"
         assert dumped == solutions[name], (

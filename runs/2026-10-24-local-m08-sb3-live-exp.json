@@ -1,0 +1,321 @@
+{
+  "args": {
+    "algo": "sb3",
+    "code": {
+      "labs/shared/dqn.py": "b3c1ddf1713337bb",
+      "labs/shared/dqn_setup.py": "d97df9a0bd46e147"
+    },
+    "notebook": "notebooks/08-dqn.ipynb",
+    "notebook_content_sha": "6e443fcdaba227b9",
+    "repo_dirty": true,
+    "test_doubles": [],
+    "unmatched": [
+      "SB3 acts uniformly at random for the first learning_starts = 1,000 steps; the lab's epsilon-greedy uses the linear schedule from step 1 (epsilon 0.905 at step 1,000 live, 0.525 QUICK), acting greedily on the untrained network the rest of the time",
+      "SB3 copies the target network in _on_step, before that rollout's gradient step; the lab copies after the gradient step of the same step (both copy every 500 steps)",
+      "SB3 updates epsilon after each step from the progress so far; the lab computes it before acting (one step apart)",
+      "random streams differ: SB3 seeds Python, NumPy's global generator and torch, samples the buffer with np.random.randint and explores with np.random.rand and the action space's sample; the lab uses one np.random.default_rng(seed) for both. The initial weights and the first start state are the same for the same seed (torch.manual_seed(seed) before the same layers; per_seed.same_initial_weights), the draws after that are not",
+      "SB3 wraps the environment in a Monitor and a DummyVecEnv (auto-reset, the terminal observation kept as s'); the loss is SB3's smooth_l1_loss (Huber, psi = 1, the batch mean), as in the lab"
+    ]
+  },
+  "budget": {
+    "eval_episodes": 10,
+    "eval_every": 5000,
+    "grid": [
+      5000,
+      10000,
+      15000,
+      20000,
+      25000,
+      30000,
+      35000,
+      40000,
+      45000,
+      50000
+    ],
+    "label": "live",
+    "log_every": 1000,
+    "sb3": {
+      "batch_size": 64,
+      "buffer_size": 10000,
+      "device": "cpu",
+      "exploration_final_eps": 0.05,
+      "exploration_fraction": 0.2,
+      "exploration_initial_eps": 1.0,
+      "gamma": 0.99,
+      "gradient_steps": 1,
+      "learning_rate": 0.001,
+      "learning_starts": 1000,
+      "max_grad_norm": 10.0,
+      "policy_kwargs": {
+        "net_arch": [
+          64,
+          64
+        ]
+      },
+      "target_update_interval": 500,
+      "tau": 1.0,
+      "train_freq": 4
+    },
+    "steps": 50000
+  },
+  "date": "2026-10-24",
+  "env": "local",
+  "experiment": "m08-sb3-live",
+  "git_sha": "90896a540e70f4b8efa2c255717946853542f179",
+  "hardware": {
+    "accel": "mps",
+    "arch": "arm64",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "experiment",
+  "note": "Stable-Baselines3 2.9.0 DQN at the lab's configuration on every knob it has (budget.sb3), greedy-evaluated with the lab's evaluate_greedy, seeds 0-4, at the live budget (50,000 steps, greedy evaluation of 10 episodes every 5,000). per_seed lists are indexed like `seeds`: return, disc_return (G_0) and q0 (max_a Q(s0, a)) on budget.grid, the run's wall-clock seconds, q_probe_end (mean over the lab's 32 probe states of max_a Q at the end) and truncations (B74: every transition the 500-step limit cut that SB3 stored during training, with its done flag as stored and as train() samples it, and whether its s' is the reset observation). Wall-clock on local (Apple M1 Pro, arm64), 2 torch threads, runs one after another (load average 3.6 at the start: other jobs shared the machine): laptop seconds, not Colab seconds.",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "stable-baselines3": "2.9.0",
+    "torch": "2.14.1"
+  },
+  "per_seed": {
+    "disc_return": [
+      [
+        87.15254,
+        79.69206,
+        81.526665,
+        81.555435,
+        81.96293,
+        86.202095,
+        79.8823,
+        80.43955,
+        70.862686,
+        78.650536
+      ],
+      [
+        34.79616,
+        82.92722,
+        89.96429,
+        87.238335,
+        83.2335,
+        85.78125,
+        89.30935,
+        66.7604,
+        64.71357,
+        73.11107
+      ],
+      [
+        81.664566,
+        85.49823,
+        79.958496,
+        88.39162,
+        83.125175,
+        84.99288,
+        78.32088,
+        73.84279,
+        75.45134,
+        76.698814
+      ],
+      [
+        72.40581,
+        82.59371,
+        89.69608,
+        89.87333,
+        86.39064,
+        84.42388,
+        88.424416,
+        92.739235,
+        91.5637,
+        85.35141
+      ],
+      [
+        91.65129,
+        80.5437,
+        85.66526,
+        79.82632,
+        84.8566,
+        83.99751,
+        80.18463,
+        66.29118,
+        77.12534,
+        76.879005
+      ]
+    ],
+    "q0": [
+      [
+        8.161753,
+        17.524925,
+        26.136253,
+        33.40848,
+        39.889812,
+        45.732197,
+        51.116333,
+        55.821365,
+        60.530407,
+        64.46419
+      ],
+      [
+        8.104769,
+        17.529413,
+        25.967884,
+        33.393677,
+        39.97075,
+        45.885796,
+        51.170322,
+        56.000072,
+        60.703377,
+        65.00424
+      ],
+      [
+        7.9564524,
+        17.208971,
+        25.807775,
+        33.137684,
+        39.504036,
+        45.336205,
+        50.74894,
+        55.703033,
+        59.85766,
+        63.902393
+      ],
+      [
+        7.981323,
+        17.5191,
+        25.9132,
+        33.25151,
+        39.780228,
+        45.637093,
+        50.91784,
+        55.82086,
+        60.29394,
+        64.29994
+      ],
+      [
+        7.8942018,
+        17.327143,
+        26.054543,
+        33.33657,
+        39.959488,
+        45.784767,
+        50.916496,
+        55.842216,
+        60.16352,
+        64.231316
+      ]
+    ],
+    "q_probe_end": [
+      64.47164,
+      64.983475,
+      63.895966,
+      64.29375,
+      64.231224
+    ],
+    "return": [
+      [
+        223.4,
+        162.2,
+        172.0,
+        171.0,
+        173.9,
+        207.1,
+        164.4,
+        170.7,
+        123.0,
+        155.8
+      ],
+      [
+        42.7,
+        186.5,
+        233.2,
+        209.0,
+        180.7,
+        199.5,
+        235.6,
+        109.7,
+        103.7,
+        131.2
+      ],
+      [
+        169.6,
+        198.7,
+        160.2,
+        215.3,
+        177.4,
+        189.2,
+        152.3,
+        133.6,
+        140.0,
+        145.7
+      ],
+      [
+        128.4,
+        175.2,
+        233.7,
+        233.8,
+        212.8,
+        188.3,
+        231.8,
+        270.0,
+        249.6,
+        206.8
+      ],
+      [
+        313.0,
+        163.4,
+        200.4,
+        160.5,
+        199.3,
+        195.0,
+        163.2,
+        108.5,
+        150.8,
+        147.9
+      ]
+    ],
+    "same_initial_weights": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "seconds": [
+      9.48,
+      9.46,
+      9.47,
+      10.05,
+      9.81
+    ],
+    "truncations": [
+      [],
+      [],
+      [],
+      [
+        {
+          "next_obs_is_reset_obs": false,
+          "sampled_done": 0.0,
+          "step": 15660,
+          "stored_done": 1.0
+        }
+      ],
+      []
+    ]
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "schema": 1,
+  "script": "scripts/make_figures_m08.py",
+  "seconds": 48.3,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "torch_threads": 2
+}

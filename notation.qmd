@@ -101,3 +101,12 @@ and note the paper's original symbol here.
 | $e_x$ | the one-hot vector of level $x$ (Module 7's shop features) | |
 | $W$, $W_a$ | linear Q-learning's weights: row $W_a$ for action $a$, $Q(s, a; W) = W_a^\top \phi(s)$ (Module 7) | Sutton and Barto's $\mathbf{w}$ with features $\mathbf{x}(s, a)$ |
 | $z(s)$, $z_i$, $\ell$ | Module 7's radial basis features: the scaled observation, the grid points and the width of each bump | Sutton and Barto's $s$, $c_i$, $\sigma_i$ ($c$ and $\sigma$ are ours elsewhere) |
+| $Q(s, a; w)$, $w^-$ | Module 8: the online network and the parameters of the target network, a copy of $w$ refreshed every `target_sync` steps | Mnih et al.'s $\theta$, $\theta^-$ and van Hasselt et al.'s $\theta_t$, $\theta^-_t$ ($\theta$ is our policy parameters) |
+| $\mathcal{D}$, $\mathcal{B}$, $\lvert \mathcal{B} \rvert$ | Module 8: the replay buffer, a minibatch drawn from it, and the batch size | Mnih et al.'s $D$ (our $D$ is Module 7's $\operatorname{diag}(\mu)$) |
+| $\mathrm{term}_i$, $\mathrm{trunc}_i$ | Module 8: 1 if transition $i$ ended at a terminal state (Gymnasium's `terminated`), or was cut (`truncated`); 0 otherwise | |
+| $y_i$ | Module 8: the TD target of transition $i$ of a minibatch | Mnih et al.'s $y_j$; van Hasselt et al.'s $Y_t$ |
+| $\operatorname{huber}_\psi$, $\psi$ | Module 8: the Huber loss with threshold $\psi$, $\tfrac12 x^2$ for $\lvert x \rvert \le \psi$ and $\psi(\lvert x \rvert - \tfrac12 \psi)$ beyond; its derivative is $\operatorname{clip}(x, -\psi, \psi)$ (`threshold` in code) | PyTorch's `delta` in `huber_loss` ($\delta$ is our TD error) |
+| $k$ | Module 8: the number of target copies that follow a gradient step, in "(sync lag)", $(1 - \gamma^k)/(1 - \gamma)$ | |
+| $C$ | Module 8: the mean squared estimation error in van Hasselt et al.'s Theorem 1 | van Hasselt et al.'s $C$ (same); Mnih et al.'s $C$ is the copy interval, our `target_sync` |
+| $\hat Q(a)$, $a^\star_i$ | Module 8: random estimates of one state's action values (the max bias), and Double DQN's next action $\arg\max_{a'} Q(s'_i, a'; w)$ | |
+| $\alpha_{\text{per}}$, $\beta_{\text{per}}$ | Module 8, reference only: prioritized replay's prioritization and importance-weight exponents | Schaul et al.'s $\alpha$, $\beta$ |

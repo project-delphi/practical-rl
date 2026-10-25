@@ -2423,6 +2423,206 @@ def m07_tdc() -> bytes:
     return _save("m07_tdc", **out)
 
 
+# ---------------------------------------------------------------- Module 8 (DQN from scratch)
+# NumPy only: CI's drift gate runs without torch. Every value below is an exact computation,
+# and each builder asserts the numbers the director's handoff (and the page) quote.
+M08_GAMMA = 0.99
+
+
+def m08_buffer() -> bytes:
+    """Checkpoint 1.1: seven writes into five slots (obs [t, -t], act t % 2, rew t, terminated at
+    t = 6, truncated at t = 3), the slots afterwards; the partly filled and full cases' sizes."""
+    capacity, n_adds = 5, 7
+    slots = [None] * capacity
+    ptr = size = 0
+    for t in range(n_adds):
+        slots[ptr] = t
+        ptr, size = (ptr + 1) % capacity, min(size + 1, capacity)
+    written = np.array(slots, dtype=float)
+    assert written.tolist() == [5, 6, 2, 3, 4] and (ptr, size) == (2, 5)  # Check yourself 2.1
+    return _save(
+        "m08_buffer",
+        capacity=np.array(capacity),
+        obs_dim=np.array(2),
+        n_adds=np.array(n_adds),
+        terminal_at=np.array(6),
+        cut_at=np.array(3),
+        size=np.array(size),
+        ptr=np.array(ptr),
+        obs0=written,
+        next_obs0=written + 1,
+        act=written % 2,
+        rew=written,
+        terminated=(written == 6).astype(float),
+        truncated=(written == 3).astype(float),
+        part_capacity=np.array(10),
+        part_adds=np.array(3),
+        full_capacity=np.array(1000),
+        full_adds=np.array(1500),
+    )
+
+
+def m08_diagnosis() -> bytes:
+    """Checkpoint 1.2: after 2,500 writes into 1,000 slots ptr is 500 and size 1,000, so
+    rng.integers(0, ptr) reaches only the 500 newest transitions: sentence b."""
+    ptr, size = 2500 % 1000, min(2500, 1000)
+    newest = {2499 - age for age in range(ptr)}
+    assert (ptr, size) == (500, 1000) and newest == set(range(2000, 2500))
+    return _save("m08_diagnosis", answer=np.array("b"))
+
+
+def m08_colleague() -> bytes:
+    """Checkpoint 1.3: a buffer after its pointer wrapped, and one that never filled."""
+    return _save(
+        "m08_colleague",
+        capacity=np.array(1000),
+        full_adds=np.array(2500),
+        part_adds=np.array(300),
+    )
+
+
+def m08_td_target() -> bytes:
+    """Checkpoint 2: the masked target on five rows. Rows 2 and 4 are truncated only (they
+    bootstrap); row 5 is terminated and truncated (it does not)."""
+    rew = np.array([1.0, 1.0, 1.0, -2.0, 0.5])
+    terminated = np.array([1.0, 0.0, 0.0, 0.0, 1.0])
+    truncated = np.array([0.0, 1.0, 0.0, 1.0, 1.0])
+    q_next = np.array([50.0, 50.0, 50.0, 10.0, 7.0])
+    gammas = np.array([M08_GAMMA, 0.5])
+    y = np.stack([rew + g * (1.0 - terminated) * q_next for g in gammas])
+    assert np.allclose(y[0], [1.0, 50.5, 50.5, 7.9, 0.5], atol=1e-12)
+    assert np.allclose(y[1], [1.0, 26.0, 26.0, 3.0, 0.5], atol=1e-12)
+    return _save(
+        "m08_td_target",
+        rew=rew,
+        terminated=terminated,
+        truncated=truncated,
+        q_next=q_next,
+        gammas=gammas,
+        y=y,
+    )
+
+
+def m08_chain() -> bytes:
+    """Checkpoint 3.1: the five-step chain runs (configuration changes, steps, logging)."""
+    learning_starts, train_freq, steps = 16, 1, 60
+    snapshot_steps = np.array([1, 40, 60])
+    grad_steps = [t for t in range(1, steps + 1) if t > learning_starts and t % train_freq == 0]
+    snap_at = np.array([min(t for t in grad_steps if t >= s) for s in snapshot_steps])
+    assert snap_at.tolist() == [17, 40, 60]
+    return _save(
+        "m08_chain",
+        episode_length=np.array(5),
+        steps=np.array(steps),
+        seed=np.array(0),
+        learning_starts=np.array(learning_starts),
+        buffer_size=np.array(64),
+        batch_size=np.array(16),
+        target_sync=np.array(20),
+        log_every=np.array(20),
+        snapshot_steps=snapshot_steps,
+        snap_at=snap_at,
+        no_clip=np.array(1e9),  # max_grad_norm for the step-size-0 run: never clip
+        # Step size 0: the last log point's mean gradient norm over the first's. A correct
+        # loop gave 1.02-1.08 and one without zero_grad 13.4-14.1 on seeds 0-2 (scratch, not a
+        # record: _notes/m08-te/zero_grad_probe.py); 4 sits far from both.
+        max_growth=np.array(4.0),
+    )
+
+
+def m08_double_dqn() -> bytes:
+    """Checkpoint 4: Double DQN's targets from two stand-in tables, and three wrong versions'
+    (for the hints). gamma = 0.9; row 2 is truncated (it bootstraps), row 4 terminated."""
+    online = np.array([[2.0, 5.0], [1.0, 0.0], [3.0, 3.5], [0.0, 9.0]])
+    target = np.array([[4.0, 3.0], [6.0, 8.0], [7.0, 2.0], [5.0, 1.0]])
+    next_obs = np.arange(4.0)[:, None]
+    obs = np.array([[1.0], [0.0], [0.0], [2.0]])
+    rew = np.array([1.0, 1.0, 0.0, 2.0])
+    terminated = np.array([0.0, 0.0, 0.0, 1.0])
+    truncated = np.array([0.0, 1.0, 0.0, 0.0])
+    gamma = 0.9
+    s1, s0 = next_obs[:, 0].astype(int), obs[:, 0].astype(int)
+
+    def y_of(q_next):
+        return rew + gamma * (1.0 - terminated) * q_next
+
+    y = y_of(target[s1, online[s1].argmax(axis=1)])
+    y_dqn = y_of(target[s1].max(axis=1))
+    y_online = y_of(online[s1].max(axis=1))
+    y_at_s = y_of(target[s1, online[s0].argmax(axis=1)])
+    assert np.allclose(y, [3.7, 6.4, 1.8, 2.0]) and np.allclose(y_dqn, [4.6, 8.2, 6.3, 2.0])
+    for wrong in (y_dqn, y_online, y_at_s):
+        assert np.abs(wrong - y).max() > 0.5
+    # predict_answer 5 (one transition, r = 1, gamma = 0.9, online (2, 5), target (4, 3)).
+    assert np.isclose(1 + gamma * target[0].max(), 4.6) and np.isclose(1 + gamma * 3, 3.7)
+    return _save(
+        "m08_double_dqn",
+        online=online,
+        target=target,
+        next_obs=next_obs,
+        obs=obs,
+        rew=rew,
+        terminated=terminated,
+        truncated=truncated,
+        gamma=np.array(gamma),
+        y=y,
+        y_dqn=y_dqn,
+        y_online=y_online,
+        y_at_s=y_at_s,
+    )
+
+
+def _m08_mc(rewards, gamma):
+    out, total = np.zeros(len(rewards)), 0.0
+    for t in reversed(range(len(rewards))):
+        total = rewards[t] + gamma * total
+        out[t] = total
+    return out
+
+
+def m08_mc_return() -> bytes:
+    """Checkpoint 5: returns-to-go of four episodes (concatenated; `lengths` splits them)."""
+    cases = [([1.0, 2.0, 3.0], 0.5), ([1.0, 1.0, 1.0, 1.0], 1.0), ([5.0], 0.9)]
+    cases.append(([1.0] * 500, M08_GAMMA))
+    returns = [_m08_mc(np.array(r), g) for r, g in cases]
+    assert np.allclose(returns[0], [2.75, 3.5, 3.0]) and np.allclose(returns[1], [4, 3, 2, 1])
+    g0 = (1 - M08_GAMMA**500) / (1 - M08_GAMMA)
+    assert abs(returns[3][0] - g0) < 1e-9 and round(g0, 3) == 99.343
+    return _save(
+        "m08_mc_return",
+        rewards=np.concatenate([r for r, _ in cases]),
+        gammas=np.array([g for _, g in cases]),
+        lengths=np.array([len(r) for r, _ in cases]),
+        returns=np.concatenate(returns),
+    )
+
+
+M08_BAND_BUDGETS = {
+    "live": dict(steps=50_000, eval_every=5_000),
+    "quick": dict(steps=10_000, eval_every=1_000),
+}
+
+
+def m08_sb3_call() -> bytes:
+    """Checkpoint 6: the workshop rule's verdict on the recorded final greedy returns, the
+    reference DQN (A) against SB3's DQN (B), at each of the lab's budgets. The bands are the
+    copies in prl (scripts/export_bands.py), so this fixture changes when they do."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    import prl.data
+    from prl.evaluate import compare
+
+    out = {}
+    for label, budget in M08_BAND_BUDGETS.items():
+        ref = prl.data.band("m08_dqn_return", budget)["runs"][:, -1]
+        sb3 = prl.data.band("m08_sb3_return", budget)["runs"][:, -1]
+        v = compare(ref, sb3)
+        (_, lo_a, hi_a), (_, lo_b, hi_b) = v.summary_a, v.summary_b
+        # No rounding can flip the call: intervals overlap, or are apart, by at least 1.
+        assert max(min(hi_a, hi_b) - max(lo_a, lo_b), max(lo_b - hi_a, lo_a - hi_b)) >= 1.0
+        out[label] = np.array({"A": "reference", "B": "sb3"}.get(v.winner, v.winner))
+    return _save("m08_sb3_call", **out)
+
+
 FIXTURES = {
     "m01_returns": m01_returns,
     "m01_eval": m01_eval,
@@ -2463,6 +2663,14 @@ FIXTURES = {
     "m07_linear_q": m07_linear_q,
     "m07_features": m07_features,
     "m07_tdc": m07_tdc,
+    "m08_buffer": m08_buffer,
+    "m08_diagnosis": m08_diagnosis,
+    "m08_colleague": m08_colleague,
+    "m08_td_target": m08_td_target,
+    "m08_chain": m08_chain,
+    "m08_double_dqn": m08_double_dqn,
+    "m08_mc_return": m08_mc_return,
+    "m08_sb3_call": m08_sb3_call,
 }
 
 

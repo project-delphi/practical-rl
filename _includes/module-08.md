@@ -4,11 +4,11 @@
 [Briefing 11:30 · lunch · Lab 13:10 · Debrief 14:20]{.module-clock}
 
 ::: {.module-summary}
-Replay, a target network and the Huber loss make neural Q-learning stable; Double DQN reduces the max bias.
+Replay, a target network and the Huber loss make neural Q-learning stable; Double DQN removes part of the max bias, and Monte Carlo returns test what the values claim.
 :::
 
 ::: {.module-actions}
-[Lab notebook not built yet]{.btn-disabled} [Other ways to run](/setup.qmd#local){.btn-quiet}
+[Open in Colab[, Lab 8: DQN from scratch (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/08-dqn.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/08-dqn.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
 :::
 :::
 
@@ -37,10 +37,10 @@ Without GPU
 
 In this module you will:
 
-- Implement a replay buffer and explain the two problems it fixes.
+- Implement a replay buffer with uniform sampling and explain the two problems it fixes, correlated samples and data reuse.
 - Implement DQN with a target network and the Huber loss, masking only on terminated.
-- Derive the max-of-noisy-estimates bias, implement Double DQN and measure Q against Monte Carlo returns.
-- Place your live seed against recorded bands of the reference DQN and SB3's DQN at the same budget.
+- Derive why the max over noisy estimates is biased upward, state van Hasselt et al.'s Theorem 1 with its conditions, implement Double DQN, and measure Q(s₀) against the discounted Monte Carlo return of the greedy policy.
+- Place your live seed against recorded 5-seed bands of the reference DQN and SB3's DQN at the same budget, and call the comparison a tie or a ranking.
 
 ## Before you start {#before}
 
