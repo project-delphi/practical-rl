@@ -2,17 +2,17 @@
 
 Exact checks compare the participant's code with fixtures written by
 scripts/make_expected.py (`m08_*`): a ring buffer's slots after a known sequence of writes,
-targets and Huber values on fixed tensors, Double DQN's targets from two stand-in networks
+targets on fixed tensors, Double DQN's targets from two stand-in networks
 that look values up in a table, Monte Carlo returns, and the verdict of the recorded bands.
 Values that pass through torch kernels are compared with tolerances, not bit equality: CPU
 kernels differ between macOS arm64 and Linux x86-64 (day-3 decision 8).
 
-Checkpoint 4.1 is exact in the sense that matters: a seeded run of the participant's
+Checkpoint 3.1 is exact in the sense that matters: a seeded run of the participant's
 train_dqn on a five-step chain, whose log must show the structure DQN needs (episodes that
 end the way the chain ends, a target copy every `target_sync` steps, terminal rows masked and
 truncated rows bootstrapped, and, with the step size set to zero, gradients that do not pile
 up from one step to the next). It never compares learned values with numbers, so it does not
-depend on torch's kernels. Checkpoint 4.2 is the one StochasticCheck: how far a run of the
+depend on torch's kernels. Checkpoint 3.2 is the one StochasticCheck: how far a run of the
 participant's train_dqn on CartPole raises the greedy return above its untrained network's
 (the lab's provided evaluate_greedy, through the participant's logger), with thresholds from
 scripts/threshold_protocol.py.
@@ -71,7 +71,7 @@ def _batch(rew, terminated, truncated, *, obs=None, next_obs=None) -> _Batch:
     )
 
 
-# ------------------------------------------------------------------ 1 the replay buffer
+# ------------------------------------------------------------------ 1.1 the replay buffer
 def _uniform(counts: np.ndarray, what: str) -> None:
     from scipy import stats
 
@@ -167,7 +167,7 @@ def check_replay_buffer(ReplayBuffer: type) -> None:
     )
 
 
-# ------------------------------------------------------------------ 2 the colleague's buffer
+# ------------------------------------------------------------------ 1.2, 1.3 the colleague's buffer
 _DIAGNOSIS_HINTS = {
     "a": "the two histograms are not the same: compare the oldest draw of each buffer.",
     "c": "both buffers share your add, so both overwrite old slots. Compare the oldest draw "
@@ -224,7 +224,7 @@ def check_colleague_buffer(ColleagueBuffer: type) -> None:
     _uniform(np.bincount(steps.astype(int) - 1, minlength=n), "Before the buffer filled")
 
 
-# ------------------------------------------------------------------ 3 the masked target and Huber
+# ------------------------------------------------------------------ 2 the masked target
 def check_td_target(td_target) -> None:
     """r + gamma (1 - terminated) q_next on fixed rows, truncated rows included."""
     import torch
@@ -252,40 +252,7 @@ def check_td_target(td_target) -> None:
         assert_close(got, want, atol=1e-5, what=f"td_target with gamma = {gamma:g}", hint=hint)
 
 
-def check_huber(huber) -> None:
-    """Elementwise Huber values and derivatives at two thresholds; shape kept."""
-    import torch
-
-    fx = expected("m08_huber")
-    x = torch.as_tensor(fx["x"], dtype=torch.float32).requires_grad_(True)
-    for psi, loss, grad in zip(fx["thresholds"], fx["loss"], fx["grad"], strict=True):
-        got = huber(x, float(psi))
-        assert_true(
-            isinstance(got, torch.Tensor) and got.requires_grad,
-            "huber should return a tensor that carries x's gradient: build it from torch "
-            "operations on x (torch.where, abs), not NumPy or Python floats.",
-        )
-        assert_close(
-            _numpy(got),
-            loss,
-            atol=1e-6,
-            what=f"huber(x, {psi:g}) at x = {fx['x'].tolist()}",
-            hint="x**2 / 2 where |x| <= threshold, threshold * (|x| - threshold / 2) beyond",
-        )
-        (g,) = torch.autograd.grad(got.sum(), x)
-        assert_close(
-            _numpy(g),
-            grad,
-            atol=1e-6,
-            what=f"the derivative of huber(x, {psi:g})",
-            hint="the derivative is x clipped to [-threshold, threshold]: never zero for a "
-            "large error, never larger than the threshold",
-        )
-    shape = tuple(huber(torch.zeros(3, 2)).shape)
-    assert_true(shape == (3, 2), f"huber(zeros(3, 2)) has shape {shape}: keep x's shape.")
-
-
-# ------------------------------------------------------------------ 4.1 train_dqn's structure
+# ------------------------------------------------------------------ 3.1 train_dqn's structure
 class _Chain:
     """A five-step chain: 1-D observation, reward 1 per step, two actions that do the same.
 
@@ -354,14 +321,14 @@ def _chain_log(train_dqn, config, terminate: bool, **changes) -> dict:
     log = out[1] if isinstance(out, tuple) and len(out) == 2 else None
     assert_true(
         isinstance(log, dict),
-        "train_dqn should return (q_net, log.result()): the network and the logger's dict.",
+        "train_dqn should return (p.q_net, p.log.result()): the network and the logger's dict.",
     )
     missing = [k for k in _LOG_KEYS if k not in log]
     assert_true(
         not missing,
-        f"train_dqn's log has no {', '.join(missing)}: return log.result() from the "
-        "DQNLogger you built, after calling log.step, log.update and log.sync as the "
-        "docstring says.",
+        f"train_dqn's log has no {', '.join(missing)}: return p.q_net, p.log.result() after "
+        "the loop, having called p.log.step, p.log.update and p.log.sync as the docstring "
+        "says.",
     )
     return log
 
@@ -380,13 +347,14 @@ def check_train_dqn_masks(train_dqn, config) -> None:
         assert_true(
             len(lengths) == steps // end and set(lengths.tolist()) == {end},
             f"{where}, {steps} steps should give {steps // end} episodes of {end} steps; the "
-            f"log has {len(lengths)} with lengths {sorted(set(lengths.tolist()))}. Reset the "
-            "environment when either flag is set, and call log.step(t, ...) once per step.",
+            f"log has {len(lengths)} with lengths {sorted(set(lengths.tolist()))}. Reset p.env "
+            "when either flag is set (docstring step 1), and call p.log.step(t, ...) once per "
+            "step (step 4).",
         )
         assert_true(
             bool(np.all(np.asarray(log["ep_terminated"]) == terminate)),
             f"{where}, ep_terminated should be {terminate} for every episode: pass "
-            "terminated and truncated to log.step as env.step returned them.",
+            "terminated and truncated to p.log.step as p.env.step returned them (step 4).",
         )
         want_snaps = fx["snap_at"].tolist()
         got_snaps = np.asarray(log["snap_step"]).tolist()
@@ -395,21 +363,21 @@ def check_train_dqn_masks(train_dqn, config) -> None:
             f"{where}, with learning_starts = {int(fx['learning_starts'])} and train_freq = 1 "
             f"the log's batch snapshots should be at steps {want_snaps}, not {got_snaps}: take "
             "a gradient step at every t > config.learning_starts with t % config.train_freq "
-            "== 0, read from config, and call log.update after each.",
+            "== 0, read from config, and call p.log.update after each (docstring step 2).",
         )
         q = np.asarray(log["q_probe"], dtype=float)
         assert_true(
             bool(np.abs(q[-1] - q[0]).max() > 1e-6),
             f"{where}, Q at the probe states did not change in {steps} steps of training: "
-            "call opt.step() after loss.backward() (and clip_grad_norm_), every gradient step.",
+            "call p.opt.step() after loss.backward() and clip_grad_norm_ (docstring step 2).",
         )
         since = np.asarray(log["steps_since_sync"]).tolist()
         assert_true(
             since == [0] * (steps // int(fx["log_every"])),
             f"{where}, with target_sync = log_every = {sync} every log point should follow a "
             f"target copy, but the steps since the last copy are {since}. Copy w into w- "
-            "(target_net.load_state_dict(q_net.state_dict())) whenever t % config.target_sync "
-            "== 0, and call log.sync(t).",
+            "(p.target_net.load_state_dict(p.q_net.state_dict())) whenever t % "
+            "config.target_sync == 0, then call p.log.sync(t) (docstring step 3).",
         )
         assert_close(
             log["q_probe_target"],
@@ -425,8 +393,8 @@ def check_train_dqn_masks(train_dqn, config) -> None:
         if terminate:
             assert_true(
                 bool(stored_end.any()),
-                f"{where}, no batch held a terminal transition: store terminated as env.step "
-                "returned it.",
+                f"{where}, no batch held a terminal transition: store terminated as p.env.step "
+                "returned it (docstring step 1).",
             )
             assert_close(
                 target[stored_end],
@@ -438,8 +406,9 @@ def check_train_dqn_masks(train_dqn, config) -> None:
         else:
             assert_true(
                 not stored_end.any(),
-                f"{where}, a cut transition was stored as terminated: buffer.add takes "
-                "terminated and truncated separately, and only terminated stops the bootstrap.",
+                f"{where}, a cut transition was stored as terminated: p.buffer.add takes "
+                "terminated and truncated separately (docstring step 1), and only terminated "
+                "stops the bootstrap.",
             )
             assert_true(
                 bool(np.all(np.abs(target - reward) > 1e-6)),
@@ -453,26 +422,27 @@ def check_train_dqn_masks(train_dqn, config) -> None:
         np.broadcast_to(np.asarray(log["q_probe"])[:1], np.shape(log["q_probe"])),
         atol=1e-6,
         what="With config.lr = 0, Q at the probe states over the run",
-        hint="the network should not move at step size 0: build the optimizer with lr=config.lr",
+        hint="the network should not move at step size 0: use p.opt from dqn_parts, which "
+        "reads config.lr",
     )
     norms = np.asarray(log["grad_norm"], dtype=float)
     assert_true(
         bool(np.all(np.isfinite(norms)) and norms[0] > 0),
         f"With config.lr = 0 the gradient norms per log point are {np.round(norms, 3).tolist()}: "
-        "no gradient reached the parameters. Call loss.backward() after zero_grad and before "
-        "clip_grad_norm_ and opt.step().",
+        "no gradient reached the parameters. Call loss.backward() after p.opt.zero_grad() and "
+        "before clip_grad_norm_ and p.opt.step() (docstring step 2).",
     )
     ratio = float(norms[-1] / norms[0])
     assert_true(
         ratio < float(fx["max_growth"]),
         f"With config.lr = 0 the network never changes, so every gradient is one batch's, yet "
         f"the gradient norm grew {ratio:.0f}-fold over {steps} steps "
-        f"({np.round(norms, 2).tolist()}). Gradients are piling up: call opt.zero_grad() "
-        "before each loss.backward().",
+        f"({np.round(norms, 2).tolist()}). Gradients are piling up: call p.opt.zero_grad() "
+        "before each loss.backward() (docstring step 2).",
     )
 
 
-# ------------------------------------------------------------------ 4.2 train_dqn learns (stochastic)
+# ------------------------------------------------------------------ 3.2 train_dqn learns (stochastic)
 def _greedy_improvement(train_dqn, make_env, config, *, seed: int, steps: int) -> float:
     """How far training raised the greedy return above the untrained network's.
 
@@ -513,7 +483,7 @@ def _greedy_improvement(train_dqn, make_env, config, *, seed: int, steps: int) -
 
 
 check_train_dqn = StochasticCheck(
-    ex=4,
+    ex=3,
     functions=("train_dqn", "make_cartpole", "CONFIG"),
     metric=_greedy_improvement,
     # C33: 20,000 steps, not the lab's 50,000, at both budgets. With the last evaluation as the
@@ -552,7 +522,7 @@ check_train_dqn = StochasticCheck(
 )
 
 
-# ------------------------------------------------------------------ 5 the Double DQN target
+# ------------------------------------------------------------------ 4 the Double DQN target
 def check_double_dqn_target(double_dqn_target) -> None:
     """Online network selects at s', target network evaluates; masked; no gradient."""
     import torch
@@ -586,7 +556,7 @@ def check_double_dqn_target(double_dqn_target) -> None:
     )
 
 
-# ------------------------------------------------------------------ 6 Monte Carlo returns
+# ------------------------------------------------------------------ 5 Monte Carlo returns
 def check_mc_return(mc_return) -> None:
     """Discounted returns-to-go on fixed episodes."""
     fx = expected("m08_mc_return")
@@ -603,7 +573,7 @@ def check_mc_return(mc_return) -> None:
         )
 
 
-# ------------------------------------------------------------------ 7 the recorded call
+# ------------------------------------------------------------------ 6 the recorded call
 def check_sb3_call(sb3_call) -> None:
     """The rule's verdict on the reference DQN against SB3's DQN at the lab's budget."""
     budget = runtime.settings(*LAB_BUDGETS, designed="colab-cpu")

@@ -40,20 +40,6 @@ def test_td_target_fixture_bootstraps_truncated_rows_only():
     assert cut.sum() == 2 and both.sum() == 1  # rows 2 and 4 bootstrap; row 5 does not
 
 
-def test_huber_fixture_derivative_is_the_clipped_error():
-    fx = expected("m08_huber")
-    for psi, loss, grad in zip(fx["thresholds"], fx["loss"], fx["grad"], strict=True):
-        assert np.allclose(grad, np.clip(fx["x"], -psi, psi))
-        h = 1e-6  # central differences of the loss agree with the derivative off the seam
-        x = fx["x"][np.abs(np.abs(fx["x"]) - psi) > 1e-3]
-        lo, hi = (
-            np.where(np.abs(v) <= psi, v**2 / 2, psi * (np.abs(v) - psi / 2))
-            for v in (x - h, x + h)
-        )
-        assert np.allclose((hi - lo) / (2 * h), np.clip(x, -psi, psi), atol=1e-5)
-        assert loss.shape == fx["x"].shape
-
-
 def test_double_dqn_fixture_differs_from_each_wrong_target():
     fx = expected("m08_double_dqn")
     assert np.allclose(fx["y"], [3.7, 6.4, 1.8, 2.0])
@@ -127,7 +113,6 @@ CHECKS = {
     "buffer_diagnosis": lambda ns: m08.check_buffer_diagnosis(ns["buffer_diagnosis"]),
     "ColleagueBuffer": lambda ns: m08.check_colleague_buffer(ns["ColleagueBuffer"]),
     "td_target": lambda ns: m08.check_td_target(ns["td_target"]),
-    "huber": lambda ns: m08.check_huber(ns["huber"]),
     "train_dqn": lambda ns: m08.check_train_dqn_masks(ns["train_dqn"], ns["CONFIG"]),
     "double_dqn_target": lambda ns: m08.check_double_dqn_target(ns["double_dqn_target"]),
     "mc_return": lambda ns: m08.check_mc_return(ns["mc_return"]),
@@ -166,7 +151,7 @@ def test_train_dqn_masks_names_a_missing_zero_grad(lab):
     ns = dict(lab)
     src = (SHARED / "dqn.py").read_text()
     body = re.search(r"^def train_dqn\(.*?(?=^def |\Z)", src, re.S | re.M).group(0)
-    exec(body.replace("opt.zero_grad()\n", "pass\n"), ns)  # noqa: S102
+    exec(body.replace("p.opt.zero_grad()\n", "pass\n"), ns)  # noqa: S102
     with pytest.raises(CheckFailed, match="zero_grad"):
         m08.check_train_dqn_masks(ns["train_dqn"], ns["CONFIG"])
 

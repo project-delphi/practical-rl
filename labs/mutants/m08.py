@@ -11,11 +11,10 @@ Checkpoint 3.2 (how far train_dqn raises CartPole's greedy return above its untr
 network's) is the only stochastic one. Its protocol mutants are the train_dqn mutants below
 without exact_only: `target-is-online`, `zero-grad-late`, `no-step` and `random`.
 Checkpoint 3.1 is exact and also calls train_dqn, so verify mode needs it to reject every
-train_dqn mutant. It does: its chain runs
-check the log's keys, the snapshots' steps, a target copy every target_sync steps, the
-terminal mask and the bootstrap on cut episodes, that Q at the probe states moves
-(`no-step`), and, with config.lr = 0, that the gradient norm does not grow (which rejects
-`no-zero-grad`) and is not zero (`zero-grad-late`).
+train_dqn mutant. It does: its chain runs check the log's keys, the snapshots' steps, a target
+copy every target_sync steps, the terminal mask and the bootstrap on cut episodes, that Q at
+the probe states moves (`no-step`), and, with config.lr = 0, that the gradient norm does not
+grow (which rejects `no-zero-grad`) and is not zero (`zero-grad-late`).
 
 exact_only=True marks the mutants that only 3.1 can see: `done-in-buffer` (CartPole rarely
 reaches the time limit at the check's budget); `no-zero-grad`, which still learns CartPole
@@ -219,8 +218,8 @@ def td_target(batch, q_next, gamma):  # noqa: F811
 
 
 # ------------------------------------------------------------------ 3: train_dqn
-# The solution's body with one change each. Shared pieces (make_q_net, act, gather_q,
-# dqn_target, DQNLogger, ...) come from the notebook.
+# The solution's body (on the provided dqn_parts) with one change each. Shared pieces
+# (dqn_parts, act, gather_q, huber, dqn_target, ...) come from the notebook.
 @mutant(
     ex=3,
     replaces="train_dqn",
@@ -230,42 +229,33 @@ def td_target(batch, q_next, gamma):  # noqa: F811
 )
 def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):
     target_fn = target_fn or dqn_target  # noqa: F821
-    torch.manual_seed(seed)
-    rng = np.random.default_rng(seed)
-    env = make_env()
-    obs_dim, n_actions = env.observation_space.shape[0], env.action_space.n
-    q_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net.load_state_dict(q_net.state_dict())
-    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
-    buffer = ReplayBuffer(config.buffer_size, obs_dim)  # noqa: F821
-    log = DQNLogger(config, steps, q_net, target_net, make_env, **log_options)  # noqa: F821
-    obs, _ = env.reset(seed=seed)
+    p = dqn_parts(make_env, config, seed, steps, **log_options)  # noqa: F821
+    obs = p.obs
     for t in range(1, steps + 1):
         eps = epsilon_at(t, steps, config)  # noqa: F821
-        a = act(q_net, obs, eps, n_actions, rng)  # noqa: F821
-        next_obs, r, terminated, truncated, _ = env.step(a)
-        buffer.add(obs, a, r, next_obs, terminated or truncated, truncated)
+        a = act(p.q_net, obs, eps, p.n_actions, p.rng)  # noqa: F821
+        next_obs, r, terminated, truncated, _ = p.env.step(a)
+        p.buffer.add(obs, a, r, next_obs, terminated or truncated, truncated)
         obs = next_obs
         if terminated or truncated:
-            obs, _ = env.reset()
+            obs, _ = p.env.reset()
         if t > config.learning_starts and t % config.train_freq == 0:
-            batch = buffer.sample(config.batch_size, rng)
-            q_values = q_net(batch.obs)
+            batch = p.buffer.sample(config.batch_size, p.rng)
+            q_values = p.q_net(batch.obs)
             q_sa = gather_q(q_values, batch.act)  # noqa: F821
-            y = target_fn(batch, q_net, target_net, config.gamma)
+            y = target_fn(batch, p.q_net, p.target_net, config.gamma)
             loss = huber(y - q_sa, config.huber_threshold).mean()  # noqa: F821
-            opt.zero_grad()
+            p.opt.zero_grad()
             loss.backward()
-            norm = nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
-            opt.step()
-            log.update(t, batch, q_values, q_sa, y, loss, norm)
+            norm = nn.utils.clip_grad_norm_(p.q_net.parameters(), config.max_grad_norm)
+            p.opt.step()
+            p.log.update(t, batch, q_values, q_sa, y, loss, norm)
         if config.target_sync and t % config.target_sync == 0:
-            target_net.load_state_dict(q_net.state_dict())
-            log.sync(t)
-        log.step(t, eps, r, terminated, truncated)
-    env.close()
-    return q_net, log.result()
+            p.target_net.load_state_dict(p.q_net.state_dict())
+            p.log.sync(t)
+        p.log.step(t, eps, r, terminated, truncated)
+    p.env.close()
+    return p.q_net, p.log.result()
 
 
 @mutant(
@@ -277,41 +267,32 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):
 )
 def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
     target_fn = target_fn or dqn_target  # noqa: F821
-    torch.manual_seed(seed)
-    rng = np.random.default_rng(seed)
-    env = make_env()
-    obs_dim, n_actions = env.observation_space.shape[0], env.action_space.n
-    q_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net.load_state_dict(q_net.state_dict())
-    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
-    buffer = ReplayBuffer(config.buffer_size, obs_dim)  # noqa: F821
-    log = DQNLogger(config, steps, q_net, target_net, make_env, **log_options)  # noqa: F821
-    obs, _ = env.reset(seed=seed)
+    p = dqn_parts(make_env, config, seed, steps, **log_options)  # noqa: F821
+    obs = p.obs
     for t in range(1, steps + 1):
         eps = epsilon_at(t, steps, config)  # noqa: F821
-        a = act(q_net, obs, eps, n_actions, rng)  # noqa: F821
-        next_obs, r, terminated, truncated, _ = env.step(a)
-        buffer.add(obs, a, r, next_obs, terminated, truncated)
+        a = act(p.q_net, obs, eps, p.n_actions, p.rng)  # noqa: F821
+        next_obs, r, terminated, truncated, _ = p.env.step(a)
+        p.buffer.add(obs, a, r, next_obs, terminated, truncated)
         obs = next_obs
         if terminated or truncated:
-            obs, _ = env.reset()
+            obs, _ = p.env.reset()
         if t > config.learning_starts and t % config.train_freq == 0:
-            batch = buffer.sample(config.batch_size, rng)
-            q_values = q_net(batch.obs)
+            batch = p.buffer.sample(config.batch_size, p.rng)
+            q_values = p.q_net(batch.obs)
             q_sa = gather_q(q_values, batch.act)  # noqa: F821
-            y = target_fn(batch, q_net, target_net, config.gamma)
+            y = target_fn(batch, p.q_net, p.target_net, config.gamma)
             loss = huber(y - q_sa, config.huber_threshold).mean()  # noqa: F821
             loss.backward()
-            norm = nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
-            opt.step()
-            log.update(t, batch, q_values, q_sa, y, loss, norm)
+            norm = nn.utils.clip_grad_norm_(p.q_net.parameters(), config.max_grad_norm)
+            p.opt.step()
+            p.log.update(t, batch, q_values, q_sa, y, loss, norm)
         if config.target_sync and t % config.target_sync == 0:
-            target_net.load_state_dict(q_net.state_dict())
-            log.sync(t)
-        log.step(t, eps, r, terminated, truncated)
-    env.close()
-    return q_net, log.result()
+            p.target_net.load_state_dict(p.q_net.state_dict())
+            p.log.sync(t)
+        p.log.step(t, eps, r, terminated, truncated)
+    p.env.close()
+    return p.q_net, p.log.result()
 
 
 @mutant(
@@ -322,42 +303,33 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
 )
 def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
     target_fn = target_fn or dqn_target  # noqa: F821
-    torch.manual_seed(seed)
-    rng = np.random.default_rng(seed)
-    env = make_env()
-    obs_dim, n_actions = env.observation_space.shape[0], env.action_space.n
-    q_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net.load_state_dict(q_net.state_dict())
-    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
-    buffer = ReplayBuffer(config.buffer_size, obs_dim)  # noqa: F821
-    log = DQNLogger(config, steps, q_net, target_net, make_env, **log_options)  # noqa: F821
-    obs, _ = env.reset(seed=seed)
+    p = dqn_parts(make_env, config, seed, steps, **log_options)  # noqa: F821
+    obs = p.obs
     for t in range(1, steps + 1):
         eps = epsilon_at(t, steps, config)  # noqa: F821
-        a = act(q_net, obs, eps, n_actions, rng)  # noqa: F821
-        next_obs, r, terminated, truncated, _ = env.step(a)
-        buffer.add(obs, a, r, next_obs, terminated, truncated)
+        a = act(p.q_net, obs, eps, p.n_actions, p.rng)  # noqa: F821
+        next_obs, r, terminated, truncated, _ = p.env.step(a)
+        p.buffer.add(obs, a, r, next_obs, terminated, truncated)
         obs = next_obs
         if terminated or truncated:
-            obs, _ = env.reset()
+            obs, _ = p.env.reset()
         if t > config.learning_starts and t % config.train_freq == 0:
-            batch = buffer.sample(config.batch_size, rng)
-            q_values = q_net(batch.obs)
+            batch = p.buffer.sample(config.batch_size, p.rng)
+            q_values = p.q_net(batch.obs)
             q_sa = gather_q(q_values, batch.act)  # noqa: F821
-            y = target_fn(batch, q_net, target_net, config.gamma)
+            y = target_fn(batch, p.q_net, p.target_net, config.gamma)
             loss = huber(y - q_sa, config.huber_threshold).mean()  # noqa: F821
             loss.backward()
-            opt.zero_grad()
-            norm = nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
-            opt.step()
-            log.update(t, batch, q_values, q_sa, y, loss, norm)
+            p.opt.zero_grad()
+            norm = nn.utils.clip_grad_norm_(p.q_net.parameters(), config.max_grad_norm)
+            p.opt.step()
+            p.log.update(t, batch, q_values, q_sa, y, loss, norm)
         if config.target_sync and t % config.target_sync == 0:
-            target_net.load_state_dict(q_net.state_dict())
-            log.sync(t)
-        log.step(t, eps, r, terminated, truncated)
-    env.close()
-    return q_net, log.result()
+            p.target_net.load_state_dict(p.q_net.state_dict())
+            p.log.sync(t)
+        p.log.step(t, eps, r, terminated, truncated)
+    p.env.close()
+    return p.q_net, p.log.result()
 
 
 @mutant(
@@ -368,41 +340,32 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
 )
 def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
     target_fn = target_fn or dqn_target  # noqa: F821
-    torch.manual_seed(seed)
-    rng = np.random.default_rng(seed)
-    env = make_env()
-    obs_dim, n_actions = env.observation_space.shape[0], env.action_space.n
-    q_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net.load_state_dict(q_net.state_dict())
-    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
-    buffer = ReplayBuffer(config.buffer_size, obs_dim)  # noqa: F821
-    log = DQNLogger(config, steps, q_net, target_net, make_env, **log_options)  # noqa: F821
-    obs, _ = env.reset(seed=seed)
+    p = dqn_parts(make_env, config, seed, steps, **log_options)  # noqa: F821
+    obs = p.obs
     for t in range(1, steps + 1):
         eps = epsilon_at(t, steps, config)  # noqa: F821
-        a = act(q_net, obs, eps, n_actions, rng)  # noqa: F821
-        next_obs, r, terminated, truncated, _ = env.step(a)
-        buffer.add(obs, a, r, next_obs, terminated, truncated)
+        a = act(p.q_net, obs, eps, p.n_actions, p.rng)  # noqa: F821
+        next_obs, r, terminated, truncated, _ = p.env.step(a)
+        p.buffer.add(obs, a, r, next_obs, terminated, truncated)
         obs = next_obs
         if terminated or truncated:
-            obs, _ = env.reset()
+            obs, _ = p.env.reset()
         if t > config.learning_starts and t % config.train_freq == 0:
-            batch = buffer.sample(config.batch_size, rng)
-            q_values = q_net(batch.obs)
+            batch = p.buffer.sample(config.batch_size, p.rng)
+            q_values = p.q_net(batch.obs)
             q_sa = gather_q(q_values, batch.act)  # noqa: F821
-            y = target_fn(batch, q_net, target_net, config.gamma)
+            y = target_fn(batch, p.q_net, p.target_net, config.gamma)
             loss = huber(y - q_sa, config.huber_threshold).mean()  # noqa: F821
-            opt.zero_grad()
+            p.opt.zero_grad()
             loss.backward()
-            norm = nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
-            log.update(t, batch, q_values, q_sa, y, loss, norm)
+            norm = nn.utils.clip_grad_norm_(p.q_net.parameters(), config.max_grad_norm)
+            p.log.update(t, batch, q_values, q_sa, y, loss, norm)
         if config.target_sync and t % config.target_sync == 0:
-            target_net.load_state_dict(q_net.state_dict())
-            log.sync(t)
-        log.step(t, eps, r, terminated, truncated)
-    env.close()
-    return q_net, log.result()
+            p.target_net.load_state_dict(p.q_net.state_dict())
+            p.log.sync(t)
+        p.log.step(t, eps, r, terminated, truncated)
+    p.env.close()
+    return p.q_net, p.log.result()
 
 
 @mutant(
@@ -413,39 +376,30 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
 )
 def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
     target_fn = target_fn or dqn_target  # noqa: F821
-    torch.manual_seed(seed)
-    rng = np.random.default_rng(seed)
-    env = make_env()
-    obs_dim, n_actions = env.observation_space.shape[0], env.action_space.n
-    q_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net.load_state_dict(q_net.state_dict())
-    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
-    buffer = ReplayBuffer(config.buffer_size, obs_dim)  # noqa: F821
-    log = DQNLogger(config, steps, q_net, target_net, make_env, **log_options)  # noqa: F821
-    obs, _ = env.reset(seed=seed)
+    p = dqn_parts(make_env, config, seed, steps, **log_options)  # noqa: F821
+    obs = p.obs
     for t in range(1, steps + 1):
         eps = epsilon_at(t, steps, config)  # noqa: F821
-        a = act(q_net, obs, eps, n_actions, rng)  # noqa: F821
-        next_obs, r, terminated, truncated, _ = env.step(a)
-        buffer.add(obs, a, r, next_obs, terminated, truncated)
+        a = act(p.q_net, obs, eps, p.n_actions, p.rng)  # noqa: F821
+        next_obs, r, terminated, truncated, _ = p.env.step(a)
+        p.buffer.add(obs, a, r, next_obs, terminated, truncated)
         obs = next_obs
         if terminated or truncated:
-            obs, _ = env.reset()
+            obs, _ = p.env.reset()
         if t > config.learning_starts and t % config.train_freq == 0:
-            batch = buffer.sample(config.batch_size, rng)
-            q_values = q_net(batch.obs)
+            batch = p.buffer.sample(config.batch_size, p.rng)
+            q_values = p.q_net(batch.obs)
             q_sa = gather_q(q_values, batch.act)  # noqa: F821
-            y = target_fn(batch, q_net, q_net, config.gamma)
+            y = target_fn(batch, p.q_net, p.q_net, config.gamma)
             loss = huber(y - q_sa, config.huber_threshold).mean()  # noqa: F821
-            opt.zero_grad()
+            p.opt.zero_grad()
             loss.backward()
-            norm = nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
-            opt.step()
-            log.update(t, batch, q_values, q_sa, y, loss, norm)
-        log.step(t, eps, r, terminated, truncated)
-    env.close()
-    return q_net, log.result()
+            norm = nn.utils.clip_grad_norm_(p.q_net.parameters(), config.max_grad_norm)
+            p.opt.step()
+            p.log.update(t, batch, q_values, q_sa, y, loss, norm)
+        p.log.step(t, eps, r, terminated, truncated)
+    p.env.close()
+    return p.q_net, p.log.result()
 
 
 @mutant(
@@ -457,39 +411,30 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
 )
 def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
     target_fn = target_fn or dqn_target  # noqa: F821
-    torch.manual_seed(seed)
-    rng = np.random.default_rng(seed)
-    env = make_env()
-    obs_dim, n_actions = env.observation_space.shape[0], env.action_space.n
-    q_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net = make_q_net(obs_dim, n_actions, config)  # noqa: F821
-    target_net.load_state_dict(q_net.state_dict())
-    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
-    buffer = ReplayBuffer(config.buffer_size, obs_dim)  # noqa: F821
-    log = DQNLogger(config, steps, q_net, target_net, make_env, **log_options)  # noqa: F821
-    obs, _ = env.reset(seed=seed)
+    p = dqn_parts(make_env, config, seed, steps, **log_options)  # noqa: F821
+    obs = p.obs
     for t in range(1, steps + 1):
         eps = epsilon_at(t, steps, config)  # noqa: F821
-        a = act(q_net, obs, eps, n_actions, rng)  # noqa: F821
-        next_obs, r, terminated, truncated, _ = env.step(a)
-        buffer.add(obs, a, r, next_obs, terminated, truncated)
+        a = act(p.q_net, obs, eps, p.n_actions, p.rng)  # noqa: F821
+        next_obs, r, terminated, truncated, _ = p.env.step(a)
+        p.buffer.add(obs, a, r, next_obs, terminated, truncated)
         obs = next_obs
         if terminated or truncated:
-            obs, _ = env.reset()
+            obs, _ = p.env.reset()
         if t > config.learning_starts and t % config.train_freq == 0:
-            batch = buffer.sample(config.batch_size, rng)
-            q_values = q_net(batch.obs)
+            batch = p.buffer.sample(config.batch_size, p.rng)
+            q_values = p.q_net(batch.obs)
             q_sa = gather_q(q_values, batch.act)  # noqa: F821
-            y = target_fn(batch, q_net, target_net, config.gamma)
+            y = target_fn(batch, p.q_net, p.target_net, config.gamma)
             loss = huber(y - q_sa, config.huber_threshold).mean()  # noqa: F821
-            opt.zero_grad()
+            p.opt.zero_grad()
             loss.backward()
-            norm = nn.utils.clip_grad_norm_(q_net.parameters(), config.max_grad_norm)
-            opt.step()
-            log.update(t, batch, q_values, q_sa, y, loss, norm)
-        log.step(t, eps, r, terminated, truncated)
-    env.close()
-    return q_net, log.result()
+            norm = nn.utils.clip_grad_norm_(p.q_net.parameters(), config.max_grad_norm)
+            p.opt.step()
+            p.log.update(t, batch, q_values, q_sa, y, loss, norm)
+        p.log.step(t, eps, r, terminated, truncated)
+    p.env.close()
+    return p.q_net, p.log.result()
 
 
 @mutant(ex=3, replaces="train_dqn", id="random", why="never learns: uniform random play")

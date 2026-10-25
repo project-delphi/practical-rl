@@ -2094,7 +2094,7 @@ M08_GAMMA = 0.99
 
 
 def m08_buffer() -> bytes:
-    """Checkpoint 1: seven writes into five slots (obs [t, -t], act t % 2, rew t, terminated at
+    """Checkpoint 1.1: seven writes into five slots (obs [t, -t], act t % 2, rew t, terminated at
     t = 6, truncated at t = 3), the slots afterwards; the partly filled and full cases' sizes."""
     capacity, n_adds = 5, 7
     slots = [None] * capacity
@@ -2127,7 +2127,7 @@ def m08_buffer() -> bytes:
 
 
 def m08_diagnosis() -> bytes:
-    """Checkpoint 2.1: after 2,500 writes into 1,000 slots ptr is 500 and size 1,000, so
+    """Checkpoint 1.2: after 2,500 writes into 1,000 slots ptr is 500 and size 1,000, so
     rng.integers(0, ptr) reaches only the 500 newest transitions: sentence b."""
     ptr, size = 2500 % 1000, min(2500, 1000)
     newest = {2499 - age for age in range(ptr)}
@@ -2136,7 +2136,7 @@ def m08_diagnosis() -> bytes:
 
 
 def m08_colleague() -> bytes:
-    """Checkpoint 2.2: a buffer after its pointer wrapped, and one that never filled."""
+    """Checkpoint 1.3: a buffer after its pointer wrapped, and one that never filled."""
     return _save(
         "m08_colleague",
         capacity=np.array(1000),
@@ -2146,7 +2146,7 @@ def m08_colleague() -> bytes:
 
 
 def m08_td_target() -> bytes:
-    """Checkpoint 3.1: the masked target on five rows. Rows 2 and 4 are truncated only (they
+    """Checkpoint 2: the masked target on five rows. Rows 2 and 4 are truncated only (they
     bootstrap); row 5 is terminated and truncated (it does not)."""
     rew = np.array([1.0, 1.0, 1.0, -2.0, 0.5])
     terminated = np.array([1.0, 0.0, 0.0, 0.0, 1.0])
@@ -2167,26 +2167,8 @@ def m08_td_target() -> bytes:
     )
 
 
-def _m08_huber(x, psi):
-    a = np.abs(x)
-    return np.where(a <= psi, 0.5 * x**2, psi * (a - 0.5 * psi))
-
-
-def m08_huber() -> bytes:
-    """Checkpoint 3.2: Huber values and derivatives (x clipped to [-psi, psi]) at psi = 1, 2."""
-    x = np.array([-3.0, -1.0, -0.5, 0.0, 0.25, 1.0, 2.0, 10.0])
-    thresholds = np.array([1.0, 2.0])
-    loss = np.stack([_m08_huber(x, p) for p in thresholds])
-    grad = np.stack([np.clip(x, -p, p) for p in thresholds])
-    # predict_answer 3 and knowledge check 8.3 (psi = 1): 0.125 / 0.5 at 0.5, 2.5 / 1 at 3,
-    # 3.5 / -1 at -4, 0.02 / 0.2 at 0.2; the clipped loss 0.5 / 0 beyond |x| = 1.
-    for xv, lv, gv in ((0.5, 0.125, 0.5), (3.0, 2.5, 1.0), (-4.0, 3.5, -1.0), (0.2, 0.02, 0.2)):
-        assert np.isclose(_m08_huber(np.array(xv), 1.0), lv) and np.clip(xv, -1, 1) == gv
-    return _save("m08_huber", x=x, thresholds=thresholds, loss=loss, grad=grad)
-
-
 def m08_chain() -> bytes:
-    """Checkpoint 4.1: the five-step chain runs (configuration changes, steps, logging)."""
+    """Checkpoint 3.1: the five-step chain runs (configuration changes, steps, logging)."""
     learning_starts, train_freq, steps = 16, 1, 60
     snapshot_steps = np.array([1, 40, 60])
     grad_steps = [t for t in range(1, steps + 1) if t > learning_starts and t % train_freq == 0]
@@ -2213,7 +2195,7 @@ def m08_chain() -> bytes:
 
 
 def m08_double_dqn() -> bytes:
-    """Checkpoint 5: Double DQN's targets from two stand-in tables, and three wrong versions'
+    """Checkpoint 4: Double DQN's targets from two stand-in tables, and three wrong versions'
     (for the hints). gamma = 0.9; row 2 is truncated (it bootstraps), row 4 terminated."""
     online = np.array([[2.0, 5.0], [1.0, 0.0], [3.0, 3.5], [0.0, 9.0]])
     target = np.array([[4.0, 3.0], [6.0, 8.0], [7.0, 2.0], [5.0, 1.0]])
@@ -2263,7 +2245,7 @@ def _m08_mc(rewards, gamma):
 
 
 def m08_mc_return() -> bytes:
-    """Checkpoint 6: returns-to-go of four episodes (concatenated; `lengths` splits them)."""
+    """Checkpoint 5: returns-to-go of four episodes (concatenated; `lengths` splits them)."""
     cases = [([1.0, 2.0, 3.0], 0.5), ([1.0, 1.0, 1.0, 1.0], 1.0), ([5.0], 0.9)]
     cases.append(([1.0] * 500, M08_GAMMA))
     returns = [_m08_mc(np.array(r), g) for r, g in cases]
@@ -2286,7 +2268,7 @@ M08_BAND_BUDGETS = {
 
 
 def m08_sb3_call() -> bytes:
-    """Checkpoint 7: the workshop rule's verdict on the recorded final greedy returns, the
+    """Checkpoint 6: the workshop rule's verdict on the recorded final greedy returns, the
     reference DQN (A) against SB3's DQN (B), at each of the lab's budgets. The bands are the
     copies in prl (scripts/export_bands.py), so this fixture changes when they do."""
     sys.path.insert(0, str(ROOT / "prl" / "src"))
@@ -2577,7 +2559,6 @@ FIXTURES = {
     "m08_diagnosis": m08_diagnosis,
     "m08_colleague": m08_colleague,
     "m08_td_target": m08_td_target,
-    "m08_huber": m08_huber,
     "m08_chain": m08_chain,
     "m08_double_dqn": m08_double_dqn,
     "m08_mc_return": m08_mc_return,
