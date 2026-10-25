@@ -505,27 +505,27 @@ Framing:
 - **Question.** What breaks when a parameterized function replaces the table?
 
 **Objectives:**
-1. Derive semi-gradient TD(0) for linear values. Show it is not the gradient of any objective, because A = ΦᵀD(I−γP)Φ is not symmetric.
-2. Reproduce Baird's divergence with expected (DP-style) semi-gradient updates (S&B §11.2, Fig. 11.1). Show which leg of the deadly triad (§11.3), when removed, restores convergence. With on-policy weighting on state 7, A = (1−γ)φ₇φ₇ᵀ ⪰ 0.
+1. Derive semi-gradient TD(0) for linear values. Show its expected update is not the gradient of any objective, because A = ΦᵀD(I−γP)Φ is not symmetric.
+2. Reproduce Baird's divergence with expected (DP-style) semi-gradient updates (S&B §11.2, Fig. 11.1). Show what removing each leg of the deadly triad (§11.3) does to convergence and to the limit. With on-policy weighting on state 7, A = (1−γ)φ₇φ₇ᵀ ⪰ 0: the component of w along φ₇ decays and the rest never moves.
 3. Frame inventory at scale (3 products, capacity 50 each: 51³ = 132,651 states), and justify a feature representation.
 4. Train linear semi-gradient Q-learning on CartPole, and report the weight norm and returns.
 
-**Briefing:**
+**Briefing** (as built, 2026-10-25; R23):
 
 | § | Topic | Min |
 |---|---|---|
-| 1 | Count the states | 6 (predict 2) |
-| 2 | Linear V | 5 |
-| 3 | Semi-gradient derivation | 9 (chk 2) |
-| 4 | Baird, live | 10 (demo 4) |
-| 5 | Remove one leg | 5 (predict 2) |
-| 6 | Feature scaling; RBF | 5 |
+| 1 | Count the states | 5 (predict 2) |
+| 2 | Linear values | 5 |
+| 3 | The semi-gradient update, and why it is not a gradient | 10 (chk 2) |
+| 4 | Baird's counterexample | 9 (demo 4: two states, one weight) |
+| 5 | The deadly triad | 5 (predict 2) |
+| 6 | Features, scale and linear Q-learning | 6 |
 
-Total: 30 + 10. **Collapsed:** the asymmetric-Jacobian argument in full; TDC.
+Total: 30 + 10. The demo is a two-state fragment, not Baird live, so Baird's numbers stay for the lab (C29 → R23). **Collapsed:** the asymmetric-Jacobian argument in full; TDC.
 
 **Gotcha:** "A bigger network will fix divergence." Baird's rewards are all 0, so w = 0 is representable, and it still diverges.
 
-**Lab (core 49):**
+**Lab (core 51):**
 
 | # | Exercise | Writes | Checkpoint | Min |
 |---|---|---|---|---|
@@ -533,11 +533,12 @@ Total: 30 + 10. **Collapsed:** the asymmetric-Jacobian argument in full; TDC.
 | 2 | Semi-gradient TD(0) update | `semi_gradient_td0` | Equals the hand-computed value | 7 |
 | 3 | Not a gradient | `td_matrix` | Exact; A ≠ Aᵀ | 6 |
 | 4 | Baird with expected updates | `baird_expected_update` | Exact sequence; ‖w‖ grows | 8 |
-| 5 | Remove one leg: on-policy weighting, MC targets, tabular features | Three variants | Which converge (exact) | 9 |
-| 6 | Linear Q on CartPole (RBF provided); one live seed | `linear_q_update` | ≥ 3× random (protocol) | 8 |
-| 7 | **Planted bug**: unnormalized features | Diagnose from the weight-norm log; fix the featurizer | Norm bounded; ≥ 3× random | 6 |
+| 5 | Remove one leg: on-policy weighting, MC targets, tabular features (α = 0.01, followed to 10⁶ sweeps with matrix powers) | `remove_one_leg` | Which converge, and to what (exact) | 10 |
+| 6 | Linear Q on CartPole (625 unit-length RBF features provided); one live seed | `linear_q_update` (takes `terminated` and `truncated`) | Greedy return ≥ 160 (protocol, 100 seeds per budget) | 8 |
+| 7 | **Planted bug**: a colleague's featurizer (bumps not scaled to unit length); diagnosed from the weight-norm log | `colleague_features` | ‖W‖ finite and ≤ 10⁴, and greedy return ≥ 160 (protocol) | 7 |
 
-- **Compare:** a recorded band.
+- **Thresholds:** 160 at both budgets, from the protocol (solution p1 189.1; strongest wrong version p99 121.3), not "3× random": random play's median is 22, and a wrong target that bootstraps from action 0 reaches about 120. Both checks train at the live budget, because the QUICK budget has no threshold with the stated gap (about 1 s per check on a laptop). Under the planted bug the greedy return ranges 9–459, so checkpoint 7.2 also bounds ‖W‖ (C31 → R25).
+- **Compare:** the recorded band `m07_linear_q` (seeds 0–19, both budgets).
 - **Stretch:** TDC on Baird. It drives the projected Bellman error to 0, slowly; there is no promise that w converges fast.
 
 #### M8 · DQN from scratch (B, level 300, Colab CPU, S2)
@@ -1403,7 +1404,7 @@ The lead (the main session) integrates, owns `prl/`, and stops at each phase gat
 | M4 | Rewards ×10 with the same UCB1 bonus: do its pulls change, and does regret go up or down? | Its pulls change (the bonus is now relatively small, so it behaves more greedily), while ε-greedy's do not. The mean regret rises on 97 of 100 seats, but the tie rule calls ×10 against ×1 a tie on 96: "up" is a statement about the mean, not a verdict (R16). |
 | M5 | Unit x seen 100 times, λ_ridge = 1: what is LinUCB's width? | c/√101 ≈ 0.1c |
 | M6 | Under uniform random play, does hitting time grow linearly or exponentially in chain length? | Exponentially (ratio p_L/p_R) |
-| M7 | Baird's ‖w‖: does it go to 0, stay flat, or grow without bound? | It grows without bound |
+| M7 | Baird's ‖w‖ after 1000 expected sweeps: below 20, or above 100? (The briefing already says Baird diverges; C28 → R23.) | Above 100: 436.856 (exact). One eigenvalue predicts about 113; A's eigenvectors are far from orthogonal. |
 | M8 | Is Q(s₀) above or below the MC return of the greedy policy? At the same seat, is Double DQN's Q(s₀) higher or lower than DQN's? | Below at this configuration: Q tracks the target copies' lag. Below on 17 of 20 seats for DQN and 18 of 20 for Double DQN (above only where the greedy return was below 91); Double DQN lower on 19 of 20 seats, median 0.78 (`m08-seats`; R28). |
 | M9 | Constant-reward probe with reward 1, γ = 0.99: what is Q? And without the terminal mask? | 1; 100 |
 | M10 | With a learned baseline, does the mean gradient change? Does the variance? | The mean doesn't; the variance ratio is < 1 |
@@ -1443,7 +1444,7 @@ For planted bugs, the Predict is the symptom's value: Q(goal) = 0, mean weight =
 | 2 | 4 Bandits | greedy, ε-greedy, UCB1, TS; reward ×10 | regret at 5000 and 20,000 rounds over 20 seeds; verdict or tie; seeds improved under ×10 |
 | 2 | 5 RecSim | LinUCB, LinTS, predict-then-greedy × 3 regimes + a warm launch | regret over 5 seeds; verdict or tie; mean logged weight |
 | 2 | 6 RiverSwim | ε-greedy, optimistic, MBIE-EB | hitting time; % of seeds reaching the right end; regret over 10 seeds |
-| 3 | 7 Baird / CartPole | each leg removed; linear Q | ‖w‖ after k updates; return ÷ random |
+| 3 | 7 Baird / CartPole | Baird; each leg removed; linear Q; a colleague's featurizer | ‖w‖ after 1000 sweeps; error after 10⁴ sweeps per leg; greedy return and return ÷ random; the colleague's greedy return and log₁₀ max ‖W‖ |
 | 3 | 8 CartPole | your DQN and Double DQN; DQN, DDQN and SB3 bands; room IQM | return at budget; Q(s₀) for DQN and Double DQN; Q(s₀) − MC; the SB3 call (a tie) |
 | 3 | 9 Logs | 4 bugs; probes; room IQM | diagnosis tally; probe Q; IQM [CI] + budget |
 | 4 | 10 CartPole / gridworld | REINFORCE, + baseline, actor-critic; λ sweep | variance ratio; return; bias and variance by λ |

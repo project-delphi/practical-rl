@@ -91,6 +91,16 @@ and note the paper's original symbol here.
 | $\hat N(x)$ | pseudo-count of a state $x$, derived from a density model (Module 6, section 6) | Bellemare et al.'s $\hat N_n(x)$ |
 | $\rho_{\text{dens}}, \rho'_{\text{dens}}$ | a density model's probability of a state before and after seeing it once more (Module 6, reference only) | Bellemare et al.'s $\rho_n, \rho'_n$ (clash with $\rho_t$) |
 | $f, \hat f$ | RND's fixed random target network and its trained predictor (Module 6, section 6) | |
+| $\hat v(s, w)$ | a parameterized value estimate; linear values are $\hat v(s, w) = w^\top \phi(s)$ (Module 7) | Sutton and Barto's $\hat v(s, \mathbf{w}) = \mathbf{w}^\top \mathbf{x}(s)$ |
+| $\Phi$ | the feature matrix: one row $\phi(s)^\top$ per state, $\lvert \mathcal{S} \rvert \times d$; the values of all states are $\Phi w$ (Module 7) | Sutton and Barto's $\mathbf{X}$ |
+| $D$ | the diagonal matrix of the state weighting, $D = \operatorname{diag}(\mu)$ (Module 7) | |
+| $A$, $b$ | the expected semi-gradient TD(0) update $w \leftarrow w + \alpha (b - A w)$, with $A = \Phi^\top D (I - \gamma P_\pi) \Phi$ and $b = \Phi^\top D\, r_\pi$ (Module 7); not the advantage $A^\pi$ or the baseline $b(s)$ | Sutton and Barto's $\mathbf{A}$, $\mathbf{b}$ (Eq. 9.11) |
+| $w_{\text{TD}}$ | the TD fixed point, $A w_{\text{TD}} = b$ (Module 7) | |
+| $\mathrm{VE}(w)$ | the mean squared value error $\sum_s \mu(s) \big(v_\pi(s) - \hat v(s, w)\big)^2$ (Module 7) | Sutton and Barto's $\overline{\mathrm{VE}}$ |
+| $\mu_\pi$ | the target policy's stationary distribution, the on-policy weighting of a continuing task (Module 7) | |
+| $e_x$ | the one-hot vector of level $x$ (Module 7's shop features) | |
+| $W$, $W_a$ | linear Q-learning's weights: row $W_a$ for action $a$, $Q(s, a; W) = W_a^\top \phi(s)$ (Module 7) | Sutton and Barto's $\mathbf{w}$ with features $\mathbf{x}(s, a)$ |
+| $z(s)$, $z_i$, $\ell$ | Module 7's radial basis features: the scaled observation, the grid points and the width of each bump | Sutton and Barto's $s$, $c_i$, $\sigma_i$ ($c$ and $\sigma$ are ours elsewhere) |
 | $Q(s, a; w)$, $w^-$ | Module 8: the online network and the parameters of the target network, a copy of $w$ refreshed every `target_sync` steps | Mnih et al.'s $\theta$, $\theta^-$ and van Hasselt et al.'s $\theta_t$, $\theta^-_t$ ($\theta$ is our policy parameters) |
 | $\mathcal{D}$, $\mathcal{B}$, $\lvert \mathcal{B} \rvert$ | Module 8: the replay buffer, a minibatch drawn from it, and the batch size | Mnih et al.'s $D$ (our $D$ is Module 7's $\operatorname{diag}(\mu)$) |
 | $\mathrm{term}_i$, $\mathrm{trunc}_i$ | Module 8: 1 if transition $i$ ended at a terminal state (Gymnasium's `terminated`), or was cut (`truncated`); 0 otherwise | |

@@ -27,6 +27,17 @@
 #
 # Then run: uv run python scripts/export_bands.py
 
+m07_linear_q:
+  metric: >-
+    Mean return of the last 10 finished training episodes, every 1000 environment steps
+    (linear semi-gradient Q-learning on CartPole-v1 with 625 unit-length RBF features,
+    alpha 0.3, gamma 0.99, epsilon from 1 to 0.05 over eps_steps)
+  x: budget.grid
+  runs: per_seed.recent_return
+  budget: [steps, eps_steps, log_every]
+  records:
+    live: 2026-10-24-local-m07-linear-q-live-exp
+    quick: 2026-10-24-local-m07-linear-q-quick-exp
 # Module 8 (Lab 8 reads all seven at both budgets; seeds 0-4).
 m08_dqn_return:
   metric: >-

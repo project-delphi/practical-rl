@@ -5,7 +5,7 @@ title: "Knowledge checks"
 The entry check (three questions in each of four areas), one or two questions per learning objective with folded answers naming their evidence, and five-question warm-up sets for Days 2–5.
 
 ::: {.callout-note}
-Modules 1 to 6 are written below. The entry check, the other modules and the warm-up sets are written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+Modules 1 to 7 are written below. The entry check, the other modules and the warm-up sets are written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
 :::
 
 ## Module 1 {#m01}
@@ -489,6 +489,86 @@ Screens almost never repeat exactly, so $N$ is 0 or 1 almost everywhere and the 
 The next state on a noisy screen is random, so no predictor can learn it, and its prediction error stays high however often the agent looks: the bonus keeps paying for noise. RND's target is a fixed, deterministic function of the state, so the error falls as the agent sees that state and similar ones (Burda et al. 2019, §2.2.1). What both give up is the guarantee: Lemma 7 rests on Hoeffding's inequality for a true count, and a pseudo-count or a prediction error is only as good as the model's sense of which states are alike. Bellemare et al. note that in the tabular case pseudo-counts are counts and keep the known guarantees, and prove none beyond it (§4).
 
 **Evidence:** the briefing, section 6. Lab 6 has no checkpoint for this objective.
+:::
+
+## Module 7 {#m07}
+
+Questions for [Module 7 · Function approximation and why it can diverge](/modules/07-function-approximation.qmd), for after the lab, two per objective. Each answer ends with the Lab 7 checkpoint or run that is its evidence.
+
+### Objective 1: derive semi-gradient TD(0) for linear values and show that its expected update is not the gradient of any objective
+
+[**7.1**]{#q7-1} Start from a gradient step on the value error at one state, $w \leftarrow w + \alpha \big(v_\pi(s) - \hat v(s, w)\big) \nabla \hat v(s, w)$, and derive semi-gradient TD(0) for linear values. Then apply it once: $\phi(s) = (1, 0)$, $\phi(s') = (0, 1)$, $w = (2, 4)$, $r = 1$, $\gamma = 0.5$, $\alpha = 0.1$. A colleague instead takes the full gradient of $\tfrac12 \delta^2$, target included. What does their step give, and what does it do that yours does not?
+
+::: {.callout-tip collapse="true" title="Answer to 7.1"}
+Replace the unknown $v_\pi(s)$ by the target $r + \gamma \hat v(s', w)$, keep treating the target as a constant, and use $\nabla \hat v(s, w) = \phi(s)$: $\delta = r + \gamma w^\top \phi(s') - w^\top \phi(s)$ and $w \leftarrow w + \alpha \delta \phi(s)$. Here $\delta = 1 + 0.5 \cdot 4 - 2 = 1$, so $w$ becomes $(2.1, 4)$: only the weight of $s$ moves. The full gradient of $\tfrac12 \delta^2$ is $\delta\, (\gamma \phi(s') - \phi(s))$, so the colleague's step is $w - \alpha \delta (\gamma \phi(s') - \phi(s)) = (2, 4) - 0.1\,(-1, 0.5) = (2.1, 3.95)$. It also lowers the target's value, to meet the estimate halfway. That is a residual-gradient method, a true gradient method on the mean squared TD error, which Sutton and Barto show can converge to the wrong values (§11.5).
+
+**Evidence:** Lab 7, checkpoint 2 (exact on fixed arrays; it rejects the full-gradient version).
+:::
+
+[**7.2**]{#q7-2} Show that if $b - Aw = -\nabla J(w)$ for some $J$ and every $w$, then $A = A^\top$. On Baird's counterexample, $A_{17} = -0.283$ and $A_{71} = 0$: why is one zero and the other not? A colleague concludes: "$A$ is not symmetric, so semi-gradient TD diverges." What is wrong with that?
+
+::: {.callout-tip collapse="true" title="Answer to 7.2"}
+Differentiate coordinate $i$ of $-\nabla J(w) = b - Aw$ by $w_j$: $\partial^2 J / \partial w_j \partial w_i = A_{ij}$. Since $\nabla J$ is affine, $J$ has continuous second derivatives, the order of differentiation does not matter, and $A_{ij} = A_{ji}$. On Baird, weight 1 appears only in state 1's value and weight 7 only in state 7's. State 1's target is state 7's value, so the expected update of $w_1$ depends on $w_7$; state 7's target is its own value, so the update of $w_7$ never depends on $w_1$. Bootstrapping looks one way, from a state to its successor. The colleague's conclusion does not follow: asymmetry rules out a gradient, not convergence. Under on-policy weighting $A$ is not symmetric either, yet positive definite (Sutton and Barto, §9.4), and the expected update converges. The criterion is the eigenvalues of $A$: Baird's has two with negative real part.
+
+**Evidence:** Lab 7, checkpoint 3 (`td_matrix`, exact on Baird and on a random model; the run cell prints $A_{17}$, $A_{71}$ and the eigenvalues).
+:::
+
+### Objective 2: reproduce Baird's divergence with expected updates, and show what removing each leg of the deadly triad does to convergence and to the limit
+
+[**7.3**]{#q7-3} Baird's counterexample has all rewards 0 and 8 weights for 7 states with linearly independent features. Why is that the easiest possible case, and why does it not help? Its $A$ has the eigenvalue $-0.239$. With expected updates at $\alpha = 0.001$, about how many sweeps does the fastest-growing component of $w$ take to double? Would $\alpha = 10^{-6}$ prevent the divergence?
+
+::: {.callout-tip collapse="true" title="Answer to 7.3"}
+$v_\pi = 0$, and $w = 0$ represents it exactly; any value function on the 7 states is representable. So nothing is lost to approximation. It does not help because the expected update is not driven toward the best representable values: along the eigenvector of $A$ with eigenvalue $\lambda = -0.239$, each sweep multiplies the component by $1 - \alpha\lambda = 1 + 0.239\alpha$. At $\alpha = 0.001$ that is 1.000239 per sweep, so doubling takes $\ln 2 / \ln 1.000239 \approx 2900$ sweeps. At $\alpha = 10^{-6}$ the factor is still above 1: the growth is a thousand times slower, but it is still growth. A step size changes the speed, never the sign.
+
+**Evidence:** Lab 7, checkpoint 4 (exact sweeps; $\lVert w \rVert$ goes from 10.344 to 436.856 in 1000 sweeps at $\alpha = 0.01$) and Exercise 4's run, which prints the growth factor at three step sizes.
+:::
+
+[**7.4**]{#q7-4} Under the target policy, Baird's stationary distribution puts all weight on state 7. Show that the expected update's matrix is then $A = (1 - \gamma) \phi_7 \phi_7^\top$. Which part of $w$ converges, which does not move, and where does $w$ end from $w_0 = (1, 1, 1, 1, 1, 1, 10, 1)$?
+
+With Monte Carlo targets instead, every value reaches 0. Why does $w$ still not reach 0?
+
+::: {.callout-tip collapse="true" title="Answer to 7.4"}
+$D = \operatorname{diag}(0, \dots, 0, 1)$ keeps only row 7 of $I - \gamma P_\pi$, which is $(1 - \gamma)$ times the seventh unit row because state 7 moves to itself; so $A = \Phi^\top D (I - \gamma P_\pi) \Phi = (1 - \gamma)\phi_7\phi_7^\top$, symmetric, positive semidefinite, rank 1. One sweep multiplies the component of $w$ along $\phi_7 = (0, \dots, 0, 1, 2)$ by $1 - \alpha(1 - \gamma)\lVert\phi_7\rVert^2 = 1 - 0.05\alpha$ and leaves the orthogonal components alone. $\phi_7^\top w_0 = 12$, so $w \to w_0 - \tfrac{12}{5}\phi_7 = (1, 1, 1, 1, 1, 1, 7.6, -3.8)$: $\hat v(7) \to 0$, while the upper states stay at $-1.8$, unweighted and wrong.
+
+With Monte Carlo targets the update is gradient descent on the value error, so $\Phi w \to v_\pi = 0$; but $\Phi$ has 8 columns and rank 7, and the component of $w_0$ along its null direction $(1, 1, 1, 1, 1, 1, 4, -2)$ never moves, so $w \to \tfrac{22}{13}(1, 1, 1, 1, 1, 1, 4, -2)$.
+
+**Evidence:** Lab 7, checkpoint 5 (`remove_one_leg`, exact on Baird and on a second target policy) and Exercise 5's run, which prints each variant's $w$ after $10^6$ sweeps.
+:::
+
+### Objective 3: frame inventory at scale and justify a feature representation
+
+[**7.5**]{#q7-5} A shop has 4 products with capacity 20 each and orders 0 to 20 of each per period. How many states, joint orders and $Q(s, a)$ entries does a table need? How many one-hot features (one indicator per product and stock level)? Which of these numbers is the real obstacle for learning from experience, and why is it not only memory?
+
+::: {.callout-tip collapse="true" title="Answer to 7.5"}
+$21^4 = 194{,}481$ states and $194{,}481$ joint orders, so $194{,}481^2 = 37{,}822{,}859{,}361$ table entries, and $4 \cdot 21 = 84$ one-hot features. Memory is one obstacle (about 300 GB in 64-bit floats). The other is data: a table learns about an entry only when it is visited, and most of 37.8 billion pairs would never be visited even once in any realistic run. Features let a visit to one state inform every state that shares its features.
+
+**Evidence:** Lab 7, checkpoint 1 (`scale_spec`, exact on several shop sizes).
+:::
+
+[**7.6**]{#q7-6} Argue that one-hot features per product represent the shop's value exactly when the products are independent. In the lab, a second two-product shop paid its fixed delivery fee once when both products ordered in the same period: what went wrong with the fit, and which features would you add for a three-product shop with one shared truck?
+
+::: {.callout-tip collapse="true" title="Answer to 7.6"}
+If each product's demand, costs and orders depend only on its own stock and the rewards add up, each product's stock evolves on its own, and the expected discounted sum of the summed rewards is the sum of the products' expected discounted sums: $v_\pi(x_1, x_2, x_3) = V_1(x_1) + V_2(x_2) + V_3(x_3)$, which one-hot features represent exactly. The shared fee pays a saving only when both stocks order, which depends on the pair; a sum of per-product terms cannot represent that, and the best fit's largest error was 2.47 on values between 50.91 and 75.91 (against below $10^{-12}$, rounding, for the independent shop). For a shared truck, add features that depend on two stocks at once: for example indicators of pairs of stock levels ($3 \cdot 51^2 = 7803$ more weights, still far below 132,651), or coarser indicators such as "both below the reorder point".
+
+**Evidence:** Lab 7, Exercise 1's run cell (both fits, exact computations); checkpoint 1 checks the counts only.
+:::
+
+### Objective 4: train linear semi-gradient Q-learning on CartPole and report the weight norm and returns
+
+[**7.7**]{#q7-7} Linear Q-learning has $W$ with rows $(1, 0, 2)$ and $(0, 1, 1)$, $\phi(s) = (1, 1, 0)$, action $a = 0$, reward 1, $\phi(s') = (0, 1, 1)$, $\gamma = 0.9$ and $\alpha = 0.1$. Compute the new $W$ when the step neither terminated nor truncated, when it terminated, and when it was truncated. Why must the last case bootstrap?
+
+::: {.callout-tip collapse="true" title="Answer to 7.7"}
+$Q(s', \cdot) = W\phi(s') = (2, 2)$, so the max is 2, and $Q(s, 0) = 1$. Not ended: $\delta = 1 + 0.9 \cdot 2 - 1 = 1.8$, and row 0 becomes $(1, 0, 2) + 0.18\,(1, 1, 0) = (1.18, 0.18, 2)$; row 1 is unchanged. Terminated: $\delta = 1 - 1 = 0$, nothing changes. Truncated: the same as not ended, $(1.18, 0.18, 2)$. A truncated episode stopped because of a time limit the state does not show; the pole could have kept balancing, so the value of $s'$ is still part of the return. Stopping the bootstrap there teaches $Q$ that states near the time limit are worth only their last reward.
+
+**Evidence:** Lab 7, checkpoint 6.1 (exact on fixed arrays, with a terminated and a truncated transition).
+:::
+
+[**7.8**]{#q7-8} The colleague's features had $\lVert \phi(s) \rVert^2 = 9.868$ at the upright state, and training used $\alpha = 0.3$. Explain the weight-norm log from the step-size rule of the briefing's section 6. Give two fixes. On some seeds the colleague's greedy return stayed high: why is that no defense of the features?
+
+::: {.callout-tip collapse="true" title="Answer to 7.8"}
+With the target held fixed, one update multiplies the state's error by $1 - \alpha\lVert\phi(s)\rVert^2 = 1 - 0.3 \cdot 9.868 = -1.96$: each visit overshoots by almost twice the error and flips its sign, so the error and the weights grow by orders of magnitude. Fix 1: scale the features to unit length, as `rbf_features` does; then $\alpha = 0.3$ removes 30% of the error per update. Fix 2: keep the features and shrink the step, $\alpha < 2/9.868 \approx 0.20$ for stability, and $\alpha \approx 0.3/9.868 \approx 0.03$ for the same effective step as the fixed features. A greedy policy needs only the order of $Q(s, \cdot)$ between the two actions, which can survive by luck: in the live band record the colleague's greedy return was above the checkpoint's threshold of 160 on 3 of 20 seeds, while $\lvert Q \rvert$ at the start state exceeded 1000 on all 20 (`runs/2026-10-24-local-m07-linear-q-live-exp.json`). Values that far above $1/(1 - \gamma) = 100$ estimate no return, and nothing built on them (a comparison, a target, a plan) can be trusted.
+
+**Evidence:** Lab 7, checkpoints 7.1 (the fixed featurizer equals the unit-length features, exact) and 7.2 (training with it: the weight norm stays bounded and the greedy return passes the protocol threshold).
 :::
 
 ## Module 8 {#m08}
