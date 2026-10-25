@@ -99,6 +99,17 @@ EXPERIMENTS = [f"m08-{a}-{b}" for a in ALGOS for b in BUDGETS]
 SEATS = list(range(20))
 SEATS_EXPERIMENT = "m08-seats"
 EXPERIMENTS.append(SEATS_EXPERIMENT)
+# The pair of Exercises 4-5 (decision 18): CONFIG with a target copy every 250 steps, at the
+# pair's own budget (the lab's `pair` settings), DQN and Double DQN; and its seats record.
+PAIR_SYNC = 250
+PAIR_BUDGETS = {
+    "live": dict(steps=100_000, log_every=1_000, eval_every=10_000, eval_episodes=10),
+    "quick": dict(steps=20_000, log_every=500, eval_every=2_000, eval_episodes=10),
+}
+PAIR_EXPERIMENTS = [f"m08-pair-{a}-{b}" for a in ("dqn", "ddqn") for b in PAIR_BUDGETS]
+PAIR_SEATS_EXPERIMENT = "m08-pair-seats"
+EXPERIMENTS += [*PAIR_EXPERIMENTS, PAIR_SEATS_EXPERIMENT]
+SEAT_RECORDS = (SEATS_EXPERIMENT, PAIR_SEATS_EXPERIMENT)
 # Module 9's logging (its handoff, section 3), for --reproduce --m09-logging only.
 M09_LOG_EVERY, M09_PROBES = 500, 8
 # SB3 2.9.0's DQN with the lab's CONFIG on every knob SB3 has (day-3 decision 5).
@@ -156,6 +167,11 @@ def lab_namespace() -> dict:
         words = ", ".join(f"{k}={v:_}" for k, v in b.items())
         assert f"dict({words})" in src, f"the lab's {label} settings are not {b}"
     assert 'return gym.make("CartPole-v1")' in src
+    assert f"PAIR = dataclasses.replace(CONFIG, target_sync={PAIR_SYNC})" in src
+    for label, b in PAIR_BUDGETS.items():  # the pair's settings are the lab's too
+        words = ", ".join(f"{k}={v:_}" for k, v in b.items())
+        assert f"dict({words})" in src, f"the lab's pair {label} settings are not {b}"
+    ns["PAIR"] = dataclasses.replace(ns["CONFIG"], target_sync=PAIR_SYNC)
     return ns
 
 
@@ -177,7 +193,9 @@ def _probe_max(ns: dict, q_net) -> float:
     return _f32(q.max(dim=1).values.mean())
 
 
-def run_reference(ns: dict, algo: str, label: str, seeds=SEEDS, **log_options) -> tuple:
+def run_reference(
+    ns: dict, algo: str, label: str, seeds=SEEDS, *, pair: bool = False, **log_options
+) -> tuple:
     """(per_seed, budget) of the lab's DQN (algo "dqn") or Double DQN ("ddqn"), called as
     Exercise 4's and 5's run cells call train_dqn (only the seed differs).
 
@@ -187,7 +205,8 @@ def run_reference(ns: dict, algo: str, label: str, seeds=SEEDS, **log_options) -
     import torch
 
     torch.set_num_threads(TORCH_THREADS)
-    b = BUDGETS[label]
+    b = (PAIR_BUDGETS if pair else BUDGETS)[label]
+    config = ns["PAIR"] if pair else ns["CONFIG"]
     target_fn = ns["double_dqn_target"] if algo == "ddqn" else None
     per: dict[str, list] = {k: [] for k in ("return", "disc_return", "q0", "seconds")}
     per["q_probe_end"], per["episodes"] = [], []
@@ -201,7 +220,7 @@ def run_reference(ns: dict, algo: str, label: str, seeds=SEEDS, **log_options) -
         options.update(log_options)
         start = time.perf_counter()
         _, log = ns["train_dqn"](
-            ns["make_cartpole"], ns["CONFIG"], seed, b["steps"], target_fn=target_fn, **options
+            ns["make_cartpole"], config, seed, b["steps"], target_fn=target_fn, **options
         )
         per["seconds"].append(round(time.perf_counter() - start, 2))
         grid = list(range(b["eval_every"], b["steps"] + 1, b["eval_every"]))
@@ -215,7 +234,7 @@ def run_reference(ns: dict, algo: str, label: str, seeds=SEEDS, **log_options) -
         "label": label,
         **b,
         "grid": list(range(b["eval_every"], b["steps"] + 1, b["eval_every"])),
-        "config": dataclasses.asdict(ns["CONFIG"]),
+        "config": dataclasses.asdict(config),
     }
     return per, budget
 
@@ -375,6 +394,54 @@ def run_seats(ns: dict, seats=SEATS) -> tuple[dict, dict]:
     return per, budget
 
 
+def run_pair_seats(ns: dict, seats=SEATS) -> tuple[dict, dict]:
+    """(per_seed, budget) of every seat's pair at the live budget, as Exercises 4-5 compute it.
+
+    Exercise 4 trains DQN and Double DQN at PAIR with the seat's RUN_SEED and the lab's `pair`
+    settings; Exercise 5 evaluates both final networks greedily from the 10 fixed start states
+    (the log's last evaluation again). Per run: the curves, the final evaluation's per-episode
+    Q(s0), G_0, return and whether the episode was cut at 500 (`cut`), and the seconds.
+    """
+    import torch
+
+    torch.set_num_threads(TORCH_THREADS)
+    b = PAIR_BUDGETS["live"]
+    per: dict[str, list] = {}
+    for seat in seats:
+        seed = (seat + 1) * 1000
+        for algo, target_fn in (("dqn", None), ("ddqn", ns["double_dqn_target"])):
+            start = time.perf_counter()
+            q_net, log = ns["train_dqn"](
+                ns["make_cartpole"],
+                ns["PAIR"],
+                seed,
+                b["steps"],
+                target_fn=target_fn,
+                log_every=b["log_every"],
+                eval_every=b["eval_every"],
+                eval_episodes=b["eval_episodes"],
+                verbose=False,
+            )
+            per.setdefault(f"{algo}_seconds", []).append(round(time.perf_counter() - start, 2))
+            for key in ("return", "disc_return", "q0"):
+                per.setdefault(f"{algo}_{key}", []).append(_f32_list(log[f"eval_{key}"]))
+            ev = ns["evaluate_greedy"](q_net, ns["make_cartpole"], b["eval_episodes"], GAMMA)
+            assert abs(float(np.mean(ev["q0"])) - float(log["eval_q0"][-1])) < 1e-4
+            per.setdefault(f"{algo}_final_q0", []).append(_f32_list(ev["q0"]))
+            per.setdefault(f"{algo}_final_g0", []).append(_f32_list(ev["disc_returns"]))
+            per.setdefault(f"{algo}_final_return", []).append(_f32_list(ev["returns"]))
+            per.setdefault(f"{algo}_final_cut", []).append([not t for t in ev["terminated"]])
+    budget = {
+        "label": "live",
+        **b,
+        "grid": list(range(b["eval_every"], b["steps"] + 1, b["eval_every"])),
+        "seats": list(seats),
+        "seed_rule": "(seat + 1) * 1000",
+        "config": dataclasses.asdict(ns["PAIR"]),
+    }
+    return per, budget
+
+
 NOTES = {
     "dqn": (
         "Lab 8's train_dqn with CONFIG (labs/shared/dqn_setup.py and labs/shared/dqn.py, the "
@@ -388,6 +455,22 @@ NOTES = {
         "(budget.sb3), greedy-evaluated with the lab's evaluate_greedy, seeds 0-4"
     ),
 }
+NOTES["pair-dqn"] = (
+    "Lab 8's train_dqn at PAIR (CONFIG with a target copy every 250 steps, Exercises 4-5), "
+    "labs/shared, seeds 0-4"
+)
+NOTES["pair-ddqn"] = (
+    "Lab 8's train_dqn at PAIR (CONFIG with a target copy every 250 steps) and "
+    "target_fn=double_dqn_target, labs/shared, seeds 0-4"
+)
+PAIR_SEATS_NOTE = (
+    "What seats 0-19 compute in Exercises 4-5 at the live budget: DQN and Double DQN at PAIR "
+    "(CONFIG with a target copy every 250 steps; 100,000 steps), each seat at its RUN_SEED "
+    "(seat + 1) * 1000, so `seeds` lists 1000, ..., 20000. per_seed lists are indexed like "
+    "`seeds`: for dqn and ddqn, the greedy return, G_0 (disc_return) and Q(s0) on budget.grid; "
+    "the final evaluation's 10 episodes (final_q0, final_g0, final_return, and final_cut: cut "
+    "at 500 steps rather than terminated); and the run's wall-clock seconds."
+)
 SEATS_NOTE = (
     "What seats 0-19 compute at the live budget: Exercise 3's DQN and Exercise 4's Double DQN "
     "(Lab 8's train_dqn with CONFIG, labs/shared), each seat at its RUN_SEED (seat + 1) * "
@@ -403,17 +486,18 @@ def experiment_record(
 ) -> dict:
     import nbformat
 
-    algo, label = ("seats", "live") if name == SEATS_EXPERIMENT else name.split("-")[1:]
+    algo, label, budgets = _parse(name)
     rt = runtime.detect()
     git_sha, dirty = git
     meta = nbformat.read(NOTEBOOK, as_version=4).metadata.get("prl", {})
-    b = BUDGETS[label]
+    b = budgets[label]
     tail = (
         f"Wall-clock on {where()}, {TORCH_THREADS} torch threads, runs one after another "
         f"(load average {load:.1f} at the start: other jobs shared the machine): laptop "
         "seconds, not Colab seconds."
     )
-    note = f"{SEATS_NOTE} {tail}" if algo == "seats" else None
+    seat_notes = {"seats": SEATS_NOTE, "pair-seats": PAIR_SEATS_NOTE}
+    note = f"{seat_notes[algo]} {tail}" if algo in seat_notes else None
     note = note or (
         f"{NOTES[algo]}, at the {label} budget ({b['steps']:,} steps, greedy evaluation of "
         f"{b['eval_episodes']} episodes every {b['eval_every']:,}). per_seed lists are indexed "
@@ -479,15 +563,29 @@ def where() -> str:
     return f"{_default_env(rt, 'colab-cpu')} ({rt.cpu}, {platform.machine()})"
 
 
-def measure(name: str, ns: dict, seeds=SEEDS, **log_options) -> tuple[dict, dict]:
+def _parse(name: str) -> tuple[str, str, dict]:
+    """(algo, budget label, budgets) of an experiment name."""
     if name == SEATS_EXPERIMENT:
+        return "seats", "live", BUDGETS
+    if name == PAIR_SEATS_EXPERIMENT:
+        return "pair-seats", "live", PAIR_BUDGETS
+    parts = name.split("-")
+    if parts[1] == "pair":
+        return f"pair-{parts[2]}", parts[3], PAIR_BUDGETS
+    return parts[1], parts[2], BUDGETS
+
+
+def measure(name: str, ns: dict, seeds=SEEDS, **log_options) -> tuple[dict, dict]:
+    algo, label, _ = _parse(name)
+    if name in SEAT_RECORDS:
         seats = SEATS if seeds is SEEDS else [s // 1000 - 1 for s in seeds]
         with contextlib.redirect_stdout(io.StringIO()):
-            return run_seats(ns, seats)
-    algo, label = name.split("-")[1:]
+            return (run_seats if name == SEATS_EXPERIMENT else run_pair_seats)(ns, seats)
     with contextlib.redirect_stdout(io.StringIO()):
         if algo == "sb3":
             return run_sb3(ns, label, seeds)
+        if algo.startswith("pair-"):
+            return run_reference(ns, algo[5:], label, seeds, pair=True, **log_options)
         return run_reference(ns, algo, label, seeds, **log_options)
 
 
@@ -517,7 +615,7 @@ def run(names: list[str], inbox: Path = tp.INBOX) -> list[Path]:
         start = time.perf_counter()
         per, budget = measure(name, ns)
         secs = time.perf_counter() - start
-        seeds = [(i + 1) * 1000 for i in SEATS] if name == SEATS_EXPERIMENT else SEEDS
+        seeds = [(i + 1) * 1000 for i in SEATS] if name in SEAT_RECORDS else SEEDS
         rec = experiment_record(name, per, budget, secs, git, load, seeds)
         paths.append(tp.write_record(rec, inbox))
         times = {k: v for k, v in per.items() if k.endswith("seconds")}
@@ -603,7 +701,8 @@ def band_records() -> dict[str, dict[str, str]]:
     for name, entry in spec.items():
         if not name.startswith("m08_"):
             continue
-        algo = name.split("_")[1]
+        parts = name.split("_")
+        algo = f"pair-{parts[2]}" if parts[1] == "pair" else parts[1]
         for label, rid in entry["records"].items():
             key = f"m08-{algo}-{label}"
             assert out.setdefault(key, rid) == rid, f"{name}: {key} names two records"
@@ -616,8 +715,8 @@ def _order(path: Path) -> tuple[str, int]:
 
 
 def record_for(name: str) -> dict:
-    """The record runs/bands.yml names for a band experiment; for m08-seats, the newest."""
-    if name == SEATS_EXPERIMENT:
+    """The record runs/bands.yml names for a band experiment; for a seats record, the newest."""
+    if name in SEAT_RECORDS:
         paths = sorted(RUNS.glob(f"*-{name}-exp*.json"), key=_order)
         if not paths:
             raise SystemExit(f"No filed record of {name}: run --run {name}, then file it.")
