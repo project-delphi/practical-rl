@@ -104,25 +104,20 @@ def test_live_return_check_is_a_stochastic_check_of_the_lab_budgets():
 
 def test_live_return_thresholds_name_filed_protocol_records():
     c = m09.check_live_return
-    # QUICK has a protocol threshold; the live budget has none: the protocol refused it over
-    # 100 seeds (OPEN_QUESTIONS C38), so it waits for a decision on the metric.
-    assert "quick" in c.thresholds and set(c.thresholds) <= {"live", "quick"}
+    assert set(c.thresholds) == {"live", "quick"}  # one metric at both budgets (decision 16)
     for budget, (threshold, provenance) in c.thresholds.items():
         record = re.search(r"runs/(\S+\.json)", provenance).group(1)
         assert (ROOT / "runs" / record).exists(), f"{budget}: {record} is not in runs/"
         assert f"-{budget}-" in record and c.min_gap < threshold < 500
 
 
-def test_live_return_metric_is_the_computed_value_without_training():
-    def boom(*args, **kwargs):  # pragma: no cover - must not be called
-        raise AssertionError("the checkpoint trained a second time")
-
-    budget = dict(m09.check_live_return.live)
-    assert m09._live_return(123.4, seed=0, **budget) == 123.4
-    for bad in ("123", None, float("nan"), [1.0], True):
+def test_live_return_metric_is_the_best_computed_evaluation_without_training():
+    budget = dict(m09.check_live_return.live)  # 10 evaluations, every 5,000 of 50,000 steps
+    evals = np.array([20.0, 150.0, 480.0, 210.0, 90.0, 12.0, 300.0, 250.0, 260.0, 12.3])
+    assert m09._live_return(evals, seed=0, **budget) == 480.0  # the best, not the last
+    for bad in (evals[:9], np.append(evals[:9], np.nan), "123", None, 123.4):
         with pytest.raises(CheckFailed):
             m09._live_return(bad, seed=0, **budget)
-    del boom
 
 
 # ------------------------------------------------------------------ the lab's solutions
@@ -191,15 +186,18 @@ def _mutants():
     ]
 
 
-def test_every_mutant_has_an_exact_check_and_the_protocol_has_random_play():
+def test_every_mutant_has_an_exact_check_and_the_protocol_has_its_wrong_versions():
     sys.path.insert(0, str(ROOT / "scripts"))
     import check_notebooks
 
     names = {n for m in check_notebooks.load_mutants("m09", MUTANTS.parent) for n in m["sources"]}
     assert names <= set(CHECKS)
-    # 6.2's one wrong version replaces provided code, so it is the protocol's alone.
-    (proto,) = check_notebooks.load_mutants("m09", MUTANTS.parent / "protocol")
-    assert (proto["ex"], proto["id"], list(proto["sources"])) == ("6", "random", ["train_dqn"])
+    # 6.2's wrong versions replace provided code, so they are the protocol's alone.
+    proto = check_notebooks.load_mutants("m09", MUTANTS.parent / "protocol")
+    assert {(m["ex"], m["id"], tuple(m["sources"])) for m in proto} == {
+        ("6", "random", ("train_dqn",)),
+        ("6", "untrained", ("train_dqn",)),
+    }
 
 
 @pytest.mark.parametrize("mutant", _mutants())

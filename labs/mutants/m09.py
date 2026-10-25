@@ -9,9 +9,10 @@ rejected by all four: "distractors" picks, for each run, the cause a quick readi
 
 Checkpoint 6.2 (the live run against the protocol's threshold) is the only stochastic checkpoint.
 It calls no participant function: it checks the return Exercise 6's run cell computed with the
-lab's `train_dqn` and `CONFIG`. Its one wrong version, `random` play, replaces that provided code,
-so it lives in labs/mutants/protocol/m09.py, which only scripts/protocol_m09.py reads: this file
-holds mutants of functions participants write (tests/test_mutants.py), and verify mode skips 6.2.
+lab's `train_dqn` and `CONFIG`. Its wrong versions (random play, an untrained network) replace
+that provided code, so they live in labs/mutants/protocol/m09.py, which only
+scripts/threshold_protocol.py reads: this file holds mutants of functions participants write
+(tests/test_mutants.py), and verify mode skips 6.2.
 """
 
 import gymnasium as gym

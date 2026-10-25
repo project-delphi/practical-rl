@@ -271,6 +271,42 @@ def test_duplicate_mutant_ids_are_refused(lab):
         run(lab, check)
 
 
+PROTOCOL_ONLY_MUTANT = """
+from prl.lab import mutant
+
+
+@mutant(ex=2, replaces="mean_estimate", id="constant", why="protocol only: ignores the samples")
+def mean_estimate(samples):
+    return 0.0
+"""
+
+
+def test_protocol_only_mutants_are_measured_and_recorded(lab):
+    # labs/mutants/protocol/mNN.py: wrong versions for the protocol alone (verify never reads it).
+    (lab[1] / "protocol").mkdir()
+    (lab[1] / "protocol" / "m99.py").write_text(textwrap.dedent(PROTOCOL_ONLY_MUTANT))
+    assert "constant" not in {m["id"] for m in tp.check_notebooks.load_mutants("m99", lab[1])}
+    res = run(lab, make_check())
+    assert set(res.per_seed) == {"solution", "mutant:biased", "mutant:halved", "mutant:constant"}
+    assert res.analysis.ok
+    rec = tp.build_record(res)
+    assert rec["args"]["protocol_mutants"] == "m99.py"  # outside the repo: the file name only
+
+
+def test_without_a_protocol_file_the_record_names_none(lab):
+    rec = tp.build_record(run(lab, make_check()))
+    assert "protocol_mutants" not in rec["args"]
+
+
+def test_duplicate_ids_across_the_protocol_only_file_are_refused(lab):
+    (lab[1] / "protocol").mkdir()
+    (lab[1] / "protocol" / "m99.py").write_text(
+        textwrap.dedent(PROTOCOL_ONLY_MUTANT).replace('id="constant"', 'id="biased"')
+    )
+    with pytest.raises(tp.ProtocolError, match="biased appear more than once"):
+        run(lab, make_check())
+
+
 def test_a_crashing_mutant_is_not_a_rejection(lab):
     with (lab[1] / "m99.py").open("a") as fh:
         fh.write(textwrap.dedent(CRASHING_MUTANT))

@@ -5,7 +5,10 @@ the participant's function (RMS error, regret, return), its direction, a live an
 budget, and a stated minimum gap. This script computes the metric over many seeds for the
 reference solution and for every mutant of that function in labs/mutants/mNN.py (write
 random play as a mutant with id="random"; a mutant marked exact_only=True is left out,
-since only an exact checkpoint can tell it from the solution). Then:
+since only an exact checkpoint can tell it from the solution), plus, when it exists,
+labs/mutants/protocol/mNN.py: protocol-only wrong versions of provided code (for a checkpoint
+that guards the platform, such as random play in place of a provided training loop), which
+verify mode never reads. Mutant ids must be distinct across both files. Then:
 
   threshold = the midpoint between the solution's 1st percentile and the strongest wrong
               version's 99th (higher is better), or between the solution's 99th and the
@@ -75,6 +78,7 @@ from prl.lab import _default_env  # noqa: E402
 
 INBOX = ROOT / "runs" / "inbox"
 MIN_SEEDS = {"quick": 100, "live": 20}  # PLAN.md §7
+PROTOCOL_ONLY = "protocol"  # labs/mutants/protocol/mNN.py: wrong versions for the protocol only
 P_LOW, P_HIGH = 1.0, 99.0
 PERCENTILE_METHOD = "linear"
 SOLUTION = "solution"
@@ -406,6 +410,7 @@ class Result:
     seconds_per_call: float
     inputs_sha: str
     analysis: Analysis
+    protocol_mutants_file: Path | None = None  # labs/mutants/protocol/mNN.py, if it exists
     git_sha: str | None = None  # read when the run starts, not when it ends
     repo_dirty: bool | None = None
 
@@ -451,9 +456,12 @@ def run_protocol(
     mutants_dir = mutants_dir or check_notebooks.MUTANTS
     # Every mutant of the checked functions, whichever exercise declares it (a check of two
     # functions scores the mutants of both); exact_only mutants are the exact checkpoints' job.
+    protocol_dir = mutants_dir / PROTOCOL_ONLY
+    protocol_file = protocol_dir / f"{module}.py"
     candidates = [
         m
         for m in check_notebooks.load_mutants(module, mutants_dir)
+        + check_notebooks.load_mutants(module, protocol_dir)  # [] when the file is absent
         if set(m["sources"]) <= set(check.functions)
     ]
     ids = [m["id"] for m in candidates]
@@ -462,9 +470,9 @@ def run_protocol(
         # Per-seed values are keyed by id, so a second mutant with the same id would silently
         # replace the first's in the analysis (for example "random" in two exercises).
         raise ProtocolError(
-            f"{module}.py in {mutants_dir.name}/: mutant id(s) {', '.join(duplicated)} appear "
-            f"more than once among the wrong versions of {' and '.join(check.functions)}. "
-            "Give each a distinct id."
+            f"{module}.py in {mutants_dir.name}/ (and {PROTOCOL_ONLY}/): mutant id(s) "
+            f"{', '.join(duplicated)} appear more than once among the wrong versions of "
+            f"{' and '.join(check.functions)}. Give each a distinct id."
         )
     excluded = [m["id"] for m in candidates if m.get("exact_only")]
     wrong = [m for m in candidates if not m.get("exact_only")]
@@ -528,6 +536,7 @@ def run_protocol(
         notebook=notebook,
         content_sha=meta.get("content_sha"),
         mutants_file=mutants_dir / f"{module}.py",
+        protocol_mutants_file=protocol_file if protocol_file.exists() else None,
         seeds=seeds,
         per_seed=per_seed,
         why=why,
@@ -617,6 +626,11 @@ def build_record(res: Result) -> dict[str, Any]:
             "notebook": _rel(res.notebook),
             "notebook_content_sha": res.content_sha,
             "mutants": _rel(res.mutants_file),
+            **(
+                {"protocol_mutants": _rel(res.protocol_mutants_file)}
+                if res.protocol_mutants_file
+                else {}
+            ),
             "wrong_versions": res.why,
             "exact_only_left_out": res.exact_only,
             "higher_is_better": res.check.higher_is_better,

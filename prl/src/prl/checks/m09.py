@@ -9,10 +9,11 @@ computed from the environment's own samples; the IQM and the percentile bootstra
 `prl.evaluate` on fixed inputs; and where a value lands against a band.
 
 Checkpoint 6.2 is the one StochasticCheck. It guards the platform, not the participant: the
-live seed's greedy return at the end of training, the value Exercise 6's run cell already
-computed (no second training run, OPEN_QUESTIONS C38), against a threshold that
+best of the live run's greedy evaluations, which Exercise 6's run cell already computed (no
+second training run, OPEN_QUESTIONS C38), against a threshold that
 scripts/threshold_protocol.py set by training the reference configuration (the lab's
-train_dqn and CONFIG) on many seeds, against random play.
+train_dqn and CONFIG) on many seeds, against random play and an untrained network
+(labs/mutants/protocol/m09.py; day-3 decision 16).
 
 prl does not depend on torch, and nothing here trains, plays or computes a signal of its own:
 the checks call the participant's functions and compare with fixtures.
@@ -526,26 +527,38 @@ def check_band_position(band_position) -> None:
             raise CheckFailed(f"{what} returned {int(got)}; expected {int(want)}. Hint: {hint}")
 
 
-def _live_return(*objs: Any, seed: int, steps: int, eval_every: int, eval_episodes: int) -> float:
-    """Checkpoint 6.2's metric.
+def _best_evaluation(evals: Any, steps: int, eval_every: int) -> float:
+    """The best of a run's greedy evaluations, after checking there is one per grid point."""
+    try:
+        arr = np.asarray(evals, dtype=float)
+    except (TypeError, ValueError):
+        raise CheckFailed(
+            "Pass the run's greedy evaluations, log_live['eval_return'] (one per eval_every steps)."
+        ) from None
+    n = steps // eval_every
+    if arr.shape != (n,):
+        raise CheckFailed(
+            f"Pass the run's greedy evaluations, log_live['eval_return']: {n} values (one every "
+            f"{eval_every:,} steps of {steps:,}); got shape {arr.shape}."
+        )
+    if not np.all(np.isfinite(arr)):
+        raise CheckFailed("The run's greedy evaluations should all be finite numbers.")
+    return float(arr.max())
 
-    Called with one value (the checkpoint, `lab.check(6, check_live_return, live_return)`), it
-    is that value: the live seed's greedy return, already computed by the run cell, so the
+
+def _live_return(*objs: Any, seed: int, steps: int, eval_every: int, eval_episodes: int) -> float:
+    """Checkpoint 6.2's metric: the best of a run's greedy evaluations (OPEN_QUESTIONS C38,
+    day-3 decision 16). One run's last evaluation can collapse late (2 of 100 reference seeds at
+    50,000 steps), so it cannot carry a live threshold; the best one could at both budgets.
+
+    Called with one argument (the checkpoint, `lab.check(6, check_live_return,
+    log_live["eval_return"])`), it reads the evaluations the run cell already computed, so the
     checkpoint never trains a second time (C38). Called with the lab's train_dqn and CONFIG
-    (scripts/threshold_protocol.py, and its `random` mutant of train_dqn), it trains the
-    configuration on CartPole-v1 at `seed` and returns the last greedy evaluation, the same
-    quantity at the same budget.
+    (scripts/threshold_protocol.py, and its protocol-only wrong versions of train_dqn), it trains
+    the configuration on CartPole-v1 at `seed` and takes the same quantity at the same budget.
     """
     if len(objs) == 1:
-        value = objs[0]
-        if isinstance(value, bool) or not isinstance(value, numbers.Real):
-            raise CheckFailed(
-                f"live_return should be one number, the last value of log['eval_return']; got "
-                f"{type(value).__name__}."
-            )
-        if not np.isfinite(float(value)):
-            raise CheckFailed(f"live_return is {value}: the run's greedy return should be finite.")
-        return float(value)
+        return _best_evaluation(objs[0], steps, eval_every)
     train_dqn, config = objs
     import gymnasium as gym
 
@@ -558,7 +571,7 @@ def _live_return(*objs: Any, seed: int, steps: int, eval_every: int, eval_episod
         eval_episodes=eval_episodes,
         verbose=False,
     )
-    return float(log["eval_return"][-1])
+    return _best_evaluation(log["eval_return"], steps, eval_every)
 
 
 check_live_return = StochasticCheck(
@@ -570,23 +583,8 @@ check_live_return = StochasticCheck(
     higher_is_better=True,
     min_gap=25.0,  # about one uniform-random policy's own mean return on CartPole
     what=(
-        "your live seed's greedy return at the end of training (mean of 10 episodes): a guard "
+        "the best of your live run's greedy evaluations (each the mean of 10 episodes): a guard "
         "on the platform, not on your code"
     ),
-    thresholds={
-        # threshold_protocol.py, quick budget {"eval_episodes": 10, "eval_every": 1000, "steps":
-        # 10000}, N = 100 seeds (0-99), 2026-10-25, local (Apple M1 Pro, arm64). Solution p1
-        # 92.54; strongest wrong version mutant 'random' p99 30.32; gap 62.22 (minimum 25);
-        # threshold: the midpoint 61.433, rounded to 61.0. 0 of 100 solution seeds fail: flake
-        # rate at most about 3/N = 3.0% (rule of three).
-        "quick": (
-            61.0,
-            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m09-check_live_return-quick-n100-exp-2.json",
-        ),
-        # No live threshold: at the live budget (50,000 steps) the protocol refused over seeds
-        # 0-99 (solution p1 26.75, below random play's p99 30.32; seeds 78 and 94 end below
-        # 28.5): the last greedy evaluation of one run at 50,000 steps can collapse late. Over
-        # seeds 0-19 alone it gave 69.0, which seeds 78 and 94 contradict, so it is not used.
-        # Logs: _notes/m09-te/protocol_live*.log. OPEN_QUESTIONS C38.
-    },
+    thresholds={},
 )

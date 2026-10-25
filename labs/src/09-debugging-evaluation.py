@@ -856,7 +856,7 @@ print(
 lab.check(6, m09.check_band_position, band_position, label="6.1")
 
 # %% role="ex6-chk2"
-lab.check(6, m09.check_live_return, live_return, label="6.2")
+lab.check(6, m09.check_live_return, log_live["eval_return"], label="6.2")
 
 # %% [markdown]
 # **Your room code.** The last cell, `lab.finish()`, prints one line that starts with
