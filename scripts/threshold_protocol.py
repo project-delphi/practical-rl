@@ -456,6 +456,16 @@ def run_protocol(
         for m in check_notebooks.load_mutants(module, mutants_dir)
         if set(m["sources"]) <= set(check.functions)
     ]
+    ids = [m["id"] for m in candidates]
+    duplicated = sorted({i for i in ids if ids.count(i) > 1})
+    if duplicated:
+        # Per-seed values are keyed by id, so a second mutant with the same id would silently
+        # replace the first's in the analysis (for example "random" in two exercises).
+        raise ProtocolError(
+            f"{module}.py in {mutants_dir.name}/: mutant id(s) {', '.join(duplicated)} appear "
+            f"more than once among the wrong versions of {' and '.join(check.functions)}. "
+            "Give each a distinct id."
+        )
     excluded = [m["id"] for m in candidates if m.get("exact_only")]
     wrong = [m for m in candidates if not m.get("exact_only")]
     if excluded:
