@@ -754,9 +754,9 @@ def syncs_by(t: int, sync: int = 500, starts: int = 1_000, freq: int = 4) -> int
     return max(0, t // sync - (first - 1) // sync)
 
 
-def sync_lag(t: int) -> float:
-    """(sync lag): (1 - gamma^k) / (1 - gamma) after k = syncs_by(t) copies."""
-    return (1 - GAMMA ** syncs_by(t)) / (1 - GAMMA)
+def sync_lag(t: int, sync: int = 500) -> float:
+    """(sync lag): (1 - gamma^k) / (1 - gamma) after k = syncs_by(t, sync) copies."""
+    return (1 - GAMMA ** syncs_by(t, sync=sync)) / (1 - GAMMA)
 
 
 def _brute_syncs(t: int, sync=500, starts=1_000, freq=4) -> int:
@@ -871,6 +871,14 @@ def quoted_numbers() -> dict:
     assert _r(0.5 + 0.9 * target.max(), 9) == 4.1
     assert _r(0.5 + 0.9 * target[online.argmax()], 9) == 2.3
     assert _r(64 - _r(sync_lag(50_000), 2), 9) == 1.35  # 64, 78 and 63 are hypothetical
+    # The pair (decision 18): predict_answer 4, the section 5 fold, knowledge check 8.6.
+    for t in (20_000, 100_000):
+        assert syncs_by(t, sync=PAIR_SYNC) == _brute_syncs(t, sync=PAIR_SYNC)
+    assert syncs_by(100_000, sync=PAIR_SYNC) == 396 and _r(sync_lag(100_000, PAIR_SYNC), 2) == 98.13
+    assert syncs_by(20_000, sync=PAIR_SYNC) == 76 and _r(sync_lag(20_000, PAIR_SYNC), 2) == 53.41
+    assert _r(112 - _r(sync_lag(100_000, PAIR_SYNC), 2), 9) == 13.87  # 112 and 80 hypothetical
+    # predict_answer 5's exact tools: 62.65, 98.13, 100, 99.34 and 0.66.
+    assert _r(g**500 / (1 - g), 2) == 0.66 and _r(g500, 2) == 99.34
     # Checkpoint 3.2's threshold, as the lab's ex3-chk2 comment and section 3 quote it.
     from prl.checks import m08 as checks
 
@@ -1016,6 +1024,7 @@ def record_facts(data: dict) -> None:
     assert {"A": "reference", "B": "sb3"}.get(v.winner, v.winner) == want
     quoted_from_records(data)
     seat_facts()
+    pair_facts()
 
 
 def seat_facts() -> dict:
@@ -1045,6 +1054,51 @@ def seat_facts() -> dict:
         assert np.all(ret[q > g] < 91) and np.all(g[q > g] < 60)
     # Exercise 3's predict_answer: max Q at the probe states within 5 above (sync lag), 20 of 20.
     assert np.all((d["dqn_q_probe_end"] - lag > 0) & (d["dqn_q_probe_end"] - lag < 5))
+    return out
+
+
+def pair_facts() -> dict:
+    """The pair (decision 18) on its records: the section 5 fold, predict_answer 5, PLAN
+    Appendix A's M8 row and the facilitator note. Wording stays qualitative ("most seats");
+    these are the tallies behind it."""
+    lag = sync_lag(100_000, PAIR_SYNC)
+    rec = record_for(PAIR_SEATS_EXPERIMENT)
+    d = {k: np.array(v, dtype=float) for k, v in rec["per_seed"].items()}
+    q_d, g_d = d["dqn_q0"][:, -1], d["dqn_disc_return"][:, -1]
+    q_dd, g_dd = d["ddqn_q0"][:, -1], d["ddqn_disc_return"][:, -1]
+    n = len(q_d)
+    out = {
+        "dqn_above_100": int(np.sum(q_d > 100)),
+        "dqn_above_g0": int(np.sum(q_d > g_d)),
+        "ddqn_above_100": int(np.sum(q_dd > 100)),
+        "ddqn_lower": int(np.sum(q_dd < q_d)),
+        "lower_median": _r(float(np.median(q_dd - q_d)), 1),
+    }
+    # Live: the pair's DQN above 100 and above its G_0 on most seats (20 of 20); its Double
+    # DQN lower at the same seat on most seats (16 of 20, median -5.3).
+    assert n == 20 and out["dqn_above_100"] == 20 and out["dqn_above_g0"] == 20, out
+    assert _r(float(np.min(q_d - 100)), 2) == 1.11  # beyond the 0.66 truncation artifact
+    assert out["ddqn_lower"] == 16 and out["lower_median"] == -5.3, out
+    assert out["ddqn_above_100"] == 18
+    # Every one of the pair DQN's greedy episodes is above its value bound (G_0 if it
+    # terminated, 100 if it was cut at 500): overestimation whatever the policy earns.
+    bound = np.where(d["dqn_final_cut"] > 0.5, 100.0, d["dqn_final_g0"])
+    assert np.all(d["dqn_final_q0"] > bound)
+    # Facilitator note: a Double DQN that reaches 500 steps can sit just above its truncated
+    # G_0 (by less than 0.66) without overestimating.
+    small = (q_dd - g_dd > 0) & (q_dd - g_dd < 0.66)
+    assert small.any() and np.all(d["ddqn_return"][small, -1] > 499)
+    # The bands (seeds 0-4): live, the pair's DQN above 100 and above G_0 on every seed; QUICK,
+    # no overestimate: Q(s0) below 100 and below G_0 on every seed, DQN and Double DQN.
+    live = {a: curves(f"m08-pair-{a}-live") for a in ("dqn", "ddqn")}
+    quick = {a: curves(f"m08-pair-{a}-quick") for a in ("dqn", "ddqn")}
+    q, g = live["dqn"]["q0"][:, -1], live["dqn"]["disc_return"][:, -1]
+    assert np.all(q > 100) and np.all(q > g)
+    for a in ("dqn", "ddqn"):
+        q, g = quick[a]["q0"][:, -1], quick[a]["disc_return"][:, -1]
+        assert np.all(q < 100) and int(np.sum(q < g)) == 5, a
+        assert np.all(quick[a]["q0"] < 100)  # at every evaluation, too
+    assert _r(sync_lag(20_000, PAIR_SYNC), 2) == 53.41 and _r(lag, 2) == 98.13
     return out
 
 
