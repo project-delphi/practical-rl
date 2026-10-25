@@ -53,6 +53,7 @@ import json
 import math
 import os
 import platform
+import re
 import sys
 import time
 from pathlib import Path
@@ -90,6 +91,11 @@ BUDGETS = {
 }
 ALGOS = ("dqn", "ddqn", "sb3")
 EXPERIMENTS = [f"m08-{a}-{b}" for a in ALGOS for b in BUDGETS]
+# m08-seats: what seats 0-19 compute at the live budget (their training seed is
+# (seat + 1) * 1000, Lab 8's RUN_SEED), DQN and Double DQN.
+SEATS = list(range(20))
+SEATS_EXPERIMENT = "m08-seats"
+EXPERIMENTS.append(SEATS_EXPERIMENT)
 # Module 9's logging (its handoff, section 3), for --reproduce --m09-logging only.
 M09_LOG_EVERY, M09_PROBES = 500, 8
 # SB3 2.9.0's DQN with the lab's CONFIG on every knob SB3 has (day-3 decision 5).
@@ -321,6 +327,51 @@ def run_sb3(ns: dict, label: str, seeds=SEEDS) -> tuple[dict, dict]:
     return per, budget
 
 
+def run_seats(ns: dict, seats=SEATS) -> tuple[dict, dict]:
+    """(per_seed, budget) of every seat's two live runs, as Exercises 3-5 compute them.
+
+    Exercise 3 trains DQN and Exercise 4 Double DQN at the seat's RUN_SEED, with the lab's
+    live settings; Exercise 5 evaluates both final networks greedily from the same 10 start
+    states, which gives the log's last evaluation again (both are deterministic). The room
+    code's scalars follow: dqn_return and ddqn_return (the last greedy return), dqn_q0 and
+    ddqn_q0 (Q(s0)), dqn_q0_gap (Q(s0) - G_0).
+    """
+    import torch
+
+    torch.set_num_threads(TORCH_THREADS)
+    b = BUDGETS["live"]
+    per: dict[str, list] = {}
+    for seat in seats:
+        seed = (seat + 1) * 1000
+        for algo, target_fn in (("dqn", None), ("ddqn", ns["double_dqn_target"])):
+            start = time.perf_counter()
+            _, log = ns["train_dqn"](
+                ns["make_cartpole"],
+                ns["CONFIG"],
+                seed,
+                b["steps"],
+                target_fn=target_fn,
+                log_every=b["log_every"],
+                eval_every=b["eval_every"],
+                eval_episodes=b["eval_episodes"],
+                verbose=False,
+            )
+            per.setdefault(f"{algo}_seconds", []).append(round(time.perf_counter() - start, 2))
+            for key in ("return", "disc_return", "q0"):
+                per.setdefault(f"{algo}_{key}", []).append(_f32_list(log[f"eval_{key}"]))
+            q_end = _f32(log["q_probe"][-1].max(axis=1).mean())
+            per.setdefault(f"{algo}_q_probe_end", []).append(q_end)
+    budget = {
+        "label": "live",
+        **b,
+        "grid": list(range(b["eval_every"], b["steps"] + 1, b["eval_every"])),
+        "seats": list(seats),
+        "seed_rule": "(seat + 1) * 1000",
+        "config": dataclasses.asdict(ns["CONFIG"]),
+    }
+    return per, budget
+
+
 NOTES = {
     "dqn": (
         "Lab 8's train_dqn with CONFIG (labs/shared/dqn_setup.py and labs/shared/dqn.py, the "
@@ -334,17 +385,33 @@ NOTES = {
         "(budget.sb3), greedy-evaluated with the lab's evaluate_greedy, seeds 0-4"
     ),
 }
+SEATS_NOTE = (
+    "What seats 0-19 compute at the live budget: Exercise 3's DQN and Exercise 4's Double DQN "
+    "(Lab 8's train_dqn with CONFIG, labs/shared), each seat at its RUN_SEED (seat + 1) * "
+    "1000, so `seeds` lists 1000, 2000, ..., 20000. per_seed lists are indexed like `seeds`: "
+    "for dqn and ddqn, the greedy return, G_0 (disc_return) and Q(s0) on budget.grid (the last "
+    "point is what Exercise 5 evaluates again and the room code reports), max Q at the lab's 32 "
+    "probe states at the end, and the run's wall-clock seconds."
+)
 
 
-def experiment_record(name: str, per: dict, budget: dict, seconds: float, git, load: float) -> dict:
+def experiment_record(
+    name: str, per: dict, budget: dict, seconds: float, git, load: float, seeds=SEEDS
+) -> dict:
     import nbformat
 
-    algo, label = name.split("-")[1:]
+    algo, label = ("seats", "live") if name == SEATS_EXPERIMENT else name.split("-")[1:]
     rt = runtime.detect()
     git_sha, dirty = git
     meta = nbformat.read(NOTEBOOK, as_version=4).metadata.get("prl", {})
     b = BUDGETS[label]
-    note = (
+    tail = (
+        f"Wall-clock on {where()}, {TORCH_THREADS} torch threads, runs one after another "
+        f"(load average {load:.1f} at the start: other jobs shared the machine): laptop "
+        "seconds, not Colab seconds."
+    )
+    note = f"{SEATS_NOTE} {tail}" if algo == "seats" else None
+    note = note or (
         f"{NOTES[algo]}, at the {label} budget ({b['steps']:,} steps, greedy evaluation of "
         f"{b['eval_episodes']} episodes every {b['eval_every']:,}). per_seed lists are indexed "
         "like `seeds`: return, disc_return (G_0) and q0 (max_a Q(s0, a)) on budget.grid, the "
@@ -357,9 +424,7 @@ def experiment_record(name: str, per: dict, budget: dict, seconds: float, git, l
             if algo == "sb3"
             else "and episodes. "
         )
-        + f"Wall-clock on {where()}, {TORCH_THREADS} torch threads, runs one after another "
-        f"(load average {load:.1f} at the start: other jobs shared the machine): laptop "
-        "seconds, not Colab seconds."
+        + tail
     )
     args = {
         "notebook": "notebooks/08-dqn.ipynb",
@@ -399,7 +464,7 @@ def experiment_record(name: str, per: dict, budget: dict, seconds: float, git, l
             [*runtime.DEFAULT_PACKAGES, "stable-baselines3", "gymnasium"]
         ),
         "budget": budget,
-        "seeds": list(SEEDS),
+        "seeds": list(seeds),
         "per_seed": per,
         "seconds": round(seconds, 1),
         "note": note,
@@ -412,6 +477,10 @@ def where() -> str:
 
 
 def measure(name: str, ns: dict, seeds=SEEDS, **log_options) -> tuple[dict, dict]:
+    if name == SEATS_EXPERIMENT:
+        seats = SEATS if seeds is SEEDS else [s // 1000 - 1 for s in seeds]
+        with contextlib.redirect_stdout(io.StringIO()):
+            return run_seats(ns, seats)
     algo, label = name.split("-")[1:]
     with contextlib.redirect_stdout(io.StringIO()):
         if algo == "sb3":
@@ -445,9 +514,11 @@ def run(names: list[str], inbox: Path = tp.INBOX) -> list[Path]:
         start = time.perf_counter()
         per, budget = measure(name, ns)
         secs = time.perf_counter() - start
-        rec = experiment_record(name, per, budget, secs, git, load)
+        seeds = [(i + 1) * 1000 for i in SEATS] if name == SEATS_EXPERIMENT else SEEDS
+        rec = experiment_record(name, per, budget, secs, git, load, seeds)
         paths.append(tp.write_record(rec, inbox))
-        print(f"{name}: {secs:.0f} s, per seed {per['seconds']}", flush=True)
+        times = {k: v for k, v in per.items() if k.endswith("seconds")}
+        print(f"{name}: {secs:.0f} s, per seed {times}", flush=True)
     return paths
 
 
@@ -504,7 +575,7 @@ def reproduce(
     per, _ = measure(name, ns, seeds, **options)
     new = json.loads(json.dumps(per))
     old = {k: [v[i] for i in idx] for k, v in rec["per_seed"].items()}
-    for key in ("seconds", *(("q_probe_end",) if m09 else ())):
+    for key in [k for k in old if k.endswith("seconds")] + (["q_probe_end"] if m09 else []):
         old.pop(key)
         new.pop(key, None)
     exact: list[str] = []
@@ -536,7 +607,21 @@ def band_records() -> dict[str, dict[str, str]]:
     return out
 
 
+def _order(path: Path) -> tuple[str, int]:
+    m = re.search(r"-exp(?:-(\d+))?\.json$", path.name)
+    return (path.name[:10], int(m.group(1) or 1) if m else 0)
+
+
 def record_for(name: str) -> dict:
+    """The record runs/bands.yml names for a band experiment; for m08-seats, the newest."""
+    if name == SEATS_EXPERIMENT:
+        paths = sorted(RUNS.glob(f"*-{name}-exp*.json"), key=_order)
+        if not paths:
+            raise SystemExit(f"No filed record of {name}: run --run {name}, then file it.")
+        rec = json.loads(paths[-1].read_text())
+        rec["_id"] = paths[-1].stem
+        assert rec["seeds"] == [(i + 1) * 1000 for i in SEATS], rec["_id"]
+        return rec
     rid = band_records().get(name)
     if rid is None:
         raise SystemExit(f"runs/bands.yml names no record for {name}")
@@ -606,44 +691,46 @@ def _huber(x: float, psi: float = 1.0) -> tuple[float, float]:
 
 
 def quoted_numbers() -> dict:
-    """Every exact number the director's handoff (section 6) lists for the page, the
-    predict_answers, the knowledge checks and the lab text, asserted."""
+    """Every exact number the page, its folds, the predict_answers, the knowledge checks and
+    the lab text quote (the director's handoff, section 6 and second pass S6), asserted."""
     g = GAMMA
     # Page section 3: the value after k copies.
     assert _r(100 * (1 - g**50), 4) == 39.4994 and _r(100 * (1 - g**50), 1) == 39.5
     assert _r(100 * (1 - g**200), 4) == 86.6020 and _r(100 * (1 - g**200), 1) == 86.6
     assert _r(1 / (1 - g), 9) == 100
-    # Page section 4 (Check yourself 4.1) and Gotchas.
+    # Page section 4 (Check yourself 4.1) and the Gotchas.
     assert _r(1 + g * 99, 9) == 99.01
     g500 = (1 - g**500) / (1 - g)
     assert _r(g500, 3) == 99.343 and _r(g500, 2) == 99.34
     assert _r(g**500 / (1 - g), 5) == 0.65705 and _r(g**500 / (1 - g), 3) == 0.657
-    # Page section 2 (Check yourself 2.1): five slots after seven writes.
+    # Page section 2 (Check yourself 2.1): five slots after seven writes; 1/5 per draw.
     assert _ring(5, 7) == ([5, 6, 2, 3, 4], 2, 5)
-    # Page section 5's demo table.
+    # Page section 5: the demo table, and Theorem 1's floor at C = 1 after the theorem.
     gauss = {m: e_max_gauss(m) for m in (2, 4, 10)}
     assert [_r(gauss[m], 4) for m in (2, 4, 10)] == [0.5642, 1.0294, 1.5388]
     assert [_r(gauss[m], 3) for m in (2, 4, 10)] == [0.564, 1.029, 1.539]
     assert abs(gauss[2] - 1 / math.sqrt(math.pi)) < 1e-9
+    assert abs(gauss[10] - 1.5) < abs(gauss[10] - 0.5) and abs(gauss[10] - 1.5) < 1  # "about 1.5"
     uniform = {m: (m - 1) / (m + 1) for m in (2, 4, 10)}
     assert [_r(uniform[m], 3) for m in (2, 4, 10)] == [0.333, 0.6, 0.818]
     floor = {m: math.sqrt(1 / (m - 1)) for m in (2, 4, 10)}
     assert [_r(floor[m], 4) for m in (2, 4, 10)] == [1.0, 0.5774, 0.3333]
+    assert [_r(floor[m], 2) for m in (2, 4, 10)] == [1.0, 0.58, 0.33]
     # Page section 6's Predict and knowledge check 8.7.
     assert _r(2 / (5 + 1), 9) == _r(1 / 3, 9)
     assert round(20 * 2 / 6) == 7 and round(20 * 2 / 11) == 4
-    # Exercise 1's predict_answer: a transition stays 10,000 steps; 2,500 gradient steps.
-    assert 10_000 // 4 == 2_500 and 2_500 * 64 / 10_000 == 16
-    # Exercise 2's predict_answer: 1,000 slots after 2,500 writes.
+    # Exercise 1's predict_answer: 1,000 slots after 2,500 writes.
     slots, ptr, size = _ring(1000, 2500)
-    ages = 2499 - np.array(slots)
+    written = np.array(slots)
+    assert written.min() == 1500 and written.max() == 2499  # "written at steps 1,500 to 2,499"
+    ages = 2499 - written
     assert ages.min() == 0 and ages.max() == 999 and len(set(ages.tolist())) == 1000
-    assert int(np.sum(ages > 500)) == 499 and _r(np.mean(ages > 500), 3) == 0.499
+    assert int(np.sum(ages > 500)) == 499 and _r(100 * np.mean(ages > 500), 1) == 49.9
     assert (ptr, size) == (500, 1000) and sorted(slots[:ptr]) == list(range(2000, 2500))
-    assert (2499 - np.array(slots[:ptr])).max() == 499
-    # Exercise 3's predict_answer and run cell; knowledge check 8.3.
+    assert int(np.sum(2499 - np.array(slots[:ptr]) > 500)) == 0  # 0% of the colleague's draws
+    # Exercise 2's predict_answer and run cell (delta = 3); knowledge check 8.3's table.
     assert [1.0, _r(1 + g * 50, 9), _r(1 + g * 50, 9)] == [1.0, 50.5, 50.5]
-    assert _huber(0.5) == (0.125, 0.5) and _huber(3.0) == (2.5, 1.0)
+    assert _huber(3.0) == (2.5, 1.0)
     want = {-4.0: (3.5, -1.0), -0.5: (0.125, -0.5), 0.2: (0.02, 0.2), 3.0: (2.5, 1.0)}
     for x, (loss, grad) in want.items():
         h = _huber(x)
@@ -655,16 +742,17 @@ def quoted_numbers() -> dict:
             0.2: (0.02, 0.2),
             3.0: (0.5, 0.0),
         }[x]
-    # Exercise 4's predict_answer: copies after the first gradient step (1,004).
+    # Exercise 3's Predict and predict_answer, and section 5's fold: copies after the first
+    # gradient step (1,004).
     for t in (10_000, 30_000, 50_000):
         assert syncs_by(t) == _brute_syncs(t)
     assert syncs_by(50_000) == 98 and _r(sync_lag(50_000), 3) == 62.654
     assert _r(sync_lag(50_000), 2) == 62.65
     assert syncs_by(10_000) == 18 and _r(sync_lag(10_000), 3) == 16.549
     assert _r(sync_lag(10_000), 2) == 16.55
-    # Exercise 5's predict_answer and run cell.
+    # Exercise 4's predict_answer and run cell.
     assert _r(1 + 0.9 * max(4, 3), 9) == 4.6 and _r(1 + 0.9 * 3, 9) == 3.7
-    # Exercise 6's predict_answer: G_0 of 150 and 500 steps; 0.657 above.
+    # Exercise 5's predict_answer: G_0 of a policy that survives 150 steps.
     assert _r(100 * (1 - g**150), 2) == 77.85 and _r(100 * (1 - g**150), 1) == 77.9
     # Knowledge checks 8.1, 8.2, 8.4, 8.5, 8.6.
     assert _ring(4, 10) == ([8, 9, 6, 7], 2, 4)
@@ -680,7 +768,7 @@ def quoted_numbers() -> dict:
     online, target = np.array([3.0, 1.0, 2.0]), np.array([2.0, 4.0, 0.0])
     assert _r(0.5 + 0.9 * target.max(), 9) == 4.1
     assert _r(0.5 + 0.9 * target[online.argmax()], 9) == 2.3
-    assert _r(99.8 - _r(g500, 2), 9) == 0.46
+    assert _r(64 - _r(sync_lag(50_000), 2), 9) == 1.35  # 64, 78 and 63 are hypothetical
     return {"gauss": gauss, "uniform": uniform, "floor": floor, "g500": g500}
 
 
@@ -813,6 +901,71 @@ def record_facts(data: dict) -> None:
     want = str(np.load(ROOT / "prl/src/prl/_expected/m08_sb3_call.npz")["live"])
     v = data["final"]["verdict"]
     assert {"A": "reference", "B": "sb3"}.get(v.winner, v.winner) == want
+    quoted_from_records(data)
+
+
+def _span(a, d: int = 2) -> tuple[float, float]:
+    a = np.asarray(a, dtype=float)
+    return (_r(a.min(), d), _r(a.max(), d))
+
+
+def quoted_from_records(data: dict) -> None:
+    """Every number the page, its folds and alt text, and the predict_answers quote from the
+    band records (second pass S6), asserted."""
+    live = {a: data[a] for a in ALGOS}
+    quick = {a: curves(f"m08-{a}-quick") for a in ALGOS}
+    lag50, lag10 = sync_lag(50_000), sync_lag(10_000)
+    # Exercise 3's predict_answer: max Q at the 32 probe states, within 5 of (sync lag), above.
+    assert _span(live["dqn"]["q_probe_end"]) == (64.22, 65.19)
+    assert _span(quick["dqn"]["q_probe_end"]) == (17.12, 17.57)
+    assert all(0 < q - lag50 < 5 for q in live["dqn"]["q_probe_end"])
+    assert all(0 < q - lag10 < 5 for q in quick["dqn"]["q_probe_end"])
+    # Exercise 5's predict_answer and section 5's fold.
+    q_d, g_d = live["dqn"]["q0"][:, -1], live["dqn"]["disc_return"][:, -1]
+    q_dd, g_dd = live["ddqn"]["q0"][:, -1], live["ddqn"]["disc_return"][:, -1]
+    assert _span(q_d) == (64.20, 65.17) and _span(g_d) == (68.52, 84.40)
+    assert _span(q_dd) == (63.48, 64.31) and _span(g_dd) == (70.35, 88.89)
+    assert _span(q_d - lag50) == (1.55, 2.52) and _span(q_dd - lag50) == (0.83, 1.65)
+    lower = q_d - q_dd  # Double DQN lower at the same seed: 5 of 5 live
+    assert np.all(lower > 0) and _span(lower) == (0.05, 1.60)
+    lower_q = quick["dqn"]["q0"][:, -1] - quick["ddqn"]["q0"][:, -1]
+    assert int(np.sum(lower_q > 0)) == 4 and _span(lower_q[lower_q > 0]) == (0.23, 0.63)
+    assert lower_q[3] < 0 and _r(-lower_q[3], 2) == 0.01  # above by 0.01 at seed 3
+    gaps = np.concatenate([g_d - q_d, g_dd - q_dd])
+    assert _span(gaps, 1) == (3.4, 25.2)
+    for runs in (live, quick):  # below G_0 on every seed and evaluation, SB3 included
+        assert all(np.all(runs[a]["q0"] < runs[a]["disc_return"]) for a in ALGOS)
+    # Section 5's figures, alt text: Q(s0) from about 8 (7.6-8.1) to about 64; G_0 about
+    # 53-97 (DQN) and 67-99 (Double DQN), every evaluation.
+    first = np.concatenate([live["dqn"]["q0"][:, 0], live["ddqn"]["q0"][:, 0]])
+    assert _span(first, 1) == (7.6, 8.1)
+    # "to about 64": the ends are 64.20-65.17 (DQN) and 63.48-64.31 (Double DQN), within 1.2.
+    assert np.all(np.abs(np.concatenate([q_d, q_dd]) - 64) < 1.2)
+    assert (round(live["dqn"]["disc_return"].min()), round(live["dqn"]["disc_return"].max())) == (
+        53,
+        97,
+    )
+    assert (round(live["ddqn"]["disc_return"].min()), round(live["ddqn"]["disc_return"].max())) == (
+        67,
+        99,
+    )
+    # Exercise 6's predict_answer and section 6's fold.
+    for runs, want in (
+        (live, ((145.0, 120.7, 173.4), (149.8, 136.0, 187.2))),
+        (quick, ((216.9, 148.0, 243.0), (172.9, 158.2, 242.1))),
+    ):
+        v = compare(runs["dqn"]["return"][:, -1], runs["sb3"]["return"][:, -1])
+        got = (tuple(_r(x, 1) for x in v.summary_a), tuple(_r(x, 1) for x in v.summary_b))
+        assert v.winner == "tie" and got == want, got
+    ref_s, sb3_s = live["dqn"]["seconds"].sum(), live["sb3"]["seconds"].sum()
+    assert (_r(ref_s, 1), _r(sb3_s, 1), _r(ref_s + sb3_s, 1)) == (34.5, 48.3, 82.7)
+    ref_f, sb3_f = live["dqn"]["return"][:, -1], live["sb3"]["return"][:, -1]
+    assert _span(ref_f, 1) == (115.1, 185.8) and _span(sb3_f, 1) == (131.2, 206.8)
+    spreads = (_r(np.ptp(ref_f), 1), _r(np.ptp(sb3_f), 1))
+    assert spreads == (70.7, 75.6)  # "about 70 to 76"
+    v = data["final"]["verdict"]
+    assert [round(x) for x in v.summary_a] == [145, 121, 173]  # alt text, "about"
+    assert [round(x) for x in v.summary_b] == [150, 136, 187]
 
 
 def figure_data() -> dict:
