@@ -61,7 +61,9 @@ PROVIDED_TITLE = (
 EARLIER_TITLE = (
     '#@title From Lab {n}: {name}, run this cell; you write none of it {{ display-mode: "form" }}'
 )
-FORM_TITLE = re.compile(r'^#@title .*\{ display-mode: "form" \}\s*$')
+# A provided cell's form title. ruff format writes "#@title" as "# @title"; Colab reads only
+# "#@title", so the built cell shows it in that form (a display edit, after content_sha).
+FORM_TITLE = re.compile(r'^#\s?@title (.*\{ display-mode: "form" \})\s*$')
 INCLUDED = re.compile(r"^# Reference code included from (\S+)\.\n# origin: labs/src/(\d+)-\S+\n")
 FOLDED = {"cellView": "form", "jupyter": {"source_hidden": True}}
 
@@ -404,7 +406,8 @@ def build(path: Path, v: dict[str, Any]) -> tuple[str, dict[str, Any]]:
             meta = {**meta, **FOLDED}
         elif role.startswith("shared-") and _earlier_include(src) is not None:
             shown, meta = _earlier_include(src), {**meta, **FOLDED}
-        elif cell.cell_type == "code" and FORM_TITLE.match(src.split("\n", 1)[0]):
+        elif cell.cell_type == "code" and (form := FORM_TITLE.match(src.split("\n", 1)[0])):
+            shown = f"#@title {form.group(1)}\n" + src.partition("\n")[2]
             meta = {**meta, **FOLDED}
         if role.startswith("shared-") or role.startswith("stretch"):
             cid = role if role not in seen_ids else f"{role}-{auto}"

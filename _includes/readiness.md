@@ -23,7 +23,7 @@
 | []{#m06}[6 · Exploration in MDPs](/modules/06-exploration-mdps.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-24 | — | — |
 | []{#m07}[7 · Function approximation and why it can diverge](/modules/07-function-approximation.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m08}[8 · DQN from scratch](/modules/08-dqn.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-25 | — | — |
-| []{#m09}[9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd) | Not yet | Google Colab, CPU runtime | — | [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial} 2026-10-25 | — | — |
+| []{#m09}[9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale} newest 2026-10-25 |
 | []{#m10}[10 · Policy gradients](/modules/10-policy-gradients.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m11}[11 · PPO from scratch](/modules/11-ppo.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
 | []{#m12}[12 · RL for language models: preferences, RLHF, DPO and GRPO](/modules/12-rl-for-language-models.qmd) | Not yet | Google Colab, CPU runtime | — | — | — | [[○]{aria-hidden="true"} Not run]{.chip .chip-none}; lab planned |
@@ -108,7 +108,7 @@
 :::
 
 ::: {.callout-note collapse="true" title="9 · Debugging and evaluating RL: 3 record(s)"}
-- `2026-10-25-local-09-debugging-evaluation-bdaa58e7-2.json`: 2026-10-25 · local · 20 s · QUICK · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
-- `2026-10-25-local-09-debugging-evaluation-bdaa58e7.json`: 2026-10-25 · local · 28 s · [[◐]{aria-hidden="true"} Real path elsewhere]{.chip .chip-partial}
+- `2026-10-25-local-09-debugging-evaluation-bdaa58e7-2.json`: 2026-10-25 · local · 20 s · QUICK · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
+- `2026-10-25-local-09-debugging-evaluation-bdaa58e7.json`: 2026-10-25 · local · 28 s · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 - `2026-10-25-local-09-debugging-evaluation-cf605288.json`: 2026-10-25 · local · 178 s · QUICK · [[⚠]{aria-hidden="true"} Before the notebook last changed]{.chip .chip-stale}
 :::

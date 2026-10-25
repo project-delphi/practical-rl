@@ -162,8 +162,8 @@ def last_five(x):
 
 # %% [markdown] role="ex1-head"
 # **Two exact checks.** Some properties of a correct DQN hold exactly, so a log can check them.
-# In each logged batch, the value the loss used for row i is Q(s_i, a_i; w), read from the same
-# forward pass (TD error). And the target network's values change at every sync. At three
+# In each logged batch, the value the loss used for row i is $Q(s_i, a_i; w)$, read from the
+# same forward pass (TD error). And the target network's values change at every sync. At three
 # steps the log kept one batch: `snap_q`, Q(s, ·; w) for every row (shape (S, B, |𝒜|), here
 # S = 3 snapshots of B = 32 rows and |𝒜| = 2 actions), `snap_actions` (S, B) and
 # `snap_gathered` (S, B), the value the loss used. Every 500 steps, when the target is also
@@ -248,16 +248,17 @@ lab.check(1, m09.check_target_lag, target_lag, label="1.2")
 
 # %% [markdown] role="ex2-head"
 # **Two scale signals.** Compare what the network believes with what the agent earns: at every
-# log point, Q at the start states (the mean over the 8 probe states of max_a Q(s, a; w)) minus
-# the mean discounted return of the episodes that ended in the last `window` env steps
+# log point, Q at the start states (the mean over the 8 probe states of $\max_a Q(s, a; w)$)
+# minus the mean discounted return of the episodes that ended in the last `window` env steps
 # (Q drift). And the TD error against the scale of Q: the mean |δ| divided by the mean over the
-# batch of max_a Q(s, a; w) (relative TD error). Write `q_drift` and `td_error_scale`. The run
+# batch of $\max_a Q(s, a; w)$ (relative TD error). Write `q_drift` and `td_error_scale`. The run
 # cell tries them on the healthy run, every seed.
 
 # %% [markdown] role="ex2-predict"
-# CartPole pays 1 per step and stops at 500 steps. At γ = 0.99, what is the largest discounted
-# return any episode can earn from its first state? On the healthy run, will the relative TD
-# error in the second half be about 0.001, 0.01 or 0.1?
+# Exercise 1's Q panel marks 99.34, the most any CartPole episode can earn from its first
+# state. Where does that number come from, at γ = 0.99, with a reward of 1 per step and at most
+# 500 steps? On the healthy run, will the relative TD error in the second half be about 0.001,
+# 0.01 or 0.1?
 
 
 # %% role="ex2-stub"
@@ -375,8 +376,9 @@ def diagnoses():
 
 # %% [markdown] role="ex3-hint"
 # Start with the exact checks: a check that fails names its cause. For a run that passes both,
-# is its Q above any return an episode can earn? 'seed': how many seeds failed? 'reward': which
-# rewards did the logged batches hold? What is left is a setting, not a bug.
+# compare its Q at the start states with 99.34: a little above it is estimation error (Module
+# 7), many times above it is not. 'seed': how many seeds failed? 'reward': which rewards did
+# the logged batches hold? What is left is a setting, not a bug.
 
 
 # %% role="ex3-sol"
@@ -384,9 +386,9 @@ def diagnoses():
 def diagnoses():
     """What made runs A to D (see How runs A to D were made)."""
     return {
-        "A": "lr",  # exact checks pass, Q in range, rewards 1, 3 of 3 fail
+        "A": "lr",  # exact checks pass, Q near 99.34, rewards 1, 3 of 3 fail
         "B": "gather",  # the gather check fails
-        "C": "mask",  # Q far above 99.34 with rewards of 1
+        "C": "mask",  # Q over 10 times every other run's, rewards 1
         "D": "sync",  # the target never changes
     }
 
@@ -433,7 +435,7 @@ for run in RUN_STYLE:
     row = [cell(min(values[n][run]), max(values[n][run]), f) for n, (_, _, f) in COLUMNS.items()]
     widths = [w for _, w, _ in COLUMNS.values()]
     print((f"{run:9s}" + "".join(f"{c:{w}s}" for c, w in zip(row, widths, strict=True))).rstrip())
-print(f"Other evidence (the most an episode can earn from its first state: {G_MAX:.2f}):")
+print(f"Other evidence (an episode earns at most {G_MAX:.2f}; Q can sit a little above it):")
 for run in RUN_STYLE:
     logs = [run_log(run, int(s)) for s in RUNS["seeds"]]
     seen = np.unique(np.concatenate([g["snap_reward"].ravel() for g in logs]))
@@ -892,8 +894,8 @@ lab.check(6, m09.check_band_position, band_position, label="6.1")
 lab.check(6, m09.check_live_return, log_live["eval_return"], label="6.2")
 
 # %% [markdown]
-# **Your room code.** The last cell, `lab.finish()`, prints one line that starts with
-# `ROOM m09`. It holds your seat, the checkpoints you passed (3.1 to 3.4 are your four
+# **Your room code.** The finish cell below, `lab.finish()`, ends with one line that starts
+# with `ROOM m09`. It holds your seat, the checkpoints you passed (3.1 to 3.4 are your four
 # diagnoses), whether QUICK budgets ran, and the numbers the debrief pools: run C's Q on probe 1
 # after your probe run (`probe_q_c`, Exercise 4), your live seed's greedy return
 # (`live_return`, Exercise 6) and where it landed against the band (`live_position`: −1 below,
