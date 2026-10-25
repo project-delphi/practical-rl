@@ -529,7 +529,26 @@ check_train_dqn = StochasticCheck(
         "the best of the run's evaluations (every 1,000 steps, 10 episodes each) minus the "
         "first, taken before any gradient step"
     ),
-    thresholds={},
+    thresholds={
+        # threshold_protocol.py, live budget {"steps": 20000}, N = 200 seeds (0-199),
+        # 2026-10-25, local (Apple M1 Pro, arm64). Solution p1 165.2; strongest wrong version
+        # mutant 'random' p99 16.6; gap 148.6 (minimum 25); threshold: the midpoint 90.9035,
+        # rounded to 91.0. 0 of 200 solution seeds fail: flake rate at most about 3/N = 1.5%
+        # (rule of three).
+        "live": (
+            91.0,
+            "threshold protocol, 200 seeds: runs/2026-10-25-local-threshold-m08-check_train_dqn-live-n200-exp.json",
+        ),
+        # threshold_protocol.py, quick budget {"steps": 20000}, N = 200 seeds (0-199),
+        # 2026-10-25, local (Apple M1 Pro, arm64). Solution p1 165.2; strongest wrong version
+        # mutant 'random' p99 16.6; gap 148.6 (minimum 25); threshold: the midpoint 90.9035,
+        # rounded to 91.0. 0 of 200 solution seeds fail: flake rate at most about 3/N = 1.5%
+        # (rule of three).
+        "quick": (
+            91.0,
+            "threshold protocol, 200 seeds: runs/2026-10-25-local-threshold-m08-check_train_dqn-quick-n200-exp.json",
+        ),
+    },
 )
 
 
