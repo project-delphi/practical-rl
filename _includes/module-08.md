@@ -4,7 +4,7 @@
 [Briefing 11:30 · lunch · Lab 13:10 · Debrief 14:20]{.module-clock}
 
 ::: {.module-summary}
-Replay, a target network and the Huber loss make neural Q-learning stable; Double DQN removes part of the bias, and Monte Carlo returns show what remains.
+Replay, a target network and the Huber loss make neural Q-learning stable; Double DQN removes part of the max bias, and Monte Carlo returns test what the values claim.
 :::
 
 ::: {.module-actions}

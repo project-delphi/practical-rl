@@ -1,9 +1,9 @@
 # origin: labs/src/08-dqn.py
 # The reference version of your Lab 8 code: the replay buffer (Exercise 1), the masked target
-# and the Huber loss (Exercise 3), the training loop (Exercise 4), the Double DQN target
-# (Exercise 5) and Monte Carlo returns (Exercise 6). Include labs/shared/dqn_setup.py first:
-# train_dqn reads CONFIG's fields and calls make_q_net, epsilon_at, act, gather_q, dqn_target,
-# DQNLogger and to_batch from it, each by name when it runs.
+# (Exercise 2), the training loop (Exercise 3), the Double DQN target (Exercise 4) and Monte
+# Carlo returns (Exercise 5). Include labs/shared/dqn_setup.py first: train_dqn calls
+# dqn_parts, epsilon_at, act, gather_q, huber and dqn_target from it, each by name when it
+# runs, and dqn_parts builds this file's ReplayBuffer.
 class ReplayBuffer:
     """A ring buffer of transitions in preallocated NumPy arrays."""
 
@@ -38,54 +38,36 @@ def td_target(batch, q_next, gamma):
     return batch.rew + gamma * (1.0 - batch.terminated) * q_next
 
 
-def huber(x, threshold=1.0):
-    """Elementwise Huber loss with the given threshold (Huber)."""
-    a = x.abs()
-    quadratic = 0.5 * x**2
-    linear = threshold * (a - 0.5 * threshold)
-    return torch.where(a <= threshold, quadratic, linear)
-
-
 def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):
     """DQN (Mnih et al. 2015, Algorithm 1). Returns (q_net, log)."""
     target_fn = target_fn or dqn_target
-    torch.manual_seed(seed)
-    rng = np.random.default_rng(seed)
-    env = make_env()
-    obs_dim, n_actions = env.observation_space.shape[0], env.action_space.n
-    q_net = make_q_net(obs_dim, n_actions, config)
-    target_net = make_q_net(obs_dim, n_actions, config)
-    target_net.load_state_dict(q_net.state_dict())  # w- = w
-    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
-    buffer = ReplayBuffer(config.buffer_size, obs_dim)
-    log = DQNLogger(config, steps, q_net, target_net, make_env, **log_options)
-    obs, _ = env.reset(seed=seed)
+    p = dqn_parts(make_env, config, seed, steps, **log_options)
+    obs = p.obs
     for t in range(1, steps + 1):
         eps = epsilon_at(t, steps, config)
-        a = act(q_net, obs, eps, n_actions, rng)
-        next_obs, r, terminated, truncated, _ = env.step(a)
-        buffer.add(obs, a, r, next_obs, terminated, truncated)
+        a = act(p.q_net, obs, eps, p.n_actions, p.rng)
+        next_obs, r, terminated, truncated, _ = p.env.step(a)
+        p.buffer.add(obs, a, r, next_obs, terminated, truncated)
         obs = next_obs
         if terminated or truncated:
-            obs, _ = env.reset()
+            obs, _ = p.env.reset()
         if t > config.learning_starts and t % config.train_freq == 0:
-            batch = buffer.sample(config.batch_size, rng)
-            q_values = q_net(batch.obs)
+            batch = p.buffer.sample(config.batch_size, p.rng)
+            q_values = p.q_net(batch.obs)
             q_sa = gather_q(q_values, batch.act)
-            y = target_fn(batch, q_net, target_net, config.gamma)
-            loss = huber(y - q_sa, config.huber_threshold).mean()
-            opt.zero_grad()
+            y = target_fn(batch, p.q_net, p.target_net, config.gamma)
+            loss = huber(y - q_sa, config.huber_threshold).mean()  # (DQN loss)
+            p.opt.zero_grad()
             loss.backward()
-            params = q_net.parameters()
-            norm = nn.utils.clip_grad_norm_(params, config.max_grad_norm)
-            opt.step()
-            log.update(t, batch, q_values, q_sa, y, loss, norm)
+            norm = nn.utils.clip_grad_norm_(p.q_net.parameters(), config.max_grad_norm)
+            p.opt.step()
+            p.log.update(t, batch, q_values, q_sa, y, loss, norm)
         if config.target_sync and t % config.target_sync == 0:
-            target_net.load_state_dict(q_net.state_dict())  # w- <- w
-            log.sync(t)
-        log.step(t, eps, r, terminated, truncated)
-    env.close()
-    return q_net, log.result()
+            p.target_net.load_state_dict(p.q_net.state_dict())  # w- <- w
+            p.log.sync(t)
+        p.log.step(t, eps, r, terminated, truncated)
+    p.env.close()
+    return p.q_net, p.log.result()
 
 
 def double_dqn_target(batch, q_net, target_net, gamma):

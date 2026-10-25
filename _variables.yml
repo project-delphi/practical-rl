@@ -634,7 +634,7 @@ modules:
     slot: B
     level: 300
     title: DQN from scratch
-    summary: Replay, a target network and the Huber loss make neural Q-learning stable; Double DQN removes part of the bias, and Monte Carlo returns show what remains.
+    summary: Replay, a target network and the Huber loss make neural Q-learning stable; Double DQN removes part of the max bias, and Monte Carlo returns test what the values claim.
     question: Which changes make neural Q-learning stable, and what bias remains?
     where_we_are: Linear Q is limited and naive neural Q is unstable.
     objectives:
@@ -651,55 +651,49 @@ modules:
     planted_bug: {what: "a buffer that samples with its write pointer, so after the pointer wraps it draws only the newest transitions", diagnostic: "the histogram of the ages of drawn transitions"}
     stretch: LunarLander-v3 (installs box2d only)
     exercises:
-      # predict_answer: the answer to the Predict prompt (for the pace sheet). "Pending record" means
-      # the number comes from the technical expert's records (see _notes/m08-handoff.md); every
-      # other number here is an exact computation.
+      # predict_answer: the answer to the Predict prompt (for the pace sheet). Numbers are exact
+      # computations or come from the records named; the band records are
+      # runs/2026-10-24-local-m08-{dqn,ddqn,sb3}-{live,quick}-exp.json (seeds 0-4).
       # explain_ref: the equation name or Gotcha the Explain prompt cites, verbatim (linted).
       - n: 0
         title: Reconnect and rerun setup
         minutes: 3
         writes: []
       - n: 1
-        title: A replay buffer
-        minutes: 8
-        writes: [ReplayBuffer]
-        predict_answer: "10,000 steps: the buffer keeps the newest 10,000 transitions. In that time there are 10,000 / 4 = 2,500 gradient steps, each drawing 64 of the 10,000 slots, so a transition is drawn 2,500 x 64 / 10,000 = 16 times on average (exact). That is the data reuse; the run cell shows the other gain, decorrelation."
+        title: "A replay buffer, and a colleague's"
+        minutes: 11
+        writes: [ReplayBuffer, buffer_diagnosis, ColleagueBuffer]
+        predict_answer: "49.9%: the 1,000 stored transitions were written at steps 1,500 to 2,499, so their ages are 0 to 999 and 499 of the 1,000 are above 500. The colleague's buffer has ptr = 500 and reaches only slots 0 to 499, written at steps 2,000 to 2,499: 0% of its draws are older than 500 steps (exact by construction). Diagnosis b."
         explain_ref: 'Gotcha: "Replay is only for data efficiency."'
       - n: 2
-        title: "Planted bug: a colleague's buffer"
-        minutes: 5
-        writes: [buffer_diagnosis, ColleagueBuffer]
-        predict_answer: "Flat over ages 0 to 999 (the 1,000 stored transitions are written at steps 1,500 to 2,499), with 499 of 1,000 ages above 500, so about 49.9% of draws. The colleague's buffer has ptr = 500 and draws only slots 0 to 499, which hold steps 2,000 to 2,499: no draw is older than 499 steps (exact by construction). Diagnosis b."
-        explain_ref: "(replay sampling)"
-      - n: 3
-        title: The masked target and the Huber loss
-        minutes: 9
-        writes: [td_target, huber]
-        predict_answer: "Terminated: y = 1. Truncated: y = 1 + 0.99 x 50 = 50.5. Neither: 50.5. Huber with psi = 1: at 0.5, 0.125 with derivative 0.5; at 3, 3 - 0.5 = 2.5 with derivative 1 (exact)."
+        title: The masked target
+        minutes: 6
+        writes: [td_target]
+        predict_answer: "Terminated: y = 1. Truncated: y = 1 + 0.99 x 50 = 50.5. Neither: 50.5. Huber with psi = 1 at delta = 3: 3 - 0.5 = 2.5, with derivative 1 (exact)."
         explain_ref: 'Gotcha: "done = terminated or truncated."'
-      - n: 4
+      - n: 3
         title: The training loop
-        minutes: 12
+        minutes: 16
         writes: [train_dqn]
-        predict_answer: "Live: copies at steps 1,500, 2,000, ..., 50,000 follow a gradient step, 98 of them, and (sync lag) gives 100 (1 - 0.99^98) = 62.65 (exact). QUICK: 18 copies, 16.55. The run's max Q at the probe states: pending record (m08 bands); it is bounded by 1/(1 - 0.99) = 100 only for a correct run."
+        predict_answer: "100 (1 - 0.99^98) = 62.65 (exact; QUICK: 18 copies, 16.55). Within 5 of it, a little above: the reference DQN's max Q at the 32 probe states ended at 64.22 to 65.19 live and 17.12 to 17.57 QUICK (runs/2026-10-24-local-m08-dqn-live-exp.json, -quick-exp.json, seeds 0-4)."
         explain_ref: 'Gotcha: "My returns went up, so it works."'
-      - n: 5
+      - n: 4
         title: The Double DQN target
         minutes: 5
         writes: [double_dqn_target]
         predict_answer: "DQN: 1 + 0.9 x max(4, 3) = 4.6. Double DQN: the online network picks action 1 (5 > 2), the target network values it at 3, so 1 + 0.9 x 3 = 3.7 (exact)."
         explain_ref: "(Double DQN target)"
-      - n: 6
-        title: Measuring overestimation
+      - n: 5
+        title: "Q(s₀) against the Monte Carlo return"
         minutes: 7
         writes: [mc_return]
-        predict_answer: "Pending record (m08 bands, DQN and Double DQN, seeds 0-4). The page's tools: (sync lag) gives 62.65 after 98 copies, while a greedy policy that lasts 150 steps has G_0 = 100 (1 - 0.99^150) = 77.9 and one that reaches 500 steps has 99.34, so at this budget the lag can outweigh the max bias. A 500-step episode is truncated: an exact Q of a policy that never fails is 100, above its G_0 by 0.99^500 / (1 - 0.99) = 0.657 (exact)."
+        predict_answer: "Below, on every recorded seed at both budgets, for DQN, Double DQN and SB3's DQN: live, DQN's Q(s0) is 64.20 to 65.17 against G0 68.52 to 84.40, and Double DQN's 63.48 to 64.31 against 70.35 to 88.89 (seeds 0-4). Lower: at the same seed, Double DQN's Q(s0) is below DQN's at 5 of 5 seeds live (by 0.05 to 1.60) and at 4 of 5 QUICK (by 0.23 to 0.63; above by 0.01 at seed 3) (runs/2026-10-24-local-m08-dqn-*-exp.json, runs/2026-10-24-local-m08-ddqn-*-exp.json). A seat's own pair can differ; the room's tally is the debrief's. Exact tools: (sync lag) gives 62.65 after 98 copies (16.55 after 18); a greedy policy that survives T steps has G0 = 100 (1 - 0.99^T), 77.9 at T = 150."
         explain_ref: "(sync lag)"
-      - n: 7
+      - n: 6
         title: SB3 at the same budget
-        minutes: 5
+        minutes: 6
         writes: [sb3_call]
-        predict_answer: "Pending record (m08 bands: the reference and SB3 2.9 DQN, 5 seeds each). With the configuration matched, a tie is the expected call if both are correct, but a tie does not prove the implementations equal: it says only that 5 seeds per side at this budget cannot tell them apart. The two knobs that differ are in the budget sentence."
+        predict_answer: "A tie at both budgets: IQM [95% bootstrap CI] of the final greedy return, reference 145.0 [120.7, 173.4] against SB3 149.8 [136.0, 187.2] live, and 216.9 [148.0, 243.0] against 172.9 [158.2, 242.1] QUICK (runs/2026-10-24-local-m08-dqn-*-exp.json against runs/2026-10-24-local-m08-sb3-*-exp.json, prl.evaluate.compare). With the configuration matched, a tie is what two correct implementations should give, but it does not prove them equal: 5 seeds per side at this budget cannot tell them apart. The run cell lists the five things not matched."
         explain_ref: 'Gotcha: "My seed landed above SB3''s band, so my DQN is better."'
     status: {briefing: draft, lab: draft}
 

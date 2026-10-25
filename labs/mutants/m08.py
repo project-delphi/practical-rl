@@ -7,22 +7,22 @@ are skipped there, because scripts/threshold_protocol.py has already required ev
 a stochastic checkpoint's functions to fail its threshold at every seed, with a stated gap.
 Each mutant is a mistake a participant could plausibly make; `why` says which.
 
-Checkpoint 4.2 (how far train_dqn raises CartPole's greedy return above its untrained
+Checkpoint 3.2 (how far train_dqn raises CartPole's greedy return above its untrained
 network's) is the only stochastic one. Its protocol mutants are the train_dqn mutants below
 without exact_only: `target-is-online`, `zero-grad-late`, `no-step` and `random`.
-Checkpoint 4.1 is exact and also calls train_dqn, so verify mode needs it to reject every
+Checkpoint 3.1 is exact and also calls train_dqn, so verify mode needs it to reject every
 train_dqn mutant. It does: its chain runs
 check the log's keys, the snapshots' steps, a target copy every target_sync steps, the
 terminal mask and the bootstrap on cut episodes, that Q at the probe states moves
 (`no-step`), and, with config.lr = 0, that the gradient norm does not grow (which rejects
 `no-zero-grad`) and is not zero (`zero-grad-late`).
 
-exact_only=True marks the mutants that only 4.1 can see: `done-in-buffer` (CartPole rarely
+exact_only=True marks the mutants that only 3.1 can see: `done-in-buffer` (CartPole rarely
 reaches the time limit at the check's budget); `no-zero-grad`, which still learns CartPole
 (greedy returns 73-272 at 20,000 steps on seeds 0-3 in a scratch scan); and `no-target-copy`,
 whose targets from the initial network sometimes make a fair policy by chance (up to 175
 above its first evaluation over seeds 0-99 in a scratch scan), so no return threshold rejects
-them all. Exercise 7's mutants depend on what the recorded bands say (see their note).
+them all. Exercise 6's mutants depend on what the recorded bands say (see their note).
 """
 
 import numpy as np
@@ -155,82 +155,74 @@ class ReplayBuffer:  # noqa: F811
         return to_batch(self, rng.integers(0, self.size - 1, size=batch_size))  # noqa: F821
 
 
-# ------------------------------------------------------------------ 2: the colleague's buffer
-@mutant(ex=2, replaces="buffer_diagnosis", id="answer-a", why="reads the histograms as uniform")
+# ------------------------------------------------------------------ 1: the colleague's buffer
+@mutant(ex=1, replaces="buffer_diagnosis", id="answer-a", why="reads the histograms as uniform")
 def buffer_diagnosis():
     return "a"
 
 
-@mutant(ex=2, replaces="buffer_diagnosis", id="answer-c", why="blames overwriting, not sampling")
+@mutant(ex=1, replaces="buffer_diagnosis", id="answer-c", why="blames overwriting, not sampling")
 def buffer_diagnosis():  # noqa: F811
     return "c"
 
 
 @mutant(
-    ex=2,
+    ex=1,
     replaces="ColleagueBuffer",
     id="capacity-not-size",
     why="replaces ptr with capacity: right once full, draws empty slots before",
 )
-class ColleagueBuffer(ReplayBuffer):  # noqa: F821
+class ColleagueBuffer:
+    def __init__(self, capacity, obs_dim):
+        self.capacity = capacity
+        self.obs = np.zeros((capacity, obs_dim), dtype=np.float32)
+        self.act = np.zeros(capacity, dtype=np.int64)
+        self.rew = np.zeros(capacity, dtype=np.float32)
+        self.next_obs = np.zeros((capacity, obs_dim), dtype=np.float32)
+        self.terminated = np.zeros(capacity, dtype=np.float32)
+        self.truncated = np.zeros(capacity, dtype=np.float32)
+        self.ptr = 0
+        self.size = 0
+
+    def add(self, obs, act, rew, next_obs, terminated, truncated):
+        i = self.ptr
+        self.obs[i], self.act[i], self.rew[i] = obs, act, rew
+        self.next_obs[i] = next_obs
+        self.terminated[i], self.truncated[i] = terminated, truncated
+        self.ptr = (i + 1) % self.capacity
+        self.size = min(self.size + 1, self.capacity)
+
     def sample(self, batch_size, rng):
         return to_batch(self, rng.integers(0, self.capacity, size=batch_size))  # noqa: F821
 
 
-# ------------------------------------------------------------------ 3a: td_target
-@mutant(ex=3, replaces="td_target", id="done-mask", why="masks on terminated or truncated")
+# ------------------------------------------------------------------ 2: td_target
+@mutant(ex=2, replaces="td_target", id="done-mask", why="masks on terminated or truncated")
 def td_target(batch, q_next, gamma):
     done = torch.clamp(batch.terminated + batch.truncated, max=1.0)
     return batch.rew + gamma * (1.0 - done) * q_next
 
 
-@mutant(ex=3, replaces="td_target", id="no-mask", why="always bootstraps (Module 9's first bug)")
+@mutant(ex=2, replaces="td_target", id="no-mask", why="always bootstraps (Module 9's first bug)")
 def td_target(batch, q_next, gamma):  # noqa: F811
     return batch.rew + gamma * q_next
 
 
-@mutant(ex=3, replaces="td_target", id="mask-inverted", why="multiplies by terminated, not 1 - it")
+@mutant(ex=2, replaces="td_target", id="mask-inverted", why="multiplies by terminated, not 1 - it")
 def td_target(batch, q_next, gamma):  # noqa: F811
     return batch.rew + gamma * batch.terminated * q_next
 
 
-@mutant(ex=3, replaces="td_target", id="discount-reward", why="discounts the reward too")
+@mutant(ex=2, replaces="td_target", id="discount-reward", why="discounts the reward too")
 def td_target(batch, q_next, gamma):  # noqa: F811
     return gamma * (batch.rew + (1.0 - batch.terminated) * q_next)
 
 
-# ------------------------------------------------------------------ 3b: huber
-@mutant(ex=3, replaces="huber", id="squared-error", why="the squared error everywhere")
-def huber(x, threshold=1.0):
-    return 0.5 * x**2
-
-
-@mutant(
-    ex=3,
-    replaces="huber",
-    id="clipped-loss",
-    why="clips the loss, not the error: zero gradient for large errors",
-)
-def huber(x, threshold=1.0):  # noqa: F811
-    return torch.clamp(0.5 * x**2, max=0.5 * threshold**2)
-
-
-@mutant(ex=3, replaces="huber", id="no-offset", why="threshold * |x| outside, without - psi^2/2")
-def huber(x, threshold=1.0):  # noqa: F811
-    a = x.abs()
-    return torch.where(a <= threshold, 0.5 * x**2, threshold * a)
-
-
-@mutant(ex=3, replaces="huber", id="abs", why="the absolute error everywhere")
-def huber(x, threshold=1.0):  # noqa: F811
-    return x.abs()
-
-
-# ------------------------------------------------------------------ 4: train_dqn
+# ------------------------------------------------------------------ 3: train_dqn
 # The solution's body with one change each. Shared pieces (make_q_net, act, gather_q,
 # dqn_target, DQNLogger, ...) come from the notebook.
 @mutant(
-    ex=4,
+    ex=3,
     replaces="train_dqn",
     id="done-in-buffer",
     why="stores terminated or truncated as terminated, so truncation stops bootstrapping",
@@ -277,7 +269,7 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):
 
 
 @mutant(
-    ex=4,
+    ex=3,
     replaces="train_dqn",
     id="no-zero-grad",
     why="never calls opt.zero_grad(): every step's gradient adds to all the earlier ones",
@@ -323,7 +315,7 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
 
 
 @mutant(
-    ex=4,
+    ex=3,
     replaces="train_dqn",
     id="zero-grad-late",
     why="calls opt.zero_grad() after loss.backward(), so every step applies a zero gradient",
@@ -369,7 +361,7 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
 
 
 @mutant(
-    ex=4,
+    ex=3,
     replaces="train_dqn",
     id="no-step",
     why="computes and clips the gradient but never calls opt.step(): the network never learns",
@@ -414,7 +406,7 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
 
 
 @mutant(
-    ex=4,
+    ex=3,
     replaces="train_dqn",
     id="target-is-online",
     why="computes targets with the online network: no target network (expected to diverge)",
@@ -457,7 +449,7 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
 
 
 @mutant(
-    ex=4,
+    ex=3,
     replaces="train_dqn",
     id="no-target-copy",
     why="never copies w into w-: the targets come from the initial network (Module 9's bug)",
@@ -500,7 +492,7 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
     return q_net, log.result()
 
 
-@mutant(ex=4, replaces="train_dqn", id="random", why="never learns: uniform random play")
+@mutant(ex=3, replaces="train_dqn", id="random", why="never learns: uniform random play")
 def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
     class UniformQ(nn.Module):
         """Values drawn afresh at every call: its greedy action is uniform random play."""
@@ -523,8 +515,8 @@ def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options): 
     return q_net, {"eval_step": np.array(grid), "eval_return": np.array(returns, np.float32)}
 
 
-# ------------------------------------------------------------------ 5: double_dqn_target
-@mutant(ex=5, replaces="double_dqn_target", id="target-selects", why="DQN's target: w- picks too")
+# ------------------------------------------------------------------ 4: double_dqn_target
+@mutant(ex=4, replaces="double_dqn_target", id="target-selects", why="DQN's target: w- picks too")
 def double_dqn_target(batch, q_net, target_net, gamma):
     with torch.no_grad():
         q_t = target_net(batch.next_obs)
@@ -532,7 +524,7 @@ def double_dqn_target(batch, q_net, target_net, gamma):
 
 
 @mutant(
-    ex=5,
+    ex=4,
     replaces="double_dqn_target",
     id="online-evaluates",
     why="the online network both selects and evaluates",
@@ -544,7 +536,7 @@ def double_dqn_target(batch, q_net, target_net, gamma):  # noqa: F811
 
 
 @mutant(
-    ex=5,
+    ex=4,
     replaces="double_dqn_target",
     id="with-gradient",
     why="no torch.no_grad(): the targets carry the online network's gradient",
@@ -555,7 +547,7 @@ def double_dqn_target(batch, q_net, target_net, gamma):  # noqa: F811
     return td_target(batch, q_next, gamma)  # noqa: F821
 
 
-@mutant(ex=5, replaces="double_dqn_target", id="selects-at-s", why="takes the argmax at s, not s'")
+@mutant(ex=4, replaces="double_dqn_target", id="selects-at-s", why="takes the argmax at s, not s'")
 def double_dqn_target(batch, q_net, target_net, gamma):  # noqa: F811
     with torch.no_grad():
         a_next = q_net(batch.obs).argmax(dim=1)
@@ -563,13 +555,13 @@ def double_dqn_target(batch, q_net, target_net, gamma):  # noqa: F811
         return td_target(batch, q_next, gamma)  # noqa: F821
 
 
-# ------------------------------------------------------------------ 6: mc_return
-@mutant(ex=6, replaces="mc_return", id="undiscounted", why="forgets gamma")
+# ------------------------------------------------------------------ 5: mc_return
+@mutant(ex=5, replaces="mc_return", id="undiscounted", why="forgets gamma")
 def mc_return(rewards, gamma):
     return np.cumsum(np.asarray(rewards, dtype=float)[::-1])[::-1]
 
 
-@mutant(ex=6, replaces="mc_return", id="off-by-one", why="discounts the first reward too")
+@mutant(ex=5, replaces="mc_return", id="off-by-one", why="discounts the first reward too")
 def mc_return(rewards, gamma):  # noqa: F811
     g, total = np.zeros(len(rewards)), 0.0
     for t in reversed(range(len(rewards))):
@@ -578,7 +570,7 @@ def mc_return(rewards, gamma):  # noqa: F811
     return g
 
 
-@mutant(ex=6, replaces="mc_return", id="forward", why="accumulates from the start, not the end")
+@mutant(ex=5, replaces="mc_return", id="forward", why="accumulates from the start, not the end")
 def mc_return(rewards, gamma):  # noqa: F811
     g, total = np.zeros(len(rewards)), 0.0
     for t in range(len(rewards)):
@@ -587,16 +579,16 @@ def mc_return(rewards, gamma):  # noqa: F811
     return g
 
 
-@mutant(ex=6, replaces="mc_return", id="scalar", why="returns G_0 alone, not every G_t")
+@mutant(ex=5, replaces="mc_return", id="scalar", why="returns G_0 alone, not every G_t")
 def mc_return(rewards, gamma):  # noqa: F811
     return float(np.sum(gamma ** np.arange(len(rewards)) * np.asarray(rewards)))
 
 
-# ------------------------------------------------------------------ 7: sb3_call
+# ------------------------------------------------------------------ 6: sb3_call
 # The recorded bands call a tie at both budgets (m08_sb3_call), so both mutants answer with a
 # ranking. If a future record ranks the two, `higher-iqm` may become right at that budget:
 # replace it with an "always tie" mutant then.
-@mutant(ex=7, replaces="sb3_call", id="higher-iqm", why="ranks by IQM and ignores the intervals")
+@mutant(ex=6, replaces="sb3_call", id="higher-iqm", why="ranks by IQM and ignores the intervals")
 def sb3_call():
     from prl.evaluate import iqm
 
@@ -606,7 +598,7 @@ def sb3_call():
 
 
 @mutant(
-    ex=7,
+    ex=6,
     replaces="sb3_call",
     id="your-seed",
     why="lets the participant's own seed decide (the Gotcha: landing above SB3's IQM)",

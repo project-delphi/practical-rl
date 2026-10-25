@@ -1,11 +1,13 @@
 # origin: labs/src/08-dqn.py
-# Provided plumbing for the workshop's one DQN (Lab 8): the configuration, the network,
-# epsilon-greedy acting, the gather, the DQN target, the logger and greedy evaluation.
-# Lab 8 includes this file, and so do Modules 9, 14 and 15b, so every DQN in the workshop
-# runs the same configuration. dqn_target reads td_target from the notebook (Lab 8,
-# Exercise 3), by its name, each time it runs.
+# Provided code for the workshop's one DQN (Lab 8): the configuration, the network,
+# epsilon-greedy acting, the gather, the Huber loss, the DQN target, the logger, train_dqn's
+# setup (dqn_parts) and greedy evaluation. Lab 8 includes this file, and so do Modules 9, 14
+# and 15b, so every DQN in the workshop runs the same configuration. Two names are read from
+# the notebook each time they run: dqn_target calls td_target (Lab 8, Exercise 2) and
+# dqn_parts builds a ReplayBuffer (Lab 8, Exercise 1).
 import dataclasses
 import time
+import types
 from typing import NamedTuple
 
 import numpy as np
@@ -83,6 +85,15 @@ def act(q_net, obs, epsilon, n_actions, rng):
 def gather_q(q_values, actions):
     """Q(s_i, a_i; w) for each row i: q_values (B, |A|) and actions (B,) give (B,)."""
     return q_values.gather(1, actions.long().unsqueeze(1)).squeeze(1)
+
+
+def huber(x, threshold=1.0):
+    """The Huber loss of every entry of x: x^2/2 where |x| <= threshold, and
+    threshold * (|x| - threshold/2) beyond. Its derivative is x clipped to [-threshold, threshold]."""
+    a = x.abs()
+    quadratic = 0.5 * x**2
+    linear = threshold * (a - 0.5 * threshold)
+    return torch.where(a <= threshold, quadratic, linear)
 
 
 def dqn_target(batch, q_net, target_net, gamma):
@@ -297,3 +308,32 @@ class DQNLogger:
         out["config"] = dataclasses.asdict(self.cfg)
         out["seconds"] = round(time.perf_counter() - self.start, 2)
         return out
+
+
+def dqn_parts(make_env, config, seed, steps, **log_options):
+    """train_dqn's setup, seeded in a fixed order (torch, then a NumPy generator, then the first
+    reset), so every lab's runs match the recorded ones. Returns a namespace with env, obs
+    (the first state), n_actions, rng, q_net, target_net (a copy of q_net), opt (Adam),
+    buffer (an empty ReplayBuffer) and log (a DQNLogger; log_options go to it)."""
+    torch.manual_seed(seed)
+    rng = np.random.default_rng(seed)
+    env = make_env()
+    obs_dim, n_actions = env.observation_space.shape[0], env.action_space.n
+    q_net = make_q_net(obs_dim, n_actions, config)
+    target_net = make_q_net(obs_dim, n_actions, config)
+    target_net.load_state_dict(q_net.state_dict())  # w- = w
+    opt = torch.optim.Adam(q_net.parameters(), lr=config.lr)
+    buffer = ReplayBuffer(config.buffer_size, obs_dim)  # yours, from Lab 8 Exercise 1
+    log = DQNLogger(config, steps, q_net, target_net, make_env, **log_options)
+    obs, _ = env.reset(seed=seed)
+    return types.SimpleNamespace(
+        env=env,
+        obs=obs,
+        n_actions=n_actions,
+        rng=rng,
+        q_net=q_net,
+        target_net=target_net,
+        opt=opt,
+        buffer=buffer,
+        log=log,
+    )
