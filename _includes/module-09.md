@@ -8,7 +8,7 @@ Diagnose broken agents from their logs, confirm with probe environments, and rep
 :::
 
 ::: {.module-actions}
-[Lab notebook not built yet]{.btn-disabled} [Other ways to run](/setup.qmd#local){.btn-quiet}
+[Open in Colab[, Lab 9: Debugging and evaluating RL (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/09-debugging-evaluation.ipynb){.btn-colab target="_blank" rel="noopener"} [Download .ipynb](https://github.com/project-delphi/practical-rl/raw/main/notebooks/09-debugging-evaluation.ipynb){.btn-quiet} [Other ways to run](/setup.qmd#local){.btn-quiet}
 :::
 :::
 
@@ -37,7 +37,7 @@ Without GPU
 
 In this module you will:
 
-- Diagnose four DQN failures from logged metrics by writing the signal that exposes each.
+- Diagnose four broken DQN runs from one table of signals on their logs, two exact checks and two scale signals.
 - Confirm a diagnosis with probe environments and a debugging checklist.
 - Report a comparison with IQM, bootstrap confidence intervals and a budget sentence, and call ties.
 - Interpret a hyperparameter sensitivity sweep.

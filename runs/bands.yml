@@ -102,3 +102,16 @@ m08_sb3_return:
   records:
     live: 2026-10-24-local-m08-sb3-live-exp
     quick: 2026-10-24-local-m08-sb3-quick-exp
+
+# Module 9 (Lab 9's Exercise 6 reads it at both budgets; seeds 0-9, C37). The live record's
+# runs equal the m09-sweep record's x1 row, and seeds 0-4 at both budgets equal Module 8's
+# m08_dqn_return records (scripts/make_figures_m09.py asserts both when it records them).
+m09_reference:
+  metric: >-
+    Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of the reference DQN (Lab 8's train_dqn with CONFIG, as Lab 9 includes it), against environment steps
+  x: budget.grid
+  runs: per_seed.return
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-25-local-m09-reference-live-exp
+    quick: 2026-10-25-local-m09-reference-quick-exp

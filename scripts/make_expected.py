@@ -2623,6 +2623,241 @@ def m08_sb3_call() -> bytes:
     return _save("m08_sb3_call", **out)
 
 
+# ---------------------------------------------------------------- Module 9 (debugging, evaluation)
+M09_GAMMA = 0.99
+
+
+def m09_gather() -> bytes:
+    """Checkpoint 1.1: two snapshots of 4 rows; row (0, 1) gathered 1.0 off, row (1, 3) only
+    1e-9 off (equal within the tolerance), so the share of wrong rows is 1/8. A count gives 1,
+    == gives 2/8, max_a Q gives a share of the rows whose action is 0."""
+    q = np.arange(16, dtype=float).reshape(2, 4, 2)
+    actions = np.array([[0, 1, 1, 0], [1, 1, 0, 0]], dtype=np.int64)
+    gathered = np.take_along_axis(q, actions[..., None], axis=-1)[..., 0].copy()
+    gathered[0, 1] += 1.0
+    gathered[1, 3] += 1e-9
+    want = np.take_along_axis(q, actions[..., None], axis=-1)[..., 0]
+    answer = float(np.mean(~np.isclose(gathered, want, rtol=1e-5, atol=1e-6)))
+    assert answer == 1 / 8
+    wrong = {  # the mutants' values, all apart from 1/8
+        "count": float(np.sum(~np.isclose(gathered, want, rtol=1e-5, atol=1e-6))),
+        "exact-equal": float(np.mean(gathered != want)),
+        "argmax": float(np.mean(~np.isclose(gathered, q.max(axis=-1), rtol=1e-5, atol=1e-6))),
+    }
+    assert all(abs(v - answer) > 0.1 for v in wrong.values()), wrong
+    return _save(
+        "m09_gather",
+        snap_q=q,
+        snap_actions=actions,
+        snap_gathered=gathered,
+        answer=np.array(answer),
+    )
+
+
+def _m09_target_lag(q_tgt, step):
+    lag, last = np.zeros(len(step), dtype=np.int64), step[0]
+    for i in range(1, len(step)):
+        if np.any(q_tgt[i] != q_tgt[i - 1]):
+            last = step[i]
+        lag[i] = step[i] - last
+    return lag
+
+
+def m09_lag() -> bytes:
+    """Checkpoint 1.2: the target's probe values change at log points 2 and 5; the online
+    values (q_probe) change at every point, so watching them gives 0 everywhere."""
+    step = 500 * np.arange(1, 7, dtype=np.int64)
+    q_tgt = np.zeros((6, 2, 2))
+    q_tgt[2:] += 1.0
+    q_tgt[5] += 1.0
+    q_on = np.cumsum(np.ones((6, 2, 2)), axis=0)
+    answer = _m09_target_lag(q_tgt, step)
+    assert answer.tolist() == [0, 500, 0, 500, 1000, 0]
+    assert not _m09_target_lag(q_on, step).any()  # the `online` mutant: all 0
+    return _save("m09_lag", step=step, q_probe_target=q_tgt, q_probe=q_on, answer=answer)
+
+
+def _m09_q_drift(q_probe, step, end, g0, window):
+    q_bar = q_probe.max(axis=-1).mean(axis=-1)
+    out = np.full(len(step), np.nan)
+    for i, t in enumerate(step):
+        recent = (end > t - window) & (end <= t)
+        if recent.any():
+            out[i] = q_bar[i] - g0[recent].mean()
+    return out
+
+
+def m09_drift() -> bytes:
+    """Checkpoint 2.1: four log points, three probe states with Q = (v, v - 1), episodes
+    ending at 200, 900, 1000, 1900. ep_return differs from ep_disc_return so the undiscounted
+    version fails; window 50 leaves gaps (NaN)."""
+    step = np.array([500, 1000, 1500, 2000], dtype=np.int64)
+    q_probe = np.stack([np.full((3, 2), v) + np.array([0.0, -1.0]) for v in (1.0, 2.0, 3.0, 4.0)])
+    end = np.array([200, 900, 1000, 1900], dtype=np.int64)
+    g0 = np.array([10.0, 20.0, 40.0, 7.0])
+    ret = np.array([11.0, 25.0, 60.0, 7.0])
+    windows = np.array([600, 50], dtype=np.int64)
+    answers = np.stack([_m09_q_drift(q_probe, step, end, g0, w) for w in windows])
+    assert answers[0].tolist() == [-9.0, -28.0, -37.0, -3.0]
+    assert np.array_equal(answers[1], [np.nan, -38.0, np.nan, np.nan], equal_nan=True)
+    return _save(
+        "m09_drift",
+        step=step,
+        q_probe=q_probe,
+        ep_end_step=end,
+        ep_disc_return=g0,
+        ep_return=ret,
+        windows=windows,
+        answers=answers,
+    )
+
+
+def m09_td_scale() -> bytes:
+    """Checkpoint 2.2: mean |delta| over |mean max_a Q|, with a negative Q scale in one row and
+    td_abs_max different from td_abs_mean."""
+    td = np.array([0.5, 1.0, 2.0, 3.0])
+    td_max = np.array([5.0, 9.0, 30.0, 3.0])
+    q = np.array([10.0, -20.0, 40.0, 1.5])
+    answer = td / np.abs(q)
+    assert np.allclose(answer, [0.05, 0.05, 0.05, 2.0], rtol=0, atol=1e-15)
+    return _save("m09_td_scale", td_abs_mean=td, td_abs_max=td_max, q_max_mean=q, answer=answer)
+
+
+def m09_diagnoses() -> bytes:
+    """Checkpoints 3.1-3.4: how runs A-D were made (the lab's AGENTS and the records'
+    args.runs): A lr x 100, B the gather along dimension 0, C no terminal mask, D no sync."""
+    return _save(
+        "m09_diagnoses",
+        runs=np.array(["A", "B", "C", "D"]),
+        answers=np.array(["lr", "gather", "mask", "sync"]),
+        causes=np.array(["mask", "sync", "lr", "gather", "reward", "seed"]),
+    )
+
+
+def m09_probes() -> bytes:
+    """Checkpoints 4.1, 4.2 and the stretch: the probes' spaces, how many seeds each check
+    samples, and the values a correct agent learns (exact). Probe 1: Q = r = 1 with the mask,
+    r / (1 - gamma) = 100 without; probe 2: Q(+1) = +1, Q(-1) = -1; probe 3: Q(1) = 1 and
+    Q(0) = gamma = 0.99. The share of +1 over 1,000 fair draws lies in (0.45, 0.55) except with
+    probability about 0.0016 (normal approximation); the seeded draws are fixed, so the check
+    is deterministic for a correct environment."""
+    q1_unmasked = 1.0 / (1 - M09_GAMMA)
+    assert abs(q1_unmasked - 100.0) < 1e-9
+    # Exercise 4's Predict: 20 completed regressions (copies at 100, 200, ..., 2,000 after the
+    # first gradient step at 65) give 1 + 0.99 + ... + 0.99^19 = 18.21 (exact under that model).
+    assert round(sum(M09_GAMMA**j for j in range(20)), 1) == 18.2
+    return _save(
+        "m09_probes",
+        gamma=np.array(M09_GAMMA),
+        low=np.array(-1.0),
+        high=np.array(1.0),
+        seeds_constant=np.array(200),
+        seeds_obs=np.array(200),
+        seeds_share=np.array(1000),
+        seeds_repeat=np.array(40),
+        share_low=np.array(0.45),
+        share_high=np.array(0.55),
+        q1_masked=np.array(1.0),
+        q1_unmasked=np.array(q1_unmasked),
+        q2_plus=np.array(1.0),
+        q2_minus=np.array(-1.0),
+        q3_first=np.array(M09_GAMMA * 1.0),
+        q3_second=np.array(1.0),
+    )
+
+
+def m09_iqm() -> bytes:
+    """Checkpoint 5.1: prl.evaluate.iqm (SciPy's trim_mean(x, 0.25)) on normal draws of
+    n = 4, 5, 10, 11, 12, 37 (n = 11 separates floor(n/4) from round(n/4)) and on an outlier."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.evaluate import iqm
+
+    rng = np.random.default_rng(0)
+    xs = [rng.normal(size=n) * 100 for n in (4, 5, 10, 11, 12, 37)]
+    xs.append(np.array([1.0, 2.0, 3.0, 4.0, 100.0]))
+    answers = np.array([iqm(x) for x in xs])
+    for x, a in zip(xs, answers, strict=True):  # the definition on the page, exactly
+        s, k = np.sort(x), len(x) // 4
+        assert abs(s[k : len(x) - k].mean() - a) <= 1e-12 * (1 + abs(a))
+    return _save(
+        "m09_iqm",
+        x=np.concatenate(xs),
+        lengths=np.array([len(x) for x in xs], dtype=np.int64),
+        answers=answers,
+    )
+
+
+def m09_bootstrap() -> bytes:
+    """Checkpoint 5.2: prl.evaluate.bootstrap_ci on 10 normal draws: (x, iqm) with defaults,
+    (x) with the mean, (x[:7], np.median, level 0.9, 1,000 resamples, seed 3)."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl.evaluate import bootstrap_ci, iqm
+
+    x = np.random.default_rng(1).normal(size=10) * 50 + 200
+    answers = np.array(
+        [
+            bootstrap_ci(x, iqm),
+            bootstrap_ci(x),
+            bootstrap_ci(x[:7], np.median, level=0.9, n_boot=1000, seed=3),
+        ]
+    )
+    return _save("m09_bootstrap", x=x, answers=answers)
+
+
+def m09_band_position() -> bytes:
+    """Checkpoint 6.1: above (+1), inside (0) or below (-1) the band; a tie with either end is
+    inside. The top and bottom cases catch >= and <=; 150 and 350 against a band whose mean is
+    116 catch a comparison with the mean."""
+    values = np.array([510.0, 500.0, 8.0, 9.0, 150.0, 350.0])
+    recorded = np.array([[480.0, 500.0, 120.0], [480.0, 500.0, 120.0]] + [[9.0, 300.0, 40.0]] * 4)
+    answers = np.array(
+        [
+            1 if v > r.max() else -1 if v < r.min() else 0
+            for v, r in zip(values, recorded, strict=True)
+        ],
+        dtype=np.int64,
+    )
+    assert answers.tolist() == [1, 0, -1, 0, 0, 1]
+    return _save("m09_band_position", values=values, recorded=recorded, answers=answers)
+
+
+def m09_record() -> bytes:
+    """Checkpoints 1.1, 1.2, 2.1 and 2.2 on the recorded runs (dataset m09_broken_runs): the
+    lab's own solutions (scripts/m09_signals.py) on every run and seed. gather_check and
+    target_lag for all five runs; q_drift on run C and td_error_scale on run A (handoff)."""
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    import m09_signals
+    import prl.data
+
+    d = prl.data.load("m09_broken_runs")
+    f = m09_signals.lab_functions(d)
+    runs, seeds = list(m09_signals.RUNS), [int(s) for s in d["seeds"]]
+    logs = {(r, s): f.run_log(r, s) for r in runs for s in seeds}
+    return _save(
+        "m09_record",
+        runs=np.array(runs),
+        seeds=np.array(seeds, dtype=np.int64),
+        gather_check=np.array([[f.gather_check(logs[r, s]) for s in seeds] for r in runs]),
+        target_lag=np.array([[f.target_lag(logs[r, s]) for s in seeds] for r in runs]),
+        q_drift_C=np.array([f.q_drift(logs["C", s]) for s in seeds]),
+        td_scale_A=np.array([f.td_error_scale(logs["A", s]) for s in seeds], dtype=np.float64),
+    )
+
+
+M09_FIXTURES = {
+    "m09_gather": m09_gather,
+    "m09_lag": m09_lag,
+    "m09_drift": m09_drift,
+    "m09_td_scale": m09_td_scale,
+    "m09_diagnoses": m09_diagnoses,
+    "m09_probes": m09_probes,
+    "m09_iqm": m09_iqm,
+    "m09_bootstrap": m09_bootstrap,
+    "m09_band_position": m09_band_position,
+    "m09_record": m09_record,  # from the dataset m09_broken_runs (build it first)
+}
+
+
 FIXTURES = {
     "m01_returns": m01_returns,
     "m01_eval": m01_eval,
@@ -2672,6 +2907,7 @@ FIXTURES = {
     "m08_mc_return": m08_mc_return,
     "m08_sb3_call": m08_sb3_call,
 }
+FIXTURES.update(M09_FIXTURES)
 
 
 def main(argv: list[str]) -> int:

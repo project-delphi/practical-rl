@@ -6,9 +6,9 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 ::: {.lab-steps}
 | # | Exercise | Min |
 |---|---|---|
-| 0 | [Runtime check [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb#scrollTo=ex0-head){target="_blank" rel="noopener"} | 5 |
-| 1 | [A random agent [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} | 5 |
-| 2 | [Seed bands [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 5 |
-| 3 | [Your run record [(opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 5 |
+| 0 | [Runtime check[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb#scrollTo=ex0-head){target="_blank" rel="noopener"} | 5 |
+| 1 | [A random agent[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} | 5 |
+| 2 | [Seed bands[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 5 |
+| 3 | [Your run record[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/00-setup.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 5 |
 | | **Total** | **20** |
 :::

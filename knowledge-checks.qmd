@@ -5,7 +5,7 @@ title: "Knowledge checks"
 The entry check (three questions in each of four areas), one or two questions per learning objective with folded answers naming their evidence, and five-question warm-up sets for Days 2–5.
 
 ::: {.callout-note}
-Modules 1 to 7 are written below. The entry check, the other modules and the warm-up sets are written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+Modules 1 to 9 are written below. The entry check, the other modules and the warm-up sets are written in Phase 4 (see the [plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
 :::
 
 ## Module 1 {#m01}
@@ -645,4 +645,80 @@ Each correct seed lands outside an $n$-seed range with probability $2/(n + 1)$: 
 The intervals do not overlap, so SB3's DQN is better at this budget. Before blaming the implementation, check what Exercise 6 lists as not matched (SB3's uniform random actions before learning starts, the order of the target copy and the gradient step within a step, and three smaller differences), check that the budget is really equal, and check that the call holds with more seeds or at a second budget. A call at one budget is a statement about that budget.
 
 **Evidence:** Lab 8, checkpoint 6 (your call against the rule's verdict on the recorded seeds).
+:::
+
+## Module 9 {#m09}
+
+Questions for [Module 9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd), for after the lab, two per objective. Each answer ends with the Lab 9 checkpoint or exercise that is its evidence.
+
+### Objective 1: diagnose four broken DQN runs from one table of signals on their logs, two exact checks and two scale signals
+
+[**9.1**]{#q9-1} A CartPole DQN with $\gamma = 0.99$ logs $Q$ at its start states near 4,000 at step 50,000, while its recent episodes last about 10 steps. Compute the discounted return of a 10-step episode and the largest discounted return any CartPole episode can earn. What is the Q drift, roughly? Which cause on the lab's list does it point to, and why do you still run a probe before you call it?
+
+::: {.callout-tip collapse="true" title="Answer to 9.1"}
+A 10-step episode pays 1 per step: $G_0 = \sum_{t=0}^{9} 0.99^t = (1 - 0.99^{10})/0.01 = 9.56$. The longest episode, 500 steps, gives $\sum_{t=0}^{499} 0.99^t = 99.34$. The drift is about $4000 - 9.6 \approx 3990$: the network values the start states some 40 times more than any episode could deliver. A target that bootstraps past the end of an episode, the missing mask, adds value that no episode contains, so it is the first suspect. But a large $Q$ is not proof: a masked DQN with a far too large step size, or one that diverges as Module 7's deadly triad allows, can also push $Q$ up. Probe 1 separates them: with the mask its answer is the reward, exactly.
+
+**Evidence:** Lab 9, checkpoints 2.1 (`q_drift`, exact) and 3.3 (the diagnosis of run C); Exercise 4's run tests it on probe 1.
+:::
+
+[**9.2**]{#q9-2} A logged batch of four rows has $Q(s, \cdot\,; w)$ equal to $(1.0, 2.0)$, $(3.0, 0.5)$, $(0.2, 0.1)$ and $(4.0, 4.5)$, actions $1, 0, 0, 1$, and gathered values $1.0, 0.5, 0.1, 4.0$. What does `gather_check` return? What did the code gather instead, and what does a healthy run return, and why exactly that?
+
+::: {.callout-tip collapse="true" title="Answer to 9.2"}
+The values the loss should use are $Q(s_i, a_i)$: $2.0, 3.0, 0.2, 4.5$. None matches, so `gather_check` returns $4/4 = 1.0$. Every gathered value is the entry of the *other* action, $Q(s_i, 1 - a_i)$: an index bug such as gathering with `1 - actions`. A healthy run returns exactly 0.0: the logged gathered value is the very tensor the loss used, read from the same forward pass, so it equals $Q(s_i, a_i)$ to the last bit. The tolerance in the check only guards against a logger that recomputes the forward pass.
+
+**Evidence:** Lab 9, checkpoint 1.1 (`gather_check`, exact on fixed batches and on the record).
+:::
+
+### Objective 2: confirm a diagnosis with probe environments and a debugging checklist
+
+[**9.3**]{#q9-3} A probe like probe 1 pays a reward of 2 and ends after one step; $\gamma = 0.9$. What $Q$ does a correct agent learn? An agent ignores `terminated`: what value is its $Q$ heading to? If each period between target syncs lets the network fit its target, what is $Q$ after 10 syncs?
+
+::: {.callout-tip collapse="true" title="Answer to 9.3"}
+With the mask the target is the reward alone: $Q = 2$. Without it the target is $2 + 0.9\,Q$ evaluated with the target network, and the fixed point solves $Q = 2 + 0.9\,Q$: $Q = 2/(1 - 0.9) = 20$. Each sync period moves $Q$ one step of that iteration, from $Q_k$ to $2 + 0.9\,Q_k$, starting near 0, so after 10 periods $Q = 2(1 - 0.9^{10})/(1 - 0.9) = 13.03$. That is why the lab's run C sits far below its fixed point after 2,000 probe steps: it has had only 20 target copies.
+
+**Evidence:** Lab 9, checkpoint 4.1 (`ConstantRewardEnv`, exact) and Exercise 4's run, which trains run C's agent on probe 1.
+:::
+
+[**9.4**]{#q9-4} A colleague's DQN fails on CartPole but learns probes 1, 2 and 3 to three decimals. Name two kinds of cause that are still possible, with a next test for each.
+
+::: {.callout-tip collapse="true" title="Answer to 9.4"}
+First, a hyperparameter: the code is right but, for example, the learning rate is far too large. No probe tests a hyperparameter, so such an agent can pass them all. Compare its relative TD error with the healthy seeds' range, and run a small sweep of the suspect value. Second, a bug in code the one-action probes never exercise: action selection and exploration (Jones's probes 4 and 5 add a second action), the replay buffer's sampling (Module 8's planted bug), or CartPole-specific handling such as truncation. Test the first with probes 4 and 5, and the others with Module 8's checks of the buffer and the masked target on a hand-made batch.
+
+**Evidence:** Lab 9, Exercise 4's run (which agents pass probes 1 and 2) and the stretch (probe 3); checkpoint 3.1 (the diagnosis of run A, by elimination).
+:::
+
+### Objective 3: report a comparison with IQM, bootstrap confidence intervals and a budget sentence, and call ties
+
+[**9.5**]{#q9-5} Eight seeds return 0, 10, 200, 210, 220, 230, 500 and 500. Compute the IQM and the mean. A ninth seed returns 205: what is the IQM now, and how many values does it average?
+
+::: {.callout-tip collapse="true" title="Answer to 9.5"}
+With $n = 8$, $\ell = \lfloor 8/4 \rfloor = 2$: drop 0, 10 and the two 500s, and average $200, 210, 220, 230$: IQM 215. The mean is $1870/8 = 233.75$, pulled up by the two runs at the cap. With $n = 9$, $\ell = \lfloor 9/4 \rfloor = 2$ still: the sorted values are 0, 10, 200, 205, 210, 220, 230, 500, 500, and the IQM averages the middle 5, $1065/5 = 213$. With $n$ not a multiple of 4, SciPy's `trim_mean(z, 0.25)` keeps a little more than half.
+
+**Evidence:** Lab 9, checkpoint 5.1 (`iqm` against `prl.evaluate.iqm`).
+:::
+
+[**9.6**]{#q9-6} Methods A and B ran 10 seeds each at 50,000 steps. A's IQM is 180 with a 95% bootstrap interval of [150, 260]; B's is 140 with [120, 170]. What is the verdict? Write the sentence you would report, with its budget. A neighbor has 3 seeds per method: what rule applies to them?
+
+::: {.callout-tip collapse="true" title="Answer to 9.6"}
+The intervals overlap, from 150 to 170, so it is a tie: the data do not order A and B at this budget, although A's IQM is higher. "A and B tie at 50,000 environment steps: IQM 180 [150, 260] against 140 [120, 170], 95% percentile-bootstrap intervals over 10 seeds each; total wall-clock and hardware as recorded." With 3 seeds per side there is no interval: show every seed, compare the [min, max] ranges, and call overlapping ranges a tie.
+
+**Evidence:** Lab 9, checkpoint 5.2 (`bootstrap_ci` against `prl.evaluate.bootstrap_ci`) and Exercise 5's run, which applies the tie rule with `prl.evaluate.compare` and prints the budget.
+:::
+
+### Objective 4: interpret a hyperparameter sensitivity sweep
+
+[**9.7**]{#q9-7} Suppose a learning-rate sweep at 0.1, 0.3, 1, 3 and 10 times some reference, 10 seeds each, gives IQMs of 90, 170, 165, 120 and 9. The intervals of 0.3 and 1 overlap each other; those of 0.1 and 3 lie below both, and 10 sits at CartPole's floor on every seed. These numbers are made up for the question. Describe the shape, say which settings you would report as best, and say what the result at 10 means.
+
+::: {.callout-tip collapse="true" title="Answer to 9.7"}
+A short plateau at 0.3 and 1 times the reference, a slope down to 3 times, and a cliff at 10 times; on the left, 0.1 times learns, but less within the budget. Report that 0.3 and 1 times tie at this budget; naming 0.3 as best because its IQM is highest would be selection, not evidence. A return of 9 at 10 times is CartPole's floor on every seed: no policy was learned. The reference sits near the edge of the plateau, so a change of 3 times toward the cliff already costs a lot. A step size too large or too small for the budget looks like a bug, which is why every sweep states its budget.
+
+**Evidence:** Lab 9, Exercise 5's run (the recorded sweep, its intervals and its tie calls).
+:::
+
+[**9.8**]{#q9-8} Five configurations are in truth equally good, with true score $\mu$. Your estimate of each is $\mu$ plus independent normal noise with standard deviation 10. Why is the largest of the five estimates above $\mu$ on average? How far above, given that the mean of the largest of 5 independent standard normals is 1.163?
+
+::: {.callout-tip collapse="true" title="Answer to 9.8"}
+The maximum is a convex function, so by Jensen's inequality $\mathbb{E}[\max_i \hat Z_i] \ge \max_i \mathbb{E}[\hat Z_i] = \mu$: the same inequality as Module 8's overestimation of $\max_a Q$. Picking the best of several noisy estimates picks, in part, the luckiest one. With normal estimates of standard deviation 10, the largest of five is on average $1.163 \times 10 \approx 11.6$ above $\mu$ (the constant is the integral $\int x \cdot 5\varphi(x)\Phi(x)^4\,dx$, computed numerically). To report the chosen configuration's score, rerun it on fresh seeds.
+
+**Evidence:** the briefing, section 6, and Exercise 5's Explain. Lab 9 has no checkpoint for this objective.
 :::

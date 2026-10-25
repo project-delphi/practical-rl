@@ -1,0 +1,154 @@
+{
+  "badge_ref": "main",
+  "checkpoints": [
+    {
+      "exercise": 1,
+      "label": "1.1",
+      "pass": true,
+      "seconds": 0.008,
+      "whose": "reference"
+    },
+    {
+      "exercise": 1,
+      "label": "1.2",
+      "pass": true,
+      "seconds": 0.009,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2.1",
+      "pass": true,
+      "seconds": 0.009,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2.2",
+      "pass": true,
+      "seconds": 0.006,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.1",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.2",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.3",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.4",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4.1",
+      "pass": true,
+      "seconds": 0.007,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4.2",
+      "pass": true,
+      "seconds": 0.033,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5.1",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5.2",
+      "pass": true,
+      "seconds": 0.511,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6.1",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6.2",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    }
+  ],
+  "colab_release": null,
+  "content_sha": "15151194fe76ad64",
+  "date": "2026-10-25",
+  "dirty": false,
+  "env": "local",
+  "git_sha": "5993c16bfbb664f7dc280423c2444a3508c724dd",
+  "hardware": {
+    "accel": "mps",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "notebook",
+  "metrics": {
+    "live_position": 1,
+    "live_return": 438.4,
+    "probe_q_c": 18.02
+  },
+  "notebook": "09-debugging-evaluation",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "torch": "2.14.1"
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "quick": false,
+  "quick_reason": "designed for colab-cpu; running full settings",
+  "schema": 1,
+  "scope": "notebook",
+  "seat": 0,
+  "seconds": 26.4,
+  "seeds": [],
+  "settings": {
+    "eval_episodes": 10,
+    "eval_every": 5000,
+    "log_every": 500,
+    "probe_steps": 2000,
+    "steps": 50000
+  },
+  "shims": [],
+  "solutions_bound": true,
+  "source": "tool",
+  "status": "pass",
+  "test_doubles": [],
+  "torch_threads": 2
+}

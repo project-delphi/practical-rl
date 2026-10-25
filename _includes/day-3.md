@@ -27,6 +27,6 @@ Replay, a target network and the Huber loss make neural Q-learning stable; Doubl
 
 Diagnose broken agents from their logs, confirm with probe environments, and report results honestly.
 
-[Colab CPU]{.chip} [core 52 min]{.chip} [notebook not built yet]{.chip .chip-none}
+[Colab CPU]{.chip} [core 52 min]{.chip} [Open in Colab[, Lab 9 (opens in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/09-debugging-evaluation.ipynb){.btn-quiet target="_blank" rel="noopener"}
 :::
 :::

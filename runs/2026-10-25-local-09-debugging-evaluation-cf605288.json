@@ -1,0 +1,155 @@
+{
+  "badge_ref": "main",
+  "checkpoints": [
+    {
+      "exercise": 1,
+      "label": "1.1",
+      "pass": true,
+      "seconds": 0.009,
+      "whose": "reference"
+    },
+    {
+      "exercise": 1,
+      "label": "1.2",
+      "pass": true,
+      "seconds": 0.01,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2.1",
+      "pass": true,
+      "seconds": 0.009,
+      "whose": "reference"
+    },
+    {
+      "exercise": 2,
+      "label": "2.2",
+      "pass": true,
+      "seconds": 0.007,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.1",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.2",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.3",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": 3,
+      "label": "3.4",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4.1",
+      "pass": true,
+      "seconds": 0.008,
+      "whose": "reference"
+    },
+    {
+      "exercise": 4,
+      "label": "4.2",
+      "pass": true,
+      "seconds": 0.034,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5.1",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 5,
+      "label": "5.2",
+      "pass": true,
+      "seconds": 0.628,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6.1",
+      "pass": true,
+      "seconds": 0.001,
+      "whose": "reference"
+    },
+    {
+      "exercise": 6,
+      "label": "6.2",
+      "pass": true,
+      "seconds": 0.0,
+      "whose": "reference"
+    }
+  ],
+  "colab_release": null,
+  "content_sha": "cf6052886e6fd869",
+  "date": "2026-10-25",
+  "dirty": false,
+  "env": "local",
+  "git_sha": "6a78cd490281d138f100e3b6f2fd0dd6041ddd84",
+  "hardware": {
+    "accel": "mps",
+    "cpu": "Apple M1 Pro",
+    "gpu": null,
+    "n_cpu": 10,
+    "ram_gb": 16.0
+  },
+  "kind": "notebook",
+  "metrics": {
+    "live_position": 0,
+    "live_return": 177.8,
+    "probe_q_c": 18.02
+  },
+  "note": "Worked mode, QUICK, on an Apple M1 Pro laptop (not Colab) while other jobs held the load average at 13-19: `seconds` (178.0) is the wall-clock from lab.init to lab.finish under that load; scripts/check_notebooks.py timed the run at 30.7 s.",
+  "notebook": "09-debugging-evaluation",
+  "packages": {
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "prl": "0.1.0.dev0",
+    "scipy": "1.18.1",
+    "torch": "2.14.1"
+  },
+  "platform": "local",
+  "prl_version": "0.1.0.dev0",
+  "python": "3.13.2",
+  "quick": true,
+  "quick_reason": "PRL_QUICK=1 is set",
+  "schema": 1,
+  "scope": "notebook",
+  "seat": 0,
+  "seconds": 178.0,
+  "seeds": [],
+  "settings": {
+    "eval_episodes": 10,
+    "eval_every": 1000,
+    "log_every": 500,
+    "probe_steps": 2000,
+    "steps": 10000
+  },
+  "shims": [],
+  "solutions_bound": true,
+  "source": "tool",
+  "status": "pass",
+  "test_doubles": [],
+  "torch_threads": 2
+}

@@ -716,5 +716,121 @@
       4
     ],
     "sha256": "91fae90a952cf68709295d4e25884a72e57694cc08d4d2330f93953958150acd"
+  },
+  "bands/m09_reference.live": {
+    "budget": {
+      "eval_every": 5000,
+      "steps": 50000
+    },
+    "bytes": 1638,
+    "file": "bands/m09_reference.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of the reference DQN (Lab 8's train_dqn with CONFIG, as Lab 9 includes it), against environment steps",
+    "name": "m09_reference",
+    "record": "2026-10-25-local-m09-reference-live-exp",
+    "record_sha": "5613510610b0bf47b3b62e47eee7ef6111acfebc0128956064a681bab36734c8",
+    "seconds": {
+      "per_seed": [
+        7.42,
+        7.44,
+        7.53,
+        7.44,
+        7.58,
+        7.44,
+        7.58,
+        7.48,
+        7.47,
+        7.75
+      ],
+      "total": 75.1
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "sha256": "113f401f563de74146e94dbd2ea2954628d274247f24dc65e8cd22c3f7be9641"
+  },
+  "bands/m09_reference.quick": {
+    "budget": {
+      "eval_every": 1000,
+      "steps": 10000
+    },
+    "bytes": 1638,
+    "file": "bands/m09_reference.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of the reference DQN (Lab 8's train_dqn with CONFIG, as Lab 9 includes it), against environment steps",
+    "name": "m09_reference",
+    "record": "2026-10-25-local-m09-reference-quick-exp",
+    "record_sha": "81b219418b352b7154b69f655074ece569fc66dc6848561a708d9cf1742631aa",
+    "seconds": {
+      "per_seed": [
+        1.74,
+        1.61,
+        1.96,
+        1.79,
+        1.74,
+        1.74,
+        1.78,
+        1.54,
+        1.74,
+        1.68
+      ],
+      "total": 17.3
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "sha256": "11ecdda94b660286e6c48e71a2c2f74b6abd85869cb591bfd17b05fa7c14dc97"
+  },
+  "m09_broken_runs": {
+    "bytes": 2047050,
+    "file": "m09_broken_runs.npz",
+    "kind": "dataset",
+    "provenance": "m09_broken_runs.provenance.json",
+    "sha256": "8456849c4cd8e74ce9049cc2ee5b4f530fe6668175e537397db19edb4621880f"
+  },
+  "m09_sweep": {
+    "bytes": 5364,
+    "file": "m09_sweep.npz",
+    "kind": "dataset",
+    "provenance": "m09_sweep.provenance.json",
+    "sha256": "f8f6e71a6ede2e0d0461e348073a3642709388ce823e33a638f9e99eb9ce8313"
   }
 }
