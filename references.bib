@@ -474,7 +474,21 @@
   annote  = {Verified 2026-10-09 via the DOI record and the paper (error-clipping quote re-checked in the academic-director review). Cite: Methods,
              "Training algorithm for deep Q-networks": experience replay, target network cloned every C updates, TD error clipped to [-1, 1] in the update;
              Algorithm 1. CAVEAT: the paper never says "Huber". Pages say: clipping delta in the gradient of (1/2)delta^2 gives exactly the gradient of the
-             Huber loss with threshold 1. The gradients are equal, not the loss values. Clipping the LOSS is not equivalent.}
+             Huber loss with threshold 1. The gradients are equal, not the loss values. Clipping the LOSS is not equivalent.
+             Also opened (academic director, Module 8, 2026-10-24): the published letter with Methods and Extended Data, as hosted by DeepMind
+             (storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf; "RESEARCH LETTER", page footers 529 and 530), text extracted with pypdf.
+             p. 529: RL with a nonlinear approximator "is known to be unstable or even to diverge"; three causes: correlations in the sequence of
+             observations, small updates to Q that change the policy and the data distribution, and correlations between Q and the target values;
+             experience replay "randomizes over the data", the target values are "only periodically updated". Methods, "Training algorithm for deep
+             Q-networks": replay gives data efficiency (each step "potentially used in many weight updates"), breaks correlations and "therefore
+             reduces the variance of the updates", and averages the behaviour distribution, avoiding feedback loops; learning by replay must be
+             off-policy, "which motivates the choice of Q-learning"; only the last N tuples are stored and sampled uniformly at random, and
+             prioritized sampling is mentioned as a possible refinement; "every C updates we clone the network Q to obtain a target network",
+             which makes "divergence or oscillations much more unlikely"; the Methods' loss section calls the result "a sequence of well-defined
+             optimization problems"; quote: "We also found it helpful to clip the error term from the update ... to be between -1 and 1" and
+             "corresponds to using an absolute value loss function for errors outside of the (-1,1) interval" (the paper's words are "clipping the
+             squared error"; the paper never says "Huber"); RMSProp is the optimizer. Algorithm 1: y_j = r_j if the episode terminates at step
+             j+1, else r_j + gamma max_a' Q-hat(phi_{j+1}, a'; theta^-); "Every C steps reset Q-hat = Q". Module 8 cites p. 529, Methods and Algorithm 1.}
 }
 
 @inproceedings{thrun1993issues,
@@ -509,7 +523,46 @@
   annote    = {Verified 2026-10-09 via the DOI record and arXiv 1509.06461 (re-checked in the academic-director review). Cite: Theorem 1, a TIGHT LOWER BOUND
                max_a Q_t >= V* + sqrt(C/(m-1)), valid when all true action values are equal and the estimation errors are zero-mean with mean square C
                (section "Overoptimism due to estimation errors"; proof in the appendix). It is not a statement about expected bias in general.
-               Module 8 derives E[max] >= max E by Jensen, then states Thm 1 with its conditions. Q is measured against MC returns of the greedy policy (as in their Fig. 3).}
+               Module 8 derives E[max] >= max E by Jensen, then states Thm 1 with its conditions. Q is measured against MC returns of the greedy policy (as in their Fig. 3).
+               Also opened (academic director, Module 8, 2026-10-24): arXiv 1509.06461v3 (dated 8 Dec 2015, 13 pages with appendix), text extracted with
+               pypdf; not the AAAI proceedings PDF (the OJS page did not render; OPEN_QUESTIONS B72). Section numbers are unnumbered titles in v3.
+               "Overoptimism due to estimation errors": Theorem 1 verbatim conditions: all true optimal action values equal, Q*(s,a) = V*(s);
+               estimates "on the whole unbiased in the sense that sum_a (Q_t(s,a) - V*(s)) = 0", "not all correct" (appendix: "not all zero"),
+               (1/m) sum_a (Q_t(s,a) - V*(s))^2 = C > 0, m >= 2 actions; then max_a Q_t(s,a) >= V*(s) + sqrt(C/(m-1)); "This lower bound is tight";
+               the lower bound on the absolute error of the Double Q-learning estimate is zero; independence is not assumed; the bound decreases
+               with m, "an artifact of considering the lower bound", while typical overoptimism increases with m (Figure 1: independent standard
+               normal errors, 100 repetitions). Section "Double Q-learning": two value functions, each experience assigned at random to update one.
+               Section "Double DQN": Y = R + gamma Q(S', argmax_a Q(S', a; theta_t), theta^-_t) (unnumbered); the target network is "not fully
+               decoupled"; "perhaps the minimal possible change to DQN towards Double Q-learning". "Results on overoptimism": value estimates
+               compared with "the actual discounted value of the best learned policy"; Figure 3. Appendix: proof of Theorem 1; Theorem 2,
+               independent uniform errors on [-1, 1] give E[max_a Q_t(s,a) - V*(s)] = (m-1)/(m+1). Module 8 cites Theorem 1, Theorem 2 (appendix),
+               Figures 1 and 3, and the three named sections.}
+}
+
+@inproceedings{schaul2016per,
+  author        = {Schaul, Tom and Quan, John and Antonoglou, Ioannis and Silver, David},
+  title         = {Prioritized Experience Replay},
+  booktitle     = {International Conference on Learning Representations (ICLR)},
+  year          = {2016},
+  eprint        = {1511.05952},
+  archivePrefix = {arXiv},
+  annote        = {Opened 2026-10-24 (academic director, Module 8): arXiv 1511.05952v4 PDF (header "Published as a conference paper at ICLR 2016";
+                   the arXiv abstract page's comment says "Published at ICLR 2016"), text extracted with pypdf. Cite: s3.3 Stochastic prioritization,
+                   Eq. 1, P(i) = p_i^alpha / sum_k p_k^alpha, proportional p_i = |delta_i| + epsilon or rank-based p_i = 1/rank(i); s3.4 Annealing the
+                   bias, importance-sampling weights w_i = (1/N * 1/P(i))^beta, normalized by 1/max_i w_i, beta annealed linearly to 1.
+                   Module 8 cites both in a reference block; its alpha and beta are written alpha_per and beta_per.}
+}
+
+@misc{wang2016dueling,
+  author        = {Wang, Ziyu and Schaul, Tom and Hessel, Matteo and van Hasselt, Hado and Lanctot, Marc and de Freitas, Nando},
+  title         = {Dueling Network Architectures for Deep Reinforcement Learning},
+  year          = {2016},
+  eprint        = {1511.06581},
+  archivePrefix = {arXiv},
+  annote        = {Opened 2026-10-24 (academic director, Module 8): arXiv 1511.06581v3 PDF, text extracted with pypdf. The arXiv record states no venue;
+                   the ICML 2016 publication is not verified (OPEN_QUESTIONS B73), so this entry cites the arXiv version. Cite: s3, Eq. 7
+                   Q = V + A ("unidentifiable": a constant moves between V and A), Eq. 8 (subtract the max advantage), Eq. 9 (subtract the mean
+                   advantage; all experiments use Eq. 9). Module 8 cites Eqs. 7 and 9 in a reference block.}
 }
 
 % ---------------------------------------------------------------------------
@@ -1041,7 +1094,14 @@
   number  = {268},
   pages   = {1--8},
   year    = {2021},
-  annote  = {Verified 2026-10-09 via the JMLR page. Software used: stable-baselines3 2.9.0 (PyPI, 2026-06-15).}
+  annote  = {Verified 2026-10-09 via the JMLR page. Software used: stable-baselines3 2.9.0 (PyPI, 2026-06-15).
+             Source read (academic director, Module 8, 2026-10-24), stable-baselines3 2.9.0 as installed by uv.lock: dqn/dqn.py (defaults; the
+             docstring says defaults follow the Nature paper except the optimizer and learning rate; train() uses F.smooth_l1_loss and
+             clip_grad_norm_ with max_grad_norm; _on_step() copies the target every target_update_interval environment steps, called after each
+             step and before that rollout's gradient steps); dqn/policies.py (MlpPolicy net_arch [64, 64], ReLU, Adam with torch defaults);
+             common/off_policy_algorithm.py (_sample_action draws uniformly at random while num_timesteps < learning_starts; training runs after
+             each rollout once num_timesteps > learning_starts); common/buffers.py (handle_timeout_termination=True by default, so time-limit
+             truncations bootstrap). Module 8's s6 cites the matched knobs and the two differences from this reading.}
 }
 
 @article{huang2022cleanrl,

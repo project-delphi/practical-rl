@@ -91,6 +91,15 @@ and note the paper's original symbol here.
 | $\hat N(x)$ | pseudo-count of a state $x$, derived from a density model (Module 6, section 6) | Bellemare et al.'s $\hat N_n(x)$ |
 | $\rho_{\text{dens}}, \rho'_{\text{dens}}$ | a density model's probability of a state before and after seeing it once more (Module 6, reference only) | Bellemare et al.'s $\rho_n, \rho'_n$ (clash with $\rho_t$) |
 | $f, \hat f$ | RND's fixed random target network and its trained predictor (Module 6, section 6) | |
+| $Q(s, a; w)$, $w^-$ | Module 8: the online network and the parameters of the target network, a copy of $w$ refreshed every `target_sync` steps | Mnih et al.'s $\theta$, $\theta^-$ and van Hasselt et al.'s $\theta_t$, $\theta^-_t$ ($\theta$ is our policy parameters) |
+| $\mathcal{D}$, $\mathcal{B}$, $\lvert \mathcal{B} \rvert$ | Module 8: the replay buffer, a minibatch drawn from it, and the batch size | Mnih et al.'s $D$ (our $D$ is Module 7's $\operatorname{diag}(\mu)$) |
+| $\mathrm{term}_i$, $\mathrm{trunc}_i$ | Module 8: 1 if transition $i$ ended at a terminal state (Gymnasium's `terminated`), or was cut (`truncated`); 0 otherwise | |
+| $y_i$ | Module 8: the TD target of transition $i$ of a minibatch | Mnih et al.'s $y_j$; van Hasselt et al.'s $Y_t$ |
+| $\operatorname{huber}_\psi$, $\psi$ | Module 8: the Huber loss with threshold $\psi$, $\tfrac12 x^2$ for $\lvert x \rvert \le \psi$ and $\psi(\lvert x \rvert - \tfrac12 \psi)$ beyond; its derivative is $\operatorname{clip}(x, -\psi, \psi)$ (`threshold` in code) | PyTorch's `delta` in `huber_loss` ($\delta$ is our TD error) |
+| $k$ | Module 8: the number of target copies that follow a gradient step, in "(sync lag)", $(1 - \gamma^k)/(1 - \gamma)$ | |
+| $C$ | Module 8: the mean squared estimation error in van Hasselt et al.'s Theorem 1 | van Hasselt et al.'s $C$ (same); Mnih et al.'s $C$ is the copy interval, our `target_sync` |
+| $\hat Q(a)$, $a^\star_i$ | Module 8: random estimates of one state's action values (the max bias), and Double DQN's next action $\arg\max_{a'} Q(s'_i, a'; w)$ | |
+| $\alpha_{\text{per}}$, $\beta_{\text{per}}$ | Module 8, reference only: prioritized replay's prioritization and importance-weight exponents | Schaul et al.'s $\alpha$, $\beta$ |
 | $\bar Q_t$, $\bar G_t$ | at log step $t$: the mean over a fixed set of start states of $\max_a Q(s, a; w_t)$, and the mean discounted return $G_0$ of the episodes that ended in the 5,000 steps before $t$; $\bar Q_t - \bar G_t$ is the Q drift (Module 9; `q_drift` in code) | |
 | relative TD error | the mean $\lvert\delta\rvert$ over a log interval's batches divided by the mean over their rows of $\max_a Q(s, a; w)$ (Module 9; `td_error_scale` in code); no symbol | |
 | $z_1, \dots, z_n$; $z_{(i)}$ | one result per seed, and the $i$-th smallest of them (Module 9) | Agarwal et al.'s $x_{1:M,1:N}$ for $N$ runs on $M$ tasks (our $x$ is a context) |

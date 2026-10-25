@@ -491,6 +491,82 @@ The next state on a noisy screen is random, so no predictor can learn it, and it
 **Evidence:** the briefing, section 6. Lab 6 has no checkpoint for this objective.
 :::
 
+## Module 8 {#m08}
+
+Questions for [Module 8 · DQN from scratch](/modules/08-dqn.qmd), two per objective. Each answer ends with the Lab 8 checkpoint that is its evidence.
+
+### Objective 1: implement a replay buffer with uniform sampling, and explain the two problems it fixes
+
+[**8.1**]{#q8-1} A ring buffer with 4 slots receives transitions numbered 0 to 9, in order. Which transition is in each slot, and what are `ptr` and `size`? A colleague's `sample` draws `rng.integers(0, self.ptr)`. Which transitions can it draw now? After one more transition? After two more?
+
+::: {.callout-tip collapse="true" title="Answer to 8.1"}
+The slots hold $(8, 9, 6, 7)$, with `ptr` = 2 and `size` = 4. The colleague draws slots 0 and 1 only: transitions 8 and 9, the two newest. Transition 10 goes to slot 2 and `ptr` becomes 3, so it draws 8, 9 and 10. Transition 11 goes to slot 3 and `ptr` wraps to 0, so `rng.integers(0, 0)` raises `ValueError: high <= 0`. Drawing from `size` reaches all four filled slots every time.
+
+**Evidence:** Lab 8, checkpoints 1.1 (before and after a wrap) and 1.3 (the fixed buffer passes the chi-square test).
+:::
+
+[**8.2**]{#q8-2} Name the two problems replay fixes. A full buffer holds 50,000 transitions, and the agent takes one gradient step on a batch of 32 after every environment step. On average, how many batches is a transition drawn into while it is stored? Why would 32 consecutive transitions make a poor batch, even though each is a correct sample?
+
+::: {.callout-tip collapse="true" title="Answer to 8.2"}
+Data reuse and correlated samples. A transition stays for 50,000 steps, which here are 50,000 gradient steps, each drawing 32 of the 50,000 slots: $50{,}000 \cdot 32 / 50{,}000 = 32$ draws on average. Consecutive transitions are nearly the same state, so a batch of them gives a gradient for one region of the state space, many times over, and the next batch gives one for a nearby region: the updates have high variance and chase the latest episode. A uniform draw mixes states from many episodes (Mnih et al. 2015, Methods).
+
+**Evidence:** Lab 8, checkpoint 1.1, and Exercise 1's printed correlations (in the order stored and in the order drawn).
+:::
+
+### Objective 2: implement DQN with a target network and the Huber loss, masking only on terminated
+
+[**8.3**]{#q8-3} With threshold $\psi = 1$, compute the Huber loss and its derivative at TD errors $\delta = -4$, $-0.5$, $0.2$ and $3$. Do the same for the clipped loss $\min(\tfrac12 \delta^2, \tfrac12)$. Which of the two has Mnih et al.'s clipped error term as its gradient?
+
+::: {.callout-tip collapse="true" title="Answer to 8.3"}
+Huber: $3.5$ with derivative $-1$; $0.125$ with $-0.5$; $0.02$ with $0.2$; $2.5$ with $1$. Clipped loss: $0.5$ with derivative $0$; $0.125$ with $-0.5$; $0.02$ with $0.2$; $0.5$ with $0$. The Huber loss's derivative is $\operatorname{clip}(\delta, -1, 1)$, which is the clipped error term. The clipped loss agrees inside $[-1, 1]$ and has zero gradient outside, so its largest errors teach nothing. The two losses also differ in value: the Huber loss keeps growing, linearly.
+
+**Evidence:** Lab 8, Exercise 2's run, which plots the three losses and their autograd derivatives. The Huber loss is provided code, so no checkpoint tests it.
+:::
+
+[**8.4**]{#q8-4} With $\gamma = 0.9$, $r = 1$ and a target-network max of 20 at $s'$, give the DQN targets of a transition that terminated, one that was truncated, and one that was both. Then: a CartPole run copies the target every 1,000 steps, starts gradient steps after step 1,000 (every 4 steps), runs 30,000 steps with $\gamma = 0.99$, and logs a max Q of 140 at its probe states. What does the briefing's (sync lag) predict, and what do you conclude?
+
+::: {.callout-tip collapse="true" title="Answer to 8.4"}
+Terminated: $y = 1$. Truncated: $y = 1 + 0.9 \cdot 20 = 19$. Both: $y = 1$, because the mask is on `terminated` alone. The first gradient step is at step 1,004, so the copies at 2,000, 3,000, ..., 30,000 follow a gradient step: 29 of them, and $(1 - 0.99^{29})/(1 - 0.99) \approx 25.3$. A max Q of 140 is above both that and $1/(1 - 0.99) = 100$, which no CartPole return can exceed. The run is broken: the likely causes are a missing terminal mask (every target bootstraps) or divergence. Check the mask first, then the copies, then the step size.
+
+**Evidence:** Lab 8, checkpoints 2 (a truncated row keeps its bootstrap) and 3.1 (what reaches the batches after a truncation and after a terminal state); Exercise 3's plot of Q at the probe states against (sync lag).
+:::
+
+### Objective 3: derive the max bias, state van Hasselt et al.'s Theorem 1 with its conditions, implement Double DQN, and measure Q(s₀) against Monte Carlo returns
+
+[**8.5**]{#q8-5} A state has three actions, all with true value $V^*(s) = 2$. The estimates are $2.5$, $2.5$ and $1$. Check Theorem 1's conditions, compute $C$ and its floor, and compare the floor with the actual max. Does Theorem 1 say anything about a state whose true action values differ? What does still hold there?
+
+::: {.callout-tip collapse="true" title="Answer to 8.5"}
+The errors are $0.5$, $0.5$ and $-1$: they sum to 0, so the estimates are "on the whole unbiased", and they are not all zero. $C = (0.25 + 0.25 + 1)/3 = 0.5$, and the floor is $V^* + \sqrt{C/(3 - 1)} = 2 + 0.5 = 2.5$, which equals the max: this error vector attains the bound, so the bound is tight. Theorem 1 needs the true values to be equal, so it says nothing about other states. What still holds is the briefing's max-bias inequality: for estimates that are unbiased one by one, the expected max is at least the true max, strictly when more than one action can come out on top.
+
+**Evidence:** the briefing, section 5 (Theorem 1, van Hasselt et al. 2016). Lab 8 has no checkpoint for the theorem; checkpoint 4 tests the target built to reduce this bias.
+:::
+
+[**8.6**]{#q8-6} The online network gives $Q(s', \cdot) = (3, 1, 2)$ and the target network $(2, 4, 0)$; $r = 0.5$, $\gamma = 0.9$, not terminated. Give the DQN and Double DQN targets. Then (hypothetical numbers): after 98 target copies at $\gamma = 0.99$, a DQN run has $Q(s_0) = 64$ while its greedy policy earns $G_0 = 78$; a Double DQN run at the same seed has $Q(s_0) = 63$. Does the DQN run overestimate? Which comparison shows the copies' lag, and which the max bias?
+
+::: {.callout-tip collapse="true" title="Answer to 8.6"}
+DQN: $0.5 + 0.9 \cdot 4 = 4.1$. Double DQN: the online network picks action 0, the target network values it at 2, so $0.5 + 0.9 \cdot 2 = 2.3$. After 98 copies, (sync lag) is $100(1 - 0.99^{98}) = 62.65$. $Q(s_0) < G_0$ shows the lag: 98 backups fall short of what the policy earns. It does not show that the max bias is absent: $Q(s_0)$ sits 1.35 above the exact-fit line, and Double DQN, which removes part of the max bias, is lower at the same seed and number of copies. $Q(s_0) - G_0$ mixes both forces with how well the policy plays.
+
+**Evidence:** Lab 8, checkpoints 4 (exact on stand-in networks whose argmax and max disagree) and 5 (`mc_return`, exact on fixed rewards), and Exercise 5's table, which prints $Q(s_0) - G_0$ and $Q(s_0)$ minus (sync lag) for both runs.
+:::
+
+### Objective 4: place your live seed against recorded 5-seed bands of the reference DQN and SB3's DQN at the same budget, and call the comparison
+
+[**8.7**]{#q8-7} Twenty participants with correct code each overlay one seed on the reference DQN's 5-seed band. About how many seeds land outside the band's min–max range? With a 10-seed band?
+
+::: {.callout-tip collapse="true" title="Answer to 8.7"}
+Each correct seed lands outside an $n$-seed range with probability $2/(n + 1)$: $1/3$ for 5 seeds, so about $20/3 \approx 7$ of the 20. With 10 seeds, $2/11$, so about 4. A seed outside the band is not evidence of a bug.
+
+**Evidence:** Lab 8, Exercise 6's printout ("inside", "above" or "below" each range), reported and never graded.
+:::
+
+[**8.8**]{#q8-8} Suppose (hypothetical numbers) the rule printed: reference DQN 150 [120, 175] against SB3 DQN 210 [180, 260], IQM [95% bootstrap CI], 5 against 5 seeds, at 50,000 steps. What is the call? Before you conclude that the reference implementation is worse, what would you check?
+
+::: {.callout-tip collapse="true" title="Answer to 8.8"}
+The intervals do not overlap, so SB3's DQN is better at this budget. Before blaming the implementation, check what Exercise 6 lists as not matched (SB3's uniform random actions before learning starts, the order of the target copy and the gradient step within a step, and three smaller differences), check that the budget is really equal, and check that the call holds with more seeds or at a second budget. A call at one budget is a statement about that budget.
+
+**Evidence:** Lab 8, checkpoint 6 (your call against the rule's verdict on the recorded seeds).
+:::
+
 ## Module 9 {#m09}
 
 Questions for [Module 9 · Debugging and evaluating RL](/modules/09-debugging-evaluation.qmd), for after the lab, two per objective. Each answer ends with the Lab 9 checkpoint or exercise that is its evidence.

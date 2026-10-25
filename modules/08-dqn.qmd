@@ -1,6 +1,13 @@
 ---
 title: "{{< var modules.m08.title >}}"
-status: placeholder
+live:
+  - {section: 1, minutes: 3}
+  - {section: 2, minutes: 5, activities: [{block: chk-replay, minutes: 2, label: "Check yourself 2.1"}]}
+  - {section: 3, minutes: 8}
+  - {section: 4, minutes: 6, activities: [{block: chk-masks, minutes: 3, label: "Check yourself 4.1"}]}
+  - {section: 5, minutes: 11, activities: [{block: demo-max, minutes: 3, label: "Demo: the max of noisy estimates"}]}
+  - {section: 6, minutes: 5, activities: [{block: predict-bands, minutes: 2, label: "Predict: where does one correct seed land?"}]}
+  - {setup: 2}
 ---
 
 {{< include /_includes/module-08.md >}}
@@ -11,6 +18,334 @@ status: placeholder
 
 {{< include /_includes/live-08.md >}}
 
-::: {.callout-note}
-This briefing is not written yet. It follows the Module 1 template (see [the plan](https://github.com/project-delphi/practical-rl/blob/main/PLAN.md)).
+## 1. From a table to a network
+
+**In this section:** replace Module 7's linear function with a neural network, and name the three problems DQN's changes address.
+
+Module 7 replaced the table with a linear function of features and watched semi-gradient TD diverge when function approximation, bootstrapping and off-policy data meet, the *deadly triad* [@sutton2018rl, §11.3]. DQN makes the function a neural network $Q(s, a; w)$: it takes a state (CartPole's four numbers) and returns one value per action. Its parameters $w$ follow the semi-gradient Q-learning step on a transition $(s, a, r, s')$:
+
+$$
+\begin{aligned}
+\delta &= r + \gamma \max_{a'} Q(s', a'; w) - Q(s, a; w), \\
+w &\leftarrow w + \alpha\, \delta\, \nabla_w Q(s, a; w).
+\end{aligned}
+$$ {#eq-q-update}
+
+Run online, one transition at a time, this is unstable. Mnih et al. name three causes: consecutive observations are correlated; a small change to $Q$ can change the policy, and with it the data; and the target $r + \gamma \max_{a'} Q(s', a')$ moves with the very values it is meant to correct [@mnih2015dqn, p. 529]. Their answers are a replay memory (section 2) and a target network, trained with a clipped error (section 3). Two more pieces make a working agent: a mask that stops the bootstrap only where the episode really ended (section 4), and, as a later fix, Double DQN (section 5).
+
+## 2. Replay
+
+**In this section:** store transitions and learn from uniform minibatches; the two problems this fixes, and the buffer you write.
+
+A *replay buffer* $\mathcal{D}$ keeps the last $N$ transitions $(s, a, r, s', \mathrm{term}, \mathrm{trunc})$. Each gradient step draws a minibatch $\mathcal{B}$ of $|\mathcal{B}|$ transitions, uniformly and with replacement:
+
+$$
+(s_i, a_i, r_i, s'_i) \sim \mathcal{U}(\mathcal{D}), \quad i = 1, \dots, |\mathcal{B}|.
+$$ {#eq-replay}
+
+Mnih et al. store only the last $N$ transitions, overwrite the oldest, and sample uniformly [@mnih2015dqn, Methods, "Training algorithm for deep Q-networks"]. Two of the gains they list are the ones this module relies on.
+
+- **Data reuse.** Each transition can serve in many gradient steps, not just one.
+- **Decorrelation.** Consecutive transitions are nearly the same state, so a gradient step on a run of them is a step on one state, many times over. A uniform draw from the whole buffer mixes states from many episodes, which "reduces the variance of the updates".
+
+They add a third: the current $Q$ decides which data arrive next, so learning only from fresh data can feed back on itself, and averaging over many past behaviors smooths that out [@mnih2015dqn, Methods]. Because the stored data came from older policies, the update must be off-policy, which is why it is Q-learning.
+
+**The lab's buffer** is a ring of preallocated arrays. A write pointer `ptr` names the slot for the next transition and wraps to 0 at the capacity; `size` counts the filled slots.
+
+::: {#chk-replay .self-check}
+**Check yourself 2.1.** A buffer with 5 slots receives transitions numbered 0 to 6, in order. Which transition is in each slot? What are `ptr` and `size`? Which transitions can a minibatch contain?
+
+::: {.callout-tip collapse="true" title="Answer to 2.1"}
+Transitions 0 to 4 fill slots 0 to 4. Transition 5 overwrites slot 0 and transition 6 slot 1, so the slots hold $(5, 6, 2, 3, 4)$. `ptr` = 2, the slot transition 7 would overwrite, and `size` = 5. A minibatch can contain transitions 2 to 6, each with probability 1/5 per draw.
 :::
+:::
+
+::: {.reference}
+**Prioritized replay.** Mnih et al. note that uniform sampling gives every transition equal importance, and that a smarter scheme might emphasize the transitions with the most to teach [@mnih2015dqn, Methods]. Schaul et al. sample transition $i$ with probability $P(i) = p_i^{\alpha_{\text{per}}} / \sum_k p_k^{\alpha_{\text{per}}}$, with a priority $p_i$ such as $|\delta_i|$ plus a small constant, and correct the changed distribution with importance weights $(N \cdot P(i))^{-\beta_{\text{per}}}$, annealed toward full correction [@schaul2016per, §3.3, Eq. 1, and §3.4]. Their $\alpha$ and $\beta$ are our $\alpha_{\text{per}}$ and $\beta_{\text{per}}$. The lab keeps uniform sampling.
+:::
+
+::: {.callout-note collapse="true" title="Code: ReplayBuffer.add and .sample (open after Lab 8)"}
+```python
+class ReplayBuffer:
+    def add(self, obs, act, rew, next_obs, terminated, truncated):
+        i = self.ptr
+        self.obs[i], self.act[i], self.rew[i] = obs, act, rew
+        self.next_obs[i] = next_obs
+        self.terminated[i], self.truncated[i] = terminated, truncated
+        self.ptr = (i + 1) % self.capacity  # the oldest goes next
+        self.size = min(self.size + 1, self.capacity)
+
+    def sample(self, batch_size, rng):
+        idx = rng.integers(0, self.size, size=batch_size)
+        return to_batch(self, idx)
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 1** is `ReplayBuffer.add` and `.sample` (@eq-replay); the constructor is given. Checkpoint 1.1 is exact on small buffers, before and after a wrap, and tests uniform sampling with a chi-square test on fixed draws. The same exercise holds the planted bug: a colleague's buffer that runs without an error. You read a histogram of how old the drawn transitions are, diagnose the bug (checkpoint 1.2) and fix it (checkpoint 1.3).
+:::
+
+## 3. The target network and the Huber loss
+
+**In this section:** hold the target still between copies, see what that does to how fast values grow, and choose a loss whose gradient is the clipped error.
+
+**A target network.** DQN computes its targets with a second network, $Q(s, a; w^-)$. Its parameters $w^-$ are a copy of $w$, refreshed every `target_sync` steps (every $C$ updates in Mnih et al.'s Methods) and held fixed in between. Without it, an update that raises $Q(s_t, a_t)$ often raises $Q(s_{t+1}, a)$ too, and so the target; the delay makes divergence or oscillations "much more unlikely" [@mnih2015dqn, Methods]. On a minibatch the loss is
+
+$$
+\mathcal{L}(w) = \frac{1}{|\mathcal{B}|} \sum_{i \in \mathcal{B}} \operatorname{huber}_\psi\big(y_i - Q(s_i, a_i; w)\big),
+$$ {#eq-dqn-loss}
+
+with targets $y_i$ computed from $w^-$ (section 4) and the Huber loss below. Between two copies, each fit is a regression onto fixed targets, "a sequence of well-defined optimization problems" [@mnih2015dqn, Methods].
+
+**What holding the target costs.** Suppose each fit were exact. Then the online network after the $k$-th copy would hold the $k$-th iterate of Module 2's value iteration, $Q_k = T^* Q_{k-1}$, started from $Q_0$. In CartPole every step pays 1 until the pole falls. From a start state $s_0$ where some sequence of actions survives $k$ steps, and from $Q_0 = 0$,
+
+$$
+Q_k(s_0, a) = \sum_{t=0}^{k-1} \gamma^t = \frac{1 - \gamma^k}{1 - \gamma}.
+$$ {#eq-sync-lag}
+
+So the values climb toward $1/(1 - \gamma) = 100$ at a pace set by the number of copies, not by the number of steps: at $\gamma = 0.99$, 50 copies give 39.5 and 200 copies give 86.6. Copy too rarely and the values lag; copy too often and the target moves with the online network again.
+
+*What @eq-sync-lag assumes, and what it does not say.* It assumes exact fits, $Q_0 = 0$, a reward of 1 per surviving step, and a start state from which $k$ steps can be survived. Real fits are inexact, which can leave a network below the line, and the max adds an upward bias (section 5), which can push it above. The equation says nothing about the policy: a policy can be good while its values are still climbing.
+
+**The Huber loss.** Mnih et al. "clip the error term from the update", $r + \gamma \max_{a'} Q(s', a'; w^-) - Q(s, a; w)$, "to be between −1 and 1" [@mnih2015dqn, Methods]. With a threshold $\psi > 0$, the Huber loss is
+
+$$
+\operatorname{huber}_\psi(x) =
+\begin{cases}
+\tfrac12 x^2, & |x| \le \psi, \\
+\psi\big(|x| - \tfrac12 \psi\big), & |x| > \psi,
+\end{cases}
+$$ {#eq-huber}
+
+and its derivative is the error clipped to $[-\psi, \psi]$:
+
+$$
+\frac{d}{dx} \operatorname{huber}_\psi(x) = \operatorname{clip}(x, -\psi, \psi).
+$$ {#eq-huber-grad}
+
+So a gradient step on @eq-dqn-loss with $\psi = 1$ moves $w$ along $\operatorname{clip}(\delta, -1, 1)\, \nabla_w Q(s, a; w)$: exactly Mnih et al.'s update with the clipped error. The updates are equal; the losses are not. Mnih et al. write a squared-error loss and clip inside the update, so a logged squared error and a logged $\operatorname{huber}_1(\delta)$ differ wherever $|\delta| > 1$. Their own sentence says "clipping the squared error", which reads like a third option, clipping the *loss*, $\min(\tfrac12 \delta^2, \tfrac12)$. That is not equivalent: its gradient is 0 for $|\delta| > 1$, so the largest errors teach nothing. What they describe is the Huber loss, though they never use the name: the clipping "corresponds to using an absolute value loss function for errors outside of the (−1,1) interval" [@mnih2015dqn, Methods].
+
+::: {.reference}
+**The rest of the configuration.** The lab's DQN uses Adam where Mnih et al. used RMSProp [@mnih2015dqn, Methods], clips the gradient's total norm at 10, and averages the loss over the batch. One frozen configuration (`CONFIG`) serves Labs 8 and 9: two hidden layers of 64 units, step size $10^{-3}$, 10,000 transitions, batches of 64, $\gamma = 0.99$, a gradient step every 4 environment steps from step 1,000 on, a target copy every 500 steps, and $\varepsilon$ falling linearly from 1 to 0.05 over the first fifth of the run. These are our choices for CartPole at 50,000 steps, not Mnih et al.'s Atari values.
+:::
+
+::: {.callout-note collapse="true" title="Code: huber (provided in Lab 8)"}
+```python
+def huber(x, threshold=1.0):
+    a = x.abs()
+    quadratic = 0.5 * x**2
+    linear = threshold * (a - 0.5 * threshold)
+    return torch.where(a <= threshold, quadratic, linear)
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** The Huber loss is provided as `huber(x, threshold)`, @eq-huber elementwise; **Exercise 2**'s run plots it and its derivative beside the squared error and the clipped loss. **Exercise 3** is `train_dqn`, the whole loop with @eq-dqn-loss, a target copy every 500 steps, and one live seed of 50,000 steps; a provided `dqn_parts` does the setup. Its run draws your network's values at fixed start states against @eq-sync-lag. Checkpoint 3.1 is exact on small chains (section 4). Checkpoint 3.2 trains your loop again from its own seed for 20,000 steps and passes if the best greedy evaluation beats the first, made before any gradient step, by at least 91.0, a threshold the workshop's threshold protocol set over 200 seeds.
+:::
+
+## 4. Masks
+
+**In this section:** where the bootstrap must stop, and why a time limit is not such a place.
+
+For transition $i$ of a minibatch, DQN's target is
+
+$$
+y_i = r_i + \gamma\, (1 - \mathrm{term}_i) \max_{a'} Q(s'_i, a'; w^-),
+$$ {#eq-masked-target}
+
+where $\mathrm{term}_i = 1$ if $s'_i$ is a terminal state and 0 otherwise. After a terminal state no reward ever comes, so the target is the reward alone, as in Mnih et al.'s Algorithm 1 [@mnih2015dqn, Algorithm 1].
+
+Gymnasium reports two different ends. `terminated` means the episode reached a terminal state of the task: in CartPole, the pole leaned past 12° or the cart left the track. `truncated` means the episode was cut for a reason unrelated to the state, usually a step limit; the Gymnasium paper's TD targets multiply the next state's value by "not terminated" [@towers2025gymnasium, §4.2]. CartPole-v1 truncates at 500 steps. A truncated $s'$ is an ordinary state whose future rewards were simply not observed, so its target keeps the bootstrap. The time is not part of CartPole's observation, so the network cannot tell a state where the clock ran out from the same state earlier in an episode.
+
+The lab steps one environment and resets it itself, so `env.step` returns the true $s'$ even at the last step: store it, then reset.
+
+::: {#chk-masks .self-check}
+**Check yourself 4.1.** A colleague trains with the target $r + \gamma (1 - \text{done}) \max_{a'} Q(s', a'; w^-)$, where done means terminated or truncated. Their policy balances the pole for all 500 steps of every episode. What target does the last transition of an episode get? What does @eq-masked-target give it, if the target network's max at $s'$ is 99? What does the colleague's version teach the network?
+
+::: {.callout-tip collapse="true" title="Answer to 4.1"}
+The colleague's target is $r = 1$: the cut is treated as a fall. @eq-masked-target gives $1 + 0.99 \cdot 99 = 99.01$. The state at step 500 looks like any balanced state, so the network is told that some balanced states are worth 1 and others about 100, with nothing in the observation to tell them apart. It learns a value pulled down near all such states.
+:::
+:::
+
+::: {.callout-note collapse="true" title="Code: td_target (open after Lab 8)"}
+```python
+def td_target(batch, q_next, gamma):
+    return batch.rew + gamma * (1.0 - batch.terminated) * q_next
+```
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 2** is `td_target(batch, q_next, gamma)`, @eq-masked-target with the bootstrap value `q_next` given. Checkpoint 2 is exact on fixed tensors, including a truncated row that must keep its bootstrap. Checkpoint 3.1 runs your `train_dqn` on small chains that either truncate or terminate every 5 steps, and checks what reaches the batches: no terminal flag after a truncation, and a target equal to the reward after a terminal state.
+:::
+
+## 5. The max bias and Double DQN
+
+**In this section:** why a max over noisy estimates is biased upward, what van Hasselt et al. prove and under which conditions, the Double DQN target, and how the lab measures what remains.
+
+**The max of noisy estimates.** Let $\hat Q(a)$ be random estimates of the action values in one state, with any joint distribution and finite means. For every action $a'$, $\max_a \hat Q(a) \ge \hat Q(a')$. Take expectations, then the max over $a'$:
+
+$$
+\mathbb{E}\big[\max_a \hat Q(a)\big] \ge \max_a \mathbb{E}\big[\hat Q(a)\big].
+$$ {#eq-jensen}
+
+This is Jensen's inequality for the convex function max. If every $\hat Q(a)$ is unbiased for its true value, the max is biased upward for the true max, and strictly so whenever more than one action can come out on top. The target in @eq-masked-target takes exactly such a max, and then bootstraps from it.
+
+::: {#demo-max .demo}
+**Demo: the max of noisy estimates (3 min).** All actions have the same true value, 0. Each estimate is the truth plus independent noise. **Predict first, as a room:** for 10 actions with standard normal noise, is the expected max about 0.5, about 1.5, or about 3?
+
+::: {.callout-tip collapse="true" title="Answer: two columns of exact numbers"}
+| Actions | $\mathbb{E}[\max]$, noise $\mathcal{N}(0, 1)$ | $\mathbb{E}[\max]$, noise uniform on $[-1, 1]$ |
+|---|---|---|
+| 2 | 0.564 | 0.333 |
+| 4 | 1.029 | 0.600 |
+| 10 | 1.539 | 0.818 |
+
+About 1.5, and the expected max grows with the number of actions. The Gaussian column comes from numerical integration ($1/\sqrt{\pi}$ for two actions), and van Hasselt et al.'s Figure 1 shows the same case; the uniform column is $(|\mathcal{A}| - 1)/(|\mathcal{A}| + 1)$, their Theorem 2 [@vanhasselt2016ddqn, Figure 1 and appendix]. Every estimate is unbiased, and the max of them is not.
+:::
+:::
+
+**Theorem 1** [@vanhasselt2016ddqn, Theorem 1]. Consider a state $s$ in which all true optimal action values are equal, $Q^*(s, a) = V^*(s)$, with $|\mathcal{A}| \ge 2$ actions. Let estimates $Q_t(s, a)$ be "on the whole unbiased", $\sum_a \big(Q_t(s, a) - V^*(s)\big) = 0$, but not all correct, with mean squared error $C > 0$. Then
+
+$$
+\begin{aligned}
+&\frac{1}{|\mathcal{A}|} \sum_a \big(Q_t(s, a) - V^*(s)\big)^2 = C \\
+&\quad \Longrightarrow\ \max_a Q_t(s, a) \ge V^*(s) + \sqrt{\frac{C}{|\mathcal{A}| - 1}}.
+\end{aligned}
+$$ {#eq-thm1}
+
+The bound is tight, and under the same conditions the absolute error of the Double Q-learning estimate can be zero. *What it does not say.* It is a statement about every error vector with these two properties, not about an expectation over random errors. It needs the true values to be equal, so it describes the state where choosing is hardest, not every state. It does not need the errors to be independent. And it is a floor: the typical overestimation grows with the number of actions while this floor shrinks. At $C = 1$ the floor is 1, 0.58 and 0.33 for 2, 4 and 10 actions, while the demo's expected max grew; van Hasselt et al. make the same point [@vanhasselt2016ddqn, §"Overoptimism due to estimation errors"].
+
+**Double DQN.** The max uses the same values to choose an action and to value it. Double DQN chooses with the online network and values the choice with the target network [@vanhasselt2016ddqn, §"Double DQN"]:
+
+$$
+\begin{aligned}
+a^\star_i &= \arg\max_{a'} Q(s'_i, a'; w), \\
+y_i &= r_i + \gamma (1 - \mathrm{term}_i)\, Q(s'_i, a^\star_i; w^-).
+\end{aligned}
+$$ {#eq-ddqn}
+
+Double Q-learning, its tabular ancestor, learns two value functions and assigns each experience at random to update one of them; van Hasselt et al. call Double DQN "perhaps the minimal possible change to DQN towards Double Q-learning", since the target network is "not fully decoupled" from the online one [@vanhasselt2016ddqn, §"Double Q-learning", §"Double DQN"]. A lagged copy shares much of the online network's error, so the bias is reduced, not removed.
+
+**How the lab measures what remains.** Van Hasselt et al. compare DQN's value estimates with "the actual discounted value of the best learned policy", from discounted returns obtained by running it [@vanhasselt2016ddqn, §"Results on overoptimism", Figure 3]. The lab does the same at start states. It runs the greedy policy from 10 fixed start states, and compares $Q(s_0) = \max_a Q(s_0, a; w)$ with the discounted return the policy then earns. For an episode with rewards $r_0, \dots, r_{T-1}$, the returns-to-go are
+
+$$
+G_t = r_t + \gamma\, G_{t+1}, \qquad G_T = 0,
+$$ {#eq-mc-return}
+
+so $G_0 = \sum_t \gamma^t r_t$. CartPole's dynamics are deterministic once $s_0$ is drawn, and so is the greedy policy, so $G_0$ is that policy's exact value at $s_0$, unless the episode was truncated (see the Gotchas). Two forces move $Q(s_0)$ against $G_0$: @eq-jensen pushes it up, and @eq-sync-lag holds it back while the copies accumulate. Which one wins depends on the budget, and Exercise 5 answers it for yours. The two forces show in different comparisons: $Q(s_0)$ against @eq-sync-lag isolates the max bias, since both share the number of copies, and $Q(s_0)$ against $G_0$ mixes both forces with how well the policy plays.
+
+::: {.callout-note collapse="true" title="After the lab: what Q(s₀) against G₀ showed in the records"}
+::: {#fig-q-vs-mc layout="[[50,50]]"}
+![DQN.](/images/08-q-vs-mc-dqn.svg){#fig-q-vs-mc-dqn fig-alt="Against environment steps from 0 to 50,000, five solid lines with circles, one per seed, climb in steps from about 8 to about 64, hugging a dashed staircase that ends at 62.65. Five dotted lines with squares stay above them throughout, between about 53 and 97."}
+
+![Double DQN.](/images/08-q-vs-mc-ddqn.svg){#fig-q-vs-mc-ddqn fig-alt="The same layout for Double DQN: five solid lines with circles climb from about 8 to about 64 along the dashed staircase, a little closer to it than DQN's, and five dotted lines with squares stay above them, between about 67 and 99."}
+
+**What to notice:** on every seed $Q(s_0)$ (solid) climbs along @eq-sync-lag (dashed) and stays below the discounted return $G_0$ of the greedy policy (dotted): the copies' lag dominates at this budget. $Q(s_0)$ and $G_0$ at the 10 fixed start states, every 5,000 steps of a 50,000-step run, seeds 0 to 4 (`runs/2026-10-24-local-m08-dqn-live-exp.json`, `runs/2026-10-24-local-m08-ddqn-live-exp.json`).
+:::
+
+"$Q(s_0)$ is below the MC return, so DQN does not overestimate." After 98 copies, even exact fits reach only @eq-sync-lag, 62.65. At 50,000 steps DQN's $Q(s_0)$ ends 1.55 to 2.52 above that line and Double DQN's 0.83 to 1.65 above it: the max still pushes up, and Double DQN, which removes part of that push, ends lower at the same seed on all 5 seeds (by 0.05 to 1.60). Both stay below $G_0$ (by 3.4 to 25.2), on every seed and at every evaluation, and so does SB3's DQN. At 10,000 steps (18 copies, 16.55) the same holds, and Double DQN is lower at 4 of the 5 seeds (`runs/2026-10-24-local-m08-{dqn,ddqn,sb3}-{live,quick}-exp.json`). In a much longer run, $Q(s_0)$ climbs past $G_0$ unless the policy never fails.
+:::
+
+::: {.callout-note collapse="true" title="Code: double_dqn_target and mc_return (open after Lab 8)"}
+```python
+def double_dqn_target(batch, q_net, target_net, gamma):
+    with torch.no_grad():
+        a_next = q_net(batch.next_obs).argmax(dim=1)  # w selects
+        q_next = gather_q(target_net(batch.next_obs), a_next)
+        return td_target(batch, q_next, gamma)
+
+
+def mc_return(rewards, gamma):
+    g = np.zeros(len(rewards))
+    total = 0.0
+    for t in reversed(range(len(rewards))):
+        total = rewards[t] + gamma * total
+        g[t] = total
+    return g
+```
+:::
+
+::: {.reference}
+**Dueling networks.** A change to the network, not to the target: Wang et al. split the last layers into a state value $V(s)$ and advantages $A(s, a)$, and combine them as $Q(s, a) = V(s) + A(s, a) - \frac{1}{|\mathcal{A}|} \sum_{a'} A(s, a')$. Without the subtracted mean, $V$ and $A$ cannot be recovered from $Q$ [@wang2016dueling, §3, Eqs. 7 and 9]. The lab does not use it.
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 4** is `double_dqn_target`, @eq-ddqn, with the same signature as the provided `dqn_target`. Checkpoint 4 is exact on stand-in networks whose argmax and max disagree, and requires the targets to carry no gradient. The run trains a Double DQN seed with your loop, at your DQN's seed. **Exercise 5** is `mc_return`, @eq-mc-return, exact on fixed rewards; the run compares $Q(s_0)$ with $G_0$ and with @eq-sync-lag for your DQN and Double DQN, over the recorded bands of both.
+:::
+
+## 6. Equal-budget bands
+
+**In this section:** what your one seed can say beside five recorded seeds, and how the lab compares the reference DQN with a library at the same budget.
+
+**Is my implementation right?** One way to check is a maintained library, run with the same configuration. Stable-Baselines3 2.9's DQN [@raffin2021sb3] has a knob for almost everything in `CONFIG`: the network, the optimizer and step size, the buffer, the batch, $\gamma$, a gradient step every 4 steps, the target copy interval, the start of learning, the $\varepsilon$ schedule, the gradient-norm clip, and the loss, `smooth_l1_loss`, which is @eq-huber with $\psi = 1$. The workshop's records hold both, 5 seeds each at the lab's budget, with every one of those knobs matched: SB3's DQN and the reference DQN (the lab's solution code). A few things still differ. The two largest, read from SB3's source, are that before learning starts SB3 acts uniformly at random rather than $\varepsilon$-greedily, and that within a step it copies the target before the gradient step rather than after; Exercise 6 prints the full list.
+
+**The rule** (the workshop's, from Module 4). With 5 seeds per side, compare the interquartile means (IQM) with 95% bootstrap intervals; overlapping intervals are a tie. State the budget: steps, seeds, wall-clock and hardware. Your own seed is one draw, a fact to report beside the bands: "single seed, not a ranking".
+
+::: {#predict-bands .predict}
+**Predict (2 min).** Your implementation is correct, so your seed's final return is one more draw from the same distribution as the reference's 5 recorded seeds. What is the probability that it lands outside their min–max range? Write a fraction before opening the answer.
+
+::: {.callout-tip collapse="true" title="Answer"}
+2/6 = 1/3. Among 6 independent draws from one continuous distribution, each is equally likely to be the smallest or the largest, so the chance that the new one is either is 2/6. With $n$ recorded seeds it is $2/(n + 1)$. A seed outside the band is not evidence of a bug, and a seed inside it is not evidence of correctness.
+:::
+:::
+
+::: {.callout-note appearance="simple"}
+**In the lab.** **Exercise 6** prints each side's IQM and 95% interval, the budget sentence and what was not matched, from the records, and draws both 5-seed bands with your seed. You apply the rule and answer `sb3_call()`: a tie, or which side is better at this budget. Checkpoint 6 compares your answer with the rule's verdict on the recorded seeds.
+:::
+
+::: {.callout-note collapse="true" title="After the lab: the two recorded bands"}
+![**What to notice:** the two intervals overlap, so the rule calls a tie at this budget, and each side's five seeds spread over about 70 to 76 return points. Final greedy return at 50,000 steps, every seed (0 to 4) of the reference DQN and of SB3 2.9's DQN, with each side's IQM and 95% bootstrap interval (`runs/2026-10-24-local-m08-dqn-live-exp.json`, `runs/2026-10-24-local-m08-sb3-live-exp.json`).](/images/08-final-returns.svg){#fig-final-returns fig-alt="Two columns of five dots on a greedy-return axis from 0 to 520, titled Tie: the intervals overlap. The reference DQN's dots lie between about 115 and 186, beside an interval marker from about 121 to 173 around 145. SB3's dots lie between about 131 and 207, beside an interval from about 136 to 187 around 150."}
+
+At 50,000 steps the IQMs are 145.0 [120.7, 173.4] for the reference DQN and 149.8 [136.0, 187.2] for SB3's; at 10,000 steps 216.9 [148.0, 243.0] and 172.9 [158.2, 242.1]. Both budgets call a tie. The ten live runs took 82.7 s of wall-clock in all (34.5 s for the reference, 48.3 s for SB3) on an Apple M1 Pro laptop with 2 torch threads, not on Colab.
+:::
+
+## Summary
+
+- A neural $Q(s, a; w)$ trained with the semi-gradient Q-learning step (@eq-q-update) is unstable online. DQN adds a replay buffer and a target network, and clips the error.
+- Replay (@eq-replay) samples minibatches uniformly from the last $N$ transitions: each transition is reused, and a batch mixes states from many episodes instead of a run of near-identical ones.
+- A target network $w^-$, copied every `target_sync` steps, turns learning into a sequence of regressions onto fixed targets. With exact fits, values advance one backup per copy (@eq-sync-lag).
+- The Huber loss (@eq-huber) has the clipped error as its derivative (@eq-huber-grad), so its gradient equals Mnih et al.'s clipped update. Clipping the loss instead zeroes the gradient of large errors.
+- Mask only on `terminated` (@eq-masked-target). A truncated transition keeps its bootstrap.
+- The max over noisy estimates is biased upward (@eq-jensen). Van Hasselt et al.'s Theorem 1 (@eq-thm1) gives a tight floor when the true values are equal and the errors sum to zero. Double DQN (@eq-ddqn) selects with $w$ and evaluates with $w^-$.
+- Compare $Q(s_0)$ with @eq-sync-lag to see the max bias, and with the discounted return of the greedy policy (@eq-mc-return) to see what the values claim against what the policy earns. Compare implementations with 5-seed bands at the same budget, and report your own seed as one draw.
+
+### Equations and where you implement them
+
+| Equation | Lab 8 | Name in the notebook |
+|---|---|---|
+| Semi-gradient Q-learning (@eq-q-update) | The update inside Exercise 3's loop | — |
+| Replay sampling (@eq-replay) | Exercise 1: `ReplayBuffer`, and fix `ColleagueBuffer` | (replay sampling) |
+| The DQN loss (@eq-dqn-loss) | Exercise 3: `train_dqn` | (DQN loss) |
+| The value after $k$ copies (@eq-sync-lag) | Exercises 3 and 5 | (sync lag) |
+| The Huber loss (@eq-huber) and its derivative (@eq-huber-grad) | Provided (`huber`); plotted in Exercise 2, used in Exercise 3 | (Huber) |
+| The masked target (@eq-masked-target) | Exercise 2: `td_target`; the provided `dqn_target` | (masked target) |
+| The max bias (@eq-jensen); Theorem 1 (@eq-thm1) | Read in Exercise 5 | (Jensen) |
+| The Double DQN target (@eq-ddqn) | Exercise 4: `double_dqn_target` | (Double DQN target) |
+| Monte Carlo returns (@eq-mc-return) | Exercise 5: `mc_return` | (MC return) |
+
+## Gotchas and troubleshooting
+
+- **"My returns went up, so it works."** The return says the policy improved. It says nothing about whether the values are right: a policy can balance for hundreds of steps while $Q$ is far from what it earns, in either direction. Compare $Q(s_0)$ with the greedy policy's $G_0$ (@eq-mc-return), check the masks, and plot the values at fixed states against @eq-sync-lag.
+- **"Replay is only for data efficiency."** It also decorrelates. Consecutive CartPole states are nearly equal, so a batch of consecutive transitions is close to one example repeated; a uniform draw from the buffer mixes many episodes. Exercise 1 prints both correlations.
+- **"done = terminated or truncated."** Mask only on `terminated` (@eq-masked-target). A time limit is not a terminal state; masking on it teaches the network that some ordinary states are worth only their last reward.
+- **"$Q(s_0)$ above the Monte Carlo return means overestimation."** Not when the episode was truncated. For a policy that never fails, bootstrapping through truncation at $\gamma = 0.99$ gives $Q(s_0) = 1/(1 - \gamma) = 100$, while a 500-step episode returns $(1 - \gamma^{500})/(1 - \gamma) = 99.34$: an exact $Q$ exceeds it by $\gamma^{500}/(1 - \gamma) \approx 0.657$. On episodes that reached 500 steps, a gap that small is no evidence of overestimation.
+- **"Clipping the loss is Mnih et al.'s error clipping."** Clipping the error in the update is the gradient of the Huber loss (@eq-huber-grad). Clipping the loss, $\min(\tfrac12 \delta^2, \tfrac12)$, has zero gradient wherever $|\delta| > 1$. Exercise 2 plots all three derivatives.
+- **"My seed landed above SB3's band, so my DQN is better."** One seed is one draw: a correct seed lands outside a 5-seed range with the probability you found in section 6's Predict. Compare 5-seed bands with the rule and call ties; report your seed as a fact, not a ranking.
+- **"Q is in the thousands."** No CartPole return exceeds $1/(1 - \gamma) = 100$ at $\gamma = 0.99$, so the run has diverged or bootstraps where it should not. Check the mask, that the target network is copied, and the step size, in that order; Module 9 diagnoses each from the log.
+- **"`ValueError: high <= 0` from `rng.integers`."** A buffer was sampled with an upper limit of 0. Sample only after learning starts, and check which counter your `sample` uses as its upper limit.
+- **"`RuntimeError: grad can be implicitly created only for scalar outputs`."** `huber` returns one loss per transition. Average over the batch (@eq-dqn-loss) before `backward()`.
+- **"`RuntimeError: element 0 of tensors does not require grad`."** The loss was built from values computed under `torch.no_grad()`, so there is nothing to differentiate. Compute $Q(s, a; w)$ with gradients, and only the target without.
+- **"`NotImplementedError`."** The function still raises its TODO: you have not written it yet, or you have not run the cell that holds your code. Write the TODO and run its cell. To move on without it, run `lab.use_reference(N)` with the exercise number; the exercise's solution cell must have run once. Running a solution cell alone does not replace your function.
+
+## Next steps
+
+Your DQN works on one seed. [Module 9](/modules/09-debugging-evaluation.qmd) asks how you know, and what to do when it does not: it reads the logs your `train_dqn` writes for four broken runs of this same configuration, confirms each diagnosis with probe environments, and reports comparisons over many seeds.
+
+## Further reading
+
+1. @mnih2015dqn, *Human-level control through deep reinforcement learning*. The first page gives the three causes of instability; the Methods section "Training algorithm for deep Q-networks" covers replay, the target network and the clipped error term, and Algorithm 1 is the whole method. Their $\theta$ and $\theta^-$ are our $w$ and $w^-$, and their $D$ is our $\mathcal{D}$.
+2. @vanhasselt2016ddqn, *Deep reinforcement learning with Double Q-learning*, read on arXiv (v3). The section "Overoptimism due to estimation errors" has Theorem 1 and Figure 1; "Double DQN" has the target; "Results on overoptimism" and Figure 3 compare value estimates with discounted returns on Atari. The appendix proves Theorem 1 and gives Theorem 2, the uniform-noise case. Their $\theta_t$, $\theta^-_t$ and $m$ are our $w$, $w^-$ and $|\mathcal{A}|$.
+3. @sutton2018rl, *Reinforcement Learning: An Introduction*, 2nd edition. §11.3 on the deadly triad, which this module's changes work around rather than remove.
+4. @towers2025gymnasium, the Gymnasium paper. §4.2 on termination and truncation, with TD targets that multiply by "not terminated".
+5. @raffin2021sb3, Stable-Baselines3, the library in Exercise 6. Its DQN source (version 2.9.0) is short and readable: its training step is a direct comparison for your `train_dqn`.
+6. @schaul2016per, *Prioritized experience replay*, and @wang2016dueling, *Dueling network architectures for deep reinforcement learning*, the two extensions in the reference blocks above. Both were read on arXiv.

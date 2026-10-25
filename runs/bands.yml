@@ -26,3 +26,68 @@
 # in per_seed.seconds, those too (None when absent). A laptop time stays a laptop time.
 #
 # Then run: uv run python scripts/export_bands.py
+
+# Module 8 (Lab 8 reads all seven at both budgets; seeds 0-4).
+m08_dqn_return:
+  metric: >-
+    Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of the reference DQN (Lab 8's train_dqn with CONFIG), against environment steps
+  x: budget.grid
+  runs: per_seed.return
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-24-local-m08-dqn-live-exp
+    quick: 2026-10-24-local-m08-dqn-quick-exp
+m08_dqn_q0:
+  metric: >-
+    Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of the reference DQN (Lab 8's train_dqn with CONFIG), against environment steps
+  x: budget.grid
+  runs: per_seed.q0
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-24-local-m08-dqn-live-exp
+    quick: 2026-10-24-local-m08-dqn-quick-exp
+m08_dqn_mc:
+  metric: >-
+    Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of the reference DQN (Lab 8's train_dqn with CONFIG), against environment steps
+  x: budget.grid
+  runs: per_seed.disc_return
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-24-local-m08-dqn-live-exp
+    quick: 2026-10-24-local-m08-dqn-quick-exp
+m08_ddqn_return:
+  metric: >-
+    Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of Double DQN (Lab 8's train_dqn with CONFIG and double_dqn_target), against environment steps
+  x: budget.grid
+  runs: per_seed.return
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-24-local-m08-ddqn-live-exp
+    quick: 2026-10-24-local-m08-ddqn-quick-exp
+m08_ddqn_q0:
+  metric: >-
+    Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of Double DQN (Lab 8's train_dqn with CONFIG and double_dqn_target), against environment steps
+  x: budget.grid
+  runs: per_seed.q0
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-24-local-m08-ddqn-live-exp
+    quick: 2026-10-24-local-m08-ddqn-quick-exp
+m08_ddqn_mc:
+  metric: >-
+    Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of Double DQN (Lab 8's train_dqn with CONFIG and double_dqn_target), against environment steps
+  x: budget.grid
+  runs: per_seed.disc_return
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-24-local-m08-ddqn-live-exp
+    quick: 2026-10-24-local-m08-ddqn-quick-exp
+m08_sb3_return:
+  metric: >-
+    Greedy-policy return (undiscounted, mean of 10 evaluation episodes from fixed start states) of Stable-Baselines3 2.9.0's DQN at Lab 8's configuration, against environment steps
+  x: budget.grid
+  runs: per_seed.return
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-24-local-m08-sb3-live-exp
+    quick: 2026-10-24-local-m08-sb3-quick-exp
