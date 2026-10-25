@@ -191,12 +191,15 @@ def _mutants():
     ]
 
 
-def test_every_mutant_but_the_protocols_has_an_exact_check():
+def test_every_mutant_has_an_exact_check_and_the_protocol_has_random_play():
     sys.path.insert(0, str(ROOT / "scripts"))
     import check_notebooks
 
     names = {n for m in check_notebooks.load_mutants("m09", MUTANTS.parent) for n in m["sources"]}
-    assert names - set(CHECKS) == {"train_dqn"}  # 6.2's random play, the protocol's
+    assert names <= set(CHECKS)
+    # 6.2's one wrong version replaces provided code, so it is the protocol's alone.
+    (proto,) = check_notebooks.load_mutants("m09", MUTANTS.parent / "protocol")
+    assert (proto["ex"], proto["id"], list(proto["sources"])) == ("6", "random", ["train_dqn"])
 
 
 @pytest.mark.parametrize("mutant", _mutants())

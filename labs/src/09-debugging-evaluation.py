@@ -856,7 +856,6 @@ print(
 lab.check(6, m09.check_band_position, band_position, label="6.1")
 
 # %% role="ex6-chk2"
-# live_return is the last greedy evaluation of train_dqn in the run cell: no second run.
 lab.check(6, m09.check_live_return, live_return, label="6.2")
 
 # %% [markdown]

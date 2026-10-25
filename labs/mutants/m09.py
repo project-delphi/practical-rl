@@ -9,15 +9,13 @@ rejected by all four: "distractors" picks, for each run, the cause a quick readi
 
 Checkpoint 6.2 (the live run against the protocol's threshold) is the only stochastic checkpoint.
 It calls no participant function: it checks the return Exercise 6's run cell computed with the
-lab's `train_dqn` and `CONFIG`. scripts/threshold_protocol.py measures it by training them, so its
-wrong version, `random`, replaces `train_dqn`; verify mode skips 6.2 (the protocol rejected
-`random` once) and reports `random` as covered by the threshold protocol.
+lab's `train_dqn` and `CONFIG`. Its one wrong version, `random` play, replaces that provided code,
+so it lives in labs/mutants/protocol/m09.py, which only scripts/protocol_m09.py reads: this file
+holds mutants of functions participants write (tests/test_mutants.py), and verify mode skips 6.2.
 """
 
 import gymnasium as gym
 import numpy as np
-import torch
-from torch import nn
 
 from prl.lab import mutant
 
@@ -278,27 +276,3 @@ def band_position(value, recorded):  # noqa: F811
 @mutant(ex=6, replaces="band_position", id="mean", why="compares with the band's mean")
 def band_position(value, recorded):  # noqa: F811
     return int(np.sign(value - np.mean(recorded)))
-
-
-# ------------------------------------------------------------------ 6.2: the protocol's random play
-@mutant(ex=6, replaces="train_dqn", id="random", why="never learns: uniform random play")
-def train_dqn(make_env, config, seed, steps, *, target_fn=None, **log_options):  # noqa: F811
-    class UniformQ(nn.Module):
-        """Values drawn afresh at every call: its greedy action is uniform random play."""
-
-        def __init__(self, n_actions):
-            super().__init__()
-            self.n_actions = n_actions
-
-        def forward(self, obs):
-            return torch.rand(obs.shape[0], self.n_actions)
-
-    torch.manual_seed(seed)
-    env = make_env()
-    q_net = UniformQ(env.action_space.n)
-    env.close()
-    # Its greedy evaluations, reported as the logger would (the provided evaluate_greedy).
-    every, episodes = log_options.get("eval_every"), log_options.get("eval_episodes", 10)
-    grid = list(range(every, steps + 1, every)) if every else []
-    returns = [evaluate_greedy(q_net, make_env, episodes)["returns"].mean() for _ in grid]  # noqa: F821
-    return q_net, {"eval_step": np.array(grid), "eval_return": np.array(returns, np.float32)}

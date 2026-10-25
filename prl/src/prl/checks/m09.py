@@ -581,7 +581,7 @@ check_live_return = StochasticCheck(
         # rate at most about 3/N = 3.0% (rule of three).
         "quick": (
             61.0,
-            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m09-check_live_return-quick-n100-exp.json",
+            "threshold protocol, 100 seeds: runs/2026-10-25-local-threshold-m09-check_live_return-quick-n100-exp-2.json",
         ),
         # No live threshold: at the live budget (50,000 steps) the protocol refused over seeds
         # 0-99 (solution p1 26.75, below random play's p99 30.32; seeds 78 and 94 end below
