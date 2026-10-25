@@ -20,10 +20,11 @@ seat uses (seats train with (SEED + 1) * 1000), except where a record says other
                        Module 9's logging (log every 500 steps, 8 probe states, snapshots at the
                        first gradient step and at 25,000 and 50,000), thinned for JSON (the first
                        32 rows of each snapshot; per episode only its length and whether the time
-                       limit cut it). Before the record is written, every margin of the director's
-                       handoff (section 4) is asserted on every seed (scripts/m09_signals.py); a
-                       failure stops the script and nothing is written. The healthy seeds must
-                       reproduce Module 8's band record m08-dqn-live exactly.
+                       limit cut it). Every margin of the director's handoff (section 4) is
+                       asserted on every seed (scripts/m09_signals.py) and stated in the record's
+                       note; a failure stops the script with the record held outside the
+                       inbox. The healthy seeds must reproduce Module 8's band record
+                       m08-dqn-live exactly.
   m09-sweep            CONFIG with lr = CONFIG.lr x f, f in 0.1, 0.3, 1, 3, 10, seeds 0-9, live
                        budget, greedy evaluation every 5,000 steps (10 episodes).
   m09-reference-live   The band m09_reference: CONFIG, seeds 0-9, at each of the lab's budgets.
@@ -400,8 +401,7 @@ NOTES = {
         "(ep_end_step is their running sum, ep_return the length, ep_disc_return "
         "(1 - 0.99^L)/0.01, ep_terminated false only at ep_truncated; each checked against the "
         "log before thinning), the greedy return every 5,000 steps (10 episodes) and the run's "
-        "seconds. Every margin of the director's handoff, section 4, held on every seed before "
-        "this record was written (scripts/m09_signals.py). "
+        "seconds. "
     ),
     "m09-sweep": (
         "Module 8's reference DQN (labs/shared, CONFIG) with only the learning rate changed, "
@@ -537,6 +537,20 @@ def verify_broken(rec: dict) -> m09_signals.Margins:
     return m
 
 
+def margin_note(m: m09_signals.Margins) -> str:
+    """The record's own statement of the margins (scripts/m09_signals.py), first in its note."""
+    if m.ok():
+        return (
+            "Every margin of the director's handoff (section 4) held on every seed when this "
+            "record was made (scripts/m09_signals.py). "
+        )
+    return (
+        "MARGINS: every margin of the director's handoff (section 4) held on every seed except "
+        + "; ".join(m.hard)
+        + ". scripts/make_datasets.py builds no dataset from this record (OPEN_QUESTIONS B81). "
+    )
+
+
 def run(names: list[str], inbox: Path = tp.INBOX, hold: Path | None = None) -> list[Path]:
     git = tp._git_state()  # the repo as it is when the runs start
     ns = lab_namespace()
@@ -553,14 +567,15 @@ def run(names: list[str], inbox: Path = tp.INBOX, hold: Path | None = None) -> l
         if name == "m09-broken-runs":
             print(check_healthy_reproduces_m08(per))
             m = verify_broken(rec)
+            rec["note"] = margin_note(m) + rec["note"]
             if not m.ok():
-                if hold is not None:  # kept outside runs/: no dataset may be built from it
+                if hold is not None:  # not in the inbox: no dataset may be built from it
                     hold.mkdir(parents=True, exist_ok=True)
                     path = hold / f"{name}-FAILED-margins.json"
                     path.write_text(json.dumps(rec, indent=2, sort_keys=True) + "\n")
-                    print(f"held (not a filed record): {path}")
+                    print(f"held (not in the inbox): {path}")
                 raise SystemExit(
-                    "A margin failed; no record written. Report it, do not change seeds:\n  "
+                    "A margin failed; nothing in the inbox. Report it, do not change seeds:\n  "
                     + "\n  ".join(m.hard)
                 )
         if name == "m09-reference-live" and "m09-sweep" in done:
@@ -574,6 +589,481 @@ def run(names: list[str], inbox: Path = tp.INBOX, hold: Path | None = None) -> l
     return paths
 
 
+# ------------------------------------------------------------------ reproducing a record
+def record_for(name: str) -> dict:
+    """The filed record of an experiment (the newest, if refiled)."""
+    found = sorted(RUNS_DIR.glob(f"*-{name}-exp*.json"))
+    if not found:
+        raise SystemExit(f"no record of {name} in runs/")
+    rec = json.loads(found[-1].read_text())
+    assert rec["experiment"] == name
+    rec["_id"] = found[-1].stem
+    return rec
+
+
+def _strip_seconds(x):
+    if isinstance(x, dict):
+        return {k: _strip_seconds(v) for k, v in x.items() if k != "seconds"}
+    return x
+
+
+def reproduce(name: str, seeds: list[int] | None = None) -> bool:
+    """Rerun an experiment (or some seeds of the band records) and compare it with the record,
+    wall-clock seconds aside. Use after labs/shared or the lab's provided code changes."""
+    rec = record_for(name)
+    ns = lab_namespace()
+    warm_up(ns)
+    if seeds is not None and name.startswith("m09-reference-"):
+        label = name.rsplit("-", 1)[1]
+        per = _curves(ns, ns["CONFIG"], seeds, label)
+        idx = [rec["seeds"].index(s) for s in seeds]
+        old = {k: [rec["per_seed"][k][i] for i in idx] for k in rec["per_seed"]}
+    else:
+        with contextlib.redirect_stdout(io.StringIO()):
+            per, _, _ = measure(name, ns)
+        old = rec["per_seed"]
+    same = _strip_seconds(json.loads(json.dumps(per))) == _strip_seconds(old)
+    print(
+        f"{name}{'' if seeds is None else f' seeds {seeds}'}: "
+        f"{'REPRODUCED exactly' if same else 'DIFFERS'} against {rec['_id']}"
+    )
+    return same
+
+
+# ------------------------------------------------------------------ exact computations
+def _r(x: float, d: int) -> float:
+    """Round half up at d decimals, robust to float noise near the half."""
+    return math.floor(x * 10**d + 0.5 + 1e-9) / 10**d
+
+
+def first_gradient_step(learning_starts: int, train_freq: int) -> int:
+    return next(t for t in range(1, 10**6) if t > learning_starts and t % train_freq == 0)
+
+
+def copies_after_learning(steps: int, sync: int, learning_starts: int, train_freq: int) -> int:
+    """Target copies at or before `steps` that follow at least one gradient step."""
+    first = first_gradient_step(learning_starts, train_freq)
+    return sum(1 for s in range(sync, steps + 1, sync) if s >= first)
+
+
+def e_max_gauss(m: int) -> float:
+    """E[max of m iid N(0, 1)] by numerical integration."""
+    from scipy import integrate, stats
+
+    def f(x):
+        return x * m * stats.norm.pdf(x) * stats.norm.cdf(x) ** (m - 1)
+
+    return integrate.quad(f, -12, 12, epsabs=1e-12, epsrel=1e-12, limit=200)[0]
+
+
+def _iqm_page(z) -> float:
+    s, k = np.sort(np.asarray(z, dtype=float)), len(z) // 4
+    return float(s[k : len(s) - k].mean())
+
+
+def quoted_numbers() -> dict:
+    """Every exact number the director's handoff (section 7) lists for the page, the
+    predict_answers and the knowledge checks, asserted against the lab and the configuration."""
+    import inspect
+
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    from prl import evaluate
+
+    g = GAMMA
+    src = LAB.read_text()
+    setup = (SHARED / "dqn_setup.py").read_text()
+    # Configuration constants the page and the lab state.
+    assert "target_sync: int | None = 500" in setup and "gamma: float = 0.99" in setup
+    assert "learning_starts: int = 1_000" in setup and "train_freq: int = 4" in setup
+    assert "lr: float = 1e-3" in setup
+    assert "def q_drift(log, window=5000):" in src  # the 5,000-step window
+    assert 'A": (dict(lr=CONFIG.lr * 100), {})' in src  # run A: 100 times the reference
+    assert 100 / LR_FACTORS[-1] == 10  # "ten times past the sweep's right end"
+    assert LR_FACTORS == [0.1, 0.3, 1.0, 3.0, 10.0] and len(BAND_SEEDS) == 10
+    assert len(BROKEN_SEEDS) == 3 and BUDGETS["live"]["probe_steps"] == 2_000
+    assert inspect.signature(evaluate.bootstrap_ci).parameters["n_boot"].default == 5000
+    # Exercise 1's predict_answer: the last log point of a target that never syncs, and the
+    # healthy run's largest lag before the first gradient step.
+    assert 50_000 - 500 == 49_500
+    assert first_gradient_step(1_000, 4) == 1_004
+    # Exercise 2's predict_answer and knowledge check 9.1.
+    g500 = (1 - g**500) / (1 - g)
+    assert _r(g500, 2) == 99.34 and abs(g500 - m09_signals.G_MAX) < 1e-9
+    g10 = (1 - g**10) / (1 - g)
+    assert _r(g10, 2) == 9.56 and round(4000 - _r(g10, 1)) == 3990 and round(4000 / g500) == 40
+    # Exercise 4's predict_answer: 1 and 100; 20 copies after the first gradient step (65)
+    # with PROBE_CONFIG (learning_starts 64, train_freq 1, target_sync 100) by 2,000 steps.
+    assert "learning_starts=64, target_sync=100, train_freq=1" in src
+    assert first_gradient_step(64, 1) == 65 and copies_after_learning(2_000, 100, 64, 1) == 20
+    assert _r(1 / (1 - g), 9) == 100 and _r(sum(g**j for j in range(20)), 1) == 18.2
+    # Exercise 6's predict_answer: 20 seats against a 10-seed band.
+    assert round(20 * 2 / 11) == 4 and round(20 * 1 / 11) == 2
+    # Page section 4 (Predict) and the Summary: 2/6 = 1/3 for a 5-seed band.
+    assert _r(2 / (5 + 1), 12) == _r(1 / 3, 12)
+    # Check yourself 3.1: Q(0) = 0 + gamma * 1.
+    assert _r(0 + g * 1, 9) == 0.99
+    # Check yourself 5.1.
+    z = [12, 500, 480, 35, 500, 210, 9, 495, 500, 260]
+    assert sum(z) / 10 == 300.1 and float(np.median(z)) == 370.0
+    assert len(z) // 4 == 2 and _iqm_page(z) == 330.0 and len(z) - 2 * (len(z) // 4) == 6
+    z0 = [0 if v == 9 else v for v in z]
+    assert sum(z0) / 10 == 299.2 and float(np.median(z0)) == 370 and _iqm_page(z0) == 330.0
+    assert evaluate.iqm(z) == 330.0  # SciPy's trim_mean(z, 0.25), as the page says
+    # Knowledge check 9.2.
+    q = np.array([[1.0, 2.0], [3.0, 0.5], [0.2, 0.1], [4.0, 4.5]])
+    a, gathered = np.array([1, 0, 0, 1]), np.array([1.0, 0.5, 0.1, 4.0])
+    want = q[np.arange(4), a]
+    assert want.tolist() == [2.0, 3.0, 0.2, 4.5] and float(np.mean(gathered != want)) == 1.0
+    assert np.array_equal(gathered, q[np.arange(4), 1 - a])  # the other action's entry
+    # Knowledge check 9.3.
+    assert _r(2 / (1 - 0.9), 9) == 20 and _r(2 * (1 - 0.9**10) / (1 - 0.9), 2) == 13.03
+    # Knowledge check 9.5.
+    z8 = [0, 10, 200, 210, 220, 230, 500, 500]
+    assert _iqm_page(z8) == 215 and sum(z8) / 8 == 233.75
+    z9 = sorted([*z8, 205])
+    assert len(z9) // 4 == 2 and _iqm_page(z9) == 213 and len(z9) - 4 == 5
+    # Knowledge check 9.6: [150, 260] and [120, 170] overlap from 150 to 170.
+    assert max(150, 120) == 150 and min(260, 170) == 170
+    # Knowledge check 9.8.
+    e5 = e_max_gauss(5)
+    assert _r(e5, 3) == 1.163 and abs(e5 - 1.1629644736) < 1e-9 and _r(10 * e5, 1) == 11.6
+    return {"g500": g500, "e5": e5}
+
+
+# ------------------------------------------------------------------ what the records say
+def have_broken_runs() -> bool:
+    """m09_broken_runs ships only if every margin held (B81): when make_datasets registers it."""
+    import make_datasets
+
+    return "m09_broken_runs" in make_datasets.REGISTRY
+
+
+def _load(name: str) -> dict:
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    import prl.data
+
+    return prl.data.load(name)
+
+
+def _band(label: str) -> dict:
+    sys.path.insert(0, str(ROOT / "prl" / "src"))
+    import prl.data
+
+    return prl.data.band("m09_reference", BUDGETS[label])
+
+
+def sweep_facts() -> dict:
+    """The sweep as Exercise 5 reports it: IQM [CI], mean, the tie calls, the rankings."""
+    from prl.evaluate import bootstrap_ci, compare, iqm
+
+    d = _load("m09_sweep")
+    final, factors = d["final_return"], d["lr_factor"]
+    ref = int(np.flatnonzero(factors == 1.0)[0])
+    rows = []
+    for f, x in zip(factors, final, strict=True):
+        lo, hi = bootstrap_ci(x, iqm)
+        rows.append({"f": float(f), "iqm": iqm(x), "lo": lo, "hi": hi, "mean": float(x.mean())})
+    calls = {}
+    for i, f in enumerate(factors):
+        if i != ref:
+            v = compare(final[i], final[ref], names=(f"lr x{f:g}", "lr x1"))
+            calls[f"x{f:g}"] = {"A": "better", "B": "worse", "tie": "tie"}.get(v.winner, v.winner)
+    by_iqm = [f"x{factors[i]:g}" for i in np.argsort([-r["iqm"] for r in rows], kind="stable")]
+    by_seed0 = [f"x{factors[i]:g}" for i in np.argsort(-final[:, 0], kind="stable")]
+    return {
+        "rows": rows,
+        "calls": calls,
+        "by_iqm": by_iqm,
+        "by_seed0": by_seed0,
+        "final": final,
+        "factors": factors,
+        "seconds": d["seconds"],
+        "hardware": str(d["hardware"]),
+    }
+
+
+def band_facts() -> dict:
+    """Exercise 6: the band's per-seed final values at each budget, and its top."""
+    out = {}
+    for label in BUDGETS:
+        b = _band(label)
+        final = np.asarray(b["runs"], dtype=float)[:, -1]
+        out[label] = {"final": final, "top": float(final.max()), "record": b["record"]}
+    return out
+
+
+def probe_facts() -> dict:
+    """Exercise 4 and the stretch: each agent's values on each probe, per seed group."""
+    rec = record_for("m09-probes")
+    out: dict = {}
+    for group in PROBE_SEEDS:
+        out[group] = {}
+        for run in RUNS:
+            r = rec["per_seed"][group][run]
+            out[group][run] = {p: np.array(r[p], dtype=float) for p in PROBES}
+    return out
+
+
+# ------------------------------------------------------------------ figures
+PX = 1 / 96
+
+
+def _style_axes(ax) -> None:
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    ax.set_axisbelow(True)
+
+
+def _thousands(v: float, _pos=None) -> str:
+    return f"{v / 1000:,.0f}k" if v else "0"
+
+
+def sweep_figure(t, data: dict):
+    """Final greedy return per learning rate: every seed, the IQM with its 95% bootstrap
+    interval, and the mean."""
+    from matplotlib.figure import Figure
+    from matplotlib.lines import Line2D
+    from matplotlib.ticker import FixedLocator
+
+    from make_figures_m01 import MIN_FONT, WIDTH_IN
+
+    s = data["sweep"]
+    fig = Figure(figsize=(WIDTH_IN, 380 * PX))
+    ax = fig.add_axes((0.11, 0.16, 0.86, 0.72))
+    xs = np.arange(len(s["factors"]))
+    for i, (row, vals) in enumerate(zip(s["rows"], s["final"], strict=True)):
+        v = np.sort(np.round(vals, 1))
+        ax.plot(
+            i - 0.12 + np.linspace(-0.1, 0.1, len(v)),
+            v,
+            "o",
+            color=t.series[0],
+            mfc="none",
+            mew=1.4,
+            ms=6,
+            ls="none",
+        )
+        c, lo, hi = (round(row[k], 1) for k in ("iqm", "lo", "hi"))
+        ax.errorbar(
+            i + 0.16,
+            c,
+            yerr=[[c - lo], [hi - c]],
+            fmt="D",
+            color=t.series[0],
+            ms=6,
+            capsize=5,
+            lw=1.8,
+        )
+        ax.plot(i + 0.3, round(row["mean"], 1), "x", color=t.series[1], ms=8, mew=2)
+    ax.set_xlim(-0.6, len(xs) - 0.4)
+    ax.set_ylim(0, 520)
+    ax.xaxis.set_major_locator(FixedLocator(list(xs)))
+    ax.set_xticklabels([f"×{f:g}" for f in s["factors"]])
+    ax.yaxis.set_major_locator(FixedLocator([0, 100, 200, 300, 400, 500]))
+    ax.grid(True, axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("Learning rate, times the reference (1e-3)")
+    ax.set_ylabel("Greedy return at 50,000 steps")
+    handles = [
+        Line2D([], [], marker="o", color=t.series[0], mfc="none", ls="none", ms=6, mew=1.4),
+        Line2D([], [], marker="D", color=t.series[0], ls="-", ms=6, lw=1.8),
+        Line2D([], [], marker="x", color=t.series[1], ls="none", ms=8, mew=2),
+    ]
+    labels = ["one seed (10 per rate)", "IQM, 95% bootstrap interval", "mean"]
+    ax.legend(
+        handles,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.13),
+        ncol=3,
+        frameon=False,
+        fontsize=MIN_FONT,
+    )
+    return fig
+
+
+def _dashboard_panel(t, data: dict, panel: str):
+    """One panel of the healthy run's dashboard, seeds 0-2 each as its own line."""
+    from matplotlib.figure import Figure
+    from matplotlib.ticker import FixedLocator, FuncFormatter
+
+    from make_figures_m01 import WIDTH_IN
+
+    f, d = data["lab"], data["broken"]
+    fig = Figure(figsize=(WIDTH_IN / 2, 300 * PX))
+    ax = fig.add_axes((0.2, 0.17, 0.75, 0.72))
+    styles = ["solid", (0, (5, 2)), (0, (1.2, 1.6))]
+    for k, seed in enumerate(d["seeds"]):
+        g = f.run_log("healthy", int(seed))
+        x, y = {
+            "return": lambda g: f.smooth_returns(g),
+            "loss": lambda g: (g["step"], g["loss"]),
+            "td": lambda g: (g["step"], g["td_abs_mean"]),
+            "q": lambda g: (g["step"], f.q_start(g)),
+        }[panel](g)
+        ax.plot(
+            x,
+            np.round(np.asarray(y, dtype=float), 4),
+            color=t.series[0],
+            ls=styles[k],
+            lw=1.4,
+            label=f"seed {int(seed)}",
+        )
+    title, ylabel = {
+        "return": ("Return", "Mean return, per 2,500 steps"),
+        "loss": ("Loss", "Mean loss (log scale)"),
+        "td": ("Mean |δ|", "Mean |δ| (log scale)"),
+        "q": ("Q at the start states", "Mean of max_a Q"),
+    }[panel]
+    if panel in ("loss", "td"):
+        ax.set_yscale("log")
+    if panel == "q":
+        ax.axhline(_r(m09_signals.G_MAX, 2), color=t.neutral, ls=(0, (5, 2)), lw=1.2)
+        ax.text(2_000, 92, "99.34: the most any episode earns", color=t.text, fontsize=12)
+        ax.set_ylim(0, 110)
+    if panel == "return":
+        ax.set_ylim(0, 520)
+        ax.legend(loc="upper left", frameon=False, fontsize=12)
+    ax.set_xlim(0, 50_000)
+    ax.xaxis.set_major_locator(FixedLocator([0, 25_000, 50_000]))
+    ax.xaxis.set_major_formatter(FuncFormatter(_thousands))
+    ax.grid(True, axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("Environment steps")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title, fontsize=13, color=t.text)
+    return fig
+
+
+def _table_panel(t, data: dict, signal: str):
+    """Exercise 3's table as a figure: one signal, every run, every seed."""
+    from matplotlib.figure import Figure
+    from matplotlib.ticker import FixedLocator
+
+    from make_figures_m01 import WIDTH_IN
+
+    tab = data["margins"].table
+    key, title, scale = {
+        "gather": ("gather_check", "gather_check", "linear"),
+        "lag": ("target_lag_last", "target_lag, last log point", "linear"),
+        "drift": ("q_drift_last5", "Q drift, last 5 log points", "symlog"),
+        "td": ("td_scale_2nd_half", "Relative TD error, 2nd half", "log"),
+    }[signal]
+    fig = Figure(figsize=(WIDTH_IN / 2, 300 * PX))
+    ax = fig.add_axes((0.22, 0.15, 0.73, 0.74))
+    for i, run in enumerate(RUNS):
+        v = np.round(np.asarray(tab[run][key], dtype=float), 6)
+        color = t.neutral if run == "healthy" else t.series[0]
+        ax.plot(i + np.array([-0.15, 0.0, 0.15]), v, "o", color=color, mfc="none", mew=1.5, ms=7)
+    ax.set_yscale(scale)
+    ax.xaxis.set_major_locator(FixedLocator(list(range(len(RUNS)))))
+    ax.set_xticklabels(["healthy", "A", "B", "C", "D"])
+    ax.set_xlim(-0.6, len(RUNS) - 0.4)
+    ax.grid(True, axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_title(title, fontsize=13, color=t.text)
+    return fig
+
+
+FIGURES = {"09-sweep": ("sweep", None)}
+PENDING_FIGURES = {  # drawn from m09_broken_runs, which ships only when every margin holds
+    **{f"09-healthy-dashboard-{p}": ("dashboard", p) for p in ("return", "loss", "td", "q")},
+    **{f"09-signal-table-{s}": ("table", s) for s in ("gather", "lag", "drift", "td")},
+}
+
+
+def figure_data() -> dict:
+    data = {"sweep": sweep_facts(), "band": band_facts(), "probes": probe_facts()}
+    if have_broken_runs():
+        d = _load("m09_broken_runs")
+        data.update(
+            broken=d, lab=m09_signals.lab_functions(d), margins=m09_signals.assert_margins(d)
+        )
+    return data
+
+
+def record_facts(data: dict) -> None:
+    """What the records must show for the lab's design (asserted on every build)."""
+    s = data["sweep"]
+    assert s["final"].shape == (5, 10) and np.all(s["seconds"] > 0)
+    for label, b in data["band"].items():
+        assert len(b["final"]) == 10, label
+    p = data["probes"]
+    for group in p:
+        # Probe 1 with the mask learns 1 to two decimals on every seed for every agent but C,
+        # whose Q heads for 100 (no mask) but stays near 18 after 20 copies.
+        for run in ("healthy", "A", "B", "D"):
+            assert np.all(np.abs(p[group][run]["probe 1"] - 1.0) < 0.05), (group, run)
+        assert np.all(p[group]["C"]["probe 1"] > 5.0), group
+
+
+def build() -> tuple[dict[Path, bytes], dict]:
+    import matplotlib as mpl
+
+    from make_figures_m01 import rc, svg_bytes, themes
+
+    quoted = quoted_numbers()
+    data = figure_data()
+    record_facts(data)
+    figures = dict(FIGURES)
+    if "broken" in data:
+        figures.update(PENDING_FIGURES)
+    out: dict[Path, bytes] = {}
+    for name, (kind, arg) in figures.items():
+        for t in themes():
+            with mpl.rc_context(rc(name, t)):
+                if kind == "sweep":
+                    fig, panel = sweep_figure(t, data), False
+                elif kind == "dashboard":
+                    fig, panel = _dashboard_panel(t, data, arg), True
+                else:
+                    fig, panel = _table_panel(t, data, arg), True
+                if panel:
+                    buf = io.BytesIO()
+                    meta = {"Date": None, "Description": "subfigure panel"}
+                    fig.savefig(buf, format="svg", metadata=meta)
+                    out[IMAGES / f"{name}{t.suffix}.svg"] = buf.getvalue()
+                else:
+                    out[IMAGES / f"{name}{t.suffix}.svg"] = svg_bytes(fig)
+    return out, {"quoted": quoted, "data": data}
+
+
+def report(data: dict) -> None:
+    s = data["sweep"]
+    print(f"\nm09_sweep ({s['hardware']}): greedy return at 50,000 steps, 10 seeds per rate")
+    for row, vals in zip(s["rows"], s["final"], strict=True):
+        print(
+            f"  x{row['f']:<4g} IQM {row['iqm']:6.1f} [{row['lo']:6.1f}, {row['hi']:6.1f}]  mean "
+            f"{row['mean']:6.1f}  seeds {np.round(vals, 1).tolist()}"
+        )
+    print(f"  against x1: {s['calls']}")
+    print(f"  ranked by IQM: {' > '.join(s['by_iqm'])}; by seed 0: {' > '.join(s['by_seed0'])}")
+    print(
+        f"  seconds per run {s['seconds'].min():.1f}-{s['seconds'].max():.1f}, total "
+        f"{s['seconds'].sum():.0f}"
+    )
+    for label, b in data["band"].items():
+        print(
+            f"m09_reference {label} ({b['record']}): finals {np.round(b['final'], 1).tolist()}; "
+            f"top {b['top']:.1f}"
+        )
+    for group, by_run in data["probes"].items():
+        print(f"m09-probes, {group} seeds:")
+        for run, probes in by_run.items():
+            cells = []
+            for name, v in probes.items():
+                lo, hi = v.min(axis=0), v.max(axis=0)
+                cells.append(
+                    f"{name} " + ", ".join(f"{a:.3f}..{b:.3f}" for a, b in zip(lo, hi, strict=True))
+                )
+            print(f"  {run:8s} " + " | ".join(cells))
+    if "margins" in data:
+        print("\nm09_broken_runs margins:")
+        print("\n".join(f"  {line}" for line in data["margins"].lines))
+    else:
+        print("\nm09_broken_runs is not built (B81: a margin failed); its figures are pending.")
+
+
 # ------------------------------------------------------------------ main
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(
@@ -581,10 +1071,27 @@ def main(argv: list[str]) -> int:
     )
     ap.add_argument("--run", nargs="+", metavar="EXPERIMENT", help="record experiments")
     ap.add_argument("--hold", type=Path, help="where a record whose margins fail is kept")
+    ap.add_argument("--reproduce", nargs="+", metavar="EXPERIMENT")
+    ap.add_argument("--seeds", help="comma-separated seeds (band records only)")
+    ap.add_argument("--check", action="store_true", help="fail if a committed SVG differs")
     args = ap.parse_args(argv)
     if args.run:
         run(args.run, hold=args.hold)
         return 0
+    if args.reproduce:
+        seeds = [int(s) for s in args.seeds.split(",")] if args.seeds else None
+        return 0 if all([reproduce(n, seeds) for n in args.reproduce]) else 1
+    files, info = build()
+    if args.check:
+        stale = [p for p, b in files.items() if not p.exists() or p.read_bytes() != b]
+        for p in stale:
+            print(f"{p.relative_to(ROOT)} is out of date; run scripts/make_figures_m09.py")
+        return 1 if stale else 0
+    IMAGES.mkdir(exist_ok=True)
+    for p, b in files.items():
+        p.write_bytes(b)
+        print(f"wrote {p.relative_to(ROOT)} ({len(b) / 1024:.0f} KiB)")
+    report(info["data"])
     return 0
 
 
