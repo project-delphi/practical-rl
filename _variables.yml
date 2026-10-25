@@ -720,19 +720,19 @@ modules:
         explain_ref: 'Gotcha: "My returns went up, so it works."'
       - n: 4
         title: The Double DQN target
-        minutes: 5
+        minutes: 6
         writes: [double_dqn_target]
-        predict_answer: "DQN: 1 + 0.9 x max(4, 3) = 4.6. Double DQN: the online network picks action 1 (5 > 2), the target network values it at 3, so 1 + 0.9 x 3 = 3.7 (exact)."
+        predict_answer: "DQN: 1 + 0.9 x max(4, 3) = 4.6. Double DQN: the online network picks action 1 (5 > 2), the target network values it at 3, so 1 + 0.9 x 3 = 3.7. PAIR: the copies at steps 1,250, 1,500, ..., 100,000 follow a gradient step, 396 of them, and (sync lag) gives 100 (1 - 0.99^396) = 98.13; at QUICK (20,000 steps) 76 copies and 53.41 (exact)."
         explain_ref: "(Double DQN target)"
       - n: 5
         title: "Q(s₀) against the Monte Carlo return"
         minutes: 7
         writes: [mc_return]
-        predict_answer: "Below, on most seats: at the end of a live run, Q(s0) is below G0 on 17 of 20 seats for DQN and 18 of 20 for Double DQN (runs/2026-10-25-local-m08-seats-exp.json, seats 0-19). It is above only where the greedy policy had not learned (greedy return below 91, G0 below 60). In the 5-seed band records it is below on every seed at both budgets, for SB3's DQN too (runs/2026-10-24-local-m08-{dqn,ddqn,sb3}-{live,quick}-exp.json). Lower: Double DQN's Q(s0) is below DQN's at the same seat on 19 of 20 seats, by a median of 0.78 (from 0.75 above to 2.22 below), and on 5 of 5 band seeds live. Exact tools: (sync lag) gives 62.65 after 98 copies (16.55 after 18); a greedy policy that survives T steps has G0 = 100 (1 - 0.99^T), 77.9 at T = 150."
+        predict_answer: "Pending record (the pair's seats record and bands, live; _notes/m08-handoff.md, Overestimation). At the live budget the pair's DQN should end with Q(s0) above its G0 and above 100, where only an overestimate can be; the pair's Double DQN lower than its DQN at the same seat on most seats. Exercise 3's DQN (98 copies) stays below G0 on most seats (17 of 20 in runs/2026-10-25-local-m08-seats-exp.json). Exact tools: (sync lag) 62.65 after 98 copies and 98.13 after 396; 100 = 1/(1 - 0.99) is the largest value a CartPole state can have; a truncated 500-step episode has G0 = 99.34, so a gap under 0.66 there is no overestimate. At the QUICK budget the pair is still held down by the copies' lag (76 copies, 53.41), so it shows no overestimate there."
         explain_ref: "(sync lag)"
       - n: 6
         title: SB3 at the same budget
-        minutes: 6
+        minutes: 5
         writes: [sb3_call]
         predict_answer: "A tie at both budgets: IQM [95% bootstrap CI] of the final greedy return, reference 145.0 [120.7, 173.4] against SB3 149.8 [136.0, 187.2] live, and 216.9 [148.0, 243.0] against 172.9 [158.2, 242.1] QUICK (runs/2026-10-24-local-m08-dqn-*-exp.json against runs/2026-10-24-local-m08-sb3-*-exp.json, prl.evaluate.compare). With the configuration matched, a tie is what two correct implementations should give, but it does not prove them equal: 5 seeds per side at this budget cannot tell them apart. The run cell lists the five things not matched."
         explain_ref: 'Gotcha: "My seed landed above SB3''s band, so my DQN is better."'

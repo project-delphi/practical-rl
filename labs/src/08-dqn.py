@@ -636,11 +636,17 @@ print(
 # **The Double DQN target.** DQN's target uses the target network both to pick the best next
 # action and to value it. Double DQN picks with the online network and values with the
 # target network: q_next = Q(s′, argmax_a′ Q(s′, a′; w); w⁻) (Double DQN target). It has the
-# same signature as `dqn_target`, so your `train_dqn` runs it with `target_fn=`.
+# same signature as `dqn_target`, so your `train_dqn` runs it with `target_fn=`. The run cells
+# then train a pair at your seed, DQN and Double DQN, with a provided variant of the
+# configuration, `PAIR`: a target copy every 250 steps instead of 500, over 100,000 steps
+# instead of 50,000. `CONFIG` and your `train_dqn` do not change. Exercise 5 compares the pair
+# with your DQN from Exercise 3.
 
 # %% [markdown] role="ex4-predict"
 # One transition: r = 1, γ = 0.9, not terminated. The online network gives Q(s′, ·) = (2, 5);
-# the target network gives (4, 3). What is DQN's target, and what is Double DQN's?
+# the target network gives (4, 3). What is DQN's target, and what is Double DQN's? Then:
+# `PAIR` copies the target every 250 steps for 100,000 steps, with gradient steps from step
+# 1,004. How many copies follow a gradient step, and what does (sync lag) give after them?
 
 
 # %% role="ex4-stub"
@@ -698,22 +704,57 @@ print(
     f"DQN target {dqn_target(one, online, target, 0.9).item():.2f}; "
     f"Double DQN target {double_dqn_target(one, online, target, 0.9).item():.2f}"
 )
-q_ddqn, log_ddqn = train_dqn(
-    make_cartpole,
-    CONFIG,
-    RUN_SEED,
-    budget.steps,
-    target_fn=double_dqn_target,
-    log_every=budget.log_every,
-    eval_every=budget.eval_every,
-    eval_episodes=budget.eval_episodes,
+# The pair's variant (provided): a target copy every 250 steps, over twice the steps.
+PAIR = dataclasses.replace(CONFIG, target_sync=250)
+pair = prl.runtime.settings(  # the pair's budget; lab code never branches on QUICK
+    dict(steps=100_000, log_every=1_000, eval_every=10_000, eval_episodes=10),  # live
+    dict(steps=20_000, log_every=500, eval_every=2_000, eval_episodes=10),  # QUICK
+    designed="colab-cpu",
 )
-print(f"Double DQN, seed {RUN_SEED}, trained in {log_ddqn['seconds']:.0f} s. Greedy returns:")
+lab.metric("pair_budget", {"target_sync": PAIR.target_sync, **dict(pair)})
 print(
-    f"  Double DQN {log_ddqn['eval_return'][-1]:.1f}, DQN {log_dqn['eval_return'][-1]:.1f} "
-    "(single seed each, not a ranking)"
+    f"PAIR: a copy every {PAIR.target_sync} steps over {pair.steps:,} steps; "
+    f"{syncs_by(pair.steps, PAIR)} copies follow a gradient step; "
+    f"(sync lag) {sync_lag(pair.steps, PAIR):.2f}"
 )
-lab.metric("ddqn_return", round(float(log_ddqn["eval_return"][-1]), 1))  # room code
+q_pair_dqn, log_pair_dqn = train_dqn(
+    make_cartpole,
+    PAIR,
+    RUN_SEED,
+    pair.steps,
+    log_every=pair.log_every,
+    eval_every=pair.eval_every,
+    eval_episodes=pair.eval_episodes,
+)
+print(
+    f"DQN at PAIR, seed {RUN_SEED}: {log_pair_dqn['seconds']:.0f} s; greedy return at the end "
+    f"{log_pair_dqn['eval_return'][-1]:.1f}"
+)
+
+
+# %% role="ex4-run2"
+q_pair_ddqn, log_pair_ddqn = train_dqn(
+    make_cartpole,
+    PAIR,
+    RUN_SEED,
+    pair.steps,
+    target_fn=double_dqn_target,
+    log_every=pair.log_every,
+    eval_every=pair.eval_every,
+    eval_episodes=pair.eval_episodes,
+)
+print(f"Double DQN at PAIR, seed {RUN_SEED}: {log_pair_ddqn['seconds']:.0f} s. Greedy returns:")
+print(
+    f"  Double DQN {log_pair_ddqn['eval_return'][-1]:.1f}, "
+    f"DQN {log_pair_dqn['eval_return'][-1]:.1f} (single seed each, not a ranking)"
+)
+lab.metric(
+    "pair_returns",
+    {
+        "dqn": round(float(log_pair_dqn["eval_return"][-1]), 1),
+        "ddqn": round(float(log_pair_ddqn["eval_return"][-1]), 1),
+    },
+)
 
 # %% [markdown] role="ex4-explain"
 # On the stand-in networks the two targets differ because the networks disagree about the
@@ -725,17 +766,20 @@ lab.metric("ddqn_return", round(float(log_ddqn["eval_return"][-1]), 1))  # room 
 lab.check(4, m08.check_double_dqn_target, double_dqn_target)
 
 # %% [markdown] role="ex5-head"
-# **Q(s₀) against the Monte Carlo return.** What does your network believe a start state
-# is worth, and what does its greedy policy earn from there? `evaluate_greedy` runs the greedy
+# **Q(s₀) against the Monte Carlo return.** What does a network believe a start state is
+# worth, and what does its greedy policy earn from there? `evaluate_greedy` runs the greedy
 # policy from 10 fixed start states and returns each episode's rewards and
 # Q(s₀) = max_a Q(s₀, a; w). You write `mc_return`: the discounted return from every step to the
 # end of an episode, computed backward, G_t = r_t + γ G_{t+1} (MC return). G₀ is the Monte Carlo
-# estimate of the greedy policy's value at s₀.
+# estimate of the greedy policy's value at s₀. The run compares three networks at your seed:
+# your DQN from Exercise 3 (`CONFIG`, 98 copies) and the pair from Exercise 4 (`PAIR`). Two
+# yardsticks stand beside G₀: (sync lag), what exact fits would reach after that many copies,
+# and 100 = 1/(1 − γ), the largest value any CartPole state can have.
 
 # %% [markdown] role="ex5-predict"
-# At the end of your run, is Q(s₀) above or below G₀, the discounted MC return its greedy
-# policy earns? And at the same seed and budget, is Double DQN's Q(s₀) higher or lower than
-# DQN's?
+# For the pair's DQN, will Q(s₀) end above or below G₀, the discounted MC return its greedy
+# policy earns? Above or below 100? And at the same seed, will the pair's Double DQN have a
+# higher or a lower Q(s₀) than its DQN?
 
 
 # %% role="ex5-stub"
@@ -764,33 +808,39 @@ def mc_return(rewards, gamma):
 
 
 # %% role="ex5-run"
-lag = sync_lag(budget.steps, CONFIG)
+NETS = (  # label, network, its configuration and steps
+    ("DQN, Exercise 3", q_dqn, CONFIG, budget.steps),
+    ("DQN, pair", q_pair_dqn, PAIR, pair.steps),
+    ("Double DQN, pair", q_pair_ddqn, PAIR, pair.steps),
+)
 rows = {}
-for name, net in (("DQN", q_dqn), ("Double DQN", q_ddqn)):
-    ev = evaluate_greedy(net, make_cartpole, budget.eval_episodes, CONFIG.gamma)
-    g0 = np.array([mc_return(r, CONFIG.gamma)[0] for r in ev["rewards"]])
-    rows[name] = (ev["q0"].mean(), g0.mean(), ev["returns"].mean())
-print(f"After {budget.steps:,} steps, seed {RUN_SEED}, {budget.eval_episodes} greedy episodes;")
-print(f"(sync lag) after {syncs_by(budget.steps, CONFIG)} copies: {lag:.2f}")
-print("                Q(s₀)       G₀    Q(s₀) − G₀   Q(s₀) − (sync lag)   greedy return")
-for name, (q0, g0, ret) in rows.items():
+for name, net, cfg, n_steps in NETS:
+    ev = evaluate_greedy(net, make_cartpole, budget.eval_episodes, cfg.gamma)
+    g0 = np.array([mc_return(r, cfg.gamma)[0] for r in ev["rewards"]])
+    rows[name] = (ev["q0"].mean(), g0.mean(), sync_lag(n_steps, cfg), ev["returns"].mean())
+print(f"Seed {RUN_SEED}, {budget.eval_episodes} greedy episodes from the fixed start states:")
+print("                    Q(s₀)      G₀   Q(s₀) − G₀   (sync lag)   Q(s₀) − 100   greedy return")
+for name, (q0, g0, lag, ret) in rows.items():
     print(
-        f"  {name:>10}   {q0:7.2f}  {g0:7.2f}   {q0 - g0:+11.2f}   {q0 - lag:+18.2f}   {ret:13.1f}"
+        f"  {name:>16}  {q0:7.2f}  {g0:6.2f}  {q0 - g0:+11.2f}  {lag:11.2f}  {q0 - 100:+12.2f}"
+        f"  {ret:14.1f}"
     )
-d = rows["Double DQN"][0] - rows["DQN"][0]
-print(f"Double DQN minus DQN at seed {RUN_SEED}: Q(s₀) {d:+.2f}")
-lab.metric("dqn_q0", round(float(rows["DQN"][0]), 2))  # room code
-lab.metric("ddqn_q0", round(float(rows["Double DQN"][0]), 2))  # room code
-lab.metric("dqn_q0_gap", round(float(rows["DQN"][0] - rows["DQN"][1]), 2))  # room code
+d = rows["Double DQN, pair"][0] - rows["DQN, pair"][0]
+print(f"The pair at seed {RUN_SEED}: Double DQN minus DQN, Q(s₀) {d:+.2f}")
+lab.metric("dqn_q0", round(float(rows["DQN, Exercise 3"][0]), 2))  # room code
+lab.metric("pair_dqn_q0", round(float(rows["DQN, pair"][0]), 2))  # room code
+lab.metric("pair_ddqn_q0", round(float(rows["Double DQN, pair"][0]), 2))  # room code
+lab.metric("pair_dqn_q0_gap", round(float(rows["DQN, pair"][0] - rows["DQN, pair"][1]), 2))
 STYLE = {  # as the briefing's figure: Q(s0) solid with circles, G0 dotted with squares
     "q0": ("eval_q0", "-", "o", r"$Q(s_0)$"),
     "mc": ("eval_disc_return", ":", "s", r"$G_0$"),
 }
 fig, axes = plt.subplots(1, 2, figsize=(9, 3.8), sharey=True)
-grid = np.arange(0, budget.steps + 1, budget.steps // 100)
-for ax, (name, log) in zip(axes, (("dqn", log_dqn), ("ddqn", log_ddqn)), strict=True):
+grid = np.arange(0, pair.steps + 1, pair.steps // 200)
+pair_logs = (("dqn", log_pair_dqn), ("ddqn", log_pair_ddqn))
+for ax, (name, log) in zip(axes, pair_logs, strict=True):
     for i, (what, (key, ls, marker, sym)) in enumerate(STYLE.items()):
-        b = prl.data.band(f"m08_{name}_{what}", budget)
+        b = prl.data.band(f"m08_pair_{name}_{what}", pair)
         color = prl.plot.SERIES[i]
         ax.fill_between(
             b["x"],
@@ -811,32 +861,33 @@ for ax, (name, log) in zip(axes, (("dqn", log_dqn), ("ddqn", log_ddqn)), strict=
             label=f"{sym}, your seed",
         )
     ax.plot(
-        grid, [sync_lag(t, CONFIG) for t in grid], color=NEUTRAL_LIGHT, ls="--", label="(sync lag)"
+        grid, [sync_lag(t, PAIR) for t in grid], color=NEUTRAL_LIGHT, ls="--", label="(sync lag)"
     )
-    ax.set(xlabel="environment steps", title="DQN" if name == "dqn" else "Double DQN")
+    ax.axhline(100, color=NEUTRAL_LIGHT, ls=":", lw=1, label="100 = 1/(1 − γ)")
+    ax.set(xlabel="environment steps", title="DQN, pair" if name == "dqn" else "Double DQN, pair")
     steps_in_k(ax)
 axes[0].set(ylabel="value at the start states")
 handles, labels = axes[0].get_legend_handles_labels()
 fig.legend(handles, labels, loc="lower center", ncol=3, fontsize=8, frameon=False)
-fig.tight_layout(rect=(0, 0.14, 1, 1))
+fig.tight_layout(rect=(0, 0.16, 1, 1))
 plt.show()
-bands = [prl.data.band(f"m08_{n}_q0", budget) for n in ("dqn", "ddqn")]
+bands = [prl.data.band(f"m08_pair_{n}_q0", pair) for n in ("dqn", "ddqn")]
 seeds = f"seeds {bands[0]['seeds'][0]}-{bands[0]['seeds'][-1]}"
 records = " and ".join(b["record"] for b in bands)
 print(
     textwrap.fill(
-        f"The bands: the reference DQN and Double DQN (this lab's solutions), {seeds} at your "
-        f"budget ({records}).",
+        f"The bands: the reference DQN and Double DQN at PAIR (this lab's solutions), {seeds} at "
+        f"the pair's budget ({records}).",
         98,
     )
 )
 
 
 # %% [markdown] role="ex5-explain"
-# Is Q(s₀) on the side of G₀ you predicted? After k copies even a perfect fit sits near
-# (sync lag), whatever the policy earns: which force dominates at this budget, and what would a
-# much longer run show? Then compare Double DQN's Q(s₀) with DQN's at your seed, and each with
-# (sync lag): where does the max over noisy estimates (Jensen) show? (sync lag)
+# Compare the first two rows. With 98 copies, where does Q(s₀) sit against (sync lag) and
+# against G₀, and with the pair's copies? Which force dominates in each, and why is a Q(s₀)
+# above 100 an overestimate whatever the policy earns? Then compare the pair's Double DQN with
+# its DQN at your seed: where does the max over noisy estimates (Jensen) show? (sync lag)
 
 # %% role="ex5-chk"
 lab.check(5, m08.check_mc_return, mc_return)
@@ -953,10 +1004,10 @@ print(textwrap.fill(verdict.sentence, 98))  # the rule's own sentence, after you
 # %% [markdown]
 # **Your room code.** The finish cell below, `lab.finish()`, ends with one line that starts
 # with `ROOM m08`. It holds your seat, the checkpoints you passed, whether QUICK budgets ran, and
-# the numbers the debrief pools: your DQN's and Double DQN's greedy return at the budget
-# (`dqn_return`, `ddqn_return`), their Q(s₀) at the same seed (`dqn_q0`, `ddqn_q0`), your DQN's
-# Q(s₀) − G₀ (`dqn_q0_gap`) and your training time (`train_seconds`). Paste it where your
-# instructor says.
+# the numbers the debrief pools: your DQN's greedy return and Q(s₀) after Exercise 3
+# (`dqn_return`, `dqn_q0`), the pair's Q(s₀) at the same seed (`pair_dqn_q0`, `pair_ddqn_q0`),
+# the pair DQN's Q(s₀) − G₀ (`pair_dqn_q0_gap`) and your training time (`train_seconds`).
+# Paste it where your instructor says.
 
 # %% [markdown] role="stretch"
 # **LunarLander-v3.** Your `train_dqn` assumes nothing about CartPole: it reads the
