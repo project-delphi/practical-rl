@@ -396,13 +396,14 @@ def exact_numbers(L: dict) -> dict:
         fits[shared] = (float(v.min()), float(v.max()), float(np.abs(features @ w_fit - v).max()))
     lo, hi, gap = fits[True]
     assert (_r(lo, 2), _r(hi, 2), _r(gap, 2)) == (50.91, 75.91, 2.47) and gap < 5  # the fee is 5
-    assert fits[False][2] < 1e-12  # "3.6e-14, rounding": a rounding residual
-    soft["independent shop's fit error (quoted 3.6e-14)"] = fits[False][2]
+    assert fits[False][2] < 1e-12  # "below 1e-12, rounding" (Exercise 1, knowledge check 7.6)
     # ---- Section 3, Check yourself 3.1 and the collapsed argument
     A2 = L["td_matrix"](np.eye(2), np.array([0.5, 0.5]), np.array([[0.0, 1.0], [0.0, 1.0]]), 0.9)
     assert np.allclose(A2, [[0.5, -0.45], [0.0, 0.05]], atol=1e-15)
     lam2 = np.sort(np.linalg.eigvals(A2).real)
     assert np.allclose(lam2, [0.05, 0.5]) and math.isclose(min(2 / lam2), 4.0)  # alpha < 4
+    y = np.array([1.0, 2.0])
+    assert _r(y @ A2 @ y, 6) == -0.2  # "y = (1, 2) gives y^T A y = -0.2"
     A = L["A"]  # Exercise 3's run cell: Baird's A
     assert np.allclose(A, L["td_matrix"](b.phi, b.mu_behavior, b.P_target, b.gamma))
     sym = np.linalg.eigvalsh((A + A.T) / 2)
@@ -450,6 +451,14 @@ def exact_numbers(L: dict) -> dict:
     assert _r(w_end[6], 2) == 6.85 and path[0][6] == 10
     rho = [np.abs(np.linalg.eigvals(np.eye(8) - a * A)).max() for a in (0.001, 0.01, 0.1)]
     assert [_r(x, 6) for x in rho] == [1.000239, 1.002393, 1.023925]
+    # Exercise 4's facilitator note: 1.002393^1000 = 10.9 predicts about 113, but ‖w‖ grows
+    # 42-fold; w0's coefficient along the growing unit eigenvector is 44.9.
+    assert _r(rho[1] ** 1000, 1) == 10.9 and round(np.linalg.norm(b.w0) * rho[1] ** 1000) == 113
+    assert round(norms[1000] / norms[0]) == 42
+    lam_A, vec_A = np.linalg.eig(A)
+    vec_A = vec_A / np.linalg.norm(vec_A, axis=0)
+    coef = np.linalg.solve(vec_A, b.w0.astype(complex))[np.argmin(lam_A.real)]
+    assert _r(abs(coef), 1) == 44.9 and abs(coef) > np.linalg.norm(b.w0)
     doubling = math.log(2) / math.log(rho[0])
     assert round(doubling, 1) == 2897.5 and round(doubling, -2) == 2900
     # ---- Exercise 5, Section 5's fold and knowledge check 7.4
@@ -484,6 +493,24 @@ def exact_numbers(L: dict) -> dict:
     assert err("monte-carlo", 10**5) < 1e-12 and err("monte-carlo", 10**6) < 1e-12
     assert err("tabular", 10**6) < err("tabular", 10**5) < err("tabular", 10**4)
     assert not np.isfinite(results["original"][1][-1]) or err("original", 10**6) > 1e12
+    # Figure 07-legs, caption and alt text. "All four start near 12":
+    assert all(round(float(results[n][1][0])) == 12 for n in results)
+    # The original passes 1e12 at 1e4 sweeps and leaves the top of the plot (1e15) soon after:
+    over = np.nan_to_num(results["original"][1], nan=np.inf) > LEG_YLIM[1]
+    assert err("original", 10**4) > 1e12 and 10**4 < GRID[np.argmax(over)] < 2 * 10**4
+    # Monte Carlo falls off the bottom of the plot (1e-8) before 1e4 sweeps:
+    assert GRID[np.argmax(results["monte-carlo"][1] < LEG_YLIM[0])] < 10**4
+    # On-policy: within 1% of 1.8 from about 1e4 sweeps on ("near 1e4 sweeps but at an error of
+    # 1.8"). The alt text's "falls to a flat line at 1.8 after about five thousand sweeps" is
+    # loose: the error dips to 1.41 near 5000 sweeps and is within 1% of 1.8 from 12,589 on.
+    e_on = results["on-policy"][1]
+    flat = np.abs(e_on - 1.8) < 0.018
+    settle = next(i for i in range(len(GRID)) if flat[i:].all())
+    assert GRID[settle] == 12_589 and _r(e_on.min(), 2) == 1.41 and GRID[e_on.argmin()] == 5012
+    # Tabular stays near 12 until about 1e4 sweeps (10.4 there), then 7.5e-6 at 1e6. The alt
+    # text's "about ten to the minus six" is loose: 7.5e-6 is between 1e-6 and 1e-5.
+    assert err("tabular", 10**3) > 11.5 and err("tabular", 10**4) > 10
+    assert 1e-6 < err("tabular", 10**6) < 1e-5
     # ---- Exercise 7 and knowledge check 7.8
     raw = L["colleague_features_unfixed"](np.zeros(4))
     sq = float(raw @ raw)
@@ -556,7 +583,58 @@ def record_numbers(recs: dict[str, dict]) -> dict:
             "colleague: seeds with greedy >= 3 x random's median": high,
         }
     assert out["live"]["colleague: seeds with greedy >= 3 x random's median"] >= 1
+    quoted_record_values(recs)
     return out
+
+
+def quoted_record_values(recs: dict[str, dict]) -> None:
+    """The record values the second pass quotes: Section 6's After-the-lab fold, Figure
+    07-weight-norms' caption and alt text, the predict_answer entries of Exercises 6 and 7, and
+    knowledge check 7.8. Seeds 0-19 of each band record."""
+
+    def r1(xs) -> tuple:
+        """(min, median, max) to one decimal; a median exactly on a half keeps two decimals."""
+        xs = np.asarray(xs, dtype=float)
+        med = float(np.median(xs))
+        tie = abs(med * 10 - math.floor(med * 10) - 0.5) < 1e-9
+        return (_r(xs.min(), 1), round(med, 2) if tie else _r(med, 1), _r(xs.max(), 1))
+
+    for label, want in {
+        "live": {"greedy": (206.6, 493.5, 500.0), "peak": (327, 420), "end": (263, 312)},
+        # The QUICK median is 348.45 exactly (the mean of 332.4 and 364.5); the predict_answer
+        # writes 348.4, where half-up rounding gives 348.5.
+        "quick": {"greedy": (214.9, 348.45, 500.0), "peak": (172, 193), "end": (169, 184)},
+    }.items():
+        p = recs[label]["per_seed"]
+        assert r1(p["greedy_return"]) == want["greedy"], r1(p["greedy_return"])
+        assert r1(p["random_return"]) == (12.2, 22.0, 29.0)
+        maxw = np.array(p["max_w_norm"])
+        assert (round(maxw.min()), round(maxw.max())) == want["peak"]
+        end = np.array([row[-1] for row in p["w_norm"]])
+        assert (round(end.min()), round(end.max())) == want["end"]
+    p = recs["live"]["per_seed"]
+    ratio = np.array(p["greedy_return"]) / np.array(p["random_return"])
+    # The page and Exercise 6's predict_answer say "at least 8.1 times random on every seed";
+    # the smallest ratio is 8.063, so "at least 8" is what holds.
+    assert _r(ratio.min(), 2) == 8.06 and ratio.min() > 8
+    q = np.array(p["q_start"])
+    assert (_r(q.min(), 1), _r(q.max(), 1)) == (74.4, 110.7)
+    c = p["colleague"]
+    first = np.log10([row[0] for row in c["w_norm"]])
+    last = np.log10([row[-1] for row in c["w_norm"]])
+    assert first.min() > 16 and round(first.min()) == 17 and round(first.max()) == 36
+    assert 85 < last.min() and last.max() < 116  # "ending between about 10^85 and 10^116"
+    assert all(row[-1] > row[9] for row in c["w_norm"])  # keeps climbing after 10,000 steps
+    assert all(v is not None for row in c["w_norm"] for v in row)  # never inf or nan
+    top = np.log10(c["max_finite_w_norm"])
+    assert (_r(top.min(), 1), _r(top.max(), 1)) == (85.6, 115.4)
+    assert all(q is not None and min(abs(x) for x in q) > 1000 for q in c["q_start"])
+    assert r1(c["greedy_return"]) == (9.2, 14.4, 459.3)
+    above = [s for s, g in zip(recs["live"]["seeds"], c["greedy_return"], strict=True) if g > 160]
+    assert above == [3, 4, 12]  # "above 160 ... on seeds 3, 4 and 12" (3 of 20)
+    cq = recs["quick"]["per_seed"]["colleague"]
+    top_q = np.log10(cq["max_finite_w_norm"])
+    assert (_r(top_q.min(), 1), _r(top_q.max(), 1)) == (32.1, 52.8)
 
 
 # ------------------------------------------------------------------ figures
@@ -588,7 +666,7 @@ def legs_figure(t: Theme, data: dict) -> Figure:
     ax.set_xlim(1, 1e6)
     ax.set_ylim(*LEG_YLIM)
     ax.xaxis.set_major_locator(FixedLocator([1, 1e2, 1e4, 1e6]))
-    ax.yaxis.set_major_locator(FixedLocator([1e-6, 1e-2, 1e2, 1e6, 1e10, 1e14]))
+    ax.yaxis.set_major_locator(FixedLocator([10.0**e for e in range(-6, 16, 3)]))
     for axis in (ax.xaxis, ax.yaxis):
         axis.set_minor_locator(NullLocator())
         axis.set_major_formatter(FuncFormatter(_pow10))
@@ -597,10 +675,12 @@ def legs_figure(t: Theme, data: dict) -> Figure:
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     ax.set_xlabel("sweeps (log scale)")
-    ax.set_ylabel("largest |v̂(s) − v_π(s)| (log scale)")
+    ax.set_ylabel(r"largest $|\hat{v}(s) - v_\pi(s)|$ (log scale)")
     ax.legend(
         loc="upper left",
-        frameon=False,
+        facecolor=t.bg,  # opaque, so gridlines do not run through the text
+        framealpha=1,
+        edgecolor="none",
         handlelength=2.8,
         title="Baird, α = 0.01",
         alignment="left",
@@ -618,12 +698,17 @@ def _pow10(v: float, _p=None) -> str:
 NORM_YLIM = (1, 1e125)
 
 
+def _steps(v: float, _p=None) -> str:
+    return f"{int(v):,}"
+
+
 def norms_figure(t: Theme, data: dict) -> Figure:
-    fig = Figure(figsize=(WIDTH_IN, 4.2))
-    ax = fig.add_axes((0.12, 0.14, 0.82, 0.82))
+    fig = Figure(figsize=(WIDTH_IN, 4.6))
+    ax = fig.add_axes((0.12, 0.13, 0.82, 0.84))
     grid = np.array(data["grid"])
-    for row in data["solution"]:
-        ax.plot(grid, _log_round(np.array(row), 1, 1e130), color=t.series[0], lw=1.2, alpha=0.8)
+    solution = [np.round(np.array(row, dtype=float), 1) for row in data["solution"]]
+    for y in solution:
+        ax.plot(grid, _log_round(y, 1, 1e130), color=t.series[0], lw=1.2, alpha=0.8)
     for row in data["colleague"]:
         y = np.array([np.nan if v is None else v for v in row], dtype=float)
         ok = np.isfinite(y)
@@ -652,13 +737,13 @@ def norms_figure(t: Theme, data: dict) -> Figure:
     ax.yaxis.set_minor_locator(NullLocator())
     ax.yaxis.set_major_formatter(FuncFormatter(_pow10))
     ax.xaxis.set_major_locator(FixedLocator(list(range(0, grid[-1] + 1, 10_000))))
-    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{int(v):,}".replace(",", " ")))
+    ax.xaxis.set_major_formatter(FuncFormatter(_steps))
     ax.grid(True, axis="y", lw=0.8)
     ax.set_axisbelow(True)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     ax.set_xlabel("environment steps")
-    ax.set_ylabel("‖W‖ (log scale)")
+    ax.set_ylabel(r"$\Vert W \Vert$ (log scale)")
     n = len(data["solution"])
     handles = [
         Line2D([], [], color=t.series[1], lw=2, ls="--"),
@@ -666,14 +751,29 @@ def norms_figure(t: Theme, data: dict) -> Figure:
     ]
     ax.legend(
         handles,
-        ["colleague's features (not scaled)", "rbf_features (unit length)"],
-        loc="lower right",
-        bbox_to_anchor=(1.0, 0.13),
+        ["colleague's (not scaled)", "rbf_features (unit length)"],
+        loc="lower left",
+        bbox_to_anchor=(0.10, 0.12),
         frameon=False,
         handlelength=2.8,
         title=f"{n} seeds each, α = 0.3",
         alignment="left",
     )
+    # The unit-length runs on a linear scale: on the log axis they merge into one line.
+    ins = ax.inset_axes((0.70, 0.17, 0.28, 0.3))
+    for y in solution:
+        ins.plot(grid, y, color=t.series[0], lw=1.0, alpha=0.8)
+    ins.set_xlim(0, grid[-1])
+    ins.set_ylim(0, 500)
+    ins.xaxis.set_major_locator(FixedLocator([0, grid[-1]]))
+    ins.xaxis.set_major_formatter(FuncFormatter(_steps))
+    ins.yaxis.set_major_locator(FixedLocator([0, 250, 500]))
+    ins.grid(True, axis="y", lw=0.8)
+    ins.set_axisbelow(True)
+    ins.set_facecolor(t.bg)
+    for side in ("top", "right"):
+        ins.spines[side].set_visible(False)
+    ins.set_title("unit length, linear scale", fontsize=MIN_FONT, color=t.text, pad=4)
     return fig
 
 
@@ -705,8 +805,23 @@ def build() -> tuple[dict[Path, bytes], dict]:
     return out, computed
 
 
+#: Quoted phrases that do not match the computation or record as written; the assertions
+#: check the true values. For the academic director (the page is theirs).
+FOR_THE_DIRECTOR = [
+    "Exercise 6's predict_answer and Section 6's fold: 'at least 8.1 times random on every "
+    "seed'; the smallest ratio is 8.063 (live record), so 'at least 8 times'.",
+    "Exercise 6's predict_answer: QUICK median '348.4' is 348.45 exactly (half-up: 348.5).",
+    "Figure 07-legs alt text: on-policy 'falls to a flat line at 1.8 after about five thousand "
+    "sweeps'; it dips to 1.41 near 5,000 sweeps and is within 1% of 1.8 from about 12,600.",
+    "Figure 07-legs alt text: tabular 'about ten to the minus six at one million'; it is "
+    "7.5e-6, between 1e-6 and 1e-5.",
+]
+
+
 def report(computed: dict) -> None:
-    print("Every quoted number holds (exact_numbers, record_numbers).")
+    print("Every quoted number is asserted (exact_numbers, record_numbers). Phrases that differ:")
+    for line in FOR_THE_DIRECTOR:
+        print(f"  - {line}")
     for what, value in computed["soft"].items():
         print(f"  platform-dependent: {what} = {value:.3g} on this machine")
     for label, rows in computed["records"].items():
