@@ -94,3 +94,13 @@ def test_fenced_divs_are_closed():
     for page in sorted([*ROOT.glob("*.qmd"), *(ROOT / "modules").glob("*.qmd")]):
         problems = _open_divs(page.read_text())
         assert not problems, f"{page.name}: fenced divs {problems}"
+
+
+def test_bracketed_citations_parse():
+    # In [@key, §1; more text] the part after ";" must be another @citation, or Pandoc gives up
+    # on the bracket and prints "[Author (Year), §1; more text]" literally, without a warning.
+    bad = re.compile(r"\[@[^\]]*;\s*[^@\s-][^\]]*\]")
+    for page in sorted([*ROOT.glob("*.qmd"), *(ROOT / "modules").glob("*.qmd")]):
+        for i, line in enumerate(page.read_text().splitlines(), 1):
+            for m in bad.finditer(line):
+                raise AssertionError(f"{page.name}:{i}: citation will not parse: {m.group(0)}")
