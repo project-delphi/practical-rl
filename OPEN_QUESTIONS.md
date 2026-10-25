@@ -9,7 +9,7 @@ Each entry gives our working default, who decides, and when. When an entry is re
 
 **Owners:** user (you), AD (academic director), PE (pedagogy expert), TE (technical expert), UI (UI expert), lead (the main session).
 
-Last updated 2026-10-17 (Phase 3, Day 1: Modules 2 and 3); Module 9 items added 2026-10-24.
+Last updated 2026-10-25 (Phase 3, Day 3: Modules 7, 8 and 9, and the Day 3 infrastructure).
 
 **Phase 1 merged without its two human Colab smoke runs** (00-setup on Colab CPU and one
 `DPOTrainer` step on a T4); their records are not filed. Everything due at "Phase 1 exit"

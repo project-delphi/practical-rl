@@ -10,7 +10,7 @@ A five-day, practical, first-principles reinforcement learning workshop by Genia
 | Language | Python only |
 | Spelling | American English |
 
-**Status: Phase 3, Day 2 merged (2026-10-24): Modules 4, 5 and 6 are on main, after Day 1's Modules 2 and 3 (merged 2026-10-17). Day 3 is next.** Phase 2 (golden Module 1) merged 2026-10-10. Phase 1's exit
+**Status: Phase 3, Day 3 ready for review (2026-10-25): Modules 7, 8 and 9 are signed off on their branches (PRs #27, #28, #29), with the Day 3 infrastructure in PRs #24–#26. Day 2's Modules 4, 5 and 6 merged 2026-10-24, Day 1's Modules 2 and 3 on 2026-10-17.** Phase 2 (golden Module 1) merged 2026-10-10. Phase 1's exit
 still lacks its two human Colab smoke runs (§13); their records are not filed.
 
 - The draft was reviewed by four persona agents (§11): academic director, pedagogy expert, technical expert and UI expert. Their findings are folded in.
@@ -593,36 +593,40 @@ Total: 28 + 10 + 2. **Reference:** prioritized replay (PER), dueling networks. �
 - **Question.** How do we know an agent works, and find out why when it doesn't?
 
 **Objectives:**
-1. Diagnose four DQN failures from their logged metrics, by writing the signal that exposes each one.
+1. Diagnose four broken DQN runs from one table of signals on their logs: two exact checks (`gather_check`, `target_lag`) and two scale signals (`q_drift`, `td_error_scale`).
 2. Confirm a diagnosis with probe environments (Jones 2021: constant reward; observation-dependent reward) and the checklist: a trivial environment, overfitting one transition, terminal handling, reward scale.
-3. Report a comparison with IQM and bootstrap CIs (Agarwal et al. 2021, §4.1 and §4.3), a budget sentence, and ties called.
+3. Report a comparison with IQM and bootstrap CIs (Agarwal et al. 2021, §4.1 and §4.3; the camera-ready matches arXiv v4), a budget sentence, and ties called.
 4. Interpret a hyperparameter sensitivity sweep.
 
-**Briefing:**
+**Briefing** (as built, 2026-10-25):
 
 | § | Topic | Min |
 |---|---|---|
-| 1 | "A teammate's DQN stopped" | 3 |
-| 2 | What to log | 8 (demo 3) |
-| 3 | The checklist and probes | 8 (chk 2) |
+| 1 | "A teammate's DQN stopped learning" | 3 |
+| 2 | What to log | 10 (demo 3: a vote, then a healthy run's dashboard) |
+| 3 | The checklist and probe environments | 8 (chk 2) |
 | 4 | Seeds | 6 (predict 3) |
-| 5 | IQM and the bootstrap | 8 (chk 2) |
-| 6 | Budget sentences; ties | 7 |
+| 5 | IQM and the bootstrap | 9 (chk 3) |
+| 6 | Budget sentences, ties and sweeps | 4 |
 
-Total: 30 + 10.
+Total: 29 + 11.
 
-**Lab (core 52):**
+**Gotcha:** "An out-of-range signal names the cause." Runs trip several signals at once; the diagnosis comes from the pattern across every signal and the logged rewards.
+
+**Lab (core 52; decision 12 replaced the draft's one-signal-per-run design, about 66 minutes):**
 
 | # | Exercise | Writes | Checkpoint | Min |
 |---|---|---|---|---|
-| 1 | Healthy logs: record your predictions | Multiple-choice answers | Recorded | 5 |
-| 2–5 | Four **recorded** broken runs (no terminal mask; target never synced; learning rate ×100; wrong `gather` index): write the signal, then diagnose | `q_drift`, `target_lag`, `td_error_scale`, `gather_check` | Value on the record; diagnosis (multiple choice) | 4 × 6 |
-| 6 | Two probe environments, run against the buggy agents | `ConstantRewardEnv`, `ObsRewardEnv` | Q = 1 (and 100 without the mask, at γ = 0.99) | 10 |
-| 7 | Recorded sweep (5 configs × 10 seeds): IQM, bootstrap CI, budget sentence | `iqm`, `bootstrap_ci` | Equal `prl.evaluate` | 8 |
-| 8 | One live config × 1 seed | — | ≥ protocol threshold; position against the band reported | 5 |
+| 1 | Two exact checks, on the healthy logs | `gather_check`, `target_lag` | 1.1, 1.2: values on the record | 9 |
+| 2 | Two scale signals, on the healthy logs | `q_drift`, `td_error_scale` | 2.1, 2.2: values on the record | 10 |
+| 3 | Broken runs A to D (learning rate × 100, wrong gather index, no terminal mask, target never synced; titles and order neutral): one table of all four signals and the logged rewards | `diagnoses` | 3.1–3.4: the diagnosis per run | 7 |
+| 4 | Two probe environments, run against the buggy agents | `ConstantRewardEnv`, `ObsRewardEnv` | 4.1, 4.2: Q = 1 (and 100 without the mask at convergence) | 11 |
+| 5 | Recorded sweep (5 learning rates × 10 seeds): IQM, bootstrap CI, budget sentence | `iqm`, `bootstrap_ci` | 5.1, 5.2: equal `prl.evaluate` | 9 |
+| 6 | One live seed of the reference DQN, placed against a 10-seed band | `band_position` | 6.1 exact; 6.2 the best greedy evaluation of the live run ≥ 130 live, 110 QUICK (protocol, 100 seeds; against random play and an untrained network) | 6 |
 
-- **Compare:** recorded bands.
-- **Stretch:** Jones's probe 3 (two steps, discounting).
+- **Datasets:** `m09_broken_runs` and `m09_sweep`, converted by NumPy-only builders in `scripts/make_datasets.py` from experiment records of the shared DQN (`labs/shared/`). The generator asserts every signal's margin on every seed and stops on a failure. Run A's margin is a scale rule: run C's final Q at the start states is at least 10 times every other run's (decision 15).
+- **Compare:** the recorded band `m09_reference` (10 seeds, both budgets; C37).
+- **Stretch:** Jones's probe 3 (two steps, discounting). Only it catches the never-synced target.
 
 ---
 
@@ -1058,9 +1062,9 @@ No algorithms. Dependencies: numpy, scipy, gymnasium, matplotlib. No torch.
 | `lab` | `init(notebook, content_sha, designed, api, ns=globals())` → `Lab`, with `.solution(n)`, `.solution_value()`, `.use_reference(n)`, `.check(n, fn, *objs, label)`, `.metric()`, `.summary()`, `.finish()`. State lives as plain dicts in `ns["__prl_lab__"]`, so rerunning `init` keeps the stored references and stubs, and reloading `prl` cannot break `isinstance`. `check` decides "whose code" by identity against the stored references. It catches `CheckFailed`, prints the help message, records the result, then re-raises. A record's `status` is "pass" only if every checkpoint was reached and passed. |
 | `checks` | `CheckFailed`, `assert_close/shape/simplex`, `assert_threshold(v, t, provenance)`, `StochasticCheck` (a seeded metric, its direction, live and QUICK budgets, a stated minimum gap and per-budget thresholds; it is both the checkpoint and the threshold protocol's input), `mNN.check_*` (loading `_expected` fixtures) |
 | `envs` | `TabularMDP(P, R, γ).validate()`, `CliffGridworld`, `RiverSwim`, `InventoryMDP`, `RecSim`, `Baird`, `register()`. Probe environments are *not* in `prl`: Module 9 participants write them (decided in Phase 1) |
-| `data` | `load(name)` (sha-checked), `LoggedBandit`, `Transitions`, `generate_logs()` |
+| `data` | `load(name)` (sha-checked), `band(name, budget)` → {x, runs, seeds, budget, metric, record, record_sha, hardware, seconds} (sha-checked; picks the recording whose budget keys all match the lab's settings), `manifest()`, `LoggedBandit`, `Transitions`, `generate_logs()` |
 | `evaluate` | `run_seeds`, `bootstrap_ci`, `iqm` (`scipy.stats.trim_mean(x, 0.25)`), `stratified_bootstrap`, `compare(a, b, budget)` → A, B or tie plus a sentence, `rollout_returns`. Replaces rliable, which was archived 2025-10-15. |
-| `plot` | `style()` (opaque white, retina, palette generated from `brand/`), `curves(band=)`, `with_recorded(band, yours)` (refuses a budget mismatch), `bars_ci`, `grid_values`, `policy_arrows`. Bands come from `prl/src/prl/datasets/bands/`, which `scripts/export_bands.py` copies from `runs/`. Each band carries its source record ID and sha, and the `prl` tag is bumped after every export. A Colab install never sees `runs/`. |
+| `plot` | `style()` (opaque white, retina, palette generated from `brand/`), `curves(band=)`, `with_recorded(band, yours)` (refuses a mismatch on any key of the band's budget), `bars_ci`, `grid_values`, `policy_arrows`. Bands come from `prl/src/prl/datasets/bands/`, which `scripts/export_bands.py` copies from the records `runs/bands.yml` names (built 2026-10-24). Each band carries its source record ID and sha, and the `prl` tag is bumped after every export. A Colab install never sees `runs/`. |
 | `record` | `SCHEMA`, `validate`, `content_sha`, `emit` |
 
 ### Notebooks
@@ -1112,7 +1116,7 @@ No algorithms. Dependencies: numpy, scipy, gymnasium, matplotlib. No torch.
   - **Platforms:** it runs in the colab-sim environment plus arm64.
   - **Output:** an experiment record. The checkpoint's provenance comment states N and the implied flake bound (the rule of three: with no failures in N, the upper bound is about 3/N).
   - **Declaration:** a `StochasticCheck` in `prl/checks/mNN.py`. The wrong versions are the exercise's mutants of the checked function; random play is a mutant with `id="random"`. The solution is what the worked notebook binds before the exercise's run cell. The protocol fails when the gap is below `min_gap`, when any solution seed fails, or when any mutant seed passes. `--from-record` re-derives a threshold from its record.
-  - *Built 2026-10-10* and tested on a synthetic lab only; no real lab has a stochastic checkpoint yet. *Not built yet:* verify mode still reruns the mutants of every checkpoint on each CI run. It must skip the training-based ones before M8.
+  - *Built 2026-10-10.* Verify mode skips stochastic checkpoints; their wrong versions are rejected once, by the protocol. Since Day 3 the protocol refuses duplicate mutant ids among a check's wrong versions, and reads protocol-only wrong versions of provided code (for example random play in place of a provided training loop) from `labs/mutants/protocol/<module>.py`, which verify mode never reads.
 
 ### `_variables.yml` (schema)
 | Key | Contents |
@@ -1145,7 +1149,7 @@ Each `modules.mNN` entry has:
 | How | quick, quick_reason, test_doubles[], shims[], solutions_bound, scope, seeds[], seat, settings |
 | Results | seconds, checkpoints[{label, pass, whose, seconds}], metrics{}, status, source |
 
-**Experiment records** (`kind=experiment`) have their own schema: script, args, budget, seeds, per-seed metrics, hardware and platform.
+**Experiment records** (`kind=experiment`) have their own schema: script, args, budget, seeds, per-seed metrics, hardware, platform and (optionally) torch threads.
 
 `scripts/add_run_record.py` validates each record and rejects credentials, absolute paths and usernames.
 
@@ -1406,7 +1410,7 @@ The lead (the main session) integrates, owns `prl/`, and stops at each phase gat
 | M6 | Under uniform random play, does hitting time grow linearly or exponentially in chain length? | Exponentially (ratio p_L/p_R) |
 | M7 | Baird's ‖w‖ after 1000 expected sweeps: below 20, or above 100? (The briefing already says Baird diverges; C28 → R23.) | Above 100: 436.856 (exact). One eigenvalue predicts about 113; A's eigenvectors are far from orthogonal. |
 | M8 | Is Q(s₀) above or below the MC return of the greedy policy? At the same seat, is Double DQN's Q(s₀) higher or lower than DQN's? | Below at this configuration: Q tracks the target copies' lag. Below on 17 of 20 seats for DQN and 18 of 20 for Double DQN (above only where the greedy return was below 91); Double DQN lower on 19 of 20 seats, median 0.78 (`m08-seats`; R28). |
-| M9 | Constant-reward probe with reward 1, γ = 0.99: what is Q? And without the terminal mask? | 1; 100 |
+| M9 | Constant-reward probe with reward 1, γ = 0.99: what is Q? And without the terminal mask? | 1; 100 at convergence. With the probe's 20 target copies the unmasked Q is about 18.2, and run C ends at 18.02 to 18.47 on seats 0–9 (`m09-probes`). |
 | M10 | With a learned baseline, does the mean gradient change? Does the variance? | The mean doesn't; the variance ratio is < 1 |
 | M11 | Â > 0, ρ = 1.5, ε_clip = 0.2: what is the gradient of the clipped term? | 0 |
 | M12 | What is the DPO loss when π = π_ref? | ln 2 ≈ 0.693 |
@@ -1427,7 +1431,7 @@ For planted bugs, the Predict is the symptom's value: Q(goal) = 0, mean weight =
 | M6 | "ε-greedy gets there eventually" → after exponential time. · "Optimistic init is a hack" → it is optimism in tabular form. · "Add the bonus when acting" → it belongs in the backup. |
 | M7 | "A bigger network will fix divergence" → Baird diverges even though w = 0 is representable. · "Semi-gradient TD is gradient descent" → there is no objective; A ≠ Aᵀ. · "Features are just preprocessing" → their scale sets the step size. |
 | M8 | "My returns went up, so it works" → check Q against MC returns, and the masks. · "Replay is only for data efficiency" → it also decorrelates samples. · "done = terminated or truncated" → bootstrap on truncation. |
-| M9 | "One seed is enough" → a correct new seed falls outside a 5-seed band 1/3 of the time. · "Loss down = learning" → the targets move. · "The mean is fine" → IQM is robust. |
+| M9 | "One seed is enough" → a correct new seed falls outside a 5-seed band 1/3 of the time. · "Loss down = learning" → the targets move. · "The mean is fine" → IQM is robust. · "An out-of-range signal names the cause" → runs trip several signals; read the pattern. |
 | M10 | "A baseline adds bias" → an action-independent baseline does not. · "A good batch means a good gradient" → measure the variance. · "λ is a discount" → λ trades bias against variance; γ defines the objective. |
 | M11 | "Clipping bounds the policy change" → it removes the incentive only; epochs can drift; watch the KL. · "PPO works out of the box" → implementation details matter. · "clipfrac 0 means stable" → it can mean stale log-probs. |
 | M12 | "A higher RM score is better" → the proxy rises while the gold falls. · "DPO can't hack, it has no RM" → its implicit reward is still a proxy. · "Loss ln 2 means slow learning" → the policy equals the reference. |
@@ -1446,7 +1450,7 @@ For planted bugs, the Predict is the symptom's value: Q(goal) = 0, mean weight =
 | 2 | 6 RiverSwim | ε-greedy, optimistic, MBIE-EB | hitting time; % of seeds reaching the right end; regret over 10 seeds |
 | 3 | 7 Baird / CartPole | Baird; each leg removed; linear Q; a colleague's featurizer | ‖w‖ after 1000 sweeps; error after 10⁴ sweeps per leg; greedy return and return ÷ random; the colleague's greedy return and log₁₀ max ‖W‖ |
 | 3 | 8 CartPole | your DQN and Double DQN; DQN, DDQN and SB3 bands; room IQM | return at budget; Q(s₀) for DQN and Double DQN; Q(s₀) − MC; the SB3 call (a tie) |
-| 3 | 9 Logs | 4 bugs; probes; room IQM | diagnosis tally; probe Q; IQM [CI] + budget |
+| 3 | 9 Logs | 4 broken runs; probes; the sweep; one live seed | diagnosis tally; probe Q (run C); IQM [CI] + budget; live return and its position against the band |
 | 4 | 10 CartPole / gridworld | REINFORCE, + baseline, actor-critic; λ sweep | variance ratio; return; bias and variance by λ |
 | 4 | 11 CartPole | clip on vs off × 3; SB3 band | return, approx-KL, clipfrac; verdict |
 | 4 | 12 Toy / SmolLM2 | β ∈ {1, 0.25, 0.05}; DPO | proxy vs gold (exact); TV to π\*; \|yours − TRL\| |
