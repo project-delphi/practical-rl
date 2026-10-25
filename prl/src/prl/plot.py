@@ -125,7 +125,7 @@ def with_recorded(
         color=NEUTRAL_LIGHT,
         alpha=0.25,
         lw=0,
-        label=f"recorded: {runs.shape[0]} seeds ({band.get('record', 'record')})",
+        label=f"recorded: {runs.shape[0]} seeds (min to max)",
     )
     ax.plot(
         np.asarray(x, dtype=float), np.asarray(yours, dtype=float), color=SERIES[0], label=label
