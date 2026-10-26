@@ -130,7 +130,7 @@ $$ {#eq-huber-grad}
 So a gradient step on @eq-dqn-loss with $\psi = 1$ moves $w$ along $\operatorname{clip}(\delta, -1, 1)\, \nabla_w Q(s, a; w)$: exactly Mnih et al.'s update with the clipped error. The updates are equal; the losses are not. Mnih et al. write a squared-error loss and clip inside the update, so a logged squared error and a logged $\operatorname{huber}_1(\delta)$ differ wherever $|\delta| > 1$. Their own sentence says "clipping the squared error", which reads like a third option, clipping the *loss*, $\min(\tfrac12 \delta^2, \tfrac12)$. That is not equivalent: its gradient is 0 for $|\delta| > 1$, so the largest errors teach nothing. What they describe is the Huber loss, though they never use the name: the clipping "corresponds to using an absolute value loss function for errors outside of the (−1,1) interval" [@mnih2015dqn, Methods].
 
 ::: {.reference}
-**The rest of the configuration.** The lab's DQN uses Adam where Mnih et al. used RMSProp [@mnih2015dqn, Methods], clips the gradient's total norm at 10, and averages the loss over the batch. One frozen configuration (`CONFIG`) serves Labs 8 and 9: two hidden layers of 64 units, step size $10^{-3}$, 10,000 transitions, batches of 64, $\gamma = 0.99$, a gradient step every 4 environment steps from step 1,000 on, a target copy every 500 steps, and $\varepsilon$ falling linearly from 1 to 0.05 over the first fifth of the run. These are our choices for CartPole at 50,000 steps, not Mnih et al.'s Atari values.
+**The rest of the configuration.** The lab's DQN uses Adam where Mnih et al. used RMSProp [@mnih2015dqn, Methods], clips the gradient's total norm at 10, and averages the loss over the batch. One frozen configuration (`CONFIG`) serves Labs 8 and 9: two hidden layers of 64 units, step size $10^{-3}$, 10,000 transitions, batches of 64, $\gamma = 0.99$, a gradient step every 4 environment steps from step 1,000 on, a target copy every 500 steps, and $\varepsilon$ falling linearly from 1 to 0.05 over the first fifth of the run. These are our choices for CartPole at 50,000 steps, not Mnih et al.'s Atari values. Exercises 4 and 5 add one variant, `PAIR`: the same configuration with a target copy twice as often (every 250 steps), run twice as long (100,000 steps), so that @eq-sync-lag comes close to the ceiling of 100 and no longer hides the max (section 5). Copying much more often does not help: the target then moves with the online network, and the values can diverge, Module 7's deadly triad.
 :::
 
 ::: {.callout-note collapse="true" title="Code: huber (provided in Lab 8)"}
@@ -209,7 +209,7 @@ Expected max of the estimates, $\mathbb{E}[\max_a \hat Q(a)]$, when every true v
 | 4 | 1.029 | 0.600 |
 | 10 | 1.539 | 0.818 |
 
-About 1.5, and the expected max grows with the number of actions. The Gaussian column comes from numerical integration ($1/\sqrt{\pi}$ for two actions), and van Hasselt et al.'s Figure 1 shows the same case; the uniform column is $(|\mathcal{A}| - 1)/(|\mathcal{A}| + 1)$, their Theorem 2 [@vanhasselt2016ddqn, Figure 1 and appendix]. Every estimate is unbiased, and the max of them is not.
+About 1.5, and the expected max grows with the number of actions. The Gaussian column comes from numerical integration ($1/\sqrt{\pi}$ for two actions), and van Hasselt et al.'s Figure 1 shows the same case; the uniform column is $(|\mathcal{A}| - 1)/(|\mathcal{A}| + 1)$, their Theorem 2 [@vanhasselt2016ddqn, Figure 1 and appendix]. Every estimate is unbiased, and the max of them is not. Theorem 1, below, gives a floor that shrinks instead: at $C = 1$ it is 1, 0.58 and 0.33 for 2, 4 and 10 actions. It is a worst case over special error vectors, not the typical size, as van Hasselt et al. point out [@vanhasselt2016ddqn, §"Overoptimism due to estimation errors"].
 :::
 :::
 
@@ -223,7 +223,7 @@ $$
 \end{aligned}
 $$ {#eq-thm1}
 
-The bound is tight, and under the same conditions the absolute error of the Double Q-learning estimate can be zero. *What it does not say.* It is a statement about every error vector with these two properties, not about an expectation over random errors. It needs the true values to be equal, so it describes the state where choosing is hardest, not every state. It does not need the errors to be independent. And it is a floor: the typical overestimation grows with the number of actions while this floor shrinks. At $C = 1$ the floor is 1, 0.58 and 0.33 for 2, 4 and 10 actions, while the demo's expected max grew; van Hasselt et al. make the same point [@vanhasselt2016ddqn, §"Overoptimism due to estimation errors"].
+The bound is tight, and under the same conditions the absolute error of the Double Q-learning estimate can be zero. *What it does not say.* It is a statement about every error vector with these two properties, not about an expectation over random errors. It needs the true values to be equal, so it describes the state where choosing is hardest, not every state. It does not need the errors to be independent. And it is a floor: the typical overestimation grows with the number of actions while this floor shrinks.
 
 **Double DQN.** The max uses the same values to choose an action and to value it. Double DQN chooses with the online network and values the choice with the target network [@vanhasselt2016ddqn, §"Double DQN"]:
 
@@ -235,7 +235,7 @@ y_i &= r_i + \gamma (1 - \mathrm{term}_i) \\
 \end{aligned}
 $$ {#eq-ddqn}
 
-Double Q-learning, its tabular ancestor, learns two value functions and assigns each experience at random to update one of them; van Hasselt et al. call Double DQN "perhaps the minimal possible change to DQN towards Double Q-learning", since the target network is "not fully decoupled" from the online one [@vanhasselt2016ddqn, §"Double Q-learning", §"Double DQN"]. A lagged copy shares much of the online network's error, so the bias is reduced, not removed.
+Van Hasselt et al. call it "perhaps the minimal possible change to DQN towards Double Q-learning", whose two value functions learn from separate experience; the target network is "not fully decoupled" from the online one [@vanhasselt2016ddqn, §"Double Q-learning", §"Double DQN"], so the bias is reduced, not removed.
 
 **How the lab measures what remains.** Van Hasselt et al. compare DQN's value estimates with "the actual discounted value of the best learned policy", from discounted returns obtained by running it [@vanhasselt2016ddqn, §"Results on overoptimism", Figure 3]. The lab does the same at start states. It runs the greedy policy from 10 fixed start states, and compares $Q(s_0) = \max_a Q(s_0, a; w)$ with the discounted return the policy then earns. For an episode with rewards $r_0, \dots, r_{T-1}$, the returns-to-go are
 
@@ -243,18 +243,32 @@ $$
 G_t = r_t + \gamma\, G_{t+1}, \qquad G_T = 0,
 $$ {#eq-mc-return}
 
-so $G_0 = \sum_t \gamma^t r_t$. CartPole's dynamics are deterministic once $s_0$ is drawn, and so is the greedy policy, so $G_0$ is that policy's exact value at $s_0$, unless the episode was truncated (see the Gotchas). Two forces move $Q(s_0)$ against $G_0$: @eq-jensen pushes it up, and @eq-sync-lag holds it back while the copies accumulate. Which one wins depends on the budget, and Exercise 5 answers it for yours. The two forces show in different comparisons: $Q(s_0)$ against @eq-sync-lag isolates the max bias, since both share the number of copies, and $Q(s_0)$ against $G_0$ mixes both forces with how well the policy plays.
+so $G_0 = \sum_t \gamma^t r_t$. CartPole's dynamics are deterministic once $s_0$ is drawn, and so is the greedy policy, so $G_0$ is that policy's exact value at $s_0$, unless the episode was truncated (see the Gotchas). Two forces move $Q(s_0)$ against $G_0$: @eq-jensen pushes it up, and @eq-sync-lag holds it back while the copies accumulate. With the lab's configuration the copies cap the value well below 100 within 50,000 steps (Exercise 3's Predict computes where), so the lag can hide what the max does.
 
-::: {.callout-note collapse="true" title="After the lab: what Q(s₀) against G₀ showed in the records"}
-::: {#fig-q-vs-mc layout="[[50,50]]"}
-![DQN.](/images/08-q-vs-mc-dqn.svg){#fig-q-vs-mc-dqn fig-alt="Against environment steps from 0 to 50,000, five solid lines with circles, one per seed, climb steadily from about 8 to between 64.2 and 65.2, just above a dashed curve that ends at 62.65. Five dotted lines with squares stay above them throughout, between about 53 and 97."}
+Exercises 4 and 5 therefore train a pair, DQN and Double DQN at the same seed, with a variant that lifts the cap (`PAIR`, in the reference block of section 3). Three comparisons separate the forces:
 
-![Double DQN.](/images/08-q-vs-mc-ddqn.svg){#fig-q-vs-mc-ddqn fig-alt="The same layout for Double DQN: five solid lines with circles climb steadily from about 8 to between 63.5 and 64.3, a little closer to the dashed curve than DQN's, and five dotted lines with squares stay above them, between about 67 and 99."}
+- $Q(s_0)$ against @eq-sync-lag shows the max bias: both share the number of copies.
+- $Q(s_0)$ against 100 shows an overestimate whatever the policy does: no CartPole state is worth more.
+- $Q(s_0)$ against $G_0$ mixes both forces with how well the policy plays.
 
-**What to notice:** on each of the five band seeds $Q(s_0)$ (solid) climbs along @eq-sync-lag (dashed) and stays below the discounted return $G_0$ of the greedy policy (dotted): at this budget the copies' lag usually dominates. $Q(s_0)$ and $G_0$ at the 10 fixed start states, every 5,000 steps of a 50,000-step run, seeds 0 to 4 (`runs/2026-10-24-local-m08-dqn-live-exp.json`, `runs/2026-10-24-local-m08-ddqn-live-exp.json`).
+Exercise 5 makes all three at your seed.
+
+::: {.callout-note collapse="true" title="After the lab: what Q(s₀) against G₀ and 100 showed in the records"}
+::: {#fig-q-vs-mc-pair layout="[[50,50],[50,50]]"}
+![DQN, the lab's configuration (98 copies).](/images/08-pair-config.svg){#fig-pair-config fig-alt="Against environment steps from 0 to 100,000, five solid lines climb from about 8 to between 64.2 and 65.2 by 50,000 steps, along a dashed line that ends at 62.65, below a shaded band between about 53 and 97 and below a dash-dot line at 100."}
+
+![DQN, pair (396 copies).](/images/08-pair-dqn.svg){#fig-pair-dqn fig-alt="DQN at the pair's configuration: five solid lines climb from about 32 at 10,000 steps and all end above the dash-dot line at 100, between 101.5 and 334.1; the highest is drawn at the top edge with the note 'one seed to 334'. A dashed line rises to 98.13. The shaded band of G₀ spans about 11 to 99."}
+
+![Double DQN, pair (396 copies).](/images/08-pair-ddqn.svg){#fig-pair-ddqn fig-alt="Double DQN at the pair's configuration: five solid lines climb from about 32 and end between 99.4 and 116.9, four of them above the dash-dot line at 100 and all just above the dashed line at 98.13. The shaded band of G₀ spans about 12 to 99."}
+
+![The pair at 20 seats.](/images/08-pair-seats.svg){#fig-pair-seats fig-alt="Twenty seats, each a line from a DQN circle to a Double DQN square: every DQN circle lies above the dash-dot line at Q(s₀) = 100, from 1.1 to 180.1 above it (the seat at 180 drawn at the top edge); Double DQN's squares lie from 0.2 below to 35.3 above it, 18 of 20 above, and lower than DQN's at 16 of the 20 seats."}
+
+**What to notice:** with a copy every 250 steps (the pair: 396 copies by 100,000 steps), the copies no longer hold $Q(s_0)$ down. @eq-sync-lag reaches 98.13, and DQN's $Q(s_0)$ ends above 100, which no CartPole state is worth, on all 5 band seeds and on all 20 seats; Double DQN ends lower than DQN at the same seat on most seats (16 of 20). (a) The lab's configuration for contrast: 98 copies, @eq-sync-lag at 62.65, $Q(s_0)$ below $G_0$. (b), (c) $Q(s_0)$ of each band seed (solid) against the range of $G_0$ (shaded), @eq-sync-lag (dashed) and 100 (dash-dot), every 10,000 steps, seeds 0 to 4; one DQN seed climbs to 334 and is drawn at the top edge. (d) $Q(s_0) - 100$ at 100,000 steps, one line per seat from DQN to Double DQN at the same seat; one DQN seat, at 180, is drawn at the top edge (`runs/2026-10-24-local-m08-dqn-live-exp.json`, `runs/2026-10-25-local-m08-pair-{dqn,ddqn}-live-exp.json`, `runs/2026-10-25-local-m08-pair-seats-exp.json`).
 :::
 
-"$Q(s_0)$ is below the MC return, so DQN does not overestimate." After 98 copies, even exact fits reach only @eq-sync-lag, 62.65. Over 20 seats at 50,000 steps (`runs/2026-10-25-local-m08-seats-exp.json`, seats 0 to 19), DQN's $Q(s_0)$ ends 1.15 to 3.10 above that line and Double DQN's 0.53 to 2.20 above it, which is what the max's upward push predicts. Double DQN, which removes part of that push, ends lower than DQN at the same seat on 19 of the 20 seats, by a median of 0.78. $Q(s_0)$ ends below $G_0$ on 17 of the 20 seats for DQN and on 18 for Double DQN. The exceptions are seats whose greedy policy had not learned (a greedy return below 91, so $G_0$ below 60). In the five-seed band records drawn above, $Q(s_0)$ is below $G_0$ on every seed and at every evaluation, for SB3's DQN too, at 50,000 and at 10,000 steps (`runs/2026-10-24-local-m08-{dqn,ddqn,sb3}-{live,quick}-exp.json`). In a much longer run, $Q(s_0)$ climbs past $G_0$ unless the policy never fails.
+"$Q(s_0)$ is below the MC return, so DQN does not overestimate." With the lab's configuration, after 98 copies, even exact fits reach only @eq-sync-lag, 62.65. Over 20 seats at 50,000 steps (`runs/2026-10-25-local-m08-seats-exp.json`), DQN's $Q(s_0)$ ends 1.15 to 3.10 above that line, which is what the max's upward push predicts, and Double DQN ends lower than DQN at the same seat on 19 of the 20. $Q(s_0)$ still ends below $G_0$ on 17 of the 20 seats for DQN and on 18 for Double DQN: the lag hides the max.
+
+The pair lifts the lag. At the live budget DQN's $Q(s_0)$ ends above 100 and above its $G_0$ on 20 of 20 seats (`runs/2026-10-25-local-m08-pair-seats-exp.json`); the smallest excess over 100 is 1.11, more than the 0.66 that truncation alone can explain, and on every greedy episode $Q(s_0)$ exceeds the value its policy can have ($G_0$, or 100 when the episode was cut). Double DQN ends lower than DQN at the same seat on 16 of the 20 seats (median 5.3 lower) and above 100 on 18. The gap to $G_0$ is not the size of the bias: $G_0$ depends on how well each greedy policy plays, so Double DQN is not reliably closer to its own $G_0$. One band seed, drawn at the top of panel (b), is still climbing at 100,000 steps while its greedy policy fails early: an overestimate on any reading, and the record does not show whether it would settle or keep growing. With the QUICK budget (20,000 steps, 76 copies, @eq-sync-lag at 53.41), every band seed's $Q(s_0)$ ends below 100 and below $G_0$, for both: no overestimate there (`runs/2026-10-25-local-m08-pair-{dqn,ddqn}-{live,quick}-exp.json`).
 :::
 
 ::: {.callout-note collapse="true" title="Code: double_dqn_target and mc_return (open after Lab 8)"}
@@ -281,7 +295,7 @@ def mc_return(rewards, gamma):
 :::
 
 ::: {.callout-note appearance="simple"}
-**In the lab.** **Exercise 4** is `double_dqn_target`, @eq-ddqn, with the same signature as the provided `dqn_target`. Checkpoint 4 is exact on stand-in networks whose argmax and max disagree, and requires the targets to carry no gradient. The run trains a Double DQN seed with your loop, at your DQN's seed. **Exercise 5** is `mc_return`, @eq-mc-return, exact on fixed rewards; the run compares $Q(s_0)$ with $G_0$ and with @eq-sync-lag for your DQN and Double DQN, over the recorded bands of both.
+**In the lab.** **Exercise 4** is `double_dqn_target`, @eq-ddqn. Checkpoint 4 is exact on stand-in networks whose argmax and max disagree, and requires the targets to carry no gradient. The run trains the pair at your seed with the provided `PAIR`; `train_dqn` and `CONFIG` do not change. **Exercise 5** is `mc_return`, @eq-mc-return, exact on fixed rewards; the run compares $Q(s_0)$ with $G_0$, @eq-sync-lag and 100 for your Exercise 3 DQN and the pair, over the recorded bands.
 :::
 
 ## 6. Equal-budget bands
@@ -318,7 +332,7 @@ At 50,000 steps the IQMs are 145.0 [120.7, 173.4] for the reference DQN and 149.
 - The Huber loss (@eq-huber) has the clipped error as its derivative (@eq-huber-grad), so its gradient equals Mnih et al.'s clipped update. Clipping the loss instead zeroes the gradient of large errors.
 - Mask only on `terminated` (@eq-masked-target). A truncated transition keeps its bootstrap.
 - The max over noisy estimates is biased upward (@eq-jensen). Van Hasselt et al.'s Theorem 1 (@eq-thm1) gives a tight floor when the true values are equal and the errors sum to zero. Double DQN (@eq-ddqn) selects with $w$ and evaluates with $w^-$.
-- Compare $Q(s_0)$ with @eq-sync-lag to see the max bias, and with the discounted return of the greedy policy (@eq-mc-return) to see what the values claim against what the policy earns. Compare implementations with 5-seed bands at the same budget, and report your own seed as one draw.
+- Compare $Q(s_0)$ with @eq-sync-lag to see the max bias, with 100 to see an overestimate whatever the policy, and with the discounted return of the greedy policy (@eq-mc-return) to see what the values claim against what the policy earns. Compare implementations with 5-seed bands at the same budget, and report your own seed as one draw.
 
 ### Equations and where you implement them
 
@@ -343,7 +357,7 @@ At 50,000 steps the IQMs are 145.0 [120.7, 173.4] for the reference DQN and 149.
 - **"$Q(s_0)$ above the Monte Carlo return means overestimation."** Not when the episode was truncated. For a policy that never fails, bootstrapping through truncation at $\gamma = 0.99$ gives $Q(s_0) = 1/(1 - \gamma) = 100$, while a 500-step episode returns $(1 - \gamma^{500})/(1 - \gamma) = 99.34$: an exact $Q$ exceeds it by $\gamma^{500}/(1 - \gamma) \approx 0.657$. On episodes that reached 500 steps, a gap that small is no evidence of overestimation.
 - **"Clipping the loss is Mnih et al.'s error clipping."** Clipping the error in the update is the gradient of the Huber loss (@eq-huber-grad). Clipping the loss, $\min(\tfrac12 \delta^2, \tfrac12)$, has zero gradient wherever $|\delta| > 1$. Exercise 2 plots all three derivatives.
 - **"My seed landed above SB3's band, so my DQN is better."** One seed is one draw: a correct seed lands outside a 5-seed range with the probability you found in section 6's Predict. Compare 5-seed bands with the rule and call ties; report your seed as a fact, not a ranking.
-- **"Q is in the thousands."** No CartPole return exceeds $1/(1 - \gamma) = 100$ at $\gamma = 0.99$, so the run has diverged or bootstraps where it should not. Check the mask, that the target network is copied, and the step size, in that order; Module 9 diagnoses each from the log.
+- **"Q is in the thousands."** No CartPole return exceeds $1/(1 - \gamma) = 100$ at $\gamma = 0.99$, so any $Q$ above 100 is an overestimate. A $Q$ in the thousands, still growing, means the run has diverged or bootstraps where it should not. Check the mask, that the target network is copied, and the step size, in that order; Module 9 diagnoses each from the log.
 - **"`ValueError: high <= 0` from `rng.integers`."** A buffer was sampled with an upper limit of 0. Sample only after learning starts, and check which counter your `sample` uses as its upper limit.
 - **"`RuntimeError: grad can be implicitly created only for scalar outputs`."** `huber` returns one loss per transition. Average over the batch (@eq-dqn-loss) before `backward()`.
 - **"`RuntimeError: element 0 of tensors does not require grad`."** The loss was built from values computed under `torch.no_grad()`, so there is nothing to differentiate. Compute $Q(s, a; w)$ with gradients, and only the target without.

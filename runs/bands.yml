@@ -115,3 +115,41 @@ m09_reference:
   records:
     live: 2026-10-25-local-m09-reference-live-exp
     quick: 2026-10-25-local-m09-reference-quick-exp
+
+# Module 8's pair (Exercises 4-5, decision 18): matched against the lab's `pair` settings.
+m08_pair_dqn_q0:
+  metric: >-
+    Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of the reference DQN at PAIR (Lab 8's train_dqn, CONFIG with a target copy every 250 steps), against environment steps
+  x: budget.grid
+  runs: per_seed.q0
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-25-local-m08-pair-dqn-live-exp
+    quick: 2026-10-25-local-m08-pair-dqn-quick-exp
+m08_pair_dqn_mc:
+  metric: >-
+    Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of the reference DQN at PAIR (Lab 8's train_dqn, CONFIG with a target copy every 250 steps), against environment steps
+  x: budget.grid
+  runs: per_seed.disc_return
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-25-local-m08-pair-dqn-live-exp
+    quick: 2026-10-25-local-m08-pair-dqn-quick-exp
+m08_pair_ddqn_q0:
+  metric: >-
+    Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of Double DQN at PAIR (Lab 8's train_dqn with double_dqn_target, CONFIG with a target copy every 250 steps), against environment steps
+  x: budget.grid
+  runs: per_seed.q0
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-25-local-m08-pair-ddqn-live-exp
+    quick: 2026-10-25-local-m08-pair-ddqn-quick-exp
+m08_pair_ddqn_mc:
+  metric: >-
+    Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of Double DQN at PAIR (Lab 8's train_dqn with double_dqn_target, CONFIG with a target copy every 250 steps), against environment steps
+  x: budget.grid
+  runs: per_seed.disc_return
+  budget: [steps, eval_every]
+  records:
+    live: 2026-10-25-local-m08-pair-ddqn-live-exp
+    quick: 2026-10-25-local-m08-pair-ddqn-quick-exp

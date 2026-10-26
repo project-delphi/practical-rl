@@ -635,6 +635,334 @@
     ],
     "sha256": "6a2421e0a9d4bcc911f6cfd6a10d5d34529d9dfc8ccdb6ee25604e01b0cbdde7"
   },
+  "bands/m08_pair_ddqn_mc.live": {
+    "budget": {
+      "eval_every": 10000,
+      "steps": 100000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_pair_ddqn_mc.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of Double DQN at PAIR (Lab 8's train_dqn with double_dqn_target, CONFIG with a target copy every 250 steps), against environment steps",
+    "name": "m08_pair_ddqn_mc",
+    "record": "2026-10-25-local-m08-pair-ddqn-live-exp",
+    "record_sha": "7c97865946cc770358a30594b7cf6f9efa604241a4703cac327c007555e2b991",
+    "seconds": {
+      "per_seed": [
+        16.18,
+        14.94,
+        14.48,
+        14.85,
+        15.98
+      ],
+      "total": 76.4
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "71828568818a2990388ee8b618c79f1fce0c082f429849f9ff6aa2218398244f"
+  },
+  "bands/m08_pair_ddqn_mc.quick": {
+    "budget": {
+      "eval_every": 2000,
+      "steps": 20000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_pair_ddqn_mc.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of Double DQN at PAIR (Lab 8's train_dqn with double_dqn_target, CONFIG with a target copy every 250 steps), against environment steps",
+    "name": "m08_pair_ddqn_mc",
+    "record": "2026-10-25-local-m08-pair-ddqn-quick-exp",
+    "record_sha": "5190a09eae298207d95d5b8679c0175b3723014ad3cfd8e44118d73b3044262f",
+    "seconds": {
+      "per_seed": [
+        3.36,
+        3.04,
+        3.07,
+        3.29,
+        3.12
+      ],
+      "total": 15.9
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "e36fd6286720bc73fc1f92e6737580bd793a09b2f92188c967d88f2d9a63fa64"
+  },
+  "bands/m08_pair_ddqn_q0.live": {
+    "budget": {
+      "eval_every": 10000,
+      "steps": 100000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_pair_ddqn_q0.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of Double DQN at PAIR (Lab 8's train_dqn with double_dqn_target, CONFIG with a target copy every 250 steps), against environment steps",
+    "name": "m08_pair_ddqn_q0",
+    "record": "2026-10-25-local-m08-pair-ddqn-live-exp",
+    "record_sha": "7c97865946cc770358a30594b7cf6f9efa604241a4703cac327c007555e2b991",
+    "seconds": {
+      "per_seed": [
+        16.18,
+        14.94,
+        14.48,
+        14.85,
+        15.98
+      ],
+      "total": 76.4
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "f432914ca00eb6663937e59a4981575edf89c665eb196b79d17713bb1c57138b"
+  },
+  "bands/m08_pair_ddqn_q0.quick": {
+    "budget": {
+      "eval_every": 2000,
+      "steps": 20000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_pair_ddqn_q0.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of Double DQN at PAIR (Lab 8's train_dqn with double_dqn_target, CONFIG with a target copy every 250 steps), against environment steps",
+    "name": "m08_pair_ddqn_q0",
+    "record": "2026-10-25-local-m08-pair-ddqn-quick-exp",
+    "record_sha": "5190a09eae298207d95d5b8679c0175b3723014ad3cfd8e44118d73b3044262f",
+    "seconds": {
+      "per_seed": [
+        3.36,
+        3.04,
+        3.07,
+        3.29,
+        3.12
+      ],
+      "total": 15.9
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "61132ed247dd1f15e923416430666a37fb7858ba6d3837cd6b16d7ee48f353eb"
+  },
+  "bands/m08_pair_dqn_mc.live": {
+    "budget": {
+      "eval_every": 10000,
+      "steps": 100000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_pair_dqn_mc.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of the reference DQN at PAIR (Lab 8's train_dqn, CONFIG with a target copy every 250 steps), against environment steps",
+    "name": "m08_pair_dqn_mc",
+    "record": "2026-10-25-local-m08-pair-dqn-live-exp",
+    "record_sha": "a625d49d5d314f25943c8d8d119cd5079e1f52997fe96002efa508f144ad6aa2",
+    "seconds": {
+      "per_seed": [
+        14.3,
+        13.8,
+        13.62,
+        14.55,
+        15.68
+      ],
+      "total": 71.9
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "2f10fb0b7060a76a4e22c89f59440d4b5397d81bd8a486467c768891ef2b9101"
+  },
+  "bands/m08_pair_dqn_mc.quick": {
+    "budget": {
+      "eval_every": 2000,
+      "steps": 20000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_pair_dqn_mc.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Discounted return G_0 (gamma = 0.99) of the greedy policy from the 10 evaluation start states (mean) of the reference DQN at PAIR (Lab 8's train_dqn, CONFIG with a target copy every 250 steps), against environment steps",
+    "name": "m08_pair_dqn_mc",
+    "record": "2026-10-25-local-m08-pair-dqn-quick-exp",
+    "record_sha": "c77e4358cbad122915a17f02b378d7ce8c3c35e95000ca5caf9880090487dab6",
+    "seconds": {
+      "per_seed": [
+        3.03,
+        3.0,
+        2.99,
+        3.11,
+        3.44
+      ],
+      "total": 15.6
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "37ad1460e4c38a4d4c659447fb55d7229e357ff95edc0a197cedf594b95c4126"
+  },
+  "bands/m08_pair_dqn_q0.live": {
+    "budget": {
+      "eval_every": 10000,
+      "steps": 100000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_pair_dqn_q0.live.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "live",
+    "metric": "Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of the reference DQN at PAIR (Lab 8's train_dqn, CONFIG with a target copy every 250 steps), against environment steps",
+    "name": "m08_pair_dqn_q0",
+    "record": "2026-10-25-local-m08-pair-dqn-live-exp",
+    "record_sha": "a625d49d5d314f25943c8d8d119cd5079e1f52997fe96002efa508f144ad6aa2",
+    "seconds": {
+      "per_seed": [
+        14.3,
+        13.8,
+        13.62,
+        14.55,
+        15.68
+      ],
+      "total": 71.9
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "3885a9608f19511d65517962628fd826aaa02290e3c6f2c78f9b07bb9b4e3c5d"
+  },
+  "bands/m08_pair_dqn_q0.quick": {
+    "budget": {
+      "eval_every": 2000,
+      "steps": 20000
+    },
+    "bytes": 1198,
+    "file": "bands/m08_pair_dqn_q0.quick.npz",
+    "hardware": {
+      "accel": "mps",
+      "cpu": "Apple M1 Pro",
+      "env": "local",
+      "gpu": null,
+      "n_cpu": 10,
+      "platform": "local",
+      "torch_threads": 2
+    },
+    "kind": "band",
+    "label": "quick",
+    "metric": "Q(s0) = max_a Q(s0, a; w) at the 10 evaluation start states (mean) of the reference DQN at PAIR (Lab 8's train_dqn, CONFIG with a target copy every 250 steps), against environment steps",
+    "name": "m08_pair_dqn_q0",
+    "record": "2026-10-25-local-m08-pair-dqn-quick-exp",
+    "record_sha": "c77e4358cbad122915a17f02b378d7ce8c3c35e95000ca5caf9880090487dab6",
+    "seconds": {
+      "per_seed": [
+        3.03,
+        3.0,
+        2.99,
+        3.11,
+        3.44
+      ],
+      "total": 15.6
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "992670c97f6559aeffc0467de4e68944aad15bd2e9634b26f4e7420511ec8343"
+  },
   "bands/m08_sb3_return.live": {
     "budget": {
       "eval_every": 5000,

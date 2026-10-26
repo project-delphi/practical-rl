@@ -99,6 +99,17 @@ EXPERIMENTS = [f"m08-{a}-{b}" for a in ALGOS for b in BUDGETS]
 SEATS = list(range(20))
 SEATS_EXPERIMENT = "m08-seats"
 EXPERIMENTS.append(SEATS_EXPERIMENT)
+# The pair of Exercises 4-5 (decision 18): CONFIG with a target copy every 250 steps, at the
+# pair's own budget (the lab's `pair` settings), DQN and Double DQN; and its seats record.
+PAIR_SYNC = 250
+PAIR_BUDGETS = {
+    "live": dict(steps=100_000, log_every=1_000, eval_every=10_000, eval_episodes=10),
+    "quick": dict(steps=20_000, log_every=500, eval_every=2_000, eval_episodes=10),
+}
+PAIR_EXPERIMENTS = [f"m08-pair-{a}-{b}" for a in ("dqn", "ddqn") for b in PAIR_BUDGETS]
+PAIR_SEATS_EXPERIMENT = "m08-pair-seats"
+EXPERIMENTS += [*PAIR_EXPERIMENTS, PAIR_SEATS_EXPERIMENT]
+SEAT_RECORDS = (SEATS_EXPERIMENT, PAIR_SEATS_EXPERIMENT)
 # Module 9's logging (its handoff, section 3), for --reproduce --m09-logging only.
 M09_LOG_EVERY, M09_PROBES = 500, 8
 # SB3 2.9.0's DQN with the lab's CONFIG on every knob SB3 has (day-3 decision 5).
@@ -156,6 +167,11 @@ def lab_namespace() -> dict:
         words = ", ".join(f"{k}={v:_}" for k, v in b.items())
         assert f"dict({words})" in src, f"the lab's {label} settings are not {b}"
     assert 'return gym.make("CartPole-v1")' in src
+    assert f"PAIR = dataclasses.replace(CONFIG, target_sync={PAIR_SYNC})" in src
+    for label, b in PAIR_BUDGETS.items():  # the pair's settings are the lab's too
+        words = ", ".join(f"{k}={v:_}" for k, v in b.items())
+        assert f"dict({words})" in src, f"the lab's pair {label} settings are not {b}"
+    ns["PAIR"] = dataclasses.replace(ns["CONFIG"], target_sync=PAIR_SYNC)
     return ns
 
 
@@ -177,7 +193,9 @@ def _probe_max(ns: dict, q_net) -> float:
     return _f32(q.max(dim=1).values.mean())
 
 
-def run_reference(ns: dict, algo: str, label: str, seeds=SEEDS, **log_options) -> tuple:
+def run_reference(
+    ns: dict, algo: str, label: str, seeds=SEEDS, *, pair: bool = False, **log_options
+) -> tuple:
     """(per_seed, budget) of the lab's DQN (algo "dqn") or Double DQN ("ddqn"), called as
     Exercise 4's and 5's run cells call train_dqn (only the seed differs).
 
@@ -187,7 +205,8 @@ def run_reference(ns: dict, algo: str, label: str, seeds=SEEDS, **log_options) -
     import torch
 
     torch.set_num_threads(TORCH_THREADS)
-    b = BUDGETS[label]
+    b = (PAIR_BUDGETS if pair else BUDGETS)[label]
+    config = ns["PAIR"] if pair else ns["CONFIG"]
     target_fn = ns["double_dqn_target"] if algo == "ddqn" else None
     per: dict[str, list] = {k: [] for k in ("return", "disc_return", "q0", "seconds")}
     per["q_probe_end"], per["episodes"] = [], []
@@ -201,7 +220,7 @@ def run_reference(ns: dict, algo: str, label: str, seeds=SEEDS, **log_options) -
         options.update(log_options)
         start = time.perf_counter()
         _, log = ns["train_dqn"](
-            ns["make_cartpole"], ns["CONFIG"], seed, b["steps"], target_fn=target_fn, **options
+            ns["make_cartpole"], config, seed, b["steps"], target_fn=target_fn, **options
         )
         per["seconds"].append(round(time.perf_counter() - start, 2))
         grid = list(range(b["eval_every"], b["steps"] + 1, b["eval_every"]))
@@ -215,7 +234,7 @@ def run_reference(ns: dict, algo: str, label: str, seeds=SEEDS, **log_options) -
         "label": label,
         **b,
         "grid": list(range(b["eval_every"], b["steps"] + 1, b["eval_every"])),
-        "config": dataclasses.asdict(ns["CONFIG"]),
+        "config": dataclasses.asdict(config),
     }
     return per, budget
 
@@ -375,6 +394,54 @@ def run_seats(ns: dict, seats=SEATS) -> tuple[dict, dict]:
     return per, budget
 
 
+def run_pair_seats(ns: dict, seats=SEATS) -> tuple[dict, dict]:
+    """(per_seed, budget) of every seat's pair at the live budget, as Exercises 4-5 compute it.
+
+    Exercise 4 trains DQN and Double DQN at PAIR with the seat's RUN_SEED and the lab's `pair`
+    settings; Exercise 5 evaluates both final networks greedily from the 10 fixed start states
+    (the log's last evaluation again). Per run: the curves, the final evaluation's per-episode
+    Q(s0), G_0, return and whether the episode was cut at 500 (`cut`), and the seconds.
+    """
+    import torch
+
+    torch.set_num_threads(TORCH_THREADS)
+    b = PAIR_BUDGETS["live"]
+    per: dict[str, list] = {}
+    for seat in seats:
+        seed = (seat + 1) * 1000
+        for algo, target_fn in (("dqn", None), ("ddqn", ns["double_dqn_target"])):
+            start = time.perf_counter()
+            q_net, log = ns["train_dqn"](
+                ns["make_cartpole"],
+                ns["PAIR"],
+                seed,
+                b["steps"],
+                target_fn=target_fn,
+                log_every=b["log_every"],
+                eval_every=b["eval_every"],
+                eval_episodes=b["eval_episodes"],
+                verbose=False,
+            )
+            per.setdefault(f"{algo}_seconds", []).append(round(time.perf_counter() - start, 2))
+            for key in ("return", "disc_return", "q0"):
+                per.setdefault(f"{algo}_{key}", []).append(_f32_list(log[f"eval_{key}"]))
+            ev = ns["evaluate_greedy"](q_net, ns["make_cartpole"], b["eval_episodes"], GAMMA)
+            assert abs(float(np.mean(ev["q0"])) - float(log["eval_q0"][-1])) < 1e-4
+            per.setdefault(f"{algo}_final_q0", []).append(_f32_list(ev["q0"]))
+            per.setdefault(f"{algo}_final_g0", []).append(_f32_list(ev["disc_returns"]))
+            per.setdefault(f"{algo}_final_return", []).append(_f32_list(ev["returns"]))
+            per.setdefault(f"{algo}_final_cut", []).append([not t for t in ev["terminated"]])
+    budget = {
+        "label": "live",
+        **b,
+        "grid": list(range(b["eval_every"], b["steps"] + 1, b["eval_every"])),
+        "seats": list(seats),
+        "seed_rule": "(seat + 1) * 1000",
+        "config": dataclasses.asdict(ns["PAIR"]),
+    }
+    return per, budget
+
+
 NOTES = {
     "dqn": (
         "Lab 8's train_dqn with CONFIG (labs/shared/dqn_setup.py and labs/shared/dqn.py, the "
@@ -388,6 +455,22 @@ NOTES = {
         "(budget.sb3), greedy-evaluated with the lab's evaluate_greedy, seeds 0-4"
     ),
 }
+NOTES["pair-dqn"] = (
+    "Lab 8's train_dqn at PAIR (CONFIG with a target copy every 250 steps, Exercises 4-5), "
+    "labs/shared, seeds 0-4"
+)
+NOTES["pair-ddqn"] = (
+    "Lab 8's train_dqn at PAIR (CONFIG with a target copy every 250 steps) and "
+    "target_fn=double_dqn_target, labs/shared, seeds 0-4"
+)
+PAIR_SEATS_NOTE = (
+    "What seats 0-19 compute in Exercises 4-5 at the live budget: DQN and Double DQN at PAIR "
+    "(CONFIG with a target copy every 250 steps; 100,000 steps), each seat at its RUN_SEED "
+    "(seat + 1) * 1000, so `seeds` lists 1000, ..., 20000. per_seed lists are indexed like "
+    "`seeds`: for dqn and ddqn, the greedy return, G_0 (disc_return) and Q(s0) on budget.grid; "
+    "the final evaluation's 10 episodes (final_q0, final_g0, final_return, and final_cut: cut "
+    "at 500 steps rather than terminated); and the run's wall-clock seconds."
+)
 SEATS_NOTE = (
     "What seats 0-19 compute at the live budget: Exercise 3's DQN and Exercise 4's Double DQN "
     "(Lab 8's train_dqn with CONFIG, labs/shared), each seat at its RUN_SEED (seat + 1) * "
@@ -403,17 +486,18 @@ def experiment_record(
 ) -> dict:
     import nbformat
 
-    algo, label = ("seats", "live") if name == SEATS_EXPERIMENT else name.split("-")[1:]
+    algo, label, budgets = _parse(name)
     rt = runtime.detect()
     git_sha, dirty = git
     meta = nbformat.read(NOTEBOOK, as_version=4).metadata.get("prl", {})
-    b = BUDGETS[label]
+    b = budgets[label]
     tail = (
         f"Wall-clock on {where()}, {TORCH_THREADS} torch threads, runs one after another "
         f"(load average {load:.1f} at the start: other jobs shared the machine): laptop "
         "seconds, not Colab seconds."
     )
-    note = f"{SEATS_NOTE} {tail}" if algo == "seats" else None
+    seat_notes = {"seats": SEATS_NOTE, "pair-seats": PAIR_SEATS_NOTE}
+    note = f"{seat_notes[algo]} {tail}" if algo in seat_notes else None
     note = note or (
         f"{NOTES[algo]}, at the {label} budget ({b['steps']:,} steps, greedy evaluation of "
         f"{b['eval_episodes']} episodes every {b['eval_every']:,}). per_seed lists are indexed "
@@ -479,15 +563,29 @@ def where() -> str:
     return f"{_default_env(rt, 'colab-cpu')} ({rt.cpu}, {platform.machine()})"
 
 
-def measure(name: str, ns: dict, seeds=SEEDS, **log_options) -> tuple[dict, dict]:
+def _parse(name: str) -> tuple[str, str, dict]:
+    """(algo, budget label, budgets) of an experiment name."""
     if name == SEATS_EXPERIMENT:
+        return "seats", "live", BUDGETS
+    if name == PAIR_SEATS_EXPERIMENT:
+        return "pair-seats", "live", PAIR_BUDGETS
+    parts = name.split("-")
+    if parts[1] == "pair":
+        return f"pair-{parts[2]}", parts[3], PAIR_BUDGETS
+    return parts[1], parts[2], BUDGETS
+
+
+def measure(name: str, ns: dict, seeds=SEEDS, **log_options) -> tuple[dict, dict]:
+    algo, label, _ = _parse(name)
+    if name in SEAT_RECORDS:
         seats = SEATS if seeds is SEEDS else [s // 1000 - 1 for s in seeds]
         with contextlib.redirect_stdout(io.StringIO()):
-            return run_seats(ns, seats)
-    algo, label = name.split("-")[1:]
+            return (run_seats if name == SEATS_EXPERIMENT else run_pair_seats)(ns, seats)
     with contextlib.redirect_stdout(io.StringIO()):
         if algo == "sb3":
             return run_sb3(ns, label, seeds)
+        if algo.startswith("pair-"):
+            return run_reference(ns, algo[5:], label, seeds, pair=True, **log_options)
         return run_reference(ns, algo, label, seeds, **log_options)
 
 
@@ -517,7 +615,7 @@ def run(names: list[str], inbox: Path = tp.INBOX) -> list[Path]:
         start = time.perf_counter()
         per, budget = measure(name, ns)
         secs = time.perf_counter() - start
-        seeds = [(i + 1) * 1000 for i in SEATS] if name == SEATS_EXPERIMENT else SEEDS
+        seeds = [(i + 1) * 1000 for i in SEATS] if name in SEAT_RECORDS else SEEDS
         rec = experiment_record(name, per, budget, secs, git, load, seeds)
         paths.append(tp.write_record(rec, inbox))
         times = {k: v for k, v in per.items() if k.endswith("seconds")}
@@ -603,7 +701,8 @@ def band_records() -> dict[str, dict[str, str]]:
     for name, entry in spec.items():
         if not name.startswith("m08_"):
             continue
-        algo = name.split("_")[1]
+        parts = name.split("_")
+        algo = f"pair-{parts[2]}" if parts[1] == "pair" else parts[1]
         for label, rid in entry["records"].items():
             key = f"m08-{algo}-{label}"
             assert out.setdefault(key, rid) == rid, f"{name}: {key} names two records"
@@ -616,8 +715,8 @@ def _order(path: Path) -> tuple[str, int]:
 
 
 def record_for(name: str) -> dict:
-    """The record runs/bands.yml names for a band experiment; for m08-seats, the newest."""
-    if name == SEATS_EXPERIMENT:
+    """The record runs/bands.yml names for a band experiment; for a seats record, the newest."""
+    if name in SEAT_RECORDS:
         paths = sorted(RUNS.glob(f"*-{name}-exp*.json"), key=_order)
         if not paths:
             raise SystemExit(f"No filed record of {name}: run --run {name}, then file it.")
@@ -655,9 +754,9 @@ def syncs_by(t: int, sync: int = 500, starts: int = 1_000, freq: int = 4) -> int
     return max(0, t // sync - (first - 1) // sync)
 
 
-def sync_lag(t: int) -> float:
-    """(sync lag): (1 - gamma^k) / (1 - gamma) after k = syncs_by(t) copies."""
-    return (1 - GAMMA ** syncs_by(t)) / (1 - GAMMA)
+def sync_lag(t: int, sync: int = 500) -> float:
+    """(sync lag): (1 - gamma^k) / (1 - gamma) after k = syncs_by(t, sync) copies."""
+    return (1 - GAMMA ** syncs_by(t, sync=sync)) / (1 - GAMMA)
 
 
 def _brute_syncs(t: int, sync=500, starts=1_000, freq=4) -> int:
@@ -772,6 +871,14 @@ def quoted_numbers() -> dict:
     assert _r(0.5 + 0.9 * target.max(), 9) == 4.1
     assert _r(0.5 + 0.9 * target[online.argmax()], 9) == 2.3
     assert _r(64 - _r(sync_lag(50_000), 2), 9) == 1.35  # 64, 78 and 63 are hypothetical
+    # The pair (decision 18): predict_answer 4, the section 5 fold, knowledge check 8.6.
+    for t in (20_000, 100_000):
+        assert syncs_by(t, sync=PAIR_SYNC) == _brute_syncs(t, sync=PAIR_SYNC)
+    assert syncs_by(100_000, sync=PAIR_SYNC) == 396 and _r(sync_lag(100_000, PAIR_SYNC), 2) == 98.13
+    assert syncs_by(20_000, sync=PAIR_SYNC) == 76 and _r(sync_lag(20_000, PAIR_SYNC), 2) == 53.41
+    assert _r(112 - _r(sync_lag(100_000, PAIR_SYNC), 2), 9) == 13.87  # 112 and 80 hypothetical
+    # predict_answer 5's exact tools: 62.65, 98.13, 100, 99.34 and 0.66.
+    assert _r(g**500 / (1 - g), 2) == 0.66 and _r(g500, 2) == 99.34
     # Checkpoint 3.2's threshold, as the lab's ex3-chk2 comment and section 3 quote it.
     from prl.checks import m08 as checks
 
@@ -917,6 +1024,7 @@ def record_facts(data: dict) -> None:
     assert {"A": "reference", "B": "sb3"}.get(v.winner, v.winner) == want
     quoted_from_records(data)
     seat_facts()
+    pair_facts()
 
 
 def seat_facts() -> dict:
@@ -946,6 +1054,51 @@ def seat_facts() -> dict:
         assert np.all(ret[q > g] < 91) and np.all(g[q > g] < 60)
     # Exercise 3's predict_answer: max Q at the probe states within 5 above (sync lag), 20 of 20.
     assert np.all((d["dqn_q_probe_end"] - lag > 0) & (d["dqn_q_probe_end"] - lag < 5))
+    return out
+
+
+def pair_facts() -> dict:
+    """The pair (decision 18) on its records: the section 5 fold, predict_answer 5, PLAN
+    Appendix A's M8 row and the facilitator note. Wording stays qualitative ("most seats");
+    these are the tallies behind it."""
+    lag = sync_lag(100_000, PAIR_SYNC)
+    rec = record_for(PAIR_SEATS_EXPERIMENT)
+    d = {k: np.array(v, dtype=float) for k, v in rec["per_seed"].items()}
+    q_d, g_d = d["dqn_q0"][:, -1], d["dqn_disc_return"][:, -1]
+    q_dd, g_dd = d["ddqn_q0"][:, -1], d["ddqn_disc_return"][:, -1]
+    n = len(q_d)
+    out = {
+        "dqn_above_100": int(np.sum(q_d > 100)),
+        "dqn_above_g0": int(np.sum(q_d > g_d)),
+        "ddqn_above_100": int(np.sum(q_dd > 100)),
+        "ddqn_lower": int(np.sum(q_dd < q_d)),
+        "lower_median": _r(float(np.median(q_dd - q_d)), 1),
+    }
+    # Live: the pair's DQN above 100 and above its G_0 on most seats (20 of 20); its Double
+    # DQN lower at the same seat on most seats (16 of 20, median -5.3).
+    assert n == 20 and out["dqn_above_100"] == 20 and out["dqn_above_g0"] == 20, out
+    assert _r(float(np.min(q_d - 100)), 2) == 1.11  # beyond the 0.66 truncation artifact
+    assert out["ddqn_lower"] == 16 and out["lower_median"] == -5.3, out
+    assert out["ddqn_above_100"] == 18
+    # Every one of the pair DQN's greedy episodes is above its value bound (G_0 if it
+    # terminated, 100 if it was cut at 500): overestimation whatever the policy earns.
+    bound = np.where(d["dqn_final_cut"] > 0.5, 100.0, d["dqn_final_g0"])
+    assert np.all(d["dqn_final_q0"] > bound)
+    # Facilitator note: a Double DQN that reaches 500 steps can sit just above its truncated
+    # G_0 (by less than 0.66) without overestimating.
+    small = (q_dd - g_dd > 0) & (q_dd - g_dd < 0.66)
+    assert small.any() and np.all(d["ddqn_return"][small, -1] > 499)
+    # The bands (seeds 0-4): live, the pair's DQN above 100 and above G_0 on every seed; QUICK,
+    # no overestimate: Q(s0) below 100 and below G_0 on every seed, DQN and Double DQN.
+    live = {a: curves(f"m08-pair-{a}-live") for a in ("dqn", "ddqn")}
+    quick = {a: curves(f"m08-pair-{a}-quick") for a in ("dqn", "ddqn")}
+    q, g = live["dqn"]["q0"][:, -1], live["dqn"]["disc_return"][:, -1]
+    assert np.all(q > 100) and np.all(q > g)
+    for a in ("dqn", "ddqn"):
+        q, g = quick[a]["q0"][:, -1], quick[a]["disc_return"][:, -1]
+        assert np.all(q < 100) and int(np.sum(q < g)) == 5, a
+        assert np.all(quick[a]["q0"] < 100)  # at every evaluation, too
+    assert _r(sync_lag(20_000, PAIR_SYNC), 2) == 53.41 and _r(lag, 2) == 98.13
     return out
 
 
@@ -1017,13 +1170,194 @@ def figure_data() -> dict:
     data = {algo: curves(f"m08-{algo}-live") for algo in ALGOS}
     ref, sb3 = data["dqn"]["return"][:, -1], data["sb3"]["return"][:, -1]
     data["final"] = {"ref": ref, "sb3": sb3, "verdict": compare(ref, sb3)}
+    seats = record_for(PAIR_SEATS_EXPERIMENT)["per_seed"]
+    data["pair"] = {
+        "config": data["dqn"],
+        "dqn": curves("m08-pair-dqn-live"),
+        "ddqn": curves("m08-pair-ddqn-live"),
+        "seat_dqn": np.array([r[-1] for r in seats["dqn_q0"]], dtype=float) - 100,
+        "seat_ddqn": np.array([r[-1] for r in seats["ddqn_q0"]], dtype=float) - 100,
+    }
     return data
+
+
+# ------------------------------------------------------------------ the pair (decision 18)
+PAIR_CAP = 160  # curves above this value are drawn at it, and named above the axes' data
+PAIR_YMAX = 178  # room above the cap for that note
+SEAT_CAP = 60  # the seats panel: a seat above this is drawn at it and named
+SEAT_LIM = (-10, 70)
+PAIR_PANELS = {  # name: (curves key, title, target copy interval)
+    "config": ("config", "DQN, lab's configuration", 500),
+    "dqn": ("dqn", "DQN, pair", PAIR_SYNC),
+    "ddqn": ("ddqn", "Double DQN, pair", PAIR_SYNC),
+}
+
+
+def pair_curve_panel(t: Theme, data: dict, which: str) -> Figure:
+    """Q(s0) of every band seed (solid), G_0's range (shaded), (sync lag) and 100."""
+    key, title, sync = PAIR_PANELS[which]
+    c = data["pair"][key]
+    fig = Figure(figsize=(WIDTH_IN / 2, 360 * PX))  # one of four panels, 340 x 360 px
+    ax = fig.add_axes((0.2, 0.15, 0.72, 0.76))
+    color = t.series[1] if which == "ddqn" else t.series[0]  # as Figure 1
+    x = c["x"]
+    g = c["disc_return"]
+    ax.fill_between(
+        x, np.round(g.min(axis=0), 3), np.round(g.max(axis=0), 3), color=color, alpha=0.18, lw=0
+    )
+    for run in c["q0"]:
+        ax.plot(
+            x,
+            np.round(np.minimum(run, PAIR_CAP), 3),
+            color=color,
+            lw=1.3,
+            marker="o",
+            ms=3,
+            clip_on=False,
+        )
+    top = c["q0"].max()
+    if top > PAIR_CAP:
+        ax.text(
+            98_000, PAIR_CAP + 4, f"one seed to {top:.0f} ↑", ha="right", va="bottom", color=t.text
+        )
+    steps = 100_000 if which != "config" else 50_000
+    grid = np.arange(0, steps + 1, 250)
+    ax.plot(
+        grid,
+        np.round([sync_lag(int(s), sync) for s in grid], 4),
+        color=t.neutral,
+        lw=1.6,
+        ls=(0, (5, 2)),
+        drawstyle="steps-post",
+    )
+    ax.axhline(100, color=t.text, lw=1.0, ls="-.")
+    ax.set_xlim(0, 100_000)
+    ax.set_ylim(0, PAIR_YMAX)
+    ax.xaxis.set_major_locator(FixedLocator([0, 50_000, 100_000]))
+    ax.xaxis.set_major_formatter(FuncFormatter(_thousands))
+    ax.yaxis.set_major_locator(FixedLocator([0, 50, 100, 150]))
+    ax.grid(True, axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("Environment steps")
+    ax.set_ylabel("Value at the start states")
+    copies = syncs_by(steps, sync=sync)
+    ax.set_title(f"{title} ({copies} copies)", fontsize=12, color=t.text)
+    if which == "config":  # the key, once, where the panel is empty (asserted)
+        ax.text(2_000, 168, "Q(s₀) solid, G₀ shaded", color=t.text, va="top")
+        ax.text(2_000, 150, "(sync lag) dashed", color=t.text, va="top")
+        ax.text(2_000, 104, "100 dash-dot", color=t.text, va="bottom")
+    return fig
+
+
+def pair_config_panel(t: Theme, data: dict) -> Figure:
+    return pair_curve_panel(t, data, "config")
+
+
+def pair_dqn_panel(t: Theme, data: dict) -> Figure:
+    return pair_curve_panel(t, data, "dqn")
+
+
+def pair_ddqn_panel(t: Theme, data: dict) -> Figure:
+    return pair_curve_panel(t, data, "ddqn")
+
+
+def pair_seats_panel(t: Theme, data: dict) -> Figure:
+    """Q(s0) - 100 at the end, every seat, DQN and Double DQN joined at the same seat."""
+    d, dd = data["pair"]["seat_dqn"], data["pair"]["seat_ddqn"]
+    fig = Figure(figsize=(WIDTH_IN / 2, 360 * PX))
+    ax = fig.add_axes((0.2, 0.15, 0.72, 0.76))
+    hi = SEAT_CAP
+    for a, b in zip(d, dd, strict=True):
+        ax.plot([0, 1], [min(a, hi), min(b, hi)], color=t.neutral, lw=0.8, zorder=1)
+    ax.plot(
+        np.zeros(len(d)),
+        np.round(np.minimum(d, hi), 3),
+        "o",
+        color=t.series[0],
+        ms=5,
+        zorder=2,
+        clip_on=False,
+    )
+    ax.plot(
+        np.ones(len(dd)),
+        np.round(np.minimum(dd, hi), 3),
+        "s",
+        color=t.series[1],
+        ms=5,
+        zorder=2,
+        clip_on=False,
+    )
+    over = d[d > hi]
+    if len(over):
+        ax.text(
+            0.08, hi + 2, f"one seat at {over.max():.0f} ↑", ha="left", va="bottom", color=t.text
+        )
+    ax.axhline(0, color=t.text, lw=1.0, ls="-.")
+    ax.text(0.5, -1.5, "Q(s₀) = 100", ha="center", va="top", color=t.text)
+    ax.set_xlim(-0.35, 1.45)
+    ax.set_ylim(*SEAT_LIM)
+    ax.xaxis.set_major_locator(FixedLocator([0, 1]))
+    ax.set_xticklabels(["DQN", "Double DQN"])
+    ax.yaxis.set_major_locator(FixedLocator([0, 20, 40, 60]))
+    ax.grid(True, axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_ylabel("Q(s₀) − 100 at 100,000 steps")
+    ax.set_title(f"The pair, {len(d)} seats", fontsize=12, color=t.text)
+    return fig
+
+
+def pair_figure_facts(data: dict) -> dict:
+    """Every number the pair figure draws or its draft caption and alt text quote."""
+    pr = data["pair"]
+    q_d, q_dd = pr["dqn"]["q0"], pr["ddqn"]["q0"]
+    out = {
+        "copies": (syncs_by(50_000), syncs_by(100_000, sync=PAIR_SYNC)),
+        "lags": (_r(sync_lag(50_000), 2), _r(sync_lag(100_000, PAIR_SYNC), 2)),
+        "dqn_end": _span(q_d[:, -1], 1),
+        "ddqn_end": _span(q_dd[:, -1], 1),
+        "first": _span(np.concatenate([q_d[:, 0], q_dd[:, 0]]), 0),
+        "g0_dqn": _span(pr["dqn"]["disc_return"], 0),
+        "g0_ddqn": _span(pr["ddqn"]["disc_return"], 0),
+        "config_end": _span(pr["config"]["q0"][:, -1], 1),
+        "seat_dqn": _span(pr["seat_dqn"], 1),
+        "seat_ddqn": _span(pr["seat_ddqn"], 1),
+    }
+    assert out["copies"] == (98, 396) and out["lags"] == (62.65, 98.13)
+    assert out["dqn_end"] == (101.5, 334.1) and int(np.sum(q_d[:, -1] > 100)) == 5
+    assert out["ddqn_end"] == (99.4, 116.9) and int(np.sum(q_dd[:, -1] > 100)) == 4
+    assert out["first"] == (32, 33) and out["g0_dqn"] == (11, 99) and out["g0_ddqn"] == (12, 99)
+    assert out["config_end"] == (64.2, 65.2)
+    assert out["seat_dqn"] == (1.1, 180.1) and int(np.sum(pr["seat_dqn"] > 0)) == 20
+    assert out["seat_ddqn"] == (-0.2, 35.3) and int(np.sum(pr["seat_ddqn"] > 0)) == 18
+    assert int(np.sum(pr["seat_ddqn"] < pr["seat_dqn"])) == 16
+    assert int(np.sum(pr["seat_dqn"] > SEAT_CAP)) == 1 and pr["seat_ddqn"].max() < SEAT_CAP
+    assert pr["seat_ddqn"].min() > SEAT_LIM[0]
+    assert int(np.sum(q_d.max(axis=1) > PAIR_CAP)) == 1 and q_dd.max() < PAIR_CAP
+    # The fold and Exercise 5's Explain: the seed that ends at 334 (seed 1) "is still climbing at
+    # 100,000 steps while its greedy policy fails early", "not yet the thousands". Its Q(s0) rose
+    # at each of the last four evaluations (99.5, 137.8, 165.9, 228.5, 334.1 at 60,000-100,000
+    # steps); its final greedy return is 17.1 (episodes about 17 steps long) and G_0 15.7.
+    top = int(np.argmax(q_d[:, -1]))
+    assert pr["dqn"]["rec"]["seeds"][top] == 1 and _r(q_d[top, -1], 1) == 334.1
+    assert np.all(np.diff(q_d[top, -5:]) > 0) and pr["dqn"]["x"][-5] == 60_000
+    final_return = pr["dqn"]["return"][top, -1]
+    assert final_return < 50 and _r(final_return, 1) == 17.1
+    assert _r(pr["dqn"]["disc_return"][top, -1], 1) == 15.7 and q_d[top, -1] < 1_000
+    # Room for the key in panel (a): nothing there reaches 100.
+    assert pr["config"]["q0"].max() < 100 and pr["config"]["disc_return"].max() < 100
+    # The seats panel's "Q(s0) = 100" label sits just below 0 between the columns.
+    assert pr["seat_dqn"].min() > 0
+    return out
 
 
 FIGURES = {
     "08-q-vs-mc-dqn": (q_dqn_panel, True),
     "08-q-vs-mc-ddqn": (q_ddqn_panel, True),
     "08-final-returns": (final_figure, False),
+    "08-pair-config": (pair_config_panel, True),
+    "08-pair-dqn": (pair_dqn_panel, True),
+    "08-pair-ddqn": (pair_ddqn_panel, True),
+    "08-pair-seats": (pair_seats_panel, True),
 }
 
 
@@ -1037,6 +1371,7 @@ def build() -> tuple[dict[Path, bytes], dict]:
     quoted = quoted_numbers()
     data = figure_data()
     record_facts(data)
+    pair_figure_facts(data)
     out: dict[Path, bytes] = {}
     for name, (draw, panel) in FIGURES.items():
         for t in themes():

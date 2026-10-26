@@ -10,9 +10,9 @@ Each exercise you write is a `# TODO` cell with a folded Hint and Solution benea
 | 1 | [A replay buffer, and a colleague's[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/08-dqn.ipynb#scrollTo=ex1-head){target="_blank" rel="noopener"} [Planted bug]{.chip .chip-stale} | 11 |
 | 2 | [The masked target[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/08-dqn.ipynb#scrollTo=ex2-head){target="_blank" rel="noopener"} | 6 |
 | 3 | [The training loop[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/08-dqn.ipynb#scrollTo=ex3-head){target="_blank" rel="noopener"} | 16 |
-| 4 | [The Double DQN target[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/08-dqn.ipynb#scrollTo=ex4-head){target="_blank" rel="noopener"} | 5 |
+| 4 | [The Double DQN target[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/08-dqn.ipynb#scrollTo=ex4-head){target="_blank" rel="noopener"} | 6 |
 | 5 | [Q(s₀) against the Monte Carlo return[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/08-dqn.ipynb#scrollTo=ex5-head){target="_blank" rel="noopener"} | 7 |
-| 6 | [SB3 at the same budget[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/08-dqn.ipynb#scrollTo=ex6-head){target="_blank" rel="noopener"} | 6 |
+| 6 | [SB3 at the same budget[ (opens a fresh copy in a new tab)]{.visually-hidden}](https://colab.research.google.com/github/project-delphi/practical-rl/blob/main/notebooks/08-dqn.ipynb#scrollTo=ex6-head){target="_blank" rel="noopener"} | 5 |
 | | **Core** | **54 of 70** |
 :::
 
