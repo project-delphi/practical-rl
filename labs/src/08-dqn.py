@@ -925,6 +925,10 @@ print(
 # against G₀, and with the pair's copies? Which force dominates in each, and why is a Q(s₀)
 # above 100 an overestimate whatever the policy earns? Then compare the pair's Double DQN with
 # its DQN at your seed: where does the max over noisy estimates (Jensen) show? (sync lag)
+#
+# A mark such as "band to 334 ↑" at the top edge means a curve went past the plot's limit. In
+# the live band, one recorded DQN seed is still climbing at 100,000 steps while its greedy
+# policy fails early: an overestimate on any reading, not yet the thousands of a divergence.
 
 # %% role="ex5-chk"
 lab.check(5, m08.check_mc_return, mc_return)
