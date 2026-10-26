@@ -10,7 +10,7 @@ A five-day, practical, first-principles reinforcement learning workshop by Genia
 | Language | Python only |
 | Spelling | American English |
 
-**Status: Phase 3, Day 3 ready for review (2026-10-25): Modules 7, 8 and 9 are signed off on their branches (PRs #27, #28, #29), with the Day 3 infrastructure in PRs #24–#26. Day 2's Modules 4, 5 and 6 merged 2026-10-24, Day 1's Modules 2 and 3 on 2026-10-17.** Phase 2 (golden Module 1) merged 2026-10-10. Phase 1's exit
+**Status: Phase 3, Day 3 merged (2026-10-25): Modules 7, 8 and 9 are on main, with the Day 3 infrastructure; Module 8 now shows overestimation (the user's ruling on C34). Day 2's Modules 4, 5 and 6 merged 2026-10-24, Day 1's Modules 2 and 3 on 2026-10-17. Day 4 is next.** Phase 2 (golden Module 1) merged 2026-10-10. Phase 1's exit
 still lacks its two human Colab smoke runs (§13); their records are not filed.
 
 - The draft was reviewed by four persona agents (§11): academic director, pedagogy expert, technical expert and UI expert. Their findings are folded in.
@@ -553,7 +553,7 @@ Total: 30 + 10. The demo is a two-state fragment, not Baird live, so Baird's num
 3. Derive E[max_a Q̂] ≥ max_a E[Q̂] (Jensen), and state van Hasselt et al. 2016 Thm 1 with its conditions: equal true values, zero-mean errors. Implement Double DQN. Measure Q(s₀) against the discounted MC return of the greedy policy.
 4. Place your single live seed against recorded 5-seed bands of the reference DQN and SB3's DQN at the same budget. Call the reference-vs-SB3 comparison a tie or a ranking from the bands.
 
-**The configuration** (one, provided, shared with Module 9 through `labs/shared/dqn_setup.py`): two hidden layers of 64, Adam at 1e-3, buffer 10k, batch 64, γ = 0.99, `train_freq = 4`, a hard target copy every 500 steps, learning starts at 1,000, ε from 1 to 0.05 over the first 20% of steps, gradient clipping at 10, Huber threshold 1. Budgets: 50,000 steps live, 10,000 QUICK.
+**The configuration** (one, provided, shared with Module 9 through `labs/shared/dqn_setup.py`): two hidden layers of 64, Adam at 1e-3, buffer 10k, batch 64, γ = 0.99, `train_freq = 4`, a hard target copy every 500 steps, learning starts at 1,000, ε from 1 to 0.05 over the first 20% of steps, gradient clipping at 10, Huber threshold 1. Budgets: 50,000 steps live, 10,000 QUICK. Exercises 4–5's DQN and Double DQN pair uses a provided variant, `PAIR`: a target copy every 250 steps, 100,000 steps live and 20,000 QUICK (396 copies instead of 98), so Q converges and the max bias shows (decision 18; the user's ruling on C34).
 
 **Briefing** (as built, 2026-10-25):
 
@@ -567,7 +567,7 @@ Total: 30 + 10. The demo is a two-state fragment, not Baird live, so Baird's num
 | 6 | Equal-budget bands | 5 (predict 2) |
 | — | Setup | 2 |
 
-Total: 28 + 10 + 2. **Reference:** prioritized replay (PER), dueling networks. §5 says which comparison shows which force: Q against the sync-lag value (1 − γᵏ)/(1 − γ) shows the max bias; Q against G₀ mixes the bias, the copies' lag and the policy's quality (R28).
+Total: 28 + 10 + 2. **Reference:** prioritized replay (PER), dueling networks. §5 says which comparison shows which force: with 98 copies Q is held near the sync-lag value (1 − γᵏ)/(1 − γ) ≈ 62.65, below G₀; with the pair's 396 copies it converges, and DQN's Q(s₀) ends above 100 = 1/(1 − γ) and above G₀ on 20 of 20 seats at the live budget (none at QUICK). Copying every 50–100 steps diverges: Module 7's deadly triad, not the max bias.
 
 **Gotcha:** bootstrapping through truncation at γ = 0.99 makes an exact Q exceed a 500-step MC return by about γ⁵⁰⁰/(1−γ) ≈ 0.66.
 
@@ -579,9 +579,9 @@ Total: 28 + 10 + 2. **Reference:** prioritized replay (PER), dueling networks. �
 | 1 | Replay buffer (preallocated arrays), and the **planted bug**: a colleague's buffer that samples with its write pointer | `ReplayBuffer`, `buffer_diagnosis`, `ColleagueBuffer` | 1.1 shapes, uniform (χ²); 1.2 diagnosis from the histogram of drawn ages; 1.3 the fixed buffer passes χ² | 11 |
 | 2 | Masked TD target (the Huber loss is provided; its derivative is plotted against Mnih et al.'s clipped error) | `td_target` | Exact on fixed tensors; truncation bootstrapped | 6 |
 | 3 | Training loop with target copies, from a provided `dqn_parts(...)` setup; one live seed | `train_dqn` | 3.1 exact (masks, copies, Q at probe states moves at the normal step size); 3.2 best greedy evaluation minus the first (made before any gradient step) ≥ 91.0 over 20,000 steps (protocol, 200 seeds, both budgets; R27) | 16 |
-| 4 | Double DQN target; a second live seed (same seed and budget) | `double_dqn_target` | Exact | 5 |
-| 5 | Q(s₀) vs the discounted MC return, DQN and Double DQN, over recorded bands | `mc_return` | Exact on fixed rewards; the sign and the same-seat difference reported | 7 |
-| 6 | SB3 at equal budget: your seed over recorded bands | `sb3_call` | The rule's verdict on the recorded bands (a tie at both budgets) | 6 |
+| 4 | Double DQN target; the pair: live DQN and Double DQN seeds at `PAIR` (a copy every 250 steps, 100,000 steps) | `double_dqn_target` | Exact | 6 |
+| 5 | Q(s₀) against G₀, the sync-lag value and 100: Exercise 3's DQN (98 copies) against the pair (396), over recorded bands | `mc_return` | Exact on fixed rewards; the signs and the same-seat Double DQN difference reported (DQN above 100 on 20 of 20 seats; Double DQN lower on 16 of 20) | 7 |
+| 6 | SB3 at equal budget: your seed over recorded bands | `sb3_call` | The rule's verdict on the recorded bands (a tie at both budgets) | 5 |
 
 - **First cut if the pilot runs long:** merge Exercises 4 and 5 (decision 14 (d)).
 - **Compare:** SB3 2.9 DQN at the lab's configuration (recorded bands, 5 seeds per side, both budgets); the notebook never imports SB3. Every knob that cannot match is listed in the records.
@@ -1449,7 +1449,7 @@ For planted bugs, the Predict is the symptom's value: Q(goal) = 0, mean weight =
 | 2 | 5 RecSim | LinUCB, LinTS, predict-then-greedy × 3 regimes + a warm launch | regret over 5 seeds; verdict or tie; mean logged weight |
 | 2 | 6 RiverSwim | ε-greedy, optimistic, MBIE-EB | hitting time; % of seeds reaching the right end; regret over 10 seeds |
 | 3 | 7 Baird / CartPole | Baird; each leg removed; linear Q; a colleague's featurizer | ‖w‖ after 1000 sweeps; error after 10⁴ sweeps per leg; greedy return and return ÷ random; the colleague's greedy return and log₁₀ max ‖W‖ |
-| 3 | 8 CartPole | your DQN and Double DQN; DQN, DDQN and SB3 bands; room IQM | return at budget; Q(s₀) for DQN and Double DQN; Q(s₀) − MC; the SB3 call (a tie) |
+| 3 | 8 CartPole | your DQN; the pair's DQN and Double DQN; DQN, pair and SB3 bands; room IQM | return at budget; the pair's Q(s₀) for DQN and Double DQN and its excess over 100; the SB3 call (a tie) |
 | 3 | 9 Logs | 4 broken runs; probes; the sweep; one live seed | diagnosis tally; probe Q (run C); IQM [CI] + budget; live return and its position against the band |
 | 4 | 10 CartPole / gridworld | REINFORCE, + baseline, actor-critic; λ sweep | variance ratio; return; bias and variance by λ |
 | 4 | 11 CartPole | clip on vs off × 3; SB3 band | return, approx-KL, clipfrac; verdict |
