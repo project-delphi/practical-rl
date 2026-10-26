@@ -1116,7 +1116,20 @@ No algorithms. Dependencies: numpy, scipy, gymnasium, matplotlib. No torch.
   - **Platforms:** it runs in the colab-sim environment plus arm64.
   - **Output:** an experiment record. The checkpoint's provenance comment states N and the implied flake bound (the rule of three: with no failures in N, the upper bound is about 3/N).
   - **Declaration:** a `StochasticCheck` in `prl/checks/mNN.py`. The wrong versions are the exercise's mutants of the checked function; random play is a mutant with `id="random"`. The solution is what the worked notebook binds before the exercise's run cell. The protocol fails when the gap is below `min_gap`, when any solution seed fails, or when any mutant seed passes. `--from-record` re-derives a threshold from its record.
-  - *Built 2026-10-10.* Verify mode skips stochastic checkpoints; their wrong versions are rejected once, by the protocol. Since Day 3 the protocol refuses duplicate mutant ids among a check's wrong versions, and reads protocol-only wrong versions of provided code (for example random play in place of a provided training loop) from `labs/mutants/protocol/<module>.py`, which verify mode never reads.
+  - **Staleness:** a record's `inputs_sha` hashes what the protocol runs and compares: the
+    notebook cells it executes up to the exercise's run cell, each wrong version's source, the
+    metric's source and the budget. Since inputs hashing 2 (2026-10-26), the init cell's
+    `content_sha` argument is left out. The cell's other arguments still count. So an edit to
+    a later exercise does not make an earlier checkpoint's record stale. An edit to a cell the
+    protocol runs, a wrong version, the metric or the budget does. The record keeps
+    `notebook_content_sha` as provenance and lists each input's hash. `--stale` recomputes
+    today's inputs for every declared threshold and reports each record as current or stale,
+    naming the input that changed. Refile a threshold only when `--stale` calls it stale.
+    Records filed under hashing 1 stay valid as filed. `--stale` compares them the new way by
+    setting the init cell's content_sha back to the record's. It names the changed input when
+    the record's commit reproduces its `inputs_sha`. The hash does not cover prl code that the
+    metric calls, or package versions.
+  - *Built 2026-10-10.* Verify mode skips stochastic checkpoints; their wrong versions are rejected once, by the protocol. Since Day 3 the protocol refuses duplicate mutant ids among a check's wrong versions, and reads protocol-only wrong versions of provided code (for example random play in place of a provided training loop) from `labs/mutants/protocol/<module>.py`, which verify mode never reads. Since 2026-10-26 the init cell's `content_sha` is left out of a record's inputs, and `--stale` reports which records need refiling (Day 3 lesson 20).
 
 ### `_variables.yml` (schema)
 | Key | Contents |
