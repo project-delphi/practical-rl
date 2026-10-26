@@ -1333,6 +1333,16 @@ def pair_figure_facts(data: dict) -> dict:
     assert int(np.sum(pr["seat_dqn"] > SEAT_CAP)) == 1 and pr["seat_ddqn"].max() < SEAT_CAP
     assert pr["seat_ddqn"].min() > SEAT_LIM[0]
     assert int(np.sum(q_d.max(axis=1) > PAIR_CAP)) == 1 and q_dd.max() < PAIR_CAP
+    # The fold and Exercise 5's Explain: the seed that ends at 334 (seed 1) "is still climbing at
+    # 100,000 steps while its greedy policy fails early", "not yet the thousands". Its Q(s0) rose
+    # at each of the last four evaluations (99.5, 137.8, 165.9, 228.5, 334.1 at 60,000-100,000
+    # steps); its final greedy return is 17.1 (episodes about 17 steps long) and G_0 15.7.
+    top = int(np.argmax(q_d[:, -1]))
+    assert pr["dqn"]["rec"]["seeds"][top] == 1 and _r(q_d[top, -1], 1) == 334.1
+    assert np.all(np.diff(q_d[top, -5:]) > 0) and pr["dqn"]["x"][-5] == 60_000
+    final_return = pr["dqn"]["return"][top, -1]
+    assert final_return < 50 and _r(final_return, 1) == 17.1
+    assert _r(pr["dqn"]["disc_return"][top, -1], 1) == 15.7 and q_d[top, -1] < 1_000
     # Room for the key in panel (a): nothing there reaches 100.
     assert pr["config"]["q0"].max() < 100 and pr["config"]["disc_return"].max() < 100
     # The seats panel's "Q(s0) = 100" label sits just below 0 between the columns.
