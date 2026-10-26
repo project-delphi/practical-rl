@@ -712,9 +712,9 @@ pair = prl.runtime.settings(  # the pair's budget; lab code never branches on QU
     designed="colab-cpu",
 )
 lab.metric("pair_budget", {"target_sync": PAIR.target_sync, **dict(pair)})
+print(f"PAIR: a copy every {PAIR.target_sync} steps over {pair.steps:,} steps;")
 print(
-    f"PAIR: a copy every {PAIR.target_sync} steps over {pair.steps:,} steps; "
-    f"{syncs_by(pair.steps, PAIR)} copies follow a gradient step; "
+    f"  {syncs_by(pair.steps, PAIR)} copies follow a gradient step; "
     f"(sync lag) {sync_lag(pair.steps, PAIR):.2f}"
 )
 q_pair_dqn, log_pair_dqn = train_dqn(
@@ -819,7 +819,10 @@ for name, net, cfg, n_steps in NETS:
     g0 = np.array([mc_return(r, cfg.gamma)[0] for r in ev["rewards"]])
     rows[name] = (ev["q0"].mean(), g0.mean(), sync_lag(n_steps, cfg), ev["returns"].mean())
 print(f"Seed {RUN_SEED}, {budget.eval_episodes} greedy episodes from the fixed start states:")
-print("                    Q(s₀)      G₀   Q(s₀) − G₀   (sync lag)   Q(s₀) − 100   greedy return")
+print(
+    f"  {'':>16}  {'Q(s₀)':>7}  {'G₀':>6}  {'Q(s₀) − G₀':>11}  {'(sync lag)':>11}"
+    f"  {'Q(s₀) − 100':>12}  {'greedy return':>14}"
+)
 for name, (q0, g0, lag, ret) in rows.items():
     print(
         f"  {name:>16}  {q0:7.2f}  {g0:6.2f}  {q0 - g0:+11.2f}  {lag:11.2f}  {q0 - 100:+12.2f}"
@@ -835,17 +838,34 @@ STYLE = {  # as the briefing's figure: Q(s0) solid with circles, G0 dotted with 
     "q0": ("eval_q0", "-", "o", r"$Q(s_0)$"),
     "mc": ("eval_disc_return", ":", "s", r"$G_0$"),
 }
-fig, axes = plt.subplots(1, 2, figsize=(9, 3.8), sharey=True)
-grid = np.arange(0, pair.steps + 1, pair.steps // 200)
-pair_logs = (("dqn", log_pair_dqn), ("ddqn", log_pair_ddqn))
-for ax, (name, log) in zip(axes, pair_logs, strict=True):
+CAP = 160  # the value axis stops here; a curve above it is marked at the top edge
+PANELS = (  # title, the run's log, its bands' stem and budget, its configuration
+    (
+        f"DQN, Exercise 3 ({syncs_by(budget.steps, CONFIG)} copies)",
+        log_dqn,
+        "m08_dqn",
+        budget,
+        CONFIG,
+    ),
+    (f"DQN, pair ({syncs_by(pair.steps, PAIR)} copies)", log_pair_dqn, "m08_pair_dqn", pair, PAIR),
+    (
+        f"Double DQN, pair ({syncs_by(pair.steps, PAIR)} copies)",
+        log_pair_ddqn,
+        "m08_pair_ddqn",
+        pair,
+        PAIR,
+    ),
+)
+fig, axes = plt.subplots(1, 3, figsize=(10, 3.6), sharex=True, sharey=True)
+for ax, (title, log, stem, b_budget, cfg) in zip(axes, PANELS, strict=True):
     for i, (what, (key, ls, marker, sym)) in enumerate(STYLE.items()):
-        b = prl.data.band(f"m08_pair_{name}_{what}", pair)
+        b = prl.data.band(f"{stem}_{what}", b_budget)
         color = prl.plot.SERIES[i]
+        lo, hi = b["runs"].min(axis=0), b["runs"].max(axis=0)
         ax.fill_between(
             b["x"],
-            b["runs"].min(axis=0),
-            b["runs"].max(axis=0),
+            lo,
+            np.minimum(hi, CAP),
             color=color,
             alpha=0.2,
             lw=0,
@@ -853,23 +873,39 @@ for ax, (name, log) in zip(axes, pair_logs, strict=True):
         )
         ax.plot(
             log["eval_step"],
-            log[key],
+            np.minimum(log[key], CAP),
             ls=ls,
             marker=marker,
             ms=3,
             color=color,
             label=f"{sym}, your seed",
         )
+        tops = [(f"band to {hi.max():.0f} ↑", -4)] if hi.max() > CAP else []
+        if log[key].max() > CAP:
+            tops.append((f"your seed to {log[key].max():.0f} ↑", -14))
+        for text, dy in tops:
+            ax.annotate(
+                text,
+                (b["x"][-1], CAP),
+                xytext=(-4, dy),
+                textcoords="offset points",
+                ha="right",
+                va="top",
+                fontsize=7,
+                color=color,
+            )
+    grid = np.arange(0, b_budget.steps + 1, b_budget.steps // 200)
     ax.plot(
-        grid, [sync_lag(t, PAIR) for t in grid], color=NEUTRAL_LIGHT, ls="--", label="(sync lag)"
+        grid, [sync_lag(t, cfg) for t in grid], color=NEUTRAL_LIGHT, ls="--", label="(sync lag)"
     )
-    ax.axhline(100, color=NEUTRAL_LIGHT, ls=":", lw=1, label="100 = 1/(1 − γ)")
-    ax.set(xlabel="environment steps", title="DQN, pair" if name == "dqn" else "Double DQN, pair")
+    ax.axhline(100, color=NEUTRAL_LIGHT, lw=1.2, ls="-.", label=r"$100 = 1/(1-\gamma)$")
+    ax.set(xlabel="environment steps", ylim=(0, CAP), xlim=(0, max(budget.steps, pair.steps)))
+    ax.set_title(title, fontsize=10)
     steps_in_k(ax)
 axes[0].set(ylabel="value at the start states")
 handles, labels = axes[0].get_legend_handles_labels()
 fig.legend(handles, labels, loc="lower center", ncol=3, fontsize=8, frameon=False)
-fig.tight_layout(rect=(0, 0.16, 1, 1))
+fig.tight_layout(rect=(0, 0.17, 1, 1))
 plt.show()
 bands = [prl.data.band(f"m08_pair_{n}_q0", pair) for n in ("dqn", "ddqn")]
 seeds = f"seeds {bands[0]['seeds'][0]}-{bands[0]['seeds'][-1]}"
@@ -879,6 +915,7 @@ print(
         f"The bands: the reference DQN and Double DQN at PAIR (this lab's solutions), {seeds} at "
         f"the pair's budget ({records}).",
         98,
+        break_on_hyphens=False,
     )
 )
 

@@ -1170,13 +1170,184 @@ def figure_data() -> dict:
     data = {algo: curves(f"m08-{algo}-live") for algo in ALGOS}
     ref, sb3 = data["dqn"]["return"][:, -1], data["sb3"]["return"][:, -1]
     data["final"] = {"ref": ref, "sb3": sb3, "verdict": compare(ref, sb3)}
+    seats = record_for(PAIR_SEATS_EXPERIMENT)["per_seed"]
+    data["pair"] = {
+        "config": data["dqn"],
+        "dqn": curves("m08-pair-dqn-live"),
+        "ddqn": curves("m08-pair-ddqn-live"),
+        "seat_dqn": np.array([r[-1] for r in seats["dqn_q0"]], dtype=float) - 100,
+        "seat_ddqn": np.array([r[-1] for r in seats["ddqn_q0"]], dtype=float) - 100,
+    }
     return data
+
+
+# ------------------------------------------------------------------ the pair (decision 18)
+PAIR_CAP = 160  # curves above this value are drawn at it, and named above the axes' data
+PAIR_YMAX = 178  # room above the cap for that note
+SEAT_CAP = 60  # the seats panel: a seat above this is drawn at it and named
+SEAT_LIM = (-10, 70)
+PAIR_PANELS = {  # name: (curves key, title, target copy interval)
+    "config": ("config", "DQN, lab's configuration", 500),
+    "dqn": ("dqn", "DQN, pair", PAIR_SYNC),
+    "ddqn": ("ddqn", "Double DQN, pair", PAIR_SYNC),
+}
+
+
+def pair_curve_panel(t: Theme, data: dict, which: str) -> Figure:
+    """Q(s0) of every band seed (solid), G_0's range (shaded), (sync lag) and 100."""
+    key, title, sync = PAIR_PANELS[which]
+    c = data["pair"][key]
+    fig = Figure(figsize=(WIDTH_IN / 2, 360 * PX))  # one of four panels, 340 x 360 px
+    ax = fig.add_axes((0.2, 0.15, 0.72, 0.76))
+    color = t.series[1] if which == "ddqn" else t.series[0]  # as Figure 1
+    x = c["x"]
+    g = c["disc_return"]
+    ax.fill_between(
+        x, np.round(g.min(axis=0), 3), np.round(g.max(axis=0), 3), color=color, alpha=0.18, lw=0
+    )
+    for run in c["q0"]:
+        ax.plot(
+            x,
+            np.round(np.minimum(run, PAIR_CAP), 3),
+            color=color,
+            lw=1.3,
+            marker="o",
+            ms=3,
+            clip_on=False,
+        )
+    top = c["q0"].max()
+    if top > PAIR_CAP:
+        ax.text(
+            98_000, PAIR_CAP + 4, f"one seed to {top:.0f} ↑", ha="right", va="bottom", color=t.text
+        )
+    steps = 100_000 if which != "config" else 50_000
+    grid = np.arange(0, steps + 1, 250)
+    ax.plot(
+        grid,
+        np.round([sync_lag(int(s), sync) for s in grid], 4),
+        color=t.neutral,
+        lw=1.6,
+        ls=(0, (5, 2)),
+        drawstyle="steps-post",
+    )
+    ax.axhline(100, color=t.text, lw=1.0, ls="-.")
+    ax.set_xlim(0, 100_000)
+    ax.set_ylim(0, PAIR_YMAX)
+    ax.xaxis.set_major_locator(FixedLocator([0, 50_000, 100_000]))
+    ax.xaxis.set_major_formatter(FuncFormatter(_thousands))
+    ax.yaxis.set_major_locator(FixedLocator([0, 50, 100, 150]))
+    ax.grid(True, axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_xlabel("Environment steps")
+    ax.set_ylabel("Value at the start states")
+    copies = syncs_by(steps, sync=sync)
+    ax.set_title(f"{title} ({copies} copies)", fontsize=12, color=t.text)
+    if which == "config":  # the key, once, where the panel is empty (asserted)
+        ax.text(2_000, 168, "Q(s₀) solid, G₀ shaded", color=t.text, va="top")
+        ax.text(2_000, 150, "(sync lag) dashed", color=t.text, va="top")
+        ax.text(2_000, 104, "100 dash-dot", color=t.text, va="bottom")
+    return fig
+
+
+def pair_config_panel(t: Theme, data: dict) -> Figure:
+    return pair_curve_panel(t, data, "config")
+
+
+def pair_dqn_panel(t: Theme, data: dict) -> Figure:
+    return pair_curve_panel(t, data, "dqn")
+
+
+def pair_ddqn_panel(t: Theme, data: dict) -> Figure:
+    return pair_curve_panel(t, data, "ddqn")
+
+
+def pair_seats_panel(t: Theme, data: dict) -> Figure:
+    """Q(s0) - 100 at the end, every seat, DQN and Double DQN joined at the same seat."""
+    d, dd = data["pair"]["seat_dqn"], data["pair"]["seat_ddqn"]
+    fig = Figure(figsize=(WIDTH_IN / 2, 360 * PX))
+    ax = fig.add_axes((0.2, 0.15, 0.72, 0.76))
+    hi = SEAT_CAP
+    for a, b in zip(d, dd, strict=True):
+        ax.plot([0, 1], [min(a, hi), min(b, hi)], color=t.neutral, lw=0.8, zorder=1)
+    ax.plot(
+        np.zeros(len(d)),
+        np.round(np.minimum(d, hi), 3),
+        "o",
+        color=t.series[0],
+        ms=5,
+        zorder=2,
+        clip_on=False,
+    )
+    ax.plot(
+        np.ones(len(dd)),
+        np.round(np.minimum(dd, hi), 3),
+        "s",
+        color=t.series[1],
+        ms=5,
+        zorder=2,
+        clip_on=False,
+    )
+    over = d[d > hi]
+    if len(over):
+        ax.text(
+            0.08, hi + 2, f"one seat at {over.max():.0f} ↑", ha="left", va="bottom", color=t.text
+        )
+    ax.axhline(0, color=t.text, lw=1.0, ls="-.")
+    ax.text(0.5, -1.5, "Q(s₀) = 100", ha="center", va="top", color=t.text)
+    ax.set_xlim(-0.35, 1.45)
+    ax.set_ylim(*SEAT_LIM)
+    ax.xaxis.set_major_locator(FixedLocator([0, 1]))
+    ax.set_xticklabels(["DQN", "Double DQN"])
+    ax.yaxis.set_major_locator(FixedLocator([0, 20, 40, 60]))
+    ax.grid(True, axis="y", lw=0.8)
+    _style_axes(ax)
+    ax.set_ylabel("Q(s₀) − 100 at 100,000 steps")
+    ax.set_title(f"The pair, {len(d)} seats", fontsize=12, color=t.text)
+    return fig
+
+
+def pair_figure_facts(data: dict) -> dict:
+    """Every number the pair figure draws or its draft caption and alt text quote."""
+    pr = data["pair"]
+    q_d, q_dd = pr["dqn"]["q0"], pr["ddqn"]["q0"]
+    out = {
+        "copies": (syncs_by(50_000), syncs_by(100_000, sync=PAIR_SYNC)),
+        "lags": (_r(sync_lag(50_000), 2), _r(sync_lag(100_000, PAIR_SYNC), 2)),
+        "dqn_end": _span(q_d[:, -1], 1),
+        "ddqn_end": _span(q_dd[:, -1], 1),
+        "first": _span(np.concatenate([q_d[:, 0], q_dd[:, 0]]), 0),
+        "g0_dqn": _span(pr["dqn"]["disc_return"], 0),
+        "g0_ddqn": _span(pr["ddqn"]["disc_return"], 0),
+        "config_end": _span(pr["config"]["q0"][:, -1], 1),
+        "seat_dqn": _span(pr["seat_dqn"], 1),
+        "seat_ddqn": _span(pr["seat_ddqn"], 1),
+    }
+    assert out["copies"] == (98, 396) and out["lags"] == (62.65, 98.13)
+    assert out["dqn_end"] == (101.5, 334.1) and int(np.sum(q_d[:, -1] > 100)) == 5
+    assert out["ddqn_end"] == (99.4, 116.9) and int(np.sum(q_dd[:, -1] > 100)) == 4
+    assert out["first"] == (32, 33) and out["g0_dqn"] == (11, 99) and out["g0_ddqn"] == (12, 99)
+    assert out["config_end"] == (64.2, 65.2)
+    assert out["seat_dqn"] == (1.1, 180.1) and int(np.sum(pr["seat_dqn"] > 0)) == 20
+    assert out["seat_ddqn"] == (-0.2, 35.3) and int(np.sum(pr["seat_ddqn"] > 0)) == 18
+    assert int(np.sum(pr["seat_ddqn"] < pr["seat_dqn"])) == 16
+    assert int(np.sum(pr["seat_dqn"] > SEAT_CAP)) == 1 and pr["seat_ddqn"].max() < SEAT_CAP
+    assert pr["seat_ddqn"].min() > SEAT_LIM[0]
+    assert int(np.sum(q_d.max(axis=1) > PAIR_CAP)) == 1 and q_dd.max() < PAIR_CAP
+    # Room for the key in panel (a): nothing there reaches 100.
+    assert pr["config"]["q0"].max() < 100 and pr["config"]["disc_return"].max() < 100
+    # The seats panel's "Q(s0) = 100" label sits just below 0 between the columns.
+    assert pr["seat_dqn"].min() > 0
+    return out
 
 
 FIGURES = {
     "08-q-vs-mc-dqn": (q_dqn_panel, True),
     "08-q-vs-mc-ddqn": (q_ddqn_panel, True),
     "08-final-returns": (final_figure, False),
+    "08-pair-config": (pair_config_panel, True),
+    "08-pair-dqn": (pair_dqn_panel, True),
+    "08-pair-ddqn": (pair_ddqn_panel, True),
+    "08-pair-seats": (pair_seats_panel, True),
 }
 
 
@@ -1190,6 +1361,7 @@ def build() -> tuple[dict[Path, bytes], dict]:
     quoted = quoted_numbers()
     data = figure_data()
     record_facts(data)
+    pair_figure_facts(data)
     out: dict[Path, bytes] = {}
     for name, (draw, panel) in FIGURES.items():
         for t in themes():
