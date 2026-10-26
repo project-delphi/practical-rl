@@ -5,8 +5,10 @@ The lab estimates the mean of n samples from N(1, 1). Its solution's error is ab
 (one sample) overlaps the solution, so no threshold separates them.
 """
 
+import dataclasses
 import json
 import textwrap
+from pathlib import Path
 
 import nbformat
 import numpy as np
@@ -52,6 +54,14 @@ CELLS = [
     ),
     ("ex2-run", "code", "raise RuntimeError('the target exercise must stop before its run cell')"),
     ("ex2-chk", "code", "raise RuntimeError('checkpoint cells must not run')"),
+    # A later exercise: the protocol for exercise 2 never runs it.
+    (
+        "ex3-stub",
+        "code",
+        "def doubled(x):\n    raise NotImplementedError('TODO 3, or lab.use_reference(3)')",
+    ),
+    ("ex3-sol", "code", "@lab.solution(3)\ndef doubled(x):\n    return 2 * x"),
+    ("ex3-run", "code", "raise RuntimeError('a later exercise must not run')"),
     ("gen-finish", "code", "lab.finish()"),
 ]
 
@@ -398,26 +408,195 @@ def test_namespace_of_a_real_lab():
     assert ns["lab"]._s["checks"] == []  # no checkpoint ran
 
 
-# ---------------------------------------------------------------- declared thresholds
-def _declared_thresholds():
-    import importlib
-    import pkgutil
+# ---------------------------------------------------------------- inputs and staleness
+def _rebuild(notebook, **sources):
+    """Replace code cells by id, then update content_sha as the build does (metadata, init)."""
+    nb = nbformat.read(notebook, as_version=4)
+    old = nb.metadata["prl"]["content_sha"]
+    for cell in nb.cells:
+        if cell.get("id") in sources:
+            cell.source = sources[cell["id"]]
+    new = record.content_sha(
+        (c["id"], c.source)
+        for c in nb.cells
+        if c.cell_type == "code" and not c["id"].startswith("gen-")
+    )
+    for cell in nb.cells:
+        if cell.get("id") == "gen-init":
+            cell.source = cell.source.replace(old, new)
+    nb.metadata["prl"]["content_sha"] = new
+    nbformat.write(nb, notebook)
+    return new
 
-    import prl.checks
 
-    out = []
-    for info in pkgutil.iter_modules(prl.checks.__path__):
-        mod = importlib.import_module(f"prl.checks.{info.name}")
-        for name, obj in vars(mod).items():
-            if isinstance(obj, StochasticCheck):
-                for budget, (threshold, provenance) in obj.thresholds.items():
-                    out.append((info.name, name, obj, budget, threshold, provenance))
-    return out
+LATER_EDIT = {"ex3-sol": "@lab.solution(3)\ndef doubled(x):\n    return x + x"}
+EXECUTED_EDIT = {
+    "ex1-sol": "@lab.solution(1)\ndef total(samples):\n    return float(np.sum(samples, dtype=float))"
+}
+
+
+def abs_error_rounded(mean_estimate, *, seed, n):
+    """Lower is better (an edited metric)."""
+    return round(abs_error(mean_estimate, seed=seed, n=n), 12)
+
+
+def _hashes(lab, check):
+    parts = tp.protocol_inputs(check, lab[0], "quick", lab[1])
+    return parts, tp.input_hashes(parts.hashed())
+
+
+def test_the_init_cell_is_hashed_without_its_content_sha(lab):
+    parts, _ = _hashes(lab, make_check())
+    init = dict(parts.hashed())["gen-init"]
+    assert '"<content_sha>"' in init and "0123456789abcdef" not in init
+    assert "seat=SEED" in init  # the other arguments still count
+    assert dict(parts.hashed(init_sha=None))["gen-init"] == dict(parts.cells)["gen-init"]
+
+
+def test_an_edit_to_a_later_exercise_leaves_the_inputs_unchanged(lab):
+    check = make_check()
+    before, hashes = _hashes(lab, check)
+    new_sha = _rebuild(lab[0], **LATER_EDIT)
+    after, hashes_now = _hashes(lab, check)
+    assert new_sha != before.content_sha and after.content_sha == new_sha
+    assert hashes_now == hashes
+    assert record.content_sha(after.hashed()) == record.content_sha(before.hashed())
+    # Hashing 1 kept the init cell as built, so the same edit changed it (the Day 3 refiles).
+    assert record.content_sha(after.hashed(init_sha=None)) != record.content_sha(
+        before.hashed(init_sha=None)
+    )
+
+
+@pytest.mark.parametrize(
+    "change, reason",
+    [
+        ("cell", "cell ex1-sol changed"),
+        ("mutant", "wrong version 'biased' changed"),
+        ("new mutant", "wrong version 'first-only' is new"),
+        ("metric", "the metric's source changed"),
+        ("budget", "the budget changed"),
+    ],
+)
+def test_an_edit_to_what_the_protocol_runs_changes_the_inputs(lab, change, reason):
+    check = make_check()
+    _, before = _hashes(lab, check)
+    mutants = lab[1] / "m99.py"
+    if change == "cell":
+        _rebuild(lab[0], **EXECUTED_EDIT)
+    elif change == "mutant":
+        mutants.write_text(textwrap.dedent(GOOD_MUTANTS).replace("+ SHIFT", "+ 2 * SHIFT"))
+    elif change == "new mutant":
+        with mutants.open("a") as fh:
+            fh.write(textwrap.dedent(OVERLAPPING_MUTANT))
+    elif change == "metric":
+        check = dataclasses.replace(check, metric=abs_error_rounded)
+    else:
+        check = dataclasses.replace(check, quick={"n": 800})
+    _, after = _hashes(lab, check)
+    assert tp.differences(before, after) == [reason]
+
+
+def test_differences_tell_repeated_labels_apart():
+    # Module 3's cliff contrast has two wrong versions with id "random" (B90).
+    filed = [["mutant:random", "a"], ["mutant:random", "b"]]
+    assert tp.differences(filed, filed) == []
+    assert tp.differences(filed, [["mutant:random", "a"], ["mutant:random", "c"]]) == [
+        "wrong version 'random' #2 changed"
+    ]
+    assert tp.differences(filed, filed[::-1]) == ["the same inputs, in a different order"]
+    assert tp.differences(filed, filed[:1]) == ["wrong version 'random' #2 is gone"]
+
+
+def _file(lab, tmp_path, monkeypatch, *, old_hashing=False):
+    """Run the protocol, file its record in a runs folder and declare the threshold."""
+    notebook, mutants = lab
+    check = make_check()
+    res = run(lab, check)
+    rec = tp.build_record(res)
+    assert rec["args"]["inputs_hashing"] == 2 and rec["args"]["inputs"] == res.inputs
+    assert rec["args"]["notebook_content_sha"] == "0123456789abcdef"  # still provenance
+    if old_hashing:  # as filed before inputs hashing 2
+        del rec["args"]["inputs_hashing"], rec["args"]["inputs"]
+        parts = tp.protocol_inputs(check, notebook, "quick", mutants)
+        rec["args"]["inputs_sha"] = record.content_sha(parts.hashed(init_sha=None))
+    path = tp.write_record(rec, tmp_path / "runs")
+    provenance = f"threshold protocol, 100 seeds: runs/{path.name}"
+    t = res.analysis.threshold
+    declared = dataclasses.replace(check, thresholds={"quick": (t, provenance)})
+    entry = ("m99", "check_mean", declared, "quick", t, provenance)
+    monkeypatch.setattr(tp, "declared_thresholds", lambda modules=None: [entry])
+    monkeypatch.setattr(tp, "RUNS", tmp_path / "runs")
+    monkeypatch.setattr(tp, "notebook_for", lambda module: notebook)
+    monkeypatch.setattr(tp, "ensure_current", lambda nb: None)
+    monkeypatch.setattr(tp.check_notebooks, "MUTANTS", mutants)
+    return path, rec
+
+
+def _stale(capsys):
+    """Run --stale; its output with wrapped lines joined back."""
+    capsys.readouterr()
+    code = tp.main(["--stale"])
+    out = capsys.readouterr().out
+    return code, out, " ".join(out.split())
+
+
+def test_stale_reports_current_and_stale_records(lab, tmp_path, monkeypatch, capsys):
+    path, _ = _file(lab, tmp_path, monkeypatch)
+    code, out, flat = _stale(capsys)
+    assert code == 0 and "1 current, 0 stale" in flat
+    _rebuild(lab[0], **LATER_EDIT)
+    code, out, flat = _stale(capsys)
+    assert code == 0, out
+    assert f"CURRENT   m99 check_mean (exercise 2), quick: {path.name}" in out
+    assert "compared input by input (inputs hashing 2)" in flat
+    _rebuild(lab[0], **EXECUTED_EDIT)
+    (lab[1] / "m99.py").write_text(textwrap.dedent(GOOD_MUTANTS).replace("+ SHIFT", "- SHIFT"))
+    code, out, flat = _stale(capsys)
+    assert code == 1 and "0 current, 1 stale" in flat
+    assert f"STALE     m99 check_mean (exercise 2), quick: {path.name}" in out
+    assert "- cell ex1-sol changed" in out and "- wrong version 'biased' changed" in out
+    assert "cell ex3" not in out
+
+
+def test_stale_compares_old_hashing_records_the_new_way(lab, tmp_path, monkeypatch, capsys):
+    _file(lab, tmp_path, monkeypatch, old_hashing=True)
+    _rebuild(lab[0], **LATER_EDIT)
+    code, out, flat = _stale(capsys)
+    assert code == 0, out
+    assert "filed under the old hashing; compared the new way" in flat
+    assert "content_sha set back to the record's (0123456789abcdef)" in flat
+    _rebuild(lab[0], **EXECUTED_EDIT)
+    code, out, flat = _stale(capsys)
+    # No commit holds the synthetic lab, so the record cannot be rebuilt input by input.
+    assert code == 1 and "STALE" in out and "which input changed cannot be told" in flat
+    assert "Refiling makes it checkable input by input" in flat
+
+
+def test_stale_rebuilds_an_old_record_from_its_commit(lab, tmp_path, monkeypatch, capsys):
+    path, rec = _file(lab, tmp_path, monkeypatch, old_hashing=True)
+    at_commit = {
+        rec["args"]["notebook"]: lab[0].read_text(),
+        rec["args"]["mutants"]: (lab[1] / "m99.py").read_text(),
+        "tests/test_threshold_protocol.py": Path(__file__).read_text(),
+    }
+    monkeypatch.setattr(tp, "_git_show", lambda sha, p: at_commit.get(p))
+    _rebuild(lab[0], **{**LATER_EDIT, **EXECUTED_EDIT})
+    code, out, flat = _stale(capsys)
+    assert code == 1 and "compared the new way, input by input" in flat
+    assert "- cell ex1-sol changed" in out and "cell ex3" not in out
+    assert "(1 input by input, rebuilt from their commits)" in flat
+
+
+def test_stale_reports_a_missing_record(lab, tmp_path, monkeypatch, capsys):
+    path, _ = _file(lab, tmp_path, monkeypatch)
+    path.unlink()
+    code, out, flat = _stale(capsys)
+    assert code == 1 and "MISSING" in out and f"{path.name} is not filed in runs/" in flat
 
 
 @pytest.mark.parametrize(
     "module, name, check, budget, threshold, provenance",
-    _declared_thresholds(),
+    tp.declared_thresholds(),
     ids=lambda x: x if isinstance(x, str) and not x.startswith("threshold") else "",
 )
 def test_every_threshold_comes_from_a_filed_protocol_record(
@@ -425,7 +604,6 @@ def test_every_threshold_comes_from_a_filed_protocol_record(
 ):
     """A pasted threshold names its record in runs/, and the record re-derives it."""
     import re
-    from pathlib import Path
 
     m = re.search(r"runs/(\S+\.json)$", provenance)
     assert m, f"{name}: provenance {provenance!r} names no runs/ record"

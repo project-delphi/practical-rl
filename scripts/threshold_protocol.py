@@ -26,12 +26,40 @@ thresholds entry to paste into the check. Its comment states N, the threshold, t
 and the flake bound (rule of three: no failure in N seeds bounds the flake rate at about
 3/N). Run it in colab-sim and on arm64; the threshold must hold on both.
 
+Inputs, and when a record is stale. A record's inputs_sha hashes what the protocol runs
+and compares, in order: the notebook cells it executes (the setup cell as SETUP_STUB),
+each wrong version's source, the metric's own source and the budget. The generated init
+cell passes the notebook's content_sha to prl.lab.init, and that hash changes with any code
+edit anywhere in the lab. So, since inputs hashing 2, that one argument is replaced by a
+placeholder before hashing; the init cell's other arguments (the checkpoint list, the
+packages) still count. The record keeps the notebook's content_sha as provenance only
+(args.notebook_content_sha), marks args.inputs_hashing = 2, and lists each input's own hash
+(args.inputs), so a later comparison can name the input that changed.
+
+A threshold's record is current when the inputs the protocol would hash today equal the
+ones it hashed; it is stale otherwise, and only a stale record needs refiling. An edit to
+an exercise after the checkpoint's does not make the record stale. An edit to a cell the
+protocol runs, to a wrong version, to the metric or to the budget does, and so does adding
+or removing a wrong version or a checkpoint. The hash does not cover prl code that the
+metric calls, or package versions.
+
+--stale checks every threshold that a prl/checks/mNN.py declares: it opens the record its
+provenance names and recomputes today's inputs. Records without args.inputs_hashing were
+hashed the first way (inputs hashing 1: the init cell as built). They stay valid as filed.
+--stale compares them the new way by setting the init cell's content_sha back to the
+record's: if today's inputs then reproduce its inputs_sha, only code the protocol does not
+run has changed. If they do not, it rebuilds the inputs from the record's commit to name
+the input that changed; when that commit does not reproduce the record either, it says the
+record is stale without saying why, and that refiling makes it checkable input by input.
+It exits 0 only when every record is current.
+
 Usage:
   uv run python scripts/build_notebooks.py     # the protocol reads the built notebook
   uv run python scripts/threshold_protocol.py m03 check_mc_prediction --budget quick --seeds 200
   uv run python scripts/threshold_protocol.py m03 check_mc_prediction --budget live
   uv run python scripts/add_run_record.py      # file the record, then paste the entry
   uv run python scripts/threshold_protocol.py --from-record runs/<record>.json   # re-derive
+  uv run python scripts/threshold_protocol.py --stale [MODULE]   # which records need refiling
 Options: --seeds N (default: the floor), --seed-start S (default 0, which includes the
 check's own seed 0), --dry-run (measure and report; no record, nothing to paste).
 """
@@ -39,6 +67,7 @@ check's own seed 0), --dry-run (measure and report; no record, nothing to paste)
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import datetime as dt
 import importlib
@@ -47,16 +76,18 @@ import io
 import json
 import math
 import os
+import pkgutil
 import platform
 import re
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 import tomllib
 import warnings
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -76,8 +107,17 @@ from prl import record, runtime  # noqa: E402
 from prl.checks import CheckFailed, StochasticCheck, assert_threshold  # noqa: E402
 from prl.lab import _default_env  # noqa: E402
 
-INBOX = ROOT / "runs" / "inbox"
+RUNS = ROOT / "runs"
+INBOX = RUNS / "inbox"
 MIN_SEEDS = {"quick": 100, "live": 20}  # PLAN.md §7
+# How a record's inputs_sha is computed. 1 (records without args.inputs_hashing): the init
+# cell as built, content_sha included. 2: its content_sha replaced by CONTENT_SHA_PLACEHOLDER,
+# with each input's own hash in args.inputs.
+INPUTS_HASHING = 2
+INIT_CELL = "gen-init"
+CONTENT_SHA_PLACEHOLDER = "<content_sha>"
+# The build writes `prl.lab.init("<slug>", "<content_sha>", ...)` (build_notebooks.py).
+_INIT_SHA = re.compile(r'(prl\.lab\.init\(\s*"[^"]*",\s*)"[^"]*"')
 PROTOCOL_ONLY = "protocol"  # labs/mutants/protocol/mNN.py: wrong versions for the protocol only
 P_LOW, P_HIGH = 1.0, 99.0
 PERCENTILE_METHOD = "linear"
@@ -120,29 +160,44 @@ def _close_figures() -> None:
         plt.close("all")
 
 
+def protocol_cells(
+    nb: nbformat.NotebookNode, ex: str, name: str = "the notebook"
+) -> list[tuple[str, str]]:
+    """The (cell id, source) pairs the protocol runs for exercise `ex`, in order.
+
+    Code cells up to exercise `ex`'s first run or checkpoint cell. Earlier run cells are
+    included, because later code may use what they define; checkpoint cells, verify cells
+    and gen-finish are not. The setup cell is SETUP_STUB.
+    """
+    cells: list[tuple[str, str]] = []
+    for cell in nb.cells:
+        if cell.cell_type != "code":
+            continue
+        cid, src = cell.get("id", ""), cell.source
+        if _stops(cid, src, ex):
+            return cells
+        if _skipped(cid):
+            continue
+        cells.append((cid, SETUP_STUB if cid == "gen-setup" else src))
+    raise ProtocolError(f"{name} has no run or checkpoint cell for exercise {ex}")
+
+
 def solution_namespace(notebook: Path, ex: str) -> tuple[dict[str, Any], list[tuple[str, str]]]:
     """Run the worked notebook in-process up to exercise `ex`'s first run or checkpoint cell.
 
-    Returns the namespace and the (cell id, source) pairs that ran. Earlier run cells run,
-    because later code may use what they define; checkpoint cells do not.
+    Returns the namespace and the (cell id, source) pairs that ran: protocol_cells().
     """
+    cells = protocol_cells(nbformat.read(notebook, as_version=4), ex, notebook.name)
+    return _run_cells(cells, notebook), cells
+
+
+def _run_cells(cells: list[tuple[str, str]], notebook: Path) -> dict[str, Any]:
     # Run cells call plt.show(). Under an interactive backend (macOS picks one if pyplot was
     # imported earlier without MPLBACKEND) it opens windows and blocks; Agg makes it a no-op.
     matplotlib.use("Agg", force=True)
-    nb = nbformat.read(notebook, as_version=4)
     ns: dict[str, Any] = {"__name__": "__main__"}
-    executed: list[tuple[str, str]] = []
     out = io.StringIO()
-    for cell in nb.cells:
-        cid, src = cell.get("id", ""), cell.source
-        if cell.cell_type != "code":
-            continue
-        if _stops(cid, src, ex):
-            break
-        if _skipped(cid):
-            continue
-        if cid == "gen-setup":
-            src = SETUP_STUB
+    for cid, src in cells:
         try:
             with contextlib.redirect_stdout(out), warnings.catch_warnings():
                 warnings.filterwarnings("ignore", message=".*non-interactive.*cannot be shown")
@@ -153,11 +208,8 @@ def solution_namespace(notebook: Path, ex: str) -> tuple[dict[str, Any], list[tu
                 f"{notebook.name}, cell {cid} raised {type(exc).__name__}: {exc}"
                 + (f"\nIts output ended with:\n{tail}" if tail else "")
             ) from exc
-        executed.append((cid, src))
-    else:
-        raise ProtocolError(f"{notebook.name} has no run or checkpoint cell for exercise {ex}")
     _close_figures()
-    return ns, executed
+    return ns
 
 
 @contextlib.contextmanager
@@ -391,6 +443,132 @@ def analyze(
     )
 
 
+# ---------------------------------------------------------------- the inputs it hashes
+def _source(obj: Any) -> str:
+    try:
+        return inspect.getsource(obj)
+    except (OSError, TypeError):
+        return repr(obj)
+
+
+def with_init_sha(
+    inputs: Iterable[tuple[str, str]], value: str | None = CONTENT_SHA_PLACEHOLDER
+) -> list[tuple[str, str]]:
+    """The inputs with the init cell's content_sha argument set to `value` (None: as built).
+
+    Only that one argument changes; the cell stays, because its other arguments count.
+    """
+    out = []
+    for label, src in inputs:
+        if label == INIT_CELL and value is not None:
+            src, n = _INIT_SHA.subn(lambda m: f'{m.group(1)}"{value}"', src)
+            if n != 1:
+                raise ProtocolError(
+                    f"the {INIT_CELL} cell has {n} prl.lab.init(slug, content_sha, ...) calls, "
+                    "not one: update _INIT_SHA in scripts/threshold_protocol.py to match the "
+                    "build's init cell"
+                )
+        out.append((label, src))
+    return out
+
+
+def hashed_inputs(
+    cells: Iterable[tuple[str, str]],
+    wrong: Iterable[Mapping[str, Any]],
+    metric_source: str,
+    settings: Mapping[str, Any],
+    *,
+    init_sha: str | None = CONTENT_SHA_PLACEHOLDER,
+) -> list[tuple[str, str]]:
+    """What a record's inputs_sha hashes, as (label, source) pairs in order.
+
+    The default is inputs hashing 2. init_sha=None gives inputs hashing 1 (the init cell as
+    built); a record's notebook_content_sha gives hashing 1 as that record would have seen it.
+    """
+    return with_init_sha(
+        [
+            *cells,
+            *((f"mutant:{m['id']}", "\n".join(m["sources"].values())) for m in wrong),
+            ("metric", metric_source),
+            ("budget", json.dumps(dict(settings), sort_keys=True)),
+        ],
+        init_sha,
+    )
+
+
+def input_hashes(inputs: Iterable[tuple[str, str]]) -> list[list[str]]:
+    """[label, hash] for each input, in order: a record's args.inputs."""
+    return [[label, record.content_sha([(label, src)])] for label, src in inputs]
+
+
+def wrong_versions(
+    check: StochasticCheck, module: str, mutants_dir: Path
+) -> tuple[list[dict], list[str], list[str]]:
+    """(the wrong versions measured, the exact_only ids left out, ids appearing twice or more).
+
+    Every mutant of the checked functions, whichever exercise declares it (a check of two
+    functions scores the mutants of both), from labs/mutants/mNN.py and then
+    labs/mutants/protocol/mNN.py; exact_only mutants are the exact checkpoints' job.
+    """
+    candidates = [
+        m
+        for m in check_notebooks.load_mutants(module, mutants_dir)
+        + check_notebooks.load_mutants(module, mutants_dir / PROTOCOL_ONLY)  # [] when absent
+        if set(m["sources"]) <= set(check.functions)
+    ]
+    ids = [m["id"] for m in candidates]
+    duplicated = sorted({i for i in ids if ids.count(i) > 1})
+    excluded = [m["id"] for m in candidates if m.get("exact_only")]
+    return [m for m in candidates if not m.get("exact_only")], excluded, duplicated
+
+
+@dataclass
+class ProtocolInputs:
+    """What the protocol runs and compares for one check at one budget."""
+
+    module: str
+    content_sha: str | None  # the notebook's: provenance only, never hashed
+    cells: list[tuple[str, str]]
+    wrong: list[dict]
+    exact_only: list[str]
+    duplicated: list[str]
+    metric_source: str
+    settings: dict[str, Any]
+    mutants_file: Path
+    protocol_mutants_file: Path | None
+
+    def hashed(self, init_sha: str | None = CONTENT_SHA_PLACEHOLDER) -> list[tuple[str, str]]:
+        return hashed_inputs(
+            self.cells, self.wrong, self.metric_source, self.settings, init_sha=init_sha
+        )
+
+
+def protocol_inputs(
+    check: StochasticCheck, notebook: Path, budget: str, mutants_dir: Path | None = None
+) -> ProtocolInputs:
+    """Read, without running anything, what the protocol would run and hash today."""
+    nb = nbformat.read(notebook, as_version=4)
+    meta = nb.metadata.get("prl", {})
+    module = meta.get("module")
+    if not module:
+        raise ProtocolError(f"{notebook.name} has no prl.module in its metadata")
+    mutants_dir = mutants_dir or check_notebooks.MUTANTS
+    wrong, excluded, duplicated = wrong_versions(check, module, mutants_dir)
+    protocol_file = mutants_dir / PROTOCOL_ONLY / f"{module}.py"
+    return ProtocolInputs(
+        module=module,
+        content_sha=meta.get("content_sha"),
+        cells=protocol_cells(nb, check.ex, notebook.name),
+        wrong=wrong,
+        exact_only=excluded,
+        duplicated=duplicated,
+        metric_source=_source(check.metric),
+        settings=dict(check.quick if budget == "quick" else check.live),
+        mutants_file=mutants_dir / f"{module}.py",
+        protocol_mutants_file=protocol_file if protocol_file.exists() else None,
+    )
+
+
 # ---------------------------------------------------------------- the protocol
 @dataclass
 class Result:
@@ -413,6 +591,7 @@ class Result:
     protocol_mutants_file: Path | None = None  # labs/mutants/protocol/mNN.py, if it exists
     git_sha: str | None = None  # read when the run starts, not when it ends
     repo_dirty: bool | None = None
+    inputs: list[list[str]] = field(default_factory=list)  # [label, hash] per hashed input
 
 
 def check_seed_floor(budget: str, n_seeds: int) -> None:
@@ -423,13 +602,6 @@ def check_seed_floor(budget: str, n_seeds: int) -> None:
             f"refusing to run: the protocol needs at least {MIN_SEEDS[budget]} seeds at the "
             f"{budget} budget (PLAN.md §7); asked for {n_seeds}."
         )
-
-
-def _source(obj: Any) -> str:
-    try:
-        return inspect.getsource(obj)
-    except (OSError, TypeError):
-        return repr(obj)
 
 
 def run_protocol(
@@ -445,37 +617,21 @@ def run_protocol(
 ) -> Result:
     """Measure the solution and every wrong version over the seeds, then analyze."""
     check_seed_floor(budget, n_seeds)
-    # The repo state and the metric's source are read before measuring, so editing a file
-    # while the protocol runs cannot change what its record says it measured.
+    # The repo state, the cells, the mutants and the metric's source are read before
+    # measuring, so editing a file while the protocol runs cannot change what its record
+    # says it measured.
     git_sha, repo_dirty = _git_state()
-    metric_source = _source(check.metric)
-    meta = nbformat.read(notebook, as_version=4).metadata.get("prl", {})
-    module = meta.get("module")
-    if not module:
-        raise ProtocolError(f"{notebook.name} has no prl.module in its metadata")
     mutants_dir = mutants_dir or check_notebooks.MUTANTS
-    # Every mutant of the checked functions, whichever exercise declares it (a check of two
-    # functions scores the mutants of both); exact_only mutants are the exact checkpoints' job.
-    protocol_dir = mutants_dir / PROTOCOL_ONLY
-    protocol_file = protocol_dir / f"{module}.py"
-    candidates = [
-        m
-        for m in check_notebooks.load_mutants(module, mutants_dir)
-        + check_notebooks.load_mutants(module, protocol_dir)  # [] when the file is absent
-        if set(m["sources"]) <= set(check.functions)
-    ]
-    ids = [m["id"] for m in candidates]
-    duplicated = sorted({i for i in ids if ids.count(i) > 1})
-    if duplicated:
+    parts = protocol_inputs(check, notebook, budget, mutants_dir)
+    module, wrong, excluded, settings = parts.module, parts.wrong, parts.exact_only, parts.settings
+    if parts.duplicated:
         # Per-seed values are keyed by id, so a second mutant with the same id would silently
         # replace the first's in the analysis (for example "random" in two exercises).
         raise ProtocolError(
             f"{module}.py in {mutants_dir.name}/ (and {PROTOCOL_ONLY}/): mutant id(s) "
-            f"{', '.join(duplicated)} appear more than once among the wrong versions of "
+            f"{', '.join(parts.duplicated)} appear more than once among the wrong versions of "
             f"{' and '.join(check.functions)}. Give each a distinct id."
         )
-    excluded = [m["id"] for m in candidates if m.get("exact_only")]
-    wrong = [m for m in candidates if not m.get("exact_only")]
     if excluded:
         progress(f"Left out as exact_only: {', '.join(excluded)}")
     if not wrong:
@@ -484,13 +640,13 @@ def run_protocol(
             f"replaces {' or '.join(check.functions)}. The protocol needs at least one wrong "
             'version: a plausible mistake, or random play as a mutant with id="random".'
         )
+    inputs = parts.hashed()  # inputs hashing 2; checks the init cell before anything runs
     seeds = list(range(seed_start, seed_start + n_seeds))
     if check.seed not in seeds:
         progress(f"Note: the check's own seed {check.seed} is not among the protocol's seeds.")
-    settings = dict(check.quick if budget == "quick" else check.live)
     start = time.perf_counter()
     with _environment(PRL_QUICK="1" if budget == "quick" else "0", PRL_WORKED="1"):
-        ns, executed = solution_namespace(notebook, check.ex)
+        ns = _run_cells(parts.cells, notebook)
         missing = [name for name in check.functions if name not in ns]
         if missing:
             raise ProtocolError(
@@ -521,12 +677,6 @@ def run_protocol(
     analysis = analyze(
         per_seed, seeds, higher_is_better=check.higher_is_better, min_gap=check.min_gap
     )
-    inputs = [
-        *executed,
-        *((f"mutant:{m['id']}", "\n".join(m["sources"].values())) for m in wrong),
-        ("metric", metric_source),
-        ("budget", json.dumps(settings, sort_keys=True)),
-    ]
     return Result(
         module=module,
         check_name=check_name,
@@ -534,9 +684,9 @@ def run_protocol(
         budget=budget,
         settings=settings,
         notebook=notebook,
-        content_sha=meta.get("content_sha"),
-        mutants_file=mutants_dir / f"{module}.py",
-        protocol_mutants_file=protocol_file if protocol_file.exists() else None,
+        content_sha=parts.content_sha,
+        mutants_file=parts.mutants_file,
+        protocol_mutants_file=parts.protocol_mutants_file,
         seeds=seeds,
         per_seed=per_seed,
         why=why,
@@ -544,6 +694,7 @@ def run_protocol(
         seconds=elapsed,
         seconds_per_call=sol_seconds / n_seeds,
         inputs_sha=record.content_sha(inputs),
+        inputs=input_hashes(inputs),
         analysis=analysis,
         git_sha=git_sha,
         repo_dirty=repo_dirty,
@@ -638,7 +789,9 @@ def build_record(res: Result) -> dict[str, Any]:
             "percentiles": [P_LOW, P_HIGH],
             "percentile_method": PERCENTILE_METHOD,
             "check_seed": res.check.seed,
+            "inputs_hashing": INPUTS_HASHING,
             "inputs_sha": res.inputs_sha,
+            "inputs": res.inputs,
             "repo_dirty": dirty,
             "test_doubles": runtime.test_doubles_used(),
             "shims": runtime.shims_used(),
@@ -839,6 +992,376 @@ def from_record(path: Path) -> int:
     return 0 if a.ok else 1
 
 
+# ---------------------------------------------------------------- staleness
+Entry = tuple[str, str, StochasticCheck, str, float, str]
+
+
+def declared_thresholds(modules: Iterable[str] | None = None) -> list[Entry]:
+    """(module, check name, check, budget, threshold, provenance) of every declared threshold."""
+    wanted = set(modules) if modules else None
+    out: list[Entry] = []
+    for info in pkgutil.iter_modules(prl.checks.__path__):
+        if wanted is not None and info.name not in wanted:
+            continue
+        mod = importlib.import_module(f"prl.checks.{info.name}")
+        for name, obj in vars(mod).items():
+            if isinstance(obj, StochasticCheck):
+                for budget, (threshold, provenance) in obj.thresholds.items():
+                    out.append((info.name, name, obj, budget, threshold, provenance))
+    return out
+
+
+def _git_show(sha: str, path: str) -> str | None:
+    """A file's text at a commit, or None."""
+    try:
+        out = subprocess.run(
+            ["git", "show", f"{sha}:{path}"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
+def _source_at(sha: str, fn: Any) -> str | None:
+    """What inspect.getsource(fn) gave at a commit, if fn's file and name were the same then."""
+    try:
+        path = Path(inspect.getsourcefile(fn) or "").resolve().relative_to(ROOT.resolve())
+    except (TypeError, ValueError):
+        return None
+    text = _git_show(sha, path.as_posix())
+    if text is None:
+        return None
+    try:
+        body: list[ast.stmt] = ast.parse(text).body
+    except SyntaxError:
+        return None
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | None = None
+    for part in getattr(fn, "__qualname__", "").split("."):
+        found = [
+            n
+            for n in body
+            if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+            and n.name == part
+        ]
+        if not found:
+            return None
+        node = found[-1]  # the last definition is the one bound
+        body = node.body
+    if node is None:
+        return None
+    # getsource starts at co_firstlineno, which is the first decorator's line.
+    start = min([node.lineno, *(d.lineno for d in node.decorator_list)])
+    return "".join(inspect.getblock(text.splitlines(keepends=True)[start - 1 :]))
+
+
+def filed_inputs(rec: dict[str, Any], check: StochasticCheck) -> tuple[list | None, str]:
+    """A hashing-1 record's inputs, rebuilt from its commit, in the hashing-2 form.
+
+    Returns (inputs, "") or (None, why not). The rebuilt inputs count only when they
+    reproduce the record's inputs_sha, so a rebuild never guesses.
+    """
+    args, sha = rec["args"], rec.get("git_sha")
+    if not sha:
+        return None, "the record names no commit"
+    short, module = sha[:8], args["module"]
+    nb_text = _git_show(sha, args["notebook"])
+    if nb_text is None:
+        return None, f"commit {short} has no {args['notebook']}"
+    try:
+        cells = protocol_cells(nbformat.reads(nb_text, as_version=4), str(args["exercise"]))
+        with tempfile.TemporaryDirectory() as tmp:
+            here = Path(tmp)
+            for key, target in (
+                ("mutants", here / f"{module}.py"),
+                ("protocol_mutants", here / PROTOCOL_ONLY / f"{module}.py"),
+            ):
+                if args.get(key):
+                    text = _git_show(sha, args[key])
+                    if text is None:
+                        return None, f"commit {short} has no {args[key]}"
+                    target.parent.mkdir(exist_ok=True)
+                    target.write_text(text)
+            loaded = check_notebooks.load_mutants(module, here)
+            loaded += check_notebooks.load_mutants(module, here / PROTOCOL_ONLY)
+        ids = {key.removeprefix("mutant:") for key in args["wrong_versions"]}
+        wrong = [
+            m
+            for m in loaded
+            if m["id"] in ids
+            and set(m["sources"]) <= set(args["functions"])
+            and not m.get("exact_only")
+        ]
+        metric = _source_at(sha, check.metric)
+        if metric is None:
+            name = getattr(check.metric, "__qualname__", "the metric")
+            return None, f"commit {short} has no {name} where the metric is today"
+        inputs = hashed_inputs(cells, wrong, metric, rec["budget"]["settings"], init_sha=None)
+        if record.content_sha(inputs) != args["inputs_sha"]:
+            dirty = " (its working tree had uncommitted changes)" if args.get("repo_dirty") else ""
+            return None, f"the files at commit {short}{dirty} do not reproduce its inputs_sha"
+        return with_init_sha(inputs), ""
+    except (ProtocolError, ValueError, SyntaxError, KeyError) as exc:
+        return None, f"commit {short} cannot be read the way the protocol reads it ({exc})"
+
+
+def _input_name(label: str) -> str:
+    if label == "metric":
+        return "the metric's source"
+    if label == "budget":
+        return "the budget"
+    if label.startswith("mutant:"):
+        return f"wrong version {label.removeprefix('mutant:')!r}"
+    return f"cell {label}"
+
+
+def _by_occurrence(pairs: list[tuple[str, ...]]) -> dict[tuple[str, int], str]:
+    """{(label, k): hash}, k counting repeats of a label (two mutants with one id, as in B90)."""
+    seen: dict[str, int] = {}
+    out = {}
+    for label, sha in pairs:
+        k = seen[label] = seen.get(label, -1) + 1
+        out[(label, k)] = sha
+    return out
+
+
+def differences(filed: Iterable[Iterable[str]], now: Iterable[Iterable[str]]) -> list[str]:
+    """Which inputs differ, from two [label, hash] lists (a record's args.inputs)."""
+    before, after = [tuple(x) for x in filed], [tuple(x) for x in now]
+    if before == after:
+        return []
+    if sorted(before) == sorted(after):
+        return ["the same inputs, in a different order"]
+    old, new = _by_occurrence(before), _by_occurrence(after)
+
+    def name(key: tuple[str, int]) -> str:
+        return _input_name(key[0]) + (f" #{key[1] + 1}" if key[1] else "")
+
+    out = [
+        f"{name(key)} {'changed' if key in old else 'is new'}"
+        for key, sha in new.items()
+        if old.get(key) != sha
+    ]
+    return out + [f"{name(key)} is gone" for key in old if key not in new]
+
+
+def _declared_differences(rec: dict[str, Any], entry: Entry) -> list[str]:
+    """Where the record's declaration differs from the check's today (not hashed inputs)."""
+    module, name, check, budget, _, _ = entry
+    args, out = rec["args"], []
+    filed_for = (args.get("module"), args.get("check"), rec["budget"].get("name"))
+    if filed_for != (module, name, budget):
+        out.append("the record is for {} {} at the {} budget".format(*filed_for))
+    if args.get("higher_is_better") != check.higher_is_better:
+        out.append("the direction (higher_is_better) changed")
+    if args.get("min_gap") != check.min_gap:
+        out.append(f"min_gap changed from {args.get('min_gap')} to {check.min_gap}")
+    return out
+
+
+def _budget_change(rec: dict[str, Any], today: ProtocolInputs) -> str:
+    filed = rec["budget"].get("settings")
+    if filed == today.settings:
+        return ""
+    return f"the budget changed (from {json.dumps(filed)} to {json.dumps(today.settings)})"
+
+
+def _wrong_version_changes(rec: dict[str, Any], today: ProtocolInputs) -> list[str]:
+    filed = {k.removeprefix("mutant:") for k in rec["args"].get("wrong_versions", {})}
+    now = {m["id"] for m in today.wrong}
+    return [f"wrong version {i!r} is new" for i in sorted(now - filed)] + [
+        f"wrong version {i!r} is gone" for i in sorted(filed - now)
+    ]
+
+
+@dataclass
+class Freshness:
+    """Whether a declared threshold's record matches what the protocol would hash today."""
+
+    module: str
+    check_name: str
+    exercise: str
+    budget: str
+    record: str = ""
+    status: str = "missing"  # current | stale | unchecked | missing
+    hashing: int | None = None  # the record's inputs hashing
+    how: str = ""
+    reasons: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
+def freshness(
+    entry: Entry,
+    *,
+    notebook: Path | None,
+    notebook_problem: str = "",
+    runs_dir: Path | None = None,
+    mutants_dir: Path | None = None,
+) -> Freshness:
+    """Compare one declared threshold's record with the inputs the protocol would hash today."""
+    module, name, check, budget, _, provenance = entry
+    f = Freshness(module, name, check.ex, budget)
+    found = re.search(r"runs/(\S+\.json)$", provenance)
+    if not found:
+        f.reasons.append(f"its provenance {provenance!r} names no runs/ record")
+        return f
+    f.record = found.group(1)
+    path = (runs_dir or RUNS) / f.record
+    if not path.exists():
+        f.reasons.append(f"{f.record} is not filed in runs/")
+        return f
+    rec = json.loads(path.read_text())
+    if rec.get("kind") != "experiment" or rec.get("script") != SCRIPT:
+        f.status, f.how = "unchecked", "it is not a threshold-protocol experiment record"
+        return f
+    args = rec["args"]
+    f.hashing = args.get("inputs_hashing", 1)
+    declared = _declared_differences(rec, entry)
+    try:
+        if notebook is None:
+            raise ProtocolError(notebook_problem or f"there is no notebook for {module}")
+        today = protocol_inputs(check, notebook, budget, mutants_dir)
+        now = today.hashed()
+    except ProtocolError as exc:
+        f.status, f.how, f.reasons = "unchecked", f"today's inputs cannot be read: {exc}", declared
+        return f
+    if today.duplicated:
+        f.notes.append(
+            f"the protocol refuses this check today: wrong-version id(s) "
+            f"{', '.join(today.duplicated)} appear more than once; rename them before refiling"
+        )
+    budget_line = _budget_change(rec, today)
+    if f.hashing == INPUTS_HASHING:
+        f.how = f"compared input by input (inputs hashing {INPUTS_HASHING})"
+        changed = []
+        if record.content_sha(now) != args["inputs_sha"]:
+            changed = differences(args.get("inputs", []), input_hashes(now))
+    elif f.hashing == 1:
+        filed_sha = args.get("notebook_content_sha")
+        replay = None
+        if filed_sha:
+            replay = record.content_sha(today.hashed(init_sha=filed_sha)) == args["inputs_sha"]
+        rebuilt, why = (None, "") if replay else filed_inputs(rec, check)
+        if replay:
+            f.how = (
+                "filed under the old hashing; compared the new way: with the init cell's "
+                f"content_sha set back to the record's ({filed_sha}), today's inputs reproduce "
+                "its inputs_sha"
+            )
+            changed = []
+        elif rebuilt is not None:
+            f.how = (
+                "filed under the old hashing; compared the new way, input by input: the files "
+                f"at its commit {rec['git_sha'][:8]} reproduce its inputs_sha"
+            )
+            changed = differences(input_hashes(rebuilt), input_hashes(now))
+        elif replay is False:
+            f.how = (
+                "filed under the old hashing; compared the new way (the init cell's content_sha "
+                "set back to the record's): an input changed. The record keeps no per-input "
+                f"hashes and {why}, so it cannot say which. Refiling makes it checkable input "
+                "by input"
+            )
+            hints = ([budget_line] if budget_line else []) + _wrong_version_changes(rec, today)
+            changed = hints + [
+                "whether another input changed too cannot be told"
+                if hints
+                else "which input changed cannot be told"
+            ]
+        else:
+            f.status, f.reasons = "unchecked", declared
+            f.how = (
+                "filed under the old hashing, with no notebook_content_sha to set back, and "
+                f"{why}: refile to make it checkable"
+            )
+            return f
+    else:
+        f.status, f.how = "unchecked", f"unknown inputs_hashing {f.hashing!r}"
+        return f
+    changed = [budget_line if c == "the budget changed" and budget_line else c for c in changed]
+    f.reasons = declared + changed
+    f.status = "stale" if f.reasons else "current"
+    return f
+
+
+def stale_report(
+    entries: list[Entry],
+    *,
+    runs_dir: Path | None = None,
+    mutants_dir: Path | None = None,
+) -> list[Freshness]:
+    """freshness() of every entry; each module's notebook is found and checked once."""
+    notebooks: dict[str, tuple[Path | None, str]] = {}
+    out = []
+    for entry in entries:
+        module = entry[0]
+        if module not in notebooks:
+            try:
+                nb = notebook_for(module)
+                ensure_current(nb)
+                notebooks[module] = (nb, "")
+            except ProtocolError as exc:
+                notebooks[module] = (None, str(exc))
+        nb, problem = notebooks[module]
+        out.append(
+            freshness(
+                entry,
+                notebook=nb,
+                notebook_problem=problem,
+                runs_dir=runs_dir,
+                mutants_dir=mutants_dir,
+            )
+        )
+    return out
+
+
+STATUSES = ("current", "stale", "unchecked", "missing")
+
+
+def format_freshness(results: list[Freshness]) -> str:
+    def wrap(text: str, first: str, rest: str) -> list[str]:
+        return textwrap.wrap(text, width=96, initial_indent=first, subsequent_indent=rest)
+
+    lines = [
+        "Threshold records against the inputs the protocol would hash today "
+        f"(inputs hashing {INPUTS_HASHING}).",
+        "",
+    ]
+    for f in results:
+        lines.append(
+            f"{f.status.upper():9s} {f.module} {f.check_name} (exercise {f.exercise}), "
+            f"{f.budget}: {f.record or '(no record)'}"
+        )
+        if f.how:
+            lines += wrap(f.how + ".", " " * 10, " " * 10)
+        for reason in f.reasons:
+            lines += wrap(reason, " " * 10 + "- ", " " * 12)
+        for note in f.notes:
+            lines += wrap(note, " " * 10 + "note: ", " " * 16)
+    count = {s: sum(f.status == s for f in results) for s in STATUSES}
+    old = [f for f in results if f.hashing == 1]
+    checked = [f for f in old if f.status in ("current", "stale")]
+    by_input = [f for f in checked if "input by input:" in f.how]
+    lines += [
+        "",
+        f"{len(results)} thresholds: " + ", ".join(f"{count[s]} {s}" for s in STATUSES) + ".",
+        f"Filed under the old hashing: {len(old)}. Compared the new way: {len(checked)} "
+        f"({len(by_input)} input by input, rebuilt from their commits). Not checkable: "
+        f"{len(old) - len(checked)}.",
+        "The hash does not cover prl code that the metric calls, or package versions.",
+    ]
+    return "\n".join(lines)
+
+
+def stale_main(modules: list[str] | None = None) -> int:
+    results = stale_report(declared_thresholds(modules))
+    print(format_freshness(results))
+    return 0 if all(f.status == "current" for f in results) else 1
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -851,12 +1374,21 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--dry-run", action="store_true", help="measure and report only")
     ap.add_argument("--inbox", type=Path, default=INBOX, help="where to save the record")
     ap.add_argument("--from-record", type=Path, metavar="RECORD", help="re-derive from a record")
+    ap.add_argument(
+        "--stale",
+        action="store_true",
+        help="report which declared thresholds' records are current and which are stale",
+    )
     args = ap.parse_args(argv)
     try:
+        if args.stale:
+            if args.check:
+                ap.error("--stale takes at most a MODULE")
+            return stale_main([args.module] if args.module else None)
         if args.from_record:
             return from_record(args.from_record)
         if not (args.module and args.check and args.budget):
-            ap.error("give MODULE CHECK --budget quick|live, or --from-record RECORD")
+            ap.error("give MODULE CHECK --budget quick|live, --from-record RECORD, or --stale")
         n_seeds = args.seeds if args.seeds is not None else MIN_SEEDS[args.budget]
         check_seed_floor(args.budget, n_seeds)
         check = load_check(args.module, args.check)
