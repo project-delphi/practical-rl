@@ -88,8 +88,8 @@ levels:
 packages:
   checked: "2026-10-09"
   colab:
-    backend_info_commit: e39694e267
-    python: "3.13.16"
+    backend_info_commit: "066189cf29"
+    python: "3.13.18"
     use_preinstalled: [torch, numpy, scipy, pandas, matplotlib, transformers, accelerate, datasets]
     allow_upgrade: [gymnasium]
   pins:
